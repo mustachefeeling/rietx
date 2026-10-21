@@ -865,7 +865,17 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.results.StageResult.n_degenerate_cell_probes", "action", tier=1, ambiguity=1,
         evidence=("arithmetic: a cell of zero or negative volume has no metric, so the residual is "
                   "undefined there and the step must be rejected (issue #283)")),
-    Row("rietx.schemas.results.StageResult.ftol", "action"),
+    Row("rietx.schemas.results.StageResult.ftol", "action", tier=3, ambiguity=1,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.results.StageResult.window_area_tol", "action", tier=2, ambiguity=1,
         evidence=("the record of the closing stage PlanSpec:closing_window_tol runs (that "
                   "row's evidence: BGMN's closing run by default), written by both stage "
@@ -2037,7 +2047,11 @@ ROWS: tuple[Row, ...] = (
                   "0.5 deg sets the default window near +-8 deg, a cost the caller resizes "
                   "by stating max")),
     Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN", "constant", value=0.005),
-    Row("rietx.schemas.instrument.HARMONIC_WEIGHT_SEED", "constant", value=0.01),
+    Row("rietx.schemas.instrument.HARMONIC_WEIGHT_SEED", "constant", tier="invariant", value=0.01,
+        evidence=("answer-invariant behind the closing stage: seeds 0.001 and 0.3 against "
+                  "0.01 within 0.1 plain esd (at most 0.003) at true lambda/2 weights 0.003 "
+                  "and 0.05, a synthetic CW neutron corundum, the one family a harmonic has "
+                  "here (tests/test_staged_start_invariance.py, the sixth round's Q2 bar)")),
     Row("rietx.schemas.instrument.HUMP_FWHM_MIN", "constant", value=0.1),
     Row("rietx.schemas.instrument.TCHZ_CEILING_DEG", "constant", tier=1, value=180.0,
         evidence=("arithmetic: the width of the 2theta axis (180 deg for X and Y, its square for "
@@ -2099,7 +2113,17 @@ ROWS: tuple[Row, ...] = (
                   "Gaussian-variance clamp, which moves U at any window (WP-1467); 1.4-2.3x the "
                   "fit time (WP-2002, the sixth round's Q1 and Q2)")),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
-    Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", value=1e-06),
+    Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", tier=3, value=1e-06,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.plan.PHASE_SUPPORT_SIGMA", "constant", tier=3, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
                   "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "
@@ -2283,7 +2307,17 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.plan.PlanSpec:stages", "default", tier=1, ambiguity=1, value=(),
         evidence="arithmetic: the empty container; resolve_plan supplies every plan a fit runs"),
     Row("rietx.schemas.plan.PlanSpec:correlation_guard", "default", value=0.98),
-    Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", value=1e-06),
+    Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", tier=3, ambiguity=1, value=1e-06,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.plan.PlanSpec:closing_window_tol", "default", tier=2, ambiguity=1, value=0.001,
         evidence=("BGMN ends every refinement ladder with a closing run, all free and restarted "
                   "from the answer, by default (manual A.4; Doebelin & Kleeberg 2015 J. Appl. "
@@ -2319,7 +2353,17 @@ ROWS: tuple[Row, ...] = (
         grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
                  "once a test confirms its margin under both LM and TRF."),
         approved="2026-10-19"),
-    Row("rietx.schemas.plan.StageSpec:ftol", "default", value=None),
+    Row("rietx.schemas.plan.StageSpec:ftol", "default", tier=3, ambiguity=1, value=None,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.plan.StageSpec:lebail_cycles", "default", tier=3, ambiguity=1, value=3,
         evidence=("no stated source; issue #740 (synthetic LaMnO3-like neutron, cell and profile "
                   "at truth): Rwp 4.56 % at 3 cycles, 1.62 % at 100-400, 1.09 % for the true "
@@ -3651,15 +3695,10 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.indexing.SMITH_VOLUME_C1",
     "rietx.schemas.indexing.SMITH_VOLUME_C2",
     "rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN",
-    "rietx.schemas.instrument.HARMONIC_WEIGHT_SEED",
     "rietx.schemas.instrument.HUMP_FWHM_MIN",
     "rietx.schemas.plan.CORRELATION_GUARD",
-    "rietx.schemas.plan.INTERMEDIATE_FTOL",
     "rietx.schemas.plan.PlanSpec:correlation_guard",
-    "rietx.schemas.plan.PlanSpec:intermediate_ftol",
-    "rietx.schemas.plan.StageSpec:ftol",
     "rietx.schemas.results.HIGH_CORRELATION_MAX",
-    "rietx.schemas.results.StageResult.ftol",
     "rietx.schemas.results._cap_one_code.suggestion",
     "rietx.schemas.sequential.SeriesEntry.reseeded",
     "rietx.schemas.sequential.SeriesEntry.rung",

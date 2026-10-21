@@ -46,20 +46,23 @@ at 1e-9). "Plain esd" is `stderr_uncorrected`; paths `FLAT_DIRECTION` or
   esd, by the hold's threshold. The looser default is the one that held.
 - Evaluations saved by 1e-6: 1.00-2.15× on the ordinary fits, 4.9× on the flip.
 
-No test written. All five rows (`INTERMEDIATE_FTOL`, `PlanSpec:intermediate_ftol`,
-`StageSpec:ftol`, `StageResult.ftol`, and the hand row `run_least_squares:ftol`) wait on the
-maintainer: what bar a staged plan's invariance test uses (the same question as B9's), and
-the batch's fallback if it fails (tier 3, demoted to kind 3). The hold flip already refutes
-invariance under any esd bar, so the ruling decides only between tier 3 and demotion. And
-B11's three budget rows are invariant on the shipped schedule: if this ruling changes the
-default tolerance, they are re-measured (their margin under 1e-9 everywhere is 1.24x).
+Landed 2026-10-21 at tier 3 (the sixth round's Q2: a closing stage, and a bar of 0.1 plain
+esd). Behind the closing stage the four protocols agree within 0.042 esd and the hold no
+longer flips: both schedules hold the absent zircon in the closing stage. The answers
+there still differ by 0.185 esd on fluorite `a`, because at 1e-9 an earlier stage walks
+the unseen zircon's cell to its budget; `tests/test_staged_start_invariance.py` asserts
+the four and xfails that one. The hand row `run_least_squares:ftol` waits on B14's lift.
+B11's three budget rows were measured before the closing stage; the full suite re-asks
+their margins.
 
 ## B8 and B9: limits (the size floor, March r, the harmonic and extra-peak ceilings landed with the limits lane)
 
 - `rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN`: it guards a pole, but lowered to a pole-only value a Gaussian narrower than about 0.03 of the grid step underflows to an exactly zero column (the W failure, root CLAUDE.md). A floor that keeps the column live depends on the step, so it needs a per-stage freeze like `strain_cap`: a design change.
 - `rietx.schemas.instrument.HUMP_FWHM_MIN`: the same.
 - `rietx.strategy.staged.HUMP_MIN_WIDTH_MULT`: not a limit on a caller's parameter; a diagnostic threshold (gates `HUMP_TOO_NARROW`, so B13/WP-2005) and the extinction screen's internal floor (`indexing/extinction.py:737`).
-- `rietx.schemas.instrument.HARMONIC_WEIGHT_SEED`: two-start test run 2026-10-20, synthetic
+- `rietx.schemas.instrument.HARMONIC_WEIGHT_SEED`: landed invariant on 2026-10-21. Behind the
+  closing stage seeds 0.001 and 0.3 agree with 0.01 to 0.003 esd
+  (`tests/test_staged_start_invariance.py`). Before it: two-start test run 2026-10-20, synthetic
   (corundum, constant-wavelength neutron, true λ/2 weight 0, 0.003, 0.05; the held-out
   Nd₂Ru₂O₇ pair unused) and so one family. Not invariant at B3's bar of 0.01 esd: the
   weight moves up to 0.15 esd between seeds 0.01 and 0.3, a background coefficient 0.86.
@@ -69,7 +72,10 @@ default tolerance, they are re-measured (their margin under 1e-9 everywhere is 1
   extra stage recompiled at the answer brings the seeds within 0.012 esd. The same
   mechanism fails `Atom:biso` below, so both wait on one question for the maintainer:
   what bar an invariance test across a staged plan should use.
-- `Atom:biso`* (hand row, 0.5 Å²): two-start test run 2026-10-20 on SRM 660c, FAP, CPD
+- `Atom:biso`* (hand row, 0.5 Å²): invariant behind the closing stage on 2026-10-21, 0.000,
+  0.070 and 0.000 esd on FAP, cpd-1a and NAC (`tests/test_staged_start_invariance.py`);
+  LaB6's two starts land in its mirrored axial minima (9.36 esd, WP-2012), a strict xfail.
+  Waits only on B14's lift for a seat. Before it: two-start test run 2026-10-20 on SRM 660c, FAP, CPD
   (corundum, fluorite, zincite) and 11-BM NAC, starts 0.5 and 1.5 (worst over 0 to 10 in
   brackets). Biso moves 0.008 to 0.08 esd (0.16), other parameters up to 0.27 esd (0.50),
   χ² up to 6.2e-4 relative; NAC passes. Recompiling the model at one answer changes its
