@@ -37,6 +37,7 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
 
@@ -261,8 +262,15 @@ def ba6co6(tmp_path_factory):
         stages=[rx.Stage(name=n, turn_on=list(t), max_iter=200) for n, t in stages],
         intermediate_ftol=1e-6)
     ref = rx.Refinement(rx.Structure.from_cif(cif), inst, history=False)
-    result = ref.fit(data, plan=plan, two_theta_limits=(4.0, 159.9))
-    return data, lam, result, ref.report().satellites
+    # the numpy path is declared, not inherited from an earlier test on this
+    # worker or RIETX_COMPILED (tests/CLAUDE.md § Quoting numbers)
+    was = compiled.set_enabled(False)
+    try:
+        result = ref.fit(data, plan=plan, two_theta_limits=(4.0, 159.9))
+        satellites = ref.report().satellites
+    finally:
+        compiled.set_enabled(was)
+    return data, lam, result, satellites
 
 
 @pytest.mark.slow
