@@ -886,8 +886,8 @@ def _count(species) -> str:
 # --------------------------------------------------------------------------
 
 #: The norm (Å, in the AMPLIMODES unit) of the seed :func:`displacive_statement`
-#: puts on a child that sits exactly at its parent.  The pattern is an even
-#: function of the amplitude vector under every lost parent operation, so at
+#: puts on a child that sits exactly at its parent.  The pattern is invariant
+#: under every lost parent operation's action on the amplitude vector, so at
 #: A = 0 every amplitude outside the identity irrep has an exactly zero
 #: gradient (#286, 2026-09-16; Perez-Mato, Orobengoa & Aroyo 2010 § 7), and a
 #: fit has to start off it.  The magnitude is ours: small and non-zero, never
@@ -1194,8 +1194,9 @@ def displacive_statement(parent, child, transform, *, seed: float = DISTORTION_S
     which is not a mode.
 
     **The seed.**  A lost parent operation maps the child to a domain-related
-    structure with the same powder pattern, so χ² is even in the amplitude
-    vector and its gradient at A = 0 lies in the identity irrep's subspace:
+    structure with the same powder pattern, so χ²(D(g)·A) = χ²(A) for the
+    action D(g) of every parent operation on the amplitude vector, and its
+    gradient at A = 0 lies in the identity irrep's subspace:
     every other amplitude has an exactly zero column at the parent (#286,
     2026-09-16, measured; Perez-Mato 2010 § 7 for the domains).  So when every
     amplitude outside the identity irrep is zero, the statement sets them to a
