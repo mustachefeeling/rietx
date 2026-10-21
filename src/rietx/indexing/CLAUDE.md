@@ -326,12 +326,12 @@ roughly the shift (+1400 ppm).
   needing neither references nor pairs — and still may not correct a cell, being the
   `constant` template *by construction*: **a shift measured without an attribution
   sizes windows, and only a declared template moves a cell.**
-- **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
-  rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
-  twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
-  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and under a *declared* `n_unindexed`
-  raising N *loses* answers, that count being an **absolute** budget. Ties fall
-  back to Q, so position-only lists are untouched.
+- **A search is driven by the *strongest* N lines, and "enumerate liberally" is a rule this
+  package cannot have** (WP-1039, `engines.search_line_order`). *Which* twenty beats *how
+  many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity over a
+  `SEARCH_POOL_MULTIPLE` low-Q pool), and under a *declared* `n_unindexed` raising N *loses*
+  answers, that count being an **absolute** budget. Ties fall back to Q (position-only lists
+  untouched). **A reported flag is scored, never driven** (`PEAK_UNDRIVEN_FLAGS`, #934).
 - **No agreement → the whole run again on inliers** (C4, `INDEX_INLIER_RETRY`):
   `SearchSpec.miss_budget`/`engines.search_acceptance` is the one authority for
   acceptance, the dichotomy prunes (anchor included) and the panel trim. Never
