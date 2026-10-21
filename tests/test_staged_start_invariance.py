@@ -184,7 +184,7 @@ _LIMITS = (5.0, 155.0)
 
 
 def _neutron(weight: float) -> rx.Instrument:
-    ins = rx.Instrument.constant_wavelength_neutron(_LAM, fwhm_deg=0.30, harmonics=True)
+    ins = rx.Instrument.constant_wavelength_neutron(_LAM, fwhm_deg=0.30, harmonics=[2])
     ins.source.harmonics[0].weight.value = weight
     return ins
 

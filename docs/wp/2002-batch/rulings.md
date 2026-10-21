@@ -453,6 +453,39 @@ reflection-generation sentence too; all three now say it was reverted. Re-measur
 tree: the closing stage's bar 2 is 0.008, 0.011 and 0.019 esd (FAP, cpd-1a, NAC), and
 LaB6's two starts are 9.1 esd apart behind it (the mirrored axial minima).
 
+### The four items behind it, asked 2026-10-21, answered 2026-10-22
+
+**Answers.** "1. option 1. 2. keep 0.5 3. a. 4. a"
+
+1. **How the FitReport reads a fit: option 1**, the misfit from a model at the closing
+   precision and the shapes from one at the declared precision, inside the report builder.
+   Built as `report._reading_models`: `build_report` takes `instrument=` beside
+   `structure=`, and every caller in the package passes both. All 72 tests of
+   `test_fitreport_layers.py` and `test_report_loop.py` pass, the 11 that failed among
+   them.
+2. **The reflection margin: kept at 0.5°**, tier 3, for WP-2017.
+3. **The axial floor: (a)**, tier 3 with cpd-1a's 0.138 esd a strict xfail, for WP-2017.
+4. **The caller-tier ruling: (a)**, applied on this branch. The definition is in
+   `_audit.py`'s docstring and the record's § The rule; `GTOL` and `XTOL` are tier 3;
+   `Harmonic.order` has no default, `DEFAULT_HARMONIC_ORDER` and its row are gone, and
+   `harmonics=True` is refused naming the crystals that pass λ/2 and λ/3.
+
+**Item 1's evidence, as the brief gave it.** The displaced-specimen case misranked
+(axial asymmetry first) only where the closing FCJ rule's skip ratio (3e-4) and the
+closing windows met: with data, fit and report self-consistent at one precision, each
+alone ranked the displacement first, and the skip ratio set back to 0.02 alone recovered
+it (0.99). In the model that ratio cannot go back: at 0.02 the skipped asymmetry leaves
+9.5e-3 of a peak's maximum, 13× the lab bar and 54× the synchrotron one
+(`tests/test_lab_instrument.py`'s FCJ cases). Last round's declared-precision copy failed
+the same case for the opposite reason: its FCJ rule leaves 5.6e-3 (7.8× the bar) against
+data with exact asymmetry, which the report read as asymmetry. The misfit from the
+accurate model and the shapes from the copy ranked the displacement first at 0.995. A
+compile costs 4-19 ms against a report's 0.24-1.57 s on the four protocols (quiet machine).
+Every report before this WP read a declared-precision model against real data, so the
+early-stage misreading was latent there; the synthetic data hid it by sharing the model's
+precision. Item 2 corrected the session's own earlier label: the ridge the edge margin
+freed was on `tests/test_scale_b_ridge.py`'s synthetic narrow scan, not cpd-1a.
+
 ## The sixth round's briefs, kept whole
 
 ### The three briefs as sent (2026-10-21)

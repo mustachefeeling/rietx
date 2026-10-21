@@ -811,19 +811,22 @@ specimen too, and at a given 2θ it is diffracting from planes of spacing
 fundamental's {eq}`pos-harmonic-d`. Unmodelled, it is extra intensity in places
 the model puts none.
 
-Declare it with `Harmonic`, on the source or through the constructor:
+Declare it with `Harmonic`, on the source or through the constructor, naming the orders
+the monochromator passes. The order has no default, because that depends on the crystal:
+Cu(311) passes λ/2, while Si(111) and Ge(311) have their second order extinct.
 
 ```python
 from rietx import Instrument
 from rietx.schemas.instrument import Harmonic
 
+# NIST BT-1's Cu(311) passes λ/2
 bt1 = Instrument.constant_wavelength_neutron(
-    wavelength=1.54040, fwhm_deg=0.3, harmonics=True)
+    wavelength=1.54040, fwhm_deg=0.3, harmonics=[2])
 assert [line.wavelength.value for line in bt1.source.lines] == [1.54040, 0.77020]
 # a harmonic's λ is derived, so it is never free even when the fundamental is
 assert [line.wavelength.vary for line in bt1.source.lines] == [False, False]
 
-# general in n; True above is exactly [2]
+# general in n
 thirds = Instrument.constant_wavelength_neutron(1.54040, harmonics=[2, 3])
 assert len(thirds.source.lines) == 3
 assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
@@ -831,7 +834,7 @@ assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Harmonic.order` | int ≥ 2 | 2 | n in λ/n |
+| `Harmonic.order` | int ≥ 2 | none, required | n in λ/n |
 | `Harmonic.weight` | `Parameter` | 0.01, fixed | intensity relative to line 0, like any emission line |
 | `Harmonic.wavelength_factor` | float | derived | 1/n, what the fundamental wavelength is multiplied by |
 

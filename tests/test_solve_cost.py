@@ -661,7 +661,7 @@ def test_refuses_a_nuisance_phase_s_satellites(nuisance):
 def harmonic():
     """λ = 2.4 Å with its λ/2 harmonic over 10–150°: every reflection with
     d < 1.2 Å is beyond line 0's sphere and reached by line 1 alone."""
-    ins = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.3, harmonics=True)
+    ins = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.3, harmonics=[2])
     assert [ln.wavelength.value for ln in ins.source.lines] == [2.4, 1.2]
     return ins, _flat(10, 150)
 

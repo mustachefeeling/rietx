@@ -158,6 +158,26 @@ the budget, so the invariance is a measured margin, not a construction, and its 
 docstring calls it a bet. Such an item needs an invariance test that also asserts the
 margin, and nothing else; the audit classifies it and moves on.
 
+**Caller** is a fifth class with no tier, and it is not an evidence grade. It marks a row
+the audit has no question about, because the choice that moves the answer was the
+caller's. The test is the milestone's question: did the package decide anything here on the
+caller's behalf? A row is caller only when both conditions hold.
+
+1. The caller asked for it by name: a flag or field whose default is off, or a verb no
+   default path calls. `fit`, `refine`, `index_pattern`, `build_report`, the readers and the
+   GUI routes are default paths. The evidence names the switch and its off default.
+2. The package chose nothing inside it that moves the answer. A code or record field that
+   reports the requested act qualifies, as do the switch's own off default and a number the
+   caller must supply. A number with a default used once the switch is on does not, and is
+   tiered on its own (1, 2, 3 or invariant). Nor does a verdict an opt-in verb adds beside
+   its number, or anything justified by "no default path calls this module yet".
+
+A caller row holds only while condition 1 does. Its evidence is a dated grep, and no test
+yet fails when a default path reaches the switch. Ruled 2026-10-21 from the `/pr-review` of
+#1013, #1016 and #1043, and applied in WP-2002's eighth round: `GTOL` and `XTOL`, defaulted
+inside the opt-in TRF solver, moved to tier 3, and a harmonic's order lost its default of 2,
+since which orders a monochromator passes depends on its crystal.
+
 **Demotion** moves an item to the kind of DESIGN.md § Rules, 1 its ambiguity belongs to.
 Where the alternatives are enumerable and the data score them, the result is a ranking with
 each alternative's evidence and no pick. Otherwise it is the number with its meaning, held

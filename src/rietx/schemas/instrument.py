@@ -109,15 +109,6 @@ class EmissionLine(_InheritsDeclaredDefaults):
         return self
 
 
-#: The harmonic order a bare ``Harmonic()`` declares.  A monochromator set for
-#: λ reflects *every* order its planes admit, but the second is the only one
-#: that normally carries measurable intensity: the higher orders' structure
-#: factors and their Bragg-reflectivity widths both fall away, and the λ/3
-#: component of a Ge or Cu monochromator is typically an order below the λ/2
-#: one.  So this is a **default, not a limit** — :class:`Harmonic` is general
-#: in ``order`` and a beamline that knows it has a third order declares it.
-DEFAULT_HARMONIC_ORDER = 2
-
 #: Seed for a harmonic's relative weight.  Deliberately small and deliberately
 #: *not* any of the numbers the literature reports for a real beamline (see
 #: :class:`Harmonic`): a seed at the expected answer is how a correction comes
@@ -190,8 +181,12 @@ class Harmonic(_InheritsDeclaredDefaults):
 
     #: n in λ/n.  ``ge=2`` because n = 1 *is* the fundamental (declaring it
     #: would be a second copy of line 0, degenerate with the phase scales) and
-    #: n ≤ 0 is not a diffraction order at all.
-    order: int = Field(default=DEFAULT_HARMONIC_ORDER, ge=2)
+    #: n ≤ 0 is not a diffraction order at all.  No default (WP-2002, the
+    #: eighth round's item 4): which orders pass is a fact about the
+    #: monochromator's crystal (the extinction route above), so a default of 2
+    #: was the package choosing for a Ge(733) or Si(111) beam, which passes no
+    #: λ/2.  Every saved harmonic carries its order, so old files still read.
+    order: int = Field(ge=2)
     # Every attribute stated, ``unit`` and the infinite ``max`` included: the
     # derived emission line takes this object by reference
     # (:attr:`NeutronSource.lines`) so a refined weight writes back here, and a
@@ -2371,7 +2366,7 @@ class Instrument(_InheritsDeclaredDefaults):
             capillary_radius_mm: float | None = None,
             mu_r: float | None = None,
             fwhm_deg: float | None = None,
-            harmonics: bool | list[int] = False) -> "Instrument":
+            harmonics: list[int] | bool = False) -> "Instrument":
         """Constant-wavelength neutron powder diffractometer.
 
         Debye-Scherrer geometry, because that is what a CW neutron
@@ -2405,20 +2400,23 @@ class Instrument(_InheritsDeclaredDefaults):
         is the borrower.
 
         ``harmonics`` declares the λ/n components a monochromator that does not
-        filter its own orders lets through (:class:`Harmonic`).  ``True`` is the
-        second order alone, which is the one that normally carries measurable
-        intensity; a list of orders is the general form (``harmonics=[2, 3]``).
-        ``False``, the default, leaves the source with the single line it has
-        always had, so every number measured before this argument existed is
-        reproduced bit for bit.  The declared weights arrive **fixed** — free
+        filter its own orders lets through (:class:`Harmonic`), as the list of
+        orders n it passes: ``[2]`` for Cu(311) or pyrolytic graphite,
+        ``[3]`` for Si(111) or Ge(311), whose second order is extinct,
+        ``[2, 3]`` for both.  ``True`` is refused, since which orders pass
+        depends on the crystal.  ``False``, the default, leaves the source with
+        the single line it has always had, so every number measured before this
+        argument existed is reproduced bit for bit.  The declared weights arrive **fixed** — free
         them with the ``instrument.source.lines.*.weight`` glob once the profile
         and the scale are settled, never in the opening stage.
         """
-        orders: list[int] = []
         if harmonics is True:
-            orders = [DEFAULT_HARMONIC_ORDER]
-        elif harmonics is not False:
-            orders = list(harmonics)
+            raise ValueError(
+                "harmonics=True does not say which orders the monochromator passes, "
+                "and that depends on its crystal: name them, e.g. harmonics=[2] for "
+                "Cu(311) or pyrolytic graphite, harmonics=[3] for Si(111) or Ge(311), "
+                "whose second order is extinct")
+        orders = [] if harmonics is False else list(harmonics)
         inst = cls(source=NeutronSource(
                        wavelength=wavelength,
                        harmonics=[Harmonic(order=n) for n in orders]),

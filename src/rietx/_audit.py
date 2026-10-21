@@ -7,10 +7,14 @@ validated it or the same choice made *by default* in an established Rietveld
 program (the seven rietx-bench runs: GSAS-II, FullProf, TOPAS, RIETAN-FP,
 BGMN, MAUD, EasyDiffraction), whatever the other six do; (3) rietx's own, kept only on the record's two grounds with the
 maintainer's dated approval.  ``invariant`` is the record's answer-invariant
-class; ``caller`` is an action only the caller turns on (an opt-in flag, or a
-pick verb no default path calls), since DESIGN.md § Rules, 1 governs what the
-package decides alone.  Every row opened at ``unaudited``; WPs 2002-2007 fill
-them.
+class.  ``caller`` is no evidence grade: it marks a row where the package
+decided nothing for the caller, since DESIGN.md § Rules, 1 governs what the
+package decides alone.  Both must hold: the caller asked for it by name (a flag
+or field whose default is off, or a verb no default path calls), and nothing
+inside it that moves the answer is the package's choice.  A number defaulted
+once the switch is on is tiered on its own, and a caller row holds only while
+its switch stays off the default paths (the record's § The rule, ruled
+2026-10-21).  Every row opened at ``unaudited``; WPs 2002-2007 fill them.
 
 **Five kinds, each named the way the tree names it.**
 
@@ -1299,8 +1303,10 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19).  The seventh round's Q2 (ruled "
                  "2026-10-21) left it alone if it passed behind the closing stage; it passes on "
-                 "LaB6 and FAP and misses on cpd-1a, so it stays here, owed to the maintainer."),
-        approved="2026-10-21"),
+                 "LaB6 and FAP and misses on cpd-1a, so it stays here; the eighth round (ruled "
+                 "2026-10-22) keeps it at tier 3 for WP-2017's second pass over a refine-from-zero "
+                 "floor of its own."),
+        approved="2026-10-22"),
     Row("rietx.model.forward.MAGNETIC_SIZING_FLOOR", "constant", tier="invariant", value=0.1,
         evidence=("answer-invariant behind the closing stage only: a magnetic width freed from "
                   "zero is drawn on windows sized at the floor, which lose 3.2 and 4.1 % of a "
@@ -1339,7 +1345,8 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh "
                  "round's Q2): an edge rule at CLOSING_WINDOW_TOL was built and reverted (evidence), "
-                 "so this margin serves every compile; keeping it is owed to the maintainer."),
+                 "so this margin serves every compile; the eighth round (ruled 2026-10-22) keeps "
+                 "it at 0.5 deg, the 0.03-0.04 esd it costs recorded, for WP-2017's second pass."),
         approved="2026-10-21"),
     Row("rietx.model.forward.WINDOW_AREA_TOL", "constant", tier=3, value=0.02,
         evidence=("window area tolerance; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC against 5e-5 (converged): fails on all four, "
@@ -1651,9 +1658,16 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
-    Row("rietx.optimize.least_squares.GTOL", "constant", tier="caller", value=1e-12,
-        evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; GTOL "
-                  "read at :2469 and :2721 inside the TRF branch)")),
+    Row("rietx.optimize.least_squares.GTOL", "constant", tier=3, value=1e-12,
+        evidence=("a tolerance defaulted inside opt-in solver='trf' (default 'lm', "
+                  "DEFAULT_SOLVER), four orders under SciPy's own 1e-8; WP-1109 tried 1e-8: "
+                  "1.22-1.27x faster on cpd-1a, 1.04x slower on cpd-2, and corundum's strain "
+                  "anisotropy past test_acceptance_stephens's bar (3.64 against < 2.0); "
+                  "domain test owed (B10)"),
+        grounds=("A number the package chooses once the caller switches TRF on, so not caller "
+                 "under the caller-tier ruling (2026-10-21); a numerical setting whose domain "
+                 "test is owed, tier 3 under B10 option 2 (ruled 2026-10-19)."),
+        approved="2026-10-22"),
     Row("rietx.optimize.least_squares.NFEV_PER_ITERATION", "constant", tier="invariant", value=4,
         evidence=("answer-invariant: the stage budget is max_iter x 4 evaluations; on nine "
                   "configurations from four laboratories under the shipped schedule the worst "
@@ -1689,9 +1703,16 @@ ROWS: tuple[Row, ...] = (
         grounds=("B2 option 2: the difference step of the test that keeps the moment sizes' "
                  "esds free of the stopping-point artefact (ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.optimize.least_squares.XTOL", "constant", tier="caller", value=1e-12,
-        evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; XTOL "
-                  "read at :2469 and :2721 inside the TRF branch)")),
+    Row("rietx.optimize.least_squares.XTOL", "constant", tier=3, value=1e-12,
+        evidence=("a tolerance defaulted inside opt-in solver='trf' (default 'lm', "
+                  "DEFAULT_SOLVER), four orders under SciPy's own 1e-8; WP-1109 tried 1e-8: "
+                  "1.22-1.27x faster on cpd-1a, 1.04x slower on cpd-2, and corundum's strain "
+                  "anisotropy past test_acceptance_stephens's bar (3.64 against < 2.0); "
+                  "domain test owed (B10)"),
+        grounds=("A number the package chooses once the caller switches TRF on, so not caller "
+                 "under the caller-tier ruling (2026-10-21); a numerical setting whose domain "
+                 "test is owed, tier 3 under B10 option 2 (ruled 2026-10-19)."),
+        approved="2026-10-22"),
     Row("rietx.optimize.lm.BVLS_MAX_COLUMNS", "constant", tier=3, value=128,
         evidence=("WP-1937, WP-1953: BVLS costs 2-34 ms at 128 columns and 10-177 s at 2000; FAP "
                   "Pawley reaches Rwp 0.0803 on one side and 0.0782 on the other (lm.py:728-735); "
@@ -2079,9 +2100,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.indexing.SHIFT_ALLOWANCE_K_ESD", "constant", value=3.0),
     Row("rietx.schemas.indexing.SMITH_VOLUME_C1", "constant", value=0.6),
     Row("rietx.schemas.indexing.SMITH_VOLUME_C2", "constant", value=0.0052),
-    Row("rietx.schemas.instrument.DEFAULT_HARMONIC_ORDER", "constant", tier="caller", value=2,
-        evidence=("opt-in: Source.harmonics / NeutronSource.harmonics, default empty (grep "
-                  "2026-10-19); the X-ray Source refuses a declared harmonic")),
     Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MAX", "constant", tier=1, value=0.5,
         evidence=("arithmetic: the frozen evaluation window is k(eta.max) * fwhm.max + "
                   "WINDOW_MIN_DEG, so a finite max is what makes the windowed peak exact "

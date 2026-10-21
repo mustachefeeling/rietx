@@ -1164,7 +1164,7 @@ def test_the_shipped_presets_name_no_path_a_shipped_instrument_lacks():
                    rx.Instrument.bragg_brentano(),
                    rx.Instrument.flat_plate_transmission(),
                    rx.Instrument.constant_wavelength_neutron(1.5),
-                   rx.Instrument.constant_wavelength_neutron(1.5, harmonics=True)]
+                   rx.Instrument.constant_wavelength_neutron(1.5, harmonics=[2])]
     structure, _ = perturbed_models()
     for ins in instruments:
         table = rx.Refinement(structure, ins, history=False)._working_table()
