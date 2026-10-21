@@ -250,6 +250,48 @@ tables are `practice.md`. The measurements added this round, on SRM 660c, FAP, c
   near 8 nm at Cu Kα was X ≤ 1°, not Y ≤ 1°. The code review caught it in the schema's
   docstring.
 
+## Sixth round's answers (2026-10-21)
+
+The maintainer answered all seven, with a standing instruction: "Please use qualitative
+judgment to decide what to do if no clear option." Where an answer leaves a choice open,
+the lead decides by the design rules and records the choice here.
+
+- **Q1 and Q2**: Q2 option 3, the closing stage at tight windows with a 0.1-plain-esd bar,
+  "if it's consistent with practice", and "I assume this default can be changed through
+  options?" Practice, as replied: of the three programs that stage automatically, BGMN
+  ends every ladder with a closing run and RIETAN-FP ends with everything refining
+  together while its windows move at every evaluation; MAUD has no final cycle. The
+  0.1 % cut lies between GSAS-II's 0.5 % and the whole peak BGMN and EasyDiffraction
+  compute. The 0.1-esd bar is rietx's own, since no program tests start dependence. The
+  option did not exist (`forward.WINDOW_AREA_TOL` is a module constant), so the build adds
+  one plan setting, `closing_window_tol`, default 1e-3. `None` drops the closing stage and
+  returns today's answers bit for bit, as `intermediate_ftol=None` does.
+- **Q3**: (c).
+- **Q4**: (a). The cap clause and the three geometry caps' tier-1 rows stand.
+- **Q5**: "my intention for tier 2 is, is this thing already validated in a known code
+  somewhere. No doubt there will be disagreement. If different codes do things
+  differently, we can choose what we do based on our design guidelines and principles,
+  but we should probably choose within existing practice unless there are clear reasons
+  not to do so." So a dissenting program does not move a statistic, threshold or default
+  off tier 2, and both rows (the default solver, the cell-length floor) stay. A choice
+  outside the seven programs' range names its reason. An action's judgement ground is
+  unchanged: a named dissenter still outweighs a program default as evidence that every
+  refiner would act (DESIGN.md § Rules, 1).
+- **Q6**: no backstop. "No need to bound these values. I would like callers to set the
+  bounds themselves." With a concept to consider: "opt-in sets of bounds and defaults for
+  particular scenarios. Instead of setting overfit defaults by default (ahem), we load
+  sets of defaults that have been tested on smaller numbers of datasets. This would be
+  like sharing a topas .inp, but more flexible or usable." Filed as its own WP. Not
+  generalised here: the sample-width backstops (`strain_cap`, `size_cap`, from issue
+  #140) stay. Whether they move into such a set is that WP's question.
+- **Q7**: (a), with a question: under what conditions would someone use TRF instead of
+  LM? Answered from the manual: to reproduce a number measured before 1.8, when TRF was
+  the default, or as a second driver to check a minimum. It holds none of LM's
+  inequalities (the Stephens cone, texture positivity, the Γ_G² floor), and from a poor
+  start it can stop in a basin LM leaves (issue #900). Measured before the build: brucite
+  under TRF with every ceiling at the axis width, Rwp 0.17878 and t 0.36, −1.22, 0.40,
+  2.29; the no-ceiling control in the same script 0.17891 and t −203.34.
+
 ### The three briefs as sent (2026-10-21)
 
 Kept here whole, so the session that reads the answers reads them against this wording. A seventh round's answers land under a new heading above this one.
