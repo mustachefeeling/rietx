@@ -119,6 +119,17 @@ Eight more, measured 2026-10-21 (each row's evidence has the numbers):
 - `TEXTURE_SPHERE_SAMPLES` fails at every order (2.0e-3 to 7.9e-3 against 1e-3); 32 000 samples pass at 10× the cost, or a local polish at any order.
 - `MIN_IMAGE_SHELL`: fixed and at tier 1 since 2026-10-21. A second pass sized by `geometry._shell` from the first pass's distance finds the nearest image in any cell, unreduced monoclinic ones included, and the slow domain test passes on all five cell families.
 
+**Built 2026-10-21 under the seventh round's Q2** (`rulings.md` § Seventh round), each by its kind:
+
+- The FCJ rule: the closing rule (`CLOSING_NODES_PER_FWHM` 12, `CLOSING_MIN_NODES` 10, `CLOSING_MAX_NODES` 1024, `CLOSING_SKIP_EXTENT_FWHM_RATIO` 3e-4) for every compile at `CLOSING_WINDOW_TOL` or tighter, tier 1 on `test_the_closing_node_rule_meets_the_bar`; the four declared-stage constants stay tier 3.
+- `REFLECTION_MARGIN_DEG`: a Rietveld compile at the closing windows generates out to the widest edge window. The closing answer then meets 0.1σ (0.027 FAP, 0.022 cpd-1a). Le Bail and Pawley keep 0.5°, a reflection centred past the edge having its intensity fitted to its tail alone. The constant stays tier 3 for the declared stages.
+- `A5_CLIP` 1e-4, tier 1 (0.14 %).
+- `TEXTURE_SPHERE_SAMPLES` with a local polish (`sphere_minimum`, `TEXTURE_POLISH_STARTS` 5, `TEXTURE_POLISH_LEVELS` 6), all three tier 1 (at most 1.7e-9 at orders 2-8).
+- `MAGNETIC_SIZING_FLOOR`: invariant behind the closing stage (0.000 plain esd on MnF2, one family).
+- `AXIAL_SIZING_FLOOR`: behind the closing stage 0.007 and 0.002 plain esd on LaB6 and FAP, 0.138 on cpd-1a's corundum `c` (strict xfail, `tests/test_staged_start_invariance.py`); stays tier 3, owed to the maintainer. The separate refine-from-zero floor above is the untried option.
+
+Cost of the closing stage after these builds (FAP, the dearest): 2.8-2.9× the fit without it, against 1.9-2.0× before, the edge margin about 1.3× of that and the FCJ rule about 1.15×; measured while another session's suite ran, interleaved.
+
 Domain tests still owed at tier 3: the interval settings (`PARAMETER_INTERVAL_*`) and the width-grid settings (`FRACTION_PROFILE_*`). The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
 
 ## B12: the form-factor follow-up (the other B12 rows landed with the pick-verb changes)
