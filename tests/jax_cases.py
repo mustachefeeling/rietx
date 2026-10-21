@@ -187,6 +187,18 @@ def skip_reason(longrepr) -> str:
     return str(longrepr)
 
 
+def guard(longrepr, selected, node) -> str | None:
+    """Both hooks' guard on one skip report of ``node``: its failure text, or ``None``.
+
+    It stands only where jax cannot be found, and ``selected`` (a callable, so
+    the code is read only for a skip naming jax) says whether the selection
+    holds the skipped case or module."""
+    reason = skip_reason(longrepr)
+    if not SKIPS_FOR_JAX.search(reason) or jax_importable():
+        return None
+    return outside_selection(reason, selected(), node.nodeid)
+
+
 def outside_selection(reason: str, selected: bool, what: str = "this case") -> str | None:
     """The guard's failure text, or ``None`` when the skip is not the guard's business.
 

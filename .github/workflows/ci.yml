@@ -90,8 +90,9 @@ name: CI
 # wherever jax does not import, a case that skips for want of jax outside the
 # selection fails, since no per-push leg would run it.
 #
-# Five fast jobs a run, four Python shards and the jax job, leave room for
-# four runs' fast jobs at once under the free plan's 20 concurrent jobs.
+# Five fast jobs a run, four Python shards and the jax job, so four runs' fast
+# jobs fill the free plan's 20 concurrent jobs exactly, with nothing left for
+# their lint and changes jobs; three runs at once leave room to spare.
 
 on:
   push:

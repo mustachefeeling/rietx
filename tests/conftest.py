@@ -239,14 +239,12 @@ def pytest_make_collect_report(collector: pytest.Collector):
     from tests import jax_cases
 
     config = collector.config
-    reason = jax_cases.skip_reason(report.longrepr)
-    if jax_cases.SKIPS_FOR_JAX.search(reason) and not jax_cases.jax_importable():
-        failure = jax_cases.outside_selection(
-            reason, jax_cases.module_reaches(collector.path), collector.nodeid)
-        if failure is not None:
-            report.outcome = "failed"
-            report.longrepr = failure
-            return report
+    failure = jax_cases.guard(report.longrepr,
+                              lambda: jax_cases.module_reaches(collector.path), collector)
+    if failure is not None:
+        report.outcome = "failed"
+        report.longrepr = failure
+        return report
     if getattr(config.option, "jax_cases", False) \
             and not jax_cases.module_reaches(collector.path):
         report.outcome = "passed"   # outside the selection, like a deselected case
@@ -280,12 +278,10 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
         return report
     from tests import jax_cases
 
-    reason = jax_cases.skip_reason(report.longrepr)
-    if jax_cases.SKIPS_FOR_JAX.search(reason) and not jax_cases.jax_importable():
-        failure = jax_cases.outside_selection(reason, jax_cases.reaches(item), item.nodeid)
-        if failure is not None:
-            report.outcome = "failed"
-            report.longrepr = failure
+    failure = jax_cases.guard(report.longrepr, lambda: jax_cases.reaches(item), item)
+    if failure is not None:
+        report.outcome = "failed"
+        report.longrepr = failure
     return report
 
 

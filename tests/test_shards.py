@@ -153,6 +153,24 @@ def test_a_file_one_leg_skips_weighs_what_the_leg_running_it_spent(tmp_path):
     assert out["numpy"] == {"tests/test_a.py": 6.0, "tests/test_docs.py": 4.0}
 
 
+def test_a_file_one_leg_runs_only_part_of_neither_halves_it_nor_sets_the_clock(tmp_path):
+    """Every file executing the documentation also holds cases that run on
+    every leg (``test_examples``' walkthroughs, ``test_manual``'s text checks),
+    so "ran it at all" cannot tell its legs apart.  The leg that ran more of it
+    weighs it, and it is no part of either leg's clock."""
+    for job, docs in (("junit-py3.11", False), ("junit-py3.14", True)):
+        (tmp_path / job).mkdir()
+        (tmp_path / job / "junit.xml").write_text(
+            '<testsuites><testsuite><testcase classname="tests.test_a" name="t" time="6"/>'
+            '<testcase classname="tests.test_docs" name="walk" time="1"/>'
+            '<testcase classname="tests.test_docs" name="guide" time="9">'
+            + ("" if docs else '<skipped message="RIETX_DOCS=skip"/>')
+            + "</testcase></testsuite></testsuites>", encoding="utf-8")
+    out = shards.record(tmp_path, "run 1")
+    # the clock is test_a alone, 6 s on each leg, so docs keeps the 10 s it cost
+    assert out["numpy"] == {"tests/test_a.py": 6.0, "tests/test_docs.py": 10.0}
+
+
 def test_a_leg_missing_a_shard_another_leg_has_is_refused(tmp_path):
     """A timed-out shard uploads nothing, and its files would weigh zero."""
     for job in ("junit-py3.11-1", "junit-py3.11-2", "junit-py3.14-1"):
