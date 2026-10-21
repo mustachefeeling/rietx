@@ -132,7 +132,10 @@ from .structure import Cell
 #: **reported, not refused**, so ``usable()`` is unchanged; bumped because a
 #: list's flags are part of what this string stamps.  On #728's synthetic
 #: silicon with a steep background it marks 24 of the 26 off-lattice usable
-#: components and no silicon line.
+#: components and no silicon line.  Since #934 (c), inside 1.11's one bump, a
+#: ``weak_line`` line no longer drives a search (``PEAK_UNDRIVEN_FLAGS``), so
+#: a list whose driven set, or the low-Q pool it is drawn from, held one can
+#: answer differently; no indexing-acceptance list's did.
 #: 1.11: ``PeakFlag`` gains ``unresolved_split`` and ``width_capped`` and
 #: ``PEAK_UNUSABLE_FLAGS`` gains both — the component count by resolvability
 #: (#934): comparable components of one group closer than Sparrow's limit for
@@ -730,6 +733,29 @@ PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
     {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
      "no_intensity", "position_unmeasured", "duplicate_line",
      "unresolved_split", "width_capped"})
+
+#: Flags that keep a line in :meth:`PeakList.usable` (scored, reported) and out
+#: of the set a search is **driven** by
+#: (:func:`rietx.indexing.engines.search_line_order`).  The middle ground
+#: between ``usable()`` and the reported list (#934 (c)): a line the list cannot
+#: tell from noise is still evidence a candidate may explain, and cheap to keep
+#: in the scoring, but every driven line is one an accepted cell must index, so
+#: a noise line there is a line the truth is charged for missing.
+#:
+#: ``weak_line`` only.  On #916's flat synthetic silicon (12.1–60°, seed 1)
+#: the usable list carries 6 ``weak_line`` components (7 under the tuned
+#: profile), all off the silicon lines (0.014–0.147° away, I/σ_I 1.3–2.7), and
+#: with fewer than 20 usable lines every one of them was driven.  A cubic search
+#: with a declared count of 2 then returned no cell on the tuned list, and an
+#: all-systems search ranked the truth sixth on the untuned one and lost it on
+#: the tuned one.  Driven by the 11 silicon lines, the cubic search ranks it
+#: first and the all-systems searches fourth and fifth, behind trigonal and
+#: tetragonal descriptions that an 11-line list cannot refute.  No
+#: indexing-acceptance list drives a ``weak_line`` line, so none moves.
+#: ``position_at_bound`` is not here: on the silicon every component carrying
+#: it carries ``weak_line`` too, while on the real acceptance lists 2–10
+#: usable components carry it alone at I/σ_I up to 29.
+PEAK_UNDRIVEN_FLAGS: frozenset[str] = frozenset({"weak_line"})
 
 #: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
 #: therefore above which a ΔBIC verdict on adding one more component to it cannot

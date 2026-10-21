@@ -1451,7 +1451,9 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "tell such a line from noise at the rate it promises for every other line. "
             "It stays usable, because on real laboratory data many such lines are weak "
             "reflections that the true cell indexes. The flag is evidence to weigh and "
-            "is no verdict. A line you placed by hand is never tested."
+            "is no verdict. A search is never driven by it, though: the line is scored "
+            "like any usable one, but an accepted cell need not index it. A line you "
+            "placed by hand is never tested."
         ),
     ),
     "unresolved_split": HelpEntry(
