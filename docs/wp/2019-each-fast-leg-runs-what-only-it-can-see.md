@@ -1,0 +1,255 @@
+# WP-2019 — each fast leg runs what only it can see, and the tail is cut again
+
+Milestone: unscheduled · Status: ⬜
+Track: The repo's own process
+Depends on: —
+Priority: P3 2026-10-21 — cost-only: the slowest per-push job is 19.6 min, at 1547's 20-min bar, but the py3.14 shards grew 30 % in ten days, so the bar will not hold
+
+## Goal
+
+A per-push run waits about 15 minutes for its slowest fast job, with every
+fast case still run per push on at least one leg. A case that leaves the fast
+tier runs in the nightly instead. The jax leg runs the cases jax changes, the
+documentation runs once, and no test pays for a computation it never reads.
+
+## Context
+
+**The trend.** These are job walls, setup included. WP-1547's first sharded
+run was 38093251416 (2026-10-11, 9219 cases):
+
+| Leg | 10-11 (min) | 10-21 (min) |
+|---|---|---|
+| py3.11 | 13.3 / 15.0 | 13.7 / 14.7 |
+| py3.14 | 10.7 / 11.1 | 13.9 / 14.6 |
+| jax | 15.1 / 16.7 | 19.6 / 16.9 |
+
+The 10-21 column is main run 39589774138 at 3437d52, 11 100 cases. A run waits
+for its slowest job, which is now the jax leg.
+
+**Where the seconds are.** Measured 2026-10-21 on main 3437d52 under these
+conditions:
+
+- Linux x86-64, Python 3.12, `[dev]`, rietx-kernels 1.3.0 loaded;
+- 4 cores, with no other pytest running;
+- `-m "not slow" --durations=0` with a junit file.
+
+Result: 10 895 passed, 203 skipped, 2 xfailed, in 26:56 wall and 6 294
+worker-seconds.
+
+- The cost is concentrated: 108 tests (1 %) take 61 % of the seconds, and the
+  8 567 tests under 0.1 s sum to 91 s.
+- Setup is 569 s (9 %) and call is 5 708 s. So the cost is in test bodies, and
+  fixtures rebuilt per worker are a small lever.
+
+Local seconds are not CI's: across the 59 files over 10 s in both, the ratio of
+this machine to the shard record had a median of 1.21 (interquartile range
+0.88–1.67). So the figures below rank the items; they do not price them on CI.
+
+| Item | Here (worker-s) | Share |
+|---|---|---|
+| The guide and example scripts (`test_examples.py`) | 731 | 11.6 % |
+| Indexing searches, six files (see E) | 803 | 12.8 % |
+| The automatic profile interval | 525 | 8.3 % |
+| Manual builds, manual API, help anchors | 215 | 3.4 % |
+| Tutorials (CI: newest leg only) | 216 | 3.4 % |
+| One test, `test_cell_runaway_safety` (see D) | 217 | 3.4 % |
+
+**A. The jax leg runs the whole fast tier, and jax changes a few files.**
+- In this tree's numpy-only run, 73 cases skip with "could not import 'jax'":
+  - `test_cross_backend` 46;
+  - `test_backend_conformance` 21;
+  - `test_derived_block`, `test_rotation` and `test_voigt` 2 each.
+- `test_backend_jax` skips at collection.
+- `test_backend_shim` and `test_capabilities` read the backend registry.
+- In `src/`, jax is imported only under `backend/` and in
+  `optimize/least_squares.py`'s `backend == "jax"` branch.
+- Those files are 573 of the 2 408 recorded jax-leg seconds, 24 %
+  (`tests/shard_times.json`, profile `jax`).
+- What a full-tier jax leg gives per push and selection would drop:
+  - the whole tier on 3.13;
+  - the `[dev,jax]` dependency resolution.
+
+  Both stay in the nightly: `full` is `[dev,jax]` on 3.13, and `middle` runs
+  3.13.
+- A hand-kept file list rots the way `features["indexing"]` did (WP-1037). So
+  derive the selection from what the cases import or skip on. Then add a guard
+  so that a new test needing jax cannot fall outside the selection and run
+  nowhere per push.
+
+**B. The documentation runs on every leg.**
+- `test_examples.py` runs each `examples/guides/*.py` script as a fresh
+  subprocess, and the scripts run real fits. Those are the 23 guide cases WP-1986
+  added on 2026-10-17: 617 s, median 14.5 s, the slowest `interval` at 83 s,
+  then `qpa` 78 s, `stage` 73 s and `hold` 63 s.
+- The module docstring's cost model (3.5 s and 3.3 s) predates them.
+- `test_manual`'s Sphinx build is 81 s.
+- The tutorials already run on the newest leg alone, through `RIETX_TUTORIALS`
+  (WP-1547), with the reason stated in `tests/test_tutorials.py`. The same
+  switch suits the guides and the builds, keeping them per push.
+
+**C. The automatic profile interval** (WP-2002, B2 ruled option 2 on
+2026-10-19: it runs on the answer stage for each moment angle the stationary
+test passes).
+- **Whole-tier effect.** I re-ran the whole fast tier with
+  `strategy.parameter_interval.attach_stationary_intervals` replaced by a no-op
+  (a throwaway `-p` plugin; nothing in the tree changed):
+  - worker-seconds fell from 6 294 to 5 769;
+  - wall time fell from 26:56 to 24:28;
+  - `test_stationary_moment_angle` saved 352 s, and `test_magnetic_moment_frame`
+    saved 82 s;
+  - other files moved only within noise.
+- **Five cases failed without it**, the five that assert on the interval:
+  - `test_magnetic_moment_frame::test_an_angle_the_data_cannot_see_stops_its_interval_at_half_a_turn`
+  - `test_stationary_moment_angle::test_a_stop_beside_the_symmetry_direction_leaves_the_angles_out`
+  - `test_stationary_moment_angle::test_an_angle_without_an_esd_still_has_a_profile_interval[0.0]`
+  - `test_stationary_moment_angle::test_an_angle_without_an_esd_still_has_a_profile_interval[1e-14]`
+  - `test_stationary_moment_angle::test_a_left_out_angle_carries_its_interval_and_the_history_gains_no_node`
+- **What is recoverable.** Those five carry about 230 of the 434 s and keep
+  them. The other 21 cases in the two files pay about 200 s for intervals they
+  never read.
+- **One fit.** `test_stationary_moment_angle._fit(0.0, seed=4)` takes 3.4 s with
+  the no-op and 52.1 s without it. cProfile puts 94 % of it in
+  `attach_stationary_intervals`, which makes 116 `run_stage` calls.
+- The module docstring still says "about half a second a fit".
+- The private switch exists: `Refinement._auto_intervals`, which `_trial` and
+  `strategy/magnetic.py` set to `False`.
+
+**D. One test is 3.4 % of the tier.**
+`test_cell_runaway_safety::test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`
+takes 217 s, the longest case in the tier.
+- It runs two TRF Le Bail plans on a wrong P 1 cell.
+- It asserts that Rwp is finite and positive: the claim is that
+  `DegenerateCellError` no longer escapes `fit`.
+- The module carries one `pytestmark` xdist group, so the module's 226 s sits
+  on one worker.
+- Its own comment says the trajectory is rounding-chosen: Rwp read 0.33,
+  127.7 and 7.8e6 at starts 1e-14 apart, and once 1.1e9 on Linux CI.
+
+**E. Repeats read off the code, not yet measured one by one.** A test-suite
+review on 2026-10-21 listed these from reading the code; measure each before
+cutting it.
+- `test_indexing_engines.py:1568-1584` reruns searches that `:742` and `:1061`
+  already run.
+- `test_background_auto.py` runs the same `_absorption_fit` at `:1363` and
+  `:1461`, and the same Si640c order scan at `:897` and `:930`.
+- `test_recipe.py`'s `written` module fixture was set up four times in the
+  measured run, about 26 s. Its consumers carry no `xdist_group`.
+- Several indexing tests run a full multi-engine `index_pattern` and then read
+  only provenance notes or the event ladder: `test_indexing_ceiling.py:276-334`
+  and `test_indexing_priors`. The six indexing files are 803 s here.
+
+**F. The shard record is stale.**
+- `tests/shard_times.json` is from run 38088718957 (2026-10-12) and lacks 64
+  files. Each missing file weighs the median 2.35 s.
+- Missing ones that matter: `test_stationary_moment_angle` (399 s here),
+  `test_indexing_inliers` (175), `test_parametric_series` (87) and
+  `test_distortion_modes` (82).
+- `test_examples` is recorded at 81.4 s against 731 here.
+- `python -m tests.shards DIR` rewrites the record from a run's `junit-*`
+  artifacts (its docstring). A stale record costs balance, never a test
+  (tests/CLAUDE.md § CI). The 10-21 jax shards were 19.6 and 16.9 min.
+
+**Not worth reopening.**
+- **Worker count:** `-n logical` buys nothing on the 2-core runner (WP-1547).
+- **A jax compile cache:** warm 8:18 against cold 8:12 (`ci.yml`).
+- **Blanket xdist groups:** setup is 9 % of the tier.
+
+## Non-goals
+
+- **Why `isotropy.analyse` is slow, and the fast tier computing the F m -3 m
+  analysis twice:** WP-1418, whose `### Inherited` (from 1506, 2026-09-27)
+  leaves the test-fixture-or-faster-`analyse` choice to it. Measured here:
+  116.5 s and 142.0 s for the two cases.
+- **Whether the profile interval runs by default:** WP-2002's B2. This WP stops
+  tests paying for it where they do not read it. It does not change what a
+  user's fit computes.
+- **The nightly's red, the release gate, and the review's tolerance and oracle
+  findings of 2026-10-21:** not filed here.
+
+## Tasks
+
+- [ ] **Refresh the shard record.** Rewrite `tests/shard_times.json` from the
+      latest green main run's junit artifacts, both profiles. The commit names
+      the run.
+- [ ] **Select the jax leg's cases.**
+  - Derive the selection from what each case imports or skips on, and run the
+    leg as one job.
+  - Add a guard that fails when a case needs jax and falls outside the
+    selection.
+  - `ci.yml`'s header says what the leg no longer covers per push and where it
+    runs instead (`full`, `middle`).
+- [ ] **Run the documentation on one leg.**
+  - The guide scripts and the manual builds run on the newest per-push leg
+    with the tutorials, and skip elsewhere through the same switch pattern as
+    `RIETX_TUTORIALS`, so passed+skipped holds on every leg.
+  - The decision says what a guide could break on one Python version and not
+    another.
+  - `test_examples.py`'s docstring gets its cost model re-measured.
+- [ ] **Stop the interval cost where nothing reads it.**
+  - The 21 cases that do not assert on the interval stop computing it, through
+    the switch WP-2002 settles (see its Inherited).
+  - The five that assert on it keep it.
+  - `test_stationary_moment_angle.py`'s docstring cost is corrected.
+- [ ] **Cut `test_cell_runaway_safety`'s triclinic Le Bail case.** Test the
+      reset directly, or mark it `slow` and see it pass once in the nightly's
+      `full`.
+- [ ] **Measure and cut the repeats in E.** Measure each one first. Share a
+      repeat through a module fixture carrying its `xdist_group` where the
+      measurement says it pays. Put a wiring-only indexing assertion on one
+      engine or a stub. The ranking claims stay on full searches.
+- [ ] **Re-measure.** Run the fast tier on the final tree locally (venv and
+      platform quoted) and read ten main runs (Acceptance).
+- [ ] **Skill:** none. This changes how the repo is tested, not how rietx is
+      driven.
+
+## Acceptance
+
+- **Wall clock.** Over ten consecutive successful main runs after the CI
+  changes land, the median run's slowest fast job takes 15 min or less. A job
+  is timed from start to end, setup included (WP-1547's reading).
+- **Counts.** Each leg's passed+skipped, summed over its shards, equals the
+  unsharded fast count at the same commit. Every fast case runs on at least one
+  per-push leg. A case moved to `slow` passes once in the nightly's `full`.
+- **The jax job.** Its passed count for cases that skip without jax equals the
+  full-tier jax leg's at the same commit.
+
+```sh
+gh run list --workflow ci.yml --branch main --event push --status success --limit 10 --json databaseId
+gh run view <id> --json jobs   # each "fast …" job's startedAt to completedAt; take the largest
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" --shard 1/2   # and 2/2
+```
+
+## References
+
+- [WP-1547](1547-the-fast-tiers-tail.md): the shards, the tutorial switch, and
+  the acceptance reading reused here.
+- WP-2002's `2002-batch/rulings.md` § B2: the interval's ruling.
+- Runs 38093251416 (10-11), 38088718957 (the shard record), and 39589774138
+  (10-21).
+
+## Handover log
+
+- **2026-10-21** — Created from a test-suite review session, which asked where
+  the fast tier's time goes and measured it rather than reading it off the
+  shard record.
+  - **Why a new WP.** No open WP owns this. 1547 (🔄) has every task checked
+    and waits on a ten-run acceptance that reads its 10-11 cut. This is the
+    next round:
+    - two of its causes landed after that cut: the guides on 10-17 and the
+      interval ruling on 10-19;
+    - two of its levers 1547 did not weigh: selecting the jax leg's cases, and
+      running the documentation on one leg.
+  - **Left with their owners.** The isotropy repeat is 1418's and the
+    interval's default is 2002's. This session left Inherited notes in 2002
+    and 1547.
+  - **Not kept.** The junit files and the throwaway plugin were session-local.
+    The numbers in Context are the record.
+  - **Handover.** The branch is prose-only (`docs/wp/` alone):
+    - `/code-review` was skipped, having no code to read;
+    - no tests were added, so no count moved;
+    - the files CI's `docs` job runs passed, 240 of 240 (Linux x86-64,
+      Python 3.12, `[dev]`);
+    - `closed_wp_writes` reported nothing.
+  - **Next.** The shard refresh and the jax selection, which need no test
+    rewrite.
