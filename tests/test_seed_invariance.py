@@ -95,6 +95,9 @@ def _fit(stage: rx.Stage, tag: str):
     instrument.geometry.surface_roughness = RoughnessSuortti()
     plan = _gsas_protocol_plan()
     plan.stages.append(stage)
+    # the roughness stage's own seed, as last; the closing stage is
+    # tests/test_closing_stage.py's
+    plan.closing_window_tol = None
     ref = rx.Refinement(structure, instrument, history=False)
     result = ref.fit(data, plan=plan)
     OUT.mkdir(exist_ok=True)
