@@ -1088,12 +1088,21 @@ def test_tied_angles_follow_a_restored_alpha():
         assert by_path[f"phases.0.cell.{name}"].value == 100.0
 
 
+@pytest.mark.slow
 def test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error(tmp_path):
     """The public path: a P 1 Le Bail fit of a valid but wrong ~7 Å^3 cell on
     synthetic silicon (``tests/_synthetic_silicon.py``), two
     stages.  The second ended on the window-edge clamp's degenerate corner
     and raised ``DegenerateCellError`` out of ``fit`` from ``phase_support``;
-    the reset that replaced the clamp puts the cell back at its stage start."""
+    the reset that replaced the clamp puts the cell back at its stage start.
+
+    ``slow`` since WP-2019: it was the fast tier's longest case, 217 s of two
+    TRF plans.  Each part of its claim is asserted per push elsewhere: the
+    reset of this very cell by
+    ``test_three_escaped_angles_put_the_whole_cell_back_at_its_start``, and
+    the reset inside ``fit`` by the injected escape (``lebail_pair_fits``).
+    What this row alone shows is a fit walking into the guard unaided, and
+    that is kept in the nightly's full suite."""
     import rietx as rx
     from rietx.schemas.structure import lebail_scaffold
     from tests._synthetic_silicon import silicon_pattern

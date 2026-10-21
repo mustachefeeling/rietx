@@ -190,9 +190,11 @@ cutting it.
     the switch WP-2002 settles (see its Inherited).
   - The five that assert on it keep it.
   - `test_stationary_moment_angle.py`'s docstring cost is corrected.
-- [ ] **Cut `test_cell_runaway_safety`'s triclinic Le Bail case.** Test the
+- [x] **Cut `test_cell_runaway_safety`'s triclinic Le Bail case.** Test the
       reset directly, or mark it `slow` and see it pass once in the nightly's
-      `full`.
+      `full`. *Marked `slow` (2026-10-21): the reset of this cell and the reset
+      inside `fit` are asserted per push by other rows. The nightly pass is
+      still owed (Acceptance).*
 - [ ] **Measure and cut the repeats in E.** Measure each one first. Share a
       repeat through a module fixture carrying its `xdist_group` where the
       measurement says it pays. Put a wiring-only indexing assertion on one
