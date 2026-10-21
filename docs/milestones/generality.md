@@ -52,7 +52,9 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    count, how far a peak's tails are computed), once a test shows its error stays under a
    stated bar over every input it claims to handle (B10, ruled 2026-10-19). So does a cap
    on what a report lists, once a test shows the report is complete inside the cap and
-   its notes count what lies outside it (ruled 2026-10-21, WP-2002's fifth round).
+   its notes count what lies outside it, or for a cap on distance the report states the
+   distance (WP-2002's fifth round, Q6, 2026-10-21; the lead's reading of the answer
+   awaits the maintainer's confirmation, the sixth round's Q4).
 2. **Established practice.** A citation that validated it, or the same action taken *by
    default* in an established Rietveld program. The programs are the seven rietx-bench
    runs: GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction (widened

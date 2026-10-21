@@ -107,11 +107,11 @@ The window rows, measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC (`te
 
 Eight more, measured 2026-10-21 (each row's evidence has the numbers):
 
-- The three geometry caps (`CONTACT_MAX_ANG`, `MAX_ASYM_ATOMS`, `MAX_CONTACTS_PER_ATOM`) stay tier 3. The lane judged them a report scope, which the tests support for the contact count; but the record's rule has no such class, so that is a question for the maintainer. And the 3.5 Å radius also bounds the bond search, so a bond the module's own criterion counts past it (Cs–Cl near 3.57 Å) is never found, with no note, while the docstring calls bonds uncapped: a defect.
+- The three geometry caps (`CONTACT_MAX_ANG`, `MAX_ASYM_ATOMS`, `MAX_CONTACTS_PER_ATOM`) moved to tier 1 on 2026-10-21 under the rule's new cap clause (the fifth round's Q6, its reading re-asked as the sixth round's Q4). The bond-search defect is fixed: the search reaches the longest pair the radii could bond, and CsCl lists its 3.571 Å Cs–Cl bonds.
 - `FD_STEP` and `_MIN_GAMMA_G2` pass on the smooth domain and at the FAP and NAC answers, but the SRM 660c and cpd-1a protocol answers end with high-angle reflections on the Gaussian-variance floor, where an FD column is 2.2e-2 off and a polish moves U 1.2 plain esd under a 5e-7 step or a 1e-10 floor, at χ² 0.25 % worse. A defect of the clamp the solver leans on, not of either constant (forwarded to WP-1467); both stay tier 3.
 - `A5_CLIP` fails by a little (1.40 % against 1 %); 1e-4 passes at no measured cost.
 - `TEXTURE_SPHERE_SAMPLES` fails at every order (2.0e-3 to 7.9e-3 against 1e-3); 32 000 samples pass at 10× the cost, or a local polish at any order.
-- `MIN_IMAGE_SHELL` misses restraint images in unreduced monoclinic cells (β 135-150°), so a restraint can bind the wrong pair: a defect, fixed by sizing the shell with `geometry._shell(g, d)`.
+- `MIN_IMAGE_SHELL`: fixed and at tier 1 since 2026-10-21. A second pass sized by `geometry._shell` from the first pass's distance finds the nearest image in any cell, unreduced monoclinic ones included, and the slow domain test passes on all five cell families.
 
 Domain tests still owed at tier 3: the interval settings (`PARAMETER_INTERVAL_*`) and the width-grid settings (`FRACTION_PROFILE_*`). The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
 

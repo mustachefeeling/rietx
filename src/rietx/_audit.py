@@ -2332,7 +2332,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.Refinement.fit:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to the "
                   "full data range on import (checked)"
-                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.Refinement.fit:events", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: an observation channel; "
                   "tests/test_answer_invariant_defaults.py asserts the answer bit-identical with it"
@@ -2362,7 +2362,7 @@ ROWS: tuple[Row, ...] = (
         evidence=("None continues the Refinement's current limits (the last fit, run_stage or "
                   "checkout set them), the full range on a fresh one: GSAS-II full-range Limits, "
                   "checked"
-                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.Refinement.run_stage:correlation_guard", "default", value=0.98),
     Row("rietx.refine.Refinement.run_stage:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
@@ -2405,7 +2405,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.refine:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to the "
                   "full data range on import (checked)"
-                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.refine:backend", "default", tier="caller", ambiguity=1, value="numpy",
         evidence=("opt-in: jax/torch/torch-mps need an extra no default install has; not "
                   "answer-invariant, since another backend agrees only to fp tolerance (torch-mps "
@@ -2453,7 +2453,7 @@ ROWS: tuple[Row, ...] = (
         evidence=("the range a fit without limits uses (Refinement.fit:two_theta_limits); "
                   "GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to "
                   "the full data range on import (checked, the fit row)"
-                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.background.auto.auto_background:source", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: as wavelength, it reaches only the contamination screen; "
                   "tests/test_answer_invariant_defaults.py asserts the BackgroundChoice equal "

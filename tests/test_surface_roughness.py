@@ -726,9 +726,10 @@ def test_a_switched_off_suortti_block_says_its_esds_depend_on_the_off_state():
                 if d.code == "ROUGHNESS_UNCONSTRAINED"]
         return d
 
-    for a, b in ((0.5, 0.0), (1.0, 0.5)):
+    for a, b, at in ((0.5, 0.0, "b = 0"), (1.0, 0.5, "a = 1")):
         d = warning(a, b)
-        assert "switched off" in d.message and "Without the block" in d.suggestion, (a, b)
+        assert f"switched off at {at}," in d.message, (a, b)
+        assert "Without the block" in d.suggestion, (a, b)
     d = warning(0.5, 1e-6)
     assert "switched off" not in d.message and "Without the block" not in d.suggestion
 

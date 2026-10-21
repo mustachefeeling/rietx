@@ -199,15 +199,20 @@ MAUD, EasyDiffraction).
   what the other programs do and why rietx does what it does. Re-briefed below.
 - **Q2**: asked back: how do RIETAN-FP and BGMN, which also refine in stages, handle it?
 - **Q3**: asked back: check the other programs' starting values.
-- **Q4**: delegated ("whichever you consider reasonable, this is rare"). The lead's pick
-  is (b): a correction that ends switched off has its esds evaluated at b = 0, the
-  marginal reading WP-1929's rule gives a row on its bound.
+- **Q4**: delegated ("whichever you consider reasonable, this is rare"). The lead chose
+  a report over the recommended (b): `ROUGHNESS_UNCONSTRAINED`, which already fires at
+  both off states and asks for the block to be dropped, now also says the scale's and
+  Biso's esds depend on which off state the fit stopped at. (b), a canonicalising re-solve
+  at b = 0, would add an automatic step, a record field and an audit row for a case the
+  maintainer called rare. The judge held the choice, measured on one family.
 - **Q5**: (a), remove the five ceilings, "confirm with other codes too and let me know".
-- **Q6**: "doesn't appear to be a question", read as agreement with the recommendation.
-  Tier 1 gains a cap clause (`generality.md` § The rule): a cap on what a report lists is
-  kept once a test shows the report complete inside the cap and its notes counting what
-  lies outside. The bond-search defect is fixed in the same change, and the three
-  geometry caps move to tier 1.
+- **Q6**: "doesn't appear to be a question", read by the lead as agreement with the
+  recommendation. Tier 1 gains a cap clause (`generality.md` § The rule): a cap on what a
+  report lists is kept once a test shows the report complete inside the cap and its notes
+  counting what lies outside. The bond-search defect is fixed in the same change, and the
+  three geometry caps move to tier 1. The judge rated the clause's authority weak, since
+  the reply could also mean "not mine to decide", so the reading goes back to the
+  maintainer as the sixth round's Q4 below.
 
 ## Sixth round: asked 2026-10-21, Q1-Q3 re-briefed with the seven programs' practice
 
@@ -236,7 +241,13 @@ tables are `practice.md`. The measurements added this round, on SRM 660c, FAP, c
   the bar, with the closing stage as an option. Lead's pick, joining them: the closing
   stage at tight windows, and a 0.1-plain-esd bar for a staged plan's start test. Q3
   asked again with the finding that no program supplies a Pitschke start; lead's pick (c),
-  split the constant.
+  split the constant. Q4-Q6 came from the handover's reviews: whether the fifth round's
+  Q6 answer meant yes, how tier 2 counts a dissenting program, and a backstop for a
+  runaway instrument width. All six wait on the maintainer; the briefs are below.
+- A correction to the fifth round's Q5 brief and to this session's report: the TCHZ size
+  term is X (Γ_L = X/cosθ + Y·tanθ), so the old ceiling that capped the Lorentzian size
+  near 8 nm at Cu Kα was X ≤ 1°, not Y ≤ 1°. The code review caught it in the schema's
+  docstring.
 
 ### The three briefs as sent (2026-10-21)
 
@@ -335,6 +346,72 @@ The case against: a fit that has already converged pays for one more solve, abou
 - (c) Split the constant: Suortti's start recorded as not affecting the answer, Pitschke's kept at 0.3 at tier 3 with its failure recorded.
 
 **Recommendation.** (c). From 0.3 the fit reaches the switched-off branch, which lies inside the model's valid range. The lower χ² from 0 is one the model itself flags as invalid. FullProf's examples start further from 0 than 0.3 does. The case against: a careful user may want to see that the data prefer a correction, even an out-of-range one. The warning already shows them that.
+
+### Three more, from the handover's reviews (2026-10-21)
+
+The generality judge and the code review read this session's changes at handover. Three
+of their findings are decisions for the maintainer. They are numbered on from Q1-Q3.
+
+#### Q4. Did the fifth round's Q6 answer mean "yes"?
+
+Q6 proposed a class for caps on what a report lists. The answer was "doesn't appear to be
+a question". The lead read it as agreement and built it: tier 1 now holds such a cap once
+a test shows the report complete inside the cap and its notes counting what lies outside,
+or, for a cap on distance, the report stating the distance. The three geometry caps moved
+to tier 1 on it. The judge points out the answer could also mean "not mine to decide".
+Two facts bear on it. No caller can change any of the three caps (3.5 Å for contacts, 24
+contacts an atom, 200 atoms a phase). The search time at 200 atoms is unmeasured.
+
+- (a) Confirm. The clause and the three rows stay.
+- (b) Undo. The clause goes, and the three caps return to tier 3.
+
+Lead's pick: (a). A cap that says what it dropped hides nothing, and the table feeds only
+the report and the CIF writer, never a fitted number.
+
+#### Q5. How tier 2 counts a program that does otherwise
+
+The rule now calls a program that does otherwise by default a dissenter, and one without
+the feature neither. It says what a dissenter outweighs only for an action, and it does
+not say how many of the seven must agree. Two rows turn on this.
+
+- The default solver. Six programs damp their steps (Marquardt). FullProf takes
+  Gauss-Newton steps scaled by fixed relaxation factors. rietx's row stays tier 2 on the
+  lead's reading that the dissent clause governs actions only.
+- The 1.5 Å cell-length floor. TOPAS alone floors cell lengths; the other six leave them
+  unbounded. The row stays tier 2, reading "no floor" as "without the feature". The judge
+  notes that removing the TCHZ ceilings read "no ceiling" as "doing otherwise", the
+  opposite reading.
+
+Options:
+- (a) A dissent counts against a default or a threshold too. The solver joins the seven
+  solver-path switches B10 already holds at tier 3 until refits of three families on
+  either side agree. The cell floor moves to tier 1 on a physics argument: no crystal has
+  a lattice translation near 1.5 Å (recalled, not checked: Be's a of about 2.29 Å is among
+  the shortest), so the floor can only stop a runaway.
+- (b) Dissent counts only against actions (today's reading), and the rule says so.
+- (c) As (b), and "no limit" always reads as "doing otherwise" for a bound. The cell floor
+  then leaves tier 2, as in (a).
+
+Lead's pick: (a). It matches how B10 already treats the other solver switches, and it
+makes the two bound readings agree.
+
+#### Q6. A backstop for a runaway instrument width
+
+With the ceilings gone, nothing stops an instrument width (U, W, X or Y) widening until the
+lines merge into the background, on a weak pattern or along a series chain. No
+single-fit diagnostic reports a runaway width. The sample-broadening terms already have a
+backstop: `params/vector.py`'s `strain_cap` and `size_cap` hold a phase's Lorentzian width
+to the width of the fitted range, so a peak cannot become wider than the scan. Issue #140
+is why: a Cu phase's `lor_strain` reached 1.1e5 on a 248-pattern series, and a real 16 wt %
+phase was starved below 1 wt %. Before the ceilings went, U, W, X and Y stopped at 1 and V
+at 0.5.
+
+- (a) Extend the range backstop to the instrument widths. It is set by the fitted range,
+  so it is no chosen number, and it fires only on a runaway.
+- (b) A diagnostic only, naming a width wider than some fraction of the range.
+- (c) Nothing until a real fit shows a runaway.
+
+Lead's pick: (a). It is the same physical argument the sample terms already rest on.
 
 ## Still open (first round's list, kept for the record)
 

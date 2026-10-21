@@ -9728,6 +9728,7 @@ def _roughness_regime_diagnostics(model: CompiledModel,
         # canonicalised: the case is rare, and dropping the block, which this
         # warning already asks for, gives one reading whichever way it ended.
         off = model.roughness == "suortti" and depression == 0.0
+        at = ("b = 0" if off and values[f"{base}.b"] == 0.0 else "a = 1")
         out.append(Diagnostic(
             level="warning", code="ROUGHNESS_UNCONSTRAINED",
             where=[f"{base}.{n}" for n in ("a", "b", "c", "tau")
@@ -9735,9 +9736,9 @@ def _roughness_regime_diagnostics(model: CompiledModel,
             message=(f"The refined surface roughness depresses intensity by at "
                      f"most {depression:.2%} at any modelled reflection "
                      f"(lowest at {drawn(tt_min):.2f}° 2θ)."
-                     + (" It ended switched off, at one of the Suortti form's "
-                        "two off states (b = 0, or a = 1), and the esds of "
-                        "the scale and Biso depend on which one."
+                     + (f" It ended switched off at {at}, one of the Suortti "
+                        "form's two off states (b = 0, or a = 1), and the "
+                        "esds of the scale and Biso depend on which one."
                         if off else "")),
             suggestion=("Drop the roughness block, or extend the measurement "
                         "to lower 2θ."
