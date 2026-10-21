@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-21 — fifth round built (Q4-Q6, tier 2 widened, two search defects fixed); Q1-Q3 re-briefed with seven programs' practice and wait (rulings.md § Sixth round); B14's lifts and two domain tests remain
+Milestone: generality · Status: 🔄 2026-10-21 — fifth round built (tier 2 widened, width ceilings gone, two search defects fixed); six questions wait (rulings.md § Sixth round); B14's lifts and two domain tests remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -263,6 +263,254 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-21 (4th session) — the fifth round built; six questions for the maintainer, three re-briefed against seven programs
+
+This session built the maintainer's fifth-round answers and checked the three questions sent back against all seven programs rietx-bench runs. The peak window that drops 2 % of each peak's area turns out to be ordinary practice: TOPAS and MAUD drop the same, and FullProf's examples drop more while holding the window for a whole run. A closing stage at tight windows removes both that error and most of a staged plan's start-dependence: two Biso starts agree to 0.000 esd on the fluorapatite and NAC, and to 0.064 on cpd-1a, against 0.75 today, at 1.36-2.26× the fit time. The TCHZ width ceilings are gone, report caps are a tier-1 class, tier 2 names seven programs, and a switched-off Suortti block says its esds depend on where it stopped. Two defects that needed no ruling are fixed: the bond search missed bonds longer than 3.5 Å, and the restraint search missed the nearest image in skewed monoclinic cells. Six questions wait on the maintainer: the three sent back, re-briefed, and three the handover's reviews raised.
+
+*Done.*
+- The fifth round's answers recorded (`2002-batch/rulings.md` § Fifth round's answers): Q4 delegated, Q5 (a), Q6 read as agreement, Q1-Q3 asked back, and the note to widen tier 2.
+- Tier 1 gains two clauses (`docs/milestones/generality.md` § The rule): a numerical setting with a test bounding its error over its domain (B10's ruling of 2026-10-19, owed since), and a report cap with a test showing completeness inside it and its notes counting what lies outside (Q6). The three geometry caps and `MIN_IMAGE_SHELL` move to tier 1.
+- The bond search reaches the longest pair the covalent radii could bond, so CsCl lists its eight 3.571 Å Cs–Cl bonds; `CONTACT_MAX_ANG` bounds contacts only (`model/geometry.py`).
+- The restraint minimum-image search has a second pass sized per cell by `geometry._shell` from the first pass's distance; a tie keeps the first pass's image, so a reduced cell's answer is unchanged. The slow domain test passes on all five cell families, its oracle now sized from the pair alone (`model/restraints.py`, `tests/test_restraints.py`).
+- Q4: `ROUGHNESS_UNCONSTRAINED` says, when Suortti roughness ends exactly off, that the scale's and Biso's esds depend on which off state (b = 0 or a = 1) the solver stopped in, and that dropping the block removes the dependence. The canonicalising re-solve recommended last round (option b) was not built: a new automatic step, record field and audit row for a case the maintainer called rare.
+- Q5: the five TCHZ ceilings removed from both boxes, floors kept; the `fwhm_deg` fence that read w's ceiling removed. A project stored before keeps its own ceilings.
+- Tier 2 names GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, in the rule, `_audit.py`'s docstring and the judge's checklist. The fourteen rows resting on a program default name all seven. `refine:solver` stays tier 2 although FullProf dissents (undamped Gauss-Newton), the dissent clause governing actions; `CELL_MIN_LENGTH_A` stays on TOPAS alone, the others having no floor.
+- `2002-batch/practice.md`: the seven-program survey (peak window and when it is set, axial quadrature, reflection margin, staging, roughness starts, width limits, the tier-2 rows). One Sonnet agent a program read its manual or source and ran FullProf, RIETAN-FP and BGMN; the lead spot-checked TOPAS's `ymin_on_ymax` and FullProf's `Ias` in the text.
+- The three briefs as sent, whole, in `rulings.md` § Sixth round.
+
+*Measured* (macOS arm64, `[dev]`, compiled tier on; timings two runs each, interleaved, with other agents running for some).
+- `WINDOW_AREA_TOL` 5e-3, near GSAS-II's 0.5 % of a Lorentzian: 0.33-0.43σ at a point, answers up to 0.88 esd (LaB6 `u`), 1.05-1.54× the fit time. Fails both bars on three of four families.
+- 1e-3 on the last stage only: within 0.008 esd of the all-1e-3 answer on FAP, cpd-1a and NAC, at 1.06-1.91× (all-1e-3: 1.16-3.53×).
+- A closing all-free stage at 1e-3 after today's plan: within 0.052 esd of all-1e-3, at 1.36-2.26×.
+- Biso started at 0.5 and 1.5 Å² (today / last-stage tight / closing stage): FAP 0.119 / 0.013 / 0.000, cpd-1a 0.751 / 0.734 / 0.064, NAC 0.008 / 0.006 / 0.000, LaB6 9.0 / 9.0 / 9.4 (its mirrored minima under every setting; forwarded to WP-2012).
+- Fast selection after the ceilings went: 5 failed, 10 930 passed, 191 skipped, 31 xfailed (each failure asserted a ceiling; fixed in `f39bb5cf7`). On the final tree (main has not moved, so it is the merged tree): 10 935 passed, 191 skipped, 31 xfailed, `[dev]`, darwin/arm64, 5:01 with no other suite running. The 3rd session's tree, adjusted for its own two later changes, was 10 934 passed and 31 xfailed: +1 here, from +1 geometry (CsCl), +1 roughness, and neutron's two ceiling tests replaced by one. The added tests cost 0.05 s (geometry, three over the branch), 0.04 s (roughness) and 0.00 s (neutron), one run on this machine; none joins the tail.
+- [FULL]
+
+*Review.* `/code-review high --fix` over `fdfde9fff..HEAD` found nine; five fixed in `a5f2c5f23`: the ProfileTCHZ docstring named Y as the size term where X (1/cosθ) is, `constant_wavelength_neutron`'s docstring still described the ceilings and the `fwhm_deg` raise, the bond search sized one shell per phase for its heaviest atom (2.4-3.4× the search for a light atom), the roughness help's "also switched off" read as a third off state, and the derived-quantities reference called `contact_max` the search radius. Declined: vectorising the image search (0.87 ms an image in P 2₁/c, 39 ms for a 192-op orbit; a vectorised pass could change which of two equidistant images a restraint takes); a backstop for the instrument widths (a design change past the Q5 ruling, now the sixth round's Q6); a near-off test for TRF in the roughness sentence (the test pins exactly-off on purpose); lifting stored ceilings at read (recorded as the stored file's own bound). The generality judge's fixable findings landed in `c9c28fb73`: the Q4 record, two stale `waiting.md` lines, four rows counting six programs where the survey names five and BGMN, the survey's sources, the cap clause's distance case, and the warning naming its off state.
+
+*Forwarded.* WP-2012: no window setting or Biso start moves LaB6's split. WPs 2003-2007: tier 2's seven programs and where the survey is. For rietx-bench, handed to the maintainer as paste text: its BGMN case names `LAMBDA=cu_hoelzer97`, which has no `.ano` table, so that run has no anomalous dispersion.
+
+*Gotchas.* The TCHZ size term is X (Γ_L = X/cosθ + Y·tanθ); the fifth round's Q5 brief, this session's report and the commit `d8c5aed90` called the 8 nm cap "Y ≤ 1°", corrected in the schema and the record. A pytest run piped to `tail` in an `&&` chain returns `tail`'s status: one commit here (`d8c5aed90`) went in over a failing test, fixed in the next. `caffeinate -w <pid>` blocks on a process and passes the worktree guard. The window measurements patch `rietx.model.forward.WINDOW_AREA_TOL` and wrap `refine.compile_model` per stage (scratch scripts `window_last.py`, `window_close.py`, `biso_starts.py` in the session scratchpad; their logic is in this entry and `rulings.md`).
+
+*Generality.*
+
+##### generality.md § The rule, tier 1: the numerical-setting clause
+
+**holds.** The clause copies B10's ruling of 2026-10-19 faithfully (B10 is the batch's class of numerical settings). The case for writing it down is stronger, and the one weakness is that the rule does not say who sets the error bar.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | A numerical setting "controls how accurately rietx computes something rather than what it decides … once a test shows its error stays under a stated bar over every input it claims to handle" (`generality.md:50-53`) | It admits a constant to tier 1 (physics or arithmetic) once a domain test passes. B10's wording, `rulings.md:27-30`: "A numerical setting is tier 1 when a test bounds its error over the claimed domain." | faithful |
+| 2. Kind | Not stated (a rule clause) | Not applicable | — |
+| 3. Case against | none given | The test author chooses both the bar and the claimed domain, so a loose bar or a narrow domain passes. That is the self-certification the table exists to prevent. The bar is open right now: the sixth round's Q2 (a question to the maintainer, `rulings.md:235-237`) asks it, and the window tests use 0.1σ at a point and 0.1 plain esd (`waiting.md:99`). The definition also reads as if such settings move no answers. Yet `WINDOW_AREA_TOL` (the peak-window area cut) moved answers by up to 0.97 esd (`rulings.md:253`). The bar catches that, but only if the bar is a real one. | weak point |
+| 4. Case for | "B10, ruled 2026-10-19" (`generality.md:53`) | The ruling is recorded verbatim in `rulings.md:27`. The clause was owed under that ruling ("One sentence goes into … § The rule, under tier 1"). | strong |
+| 5. Tier and source | the maintainer's ruling | Confirmed in the repository | holds |
+| 6. Families | n/a | n/a | — |
+| 7. Record | n/a | n/a | — |
+
+Would change the verdict: a ruling that the bar is the maintainer's (Q2's answer), quoted in each row that uses this clause, or the clause naming that bar.
+
+##### generality.md § The rule, tier 1: the report-cap clause
+
+**weak.** The clause is sensible for a cap that counts what it drops. Its authority is an interpretation of an ambiguous reply, and its second condition cannot be met by a distance cap.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "a cap on what a report lists, once a test shows the report is complete inside the cap and its notes count what lies outside it" (`generality.md:53-55`) | It moves any listing cap to tier 1 whatever the cap's value. The test is honesty about the cap, never whether the value is a good one. | — |
+| 2. Kind | n/a | A listing that states its scope is Rule 1's third kind (report and stop) | consistent |
+| 3. Case against | none given | (a) The authority is the maintainer's "doesn't appear to be a question", which the lead "read as agreement" (`rulings.md:206`). The clause records it as "ruled 2026-10-21". The reply could equally mean "not mine to decide". Q6's brief is in PR #1085 and the transcript, so I could not read what was recommended. (b) A distance cap such as `CONTACT_MAX_ANG` has no countable outside, so "notes count what lies outside" cannot hold for it. The row substitutes "the radius travels on `GeometryTable.contact_max`". (c) None of the three geometry caps can be changed by a caller (`geometry_table` takes no such argument, `geometry.py:428`). A refiner wanting 4 Å contacts, or a table for a 250-atom asymmetric unit, has no way to get it. | real |
+| 4. Case for | "read as agreement with the recommended 'report scope' class" (dispatch). `rulings.md:207-210` | A cap that drops rows and says how many hides nothing. The geometry table feeds only the report and the CIF exporter (`refine.py:7322`, `report/schemas.py:1658`), so no fitted number depends on it. | moderate |
+| 5. Tier and source | the fifth round's Q6 | The source is an interpretation, not a stated ruling | weak |
+| 6. Families | n/a | n/a | — |
+| 7. Record | `GeometryTable.notes` | Present for the two count caps. The radius has `contact_max` but no count. | partial |
+
+Would change the verdict: the maintainer confirming Q6 in words, and the clause amended to say "notes count it, or the table records the bound" for a distance cap.
+
+> Author: the reading goes back to the maintainer as the sixth round's Q4, and the clause now says "or for a cap on distance the report states the distance" and that its reading awaits confirmation (`c9c28fb73`).
+
+##### generality.md § The rule, tier 2: the seven programs
+
+**weak.** Widening the program list is the maintainer's instruction and its direction is sound. The new wording leaves two gaps, and the same session filled them in opposite directions.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "The programs are the seven rietx-bench runs … A program that does otherwise by default is a dissenter; one without the feature is neither" (`generality.md:56-61`) | It sets which programs' defaults count as established practice (tier 2), and what counts as a dissent. rietx-bench is the maintainer's harness that runs other Rietveld programs. | — |
+| 2. Kind | n/a | n/a | — |
+| 3. Case against | none given | (a) The list is tied to rietx-bench's roster, so tier 2 changes whenever the harness gains or loses a program. (b) EasyDiffraction is at 0.21.1 (`practice.md:9`), a pre-1.0 code. Counting its defaults as established practice is a stretch. (c) Established programs outside rietx-bench are absent. From memory and unchecked: Jana2020 and HighScore Plus. (d) The rule says what a dissenter outweighs only for an action (`generality.md:64-66`). It is silent on a default or a threshold, and item 3's solver row relies on that silence. (e) "Without the feature" against "does otherwise" is ambiguous for a bound. Every program refines U, V, W and cell lengths. "No ceiling" in six programs removed the TCHZ ceilings (TCHZ: the pseudo-Voigt width parameters), yet "no floor" in six programs counted as "without the feature" for `CELL_MIN_LENGTH_A`. (f) The rule does not say how many of the seven must agree. One program's default carries tier 2, and the survey's notes are not kept (`practice.md:10-11`: "in each lane's notes under the session scratchpad and are not reproduced"). | substantial |
+| 4. Case for | the maintainer's instruction (`rulings.md:194-196`) | A wider survey lowers the chance of missing a dissenter. The "neither" clause stops a program that lacks a feature from counting as a dissenter. | real |
+| 5. Tier and source | the maintainer, 2026-10-21 | Recorded | holds |
+| 6. Families | n/a | n/a | — |
+| 7. Record | rows "name the programs it checked" | Rows name the programs. The source locations are in a scratchpad that will be deleted. | weak |
+
+Would change the verdict: wording on (d) and (e), a stated count of agreeing programs, and `practice.md` carrying file and section references.
+
+> Author: (d), (e) and (f) go to the maintainer as the sixth round's Q5; `practice.md` now carries a sources table (`c9c28fb73`). The list is the maintainer's instruction; Jana2020 is listed and excluded in rietx-bench for want of a batch mode.
+
+##### rietx.model.geometry.CONTACT_MAX_ANG (3 → 1)
+
+**holds.** The case for tier 1 is stronger: completeness inside 3.5 Å is tested, and the bond-search defect is fixed and tested. The clause's "count what lies outside" fits a radius only loosely.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "every contact within 3.5 A is listed … bonds are found past it" (`_audit.py:1338-1344`) | It decides which non-bonded distances the table shows. The fix (`geometry.py:318-335`) searches each atom out to r_i + r_max + 0.4 Å and lists contacts only up to 3.5 Å. | — |
+| 2. Kind | none given (not required on a constant) | Report scope, third kind | — |
+| 3. Case against | none given | 3.5 Å is rietx's choice, and a caller cannot widen it. A refiner checking K···K or van der Waals contacts near 4 Å sees nothing beyond 3.5 Å, and no note says so. Only the radius is recorded. A metal–metal pair inside bonding reach but beyond 3.5 Å is dropped without a note (`geometry.py:332-335`). That is consistent with the radius. | moderate |
+| 4. Case for | "complete in an unreduced cell where a fixed one-cell shell drops a 3.04 A contact"; CsCl "once … listed none" | `test_the_contact_search_is_complete_in_an_unreduced_cell` checks the listing against a brute-force search over shifts of −8 to 8. `test_a_bond_past_the_contact_radius_is_found` finds 8 × 3.5706 Å with no contacts. Both were made to fail. | strong |
+| 5. Tier and source | tier 1 under the cap clause | Rests on the cap clause above, whose authority is weak | depends on clause |
+| 6. Families | n/a (tier 1) | The structure CIFs in tests/data and synthetic P1 cells | — |
+| 7. Record | `GeometryTable.contact_max` | Present; no count of what lies beyond | partial |
+
+Would change the verdict: the cap clause failing confirmation. Separately, `waiting.md:110` still says the caps "stay tier 3", which is now stale.
+
+> Author: `waiting.md` corrected (`c9c28fb73`).
+
+##### rietx.model.geometry.MAX_ASYM_ATOMS (3 → 1)
+
+**holds.** The clause's letter is met: the phase is skipped whole and the note says so. The cost the value exists to bound is still unmeasured, and the row says so itself.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "a phase past it is skipped whole and GeometryTable.notes says so" (`_audit.py:1345-1350`) | A phase with more than 200 asymmetric-unit atoms gets no distances and no angles | — |
+| 2. Kind | none given (constant) | Report scope | — |
+| 3. Case against | "The search time at 200 is unmeasured and a caller cannot raise it" (same row) | A refiner with a large asymmetric unit loses McCusker §11's quality check entirely and cannot opt in. The docstring's reason, "a minute stolen from the refinement" (`geometry.py:114-117`), has no measurement behind 200. | moderate |
+| 4. Case for | the CIFs in tests/data "reach 32 atoms" | `test_a_phase_too_large_to_search_says_so` checks the note, with the cap patched to 1 | holds for the clause |
+| 5. Tier and source | the cap clause | As above | depends on clause |
+| 6. Families | n/a | — | — |
+| 7. Record | `GeometryTable.notes` | Present, and names the atom count | holds |
+
+Would change the verdict: a timing at 200 atoms showing fit-close cost that no caller would accept, or the need for a caller override.
+
+##### rietx.model.geometry.MAX_CONTACTS_PER_ATOM (3 → 1)
+
+**holds.** This is the cleanest fit to the cap clause, and nothing in the change argues against it.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the note counts exactly what the cap drops, the kept contacts are the nearest and bonds are never dropped" (`_audit.py:1351-1356`) | Confirmed in `geometry.py:337-347` | — |
+| 2. Kind | none given (constant) | Report scope | — |
+| 3. Case against | none given | none found. The docstring notes that a firing cap can break the two-direction symmetry of the listing (`geometry.py:108-111`), and the note covers it. | — |
+| 4. Case for | 31 dropped on corundum with the cap at 2 | `test_the_contact_cap_note_counts_exactly_what_it_dropped` was made to fail (33 against 31) | strong |
+| 5. Tier and source | the cap clause | As above | depends on clause |
+| 6. Families | "tests/data's structures reach 20 a site" | Not needed at tier 1 | — |
+| 7. Record | `GeometryTable.notes` | Present, with the count | holds |
+
+Would change the verdict: only the cap clause failing confirmation.
+
+##### rietx.model.restraints.MIN_IMAGE_SHELL (3 → 1)
+
+**holds.** The second pass makes the search exact by construction, and a slow domain test checks it on five cell families. Nothing argues for the old state.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the first pass of the minimum-image search, which only bounds the second, sized per cell by geometry._shell" (`_audit.py:1475-1481`) | A first pass finds some image at distance d. `_shell(g, d)` then covers every lattice shift within d (the plane-spacing bound, `geometry.py:161-172`), and the second pass replaces the first answer only with a strictly nearer image (`restraints.py:199-224`). Any value ≥ 1 gives the same image. | — |
+| 2. Kind | none given (constant) | Arithmetic | — |
+| 3. Case against | none given | none found. The test is `slow`, so per-PR CI does not run it, only the nightly. | — |
+| 4. Case for | "exact on 50 000 pairs … where one shell alone missed 72 of 2518 pairs within 4 A" | `test_one_image_shell_finds_the_nearest_image_over_its_domain`: the strict xfail on β 135-150° is gone, and the reference is sized from the pair alone (`test_restraints.py:411-415`), so it does not reuse the code's own first pass. Made to fail with the second pass removed. | strong |
+| 5. Tier and source | the numerical-setting clause, bar = exactness | Exactness is the right bar for a missed image | holds |
+| 6. Families | n/a (synthetic cells, 5 kinds × 100 cells × 100 pairs) | — | — |
+| 7. Record | none | None needed: there is no action | — |
+
+Would change the verdict: none expected. `waiting.md:114` still calls this "a defect", which is now stale.
+
+> Author: `waiting.md` corrected (`c9c28fb73`).
+
+##### The twelve tier-2 rows with only the seven-program sentence added
+
+`_TCH_ETA`, `_TCH_GAMMA`, `BRINDLEY_MU_R_FENCE`, `Source:dispersion`, `fit:mode`, `run_stage:mode`, `refine:mode`, the four `two_theta_limits` rows, `auto_background:seed`.
+
+**holds.** Each row already rested on a checked GSAS-II default or a citation, and no new dissenter appears. Two defects are in the added text.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What they decide | unchanged | unchanged | — |
+| 2. Kind | `ambiguity=1` on the defaults | consistent with no dissenter | holds |
+| 3. Case against | the dissent column reads "none" (`practice.md:300-307`) | (a) The four `two_theta_limits` rows say "the full range in six, BGMN the instrument function's" (`_audit.py:2332+`). `practice.md:302` names only five programs (GSAS-II, FullProf, RIETAN-FP, MAUD, EasyDiffraction) plus BGMN. TOPAS is missing, so the rows overcount by one. (b) BGMN's "instrument function's range" is arguably a different default rather than agreement. (c) The source locations for the six new programs are not in the repository. | minor |
+| 4. Case for | per row, e.g. dispersion "all seven apply f', f'' by default" | Consistent with `practice.md`. I did not check the programs themselves. | holds |
+| 5. Tier and source | tier 2 | I checked `practice.md` in this repository. I recall nothing that contradicts it, and verified none of the six new programs. | holds |
+| 6. Families | n/a | — | — |
+| 7. Record | unchanged | — | — |
+
+Would change the verdict: TOPAS's `two_theta_limits` default found not to be the full range.
+
+> Author: the four rows and `practice.md` now name the five, BGMN's range and TOPAS's unstated default; `practice.md` carries a sources table (`c9c28fb73`).
+
+##### rietx.refine.refine:solver (stays tier 2 with FullProf dissenting)
+
+**weak.** The row names a dissenter while keeping first-kind ambiguity. The reading that "the dissent clause governs actions only" is not in the rule.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "Marquardt-damped in six; FullProf dissents, Gauss-Newton with relaxation factors" (`_audit.py:2414-2417`) | Every fit uses damped least squares (Levenberg-Marquardt, "LM") unless the caller names another solver | — |
+| 2. Kind | `ambiguity=1` | Rule 1: "if a competent refiner who would act otherwise can be named, the action moves to the second or third kind". Rule 4 asks a default the same question. A named dissenter with ambiguity 1 conflicts with both unless a default is not an action, and the rule does not say that. | conflicts |
+| 3. Case against | the dispatch: "a solver default is a numerical method" | FullProf's users run undamped Gauss-Newton by default. A solver can change which minimum a fit lands in: this branch measured LM and TRF (another bounded solver) ending 0.074 esd apart on cpd-1a (`waiting.md:34-40`). LM against Gauss-Newton has not been measured. | real |
+| 4. Case for | six of seven damp | Relaxation factors scale each shift down, which is damping of another form (recalled, not checked). The dissent may concern method rather than answer. | moderate |
+| 5. Tier and source | GSAS-II `HessianLSQ`, checked earlier | GSAS-II part checked in a prior session. Other programs per `practice.md` only. | holds as practice |
+| 6. Families | none given | none | — |
+| 7. Record | none given | `solver` is recorded on the result as the caller's argument (not checked this session) | — |
+
+Would change the verdict: refits on three families showing LM and relaxed Gauss-Newton reach the same answers (then it is a method with no dissent on the answer), or a maintainer ruling that the dissent clause covers defaults.
+
+> Author: to the maintainer as the sixth round's Q5, whose option (a) puts the solver with B10's solver-path switches at tier 3 until refits agree.
+
+##### rietx.params.vector.CELL_MIN_LENGTH_A (stays tier 2 on TOPAS alone)
+
+**weak.** The stakes are low, but the reasoning contradicts how the same survey removed the TCHZ ceilings.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "TOPAS alone floors a cell length, and the other six have no floor; it binds on no real cell" (`_audit.py:1760-1763`) | A lower bound of 1.5 Å on every cell length | — |
+| 2. Kind | none given (constant) | It acts as a limit on a refined value | — |
+| 3. Case against | none given | All seven programs refine cell lengths, so they have the feature. Six leaving the length unbounded is "doing otherwise by default" on the reading that removed the TCHZ ceilings (`instrument.py` docstring: "none of GSAS-II, FullProf, TOPAS, RIETAN-FP, MAUD or EasyDiffraction bounds these coefficients"). By that reading the row has six dissenters. | real |
+| 4. Case for | "binds on no real cell" | No measurement given (for example, the shortest cell edge in a structure database). A physics argument exists: below about 2 Å an atom overlaps its own lattice image. The row does not make it. | plausible, unevidenced |
+| 5. Tier and source | TOPAS Technical Reference v9 § 2.17, checked 2026-10-19 | Checked in an earlier session; I did not re-check it | holds as citation |
+| 6. Families | none given | none | — |
+| 7. Record | none given | A hit would show as `BOUND_HIT` (the code for a value stopped by a limit) and `at_bound` | — |
+
+Would change the verdict: the physics argument written into the row (which would make it tier 1), or a database minimum showing the floor never binds.
+
+> Author: to the maintainer as the sixth round's Q5, whose option (a) moves the floor to tier 1 on the physics argument.
+
+##### TCHZ_BOUNDS and TCHZ_BOUNDS_COARSE: the five ceilings removed, and the `fwhm_deg` fence with them
+
+**holds.** The case for removal is stronger: none of the seven programs bounds these widths by default, and the ceilings capped a physical quantity. The case for keeping them is a guard whose use was never measured.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What the caller now decides | a caller sets "an explicit `Parameter(value, min, max)`" for their own bounds (`instrument.py` docstring) | U, V, W, X and Y may grow without limit. The neutron constructor no longer refuses `fwhm_deg` > 2.83°. | — |
+| 2. Kind | none given (hand row) | A limit on a fitted value; the established programs set none | — |
+| 3. Case for keeping (the removal's weak side) | none given | A ceiling stopped a width running away inside a stage, and `BOUND_HIT` reported it. Now no single-fit code reports a runaway width: I grepped the width codes and found only magnetic, sequential and indexing ones. The windows are frozen at the stage's start, so a width that runs away loses more area in silence (`waiting.md:106`). No measurement of how often a ceiling bound on real data: none given. | weak, unmeasured |
+| 4. Case for removal | Q5 (a), "checked against the seven programs"; "Y ≤ 1° capping the Lorentzian size near 8 nm at Cu Kα" | Arithmetic checked: 0.9 × 1.5406 Å / 0.01745 rad ≈ 79 Å. `practice.md:283-294`: GSAS-II, FullProf, RIETAN-FP and EasyDiffraction set none; TOPAS has no u-y row; MAUD's limits are "not enforced". It also removes the indexing seed crash WP-1312 recorded (`1312:439-451`). | strong |
+| 5. Tier and source | the maintainer's ruling (Q5) plus the survey | As stated. WP-1312's reasons for keeping the ceilings, a moved search box and an owed schema note, are addressed by the ruling and by old projects keeping their stored bounds (`waiting.md:85`). | holds |
+| 6. Families | D1B Co₃O₄ for the coarse box | One family. It does not bear on the removal. | — |
+| 7. Record | none | No record for a runaway width | gap |
+
+Would change the verdict: a fit on real data where a width ran away and the ceiling had caught it. A sibling not judged here: the kept U and V floors face the same seven-program argument, and the documentation's own D1B model sits under the default V floor (V = −0.501).
+
+> Author: the runaway-width gap goes to the maintainer as the sixth round's Q6. The size term is X, not Y, corrected in `a5f2c5f23`. The U and V floors were kept by the Q5 ruling ("keep the floors and lower bounds"); their seven-program reading falls under Q5.
+
+##### ROUGHNESS_UNCONSTRAINED: reporting the off-state dependence instead of re-solving
+
+**holds** on the decision. The report states the fact and stops, and the case for re-solving rests on one family for a case the maintainer called rare. The batch record contradicts the code, and that must be fixed. (Suortti is one of the two surface-roughness intensity corrections. This warning fires when the refined roughness changes intensity by under 1 %.)
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What the caller now decides | "the esds of the scale and Biso depend on which one" (`refine.py:9735-9745`) | The caller must drop the roughness block and refit to get one reading. The message does not say *which* off state the fit stopped at, although the code holds a and b. | — |
+| 2. Kind | none given (`ROUGHNESS_UNCONSTRAINED` is still `unaudited`, `_audit.py:743`) | The dependence is arithmetic. Reporting it is the third kind. | none given |
+| 3. Case against acting (for the report) | "Said rather than canonicalised: the case is rare, and dropping the block, which this warning already asks for, gives one reading" (`refine.py:9727-9729`) | Choosing b = 0 (the marginal reading) over a = 1 (the conditional one) is itself a choice. Dropping the block is the remedy no refiner would dispute, and the warning already prescribes it. | strong |
+| 4. Case for acting (re-solve at b = 0) | "the scale's and Biso's esds differ ×1.1 to ×4.4 between the two at one set of values" (`refine.py:9725-9726`) | ×4.4 on a quoted esd is large. It is measured on one family (the CPD round robin) at one set of values, and the cost of leaving it is one refit. WP-1929's rule, that a row on its bound stays in the matrix, would support b = 0. | moderate |
+| 5. Tier and source | delegated by the maintainer ("whichever you consider reasonable") | `rulings.md:202-204` (in this diff, and unchanged in the uncommitted copy) still says "The lead's pick is (b): … esds evaluated at b = 0". The code does the report. | record contradicts code |
+| 6. Families | CPD round robin, one | one | — |
+| 7. Record | the message and suggestion text | Prose only. No field names the off state. Tested by `test_a_switched_off_suortti_block_says_its_esds_depend_on_the_off_state` (made to fail). | partial |
+
+Would change the verdict: the ×4.4 reproduced on a second and third family, or the case shown to be common. Either way, `rulings.md` § Fifth round's answers must say the report was chosen over (b), and the message could name the off state it found.
+
+> Author: `rulings.md` now records the report as chosen over (b), and the message names the off state it found (`c9c28fb73`).
+
+*Next.*
+1. The maintainer answers the sixth round's six questions (`rulings.md` § Sixth round, each brief whole there): Q1 the peak window, Q2 the start-test bar and a closing stage, Q3 Pitschke's start, Q4 whether the fifth round's Q6 answer meant yes, Q5 how tier 2 counts a dissenting program, Q6 a range backstop for runaway instrument widths. Q2's answer decides Q1's build: a closing stage carries the tight windows if Q2 takes option 3, otherwise the plan's last stage does.
+2. Build the answers. A closing stage is a runner change (every plan gains a final all-free stage recompiled at the answer), re-pins the goldens, and is followed by rerunning the intermediate-tolerance and harmonic-seed start tests behind it. The six other failing numerical settings take the same rule. Q3 (c) splits the roughness stage's one `seed=0.3` (`strategy/staged.py`) into Suortti's b (start-invariant) and Pitschke's c (tier 3, its failure recorded).
+3. B14's lifts with the ~50-guard list to the judge; the interval and width-grid domain tests.
 
 ### 2026-10-21 — the owed tests: the budgets and two starts pass, most numerical settings fail a bar tied to the data's noise
 
