@@ -51,9 +51,10 @@ for c in arm.candidates[:3]:
 | `SatelliteCandidate.worst_offset_deg` | the largest Δ2θ among the matched peaks | `None` when none matched |
 | `SatelliteCandidate.n_satellites` | satellite positions this k puts in the fitted range | a k with many positions matches peaks by being everywhere |
 | `SatelliteCandidate.star_size` | arms of the star of k | |
-| `SatelliteCandidate.minus_k_distinct` | whether −k is a second vector | false when 2k is a reciprocal-lattice vector; the test respects centring, so on a C lattice (½ 0 0) is distinct from its negative and (0 0 ½) is not |
+| `SatelliteCandidate.minus_k_distinct` | whether −k is a second vector | false when 2k is a reciprocal-lattice vector; the test respects centring. in the default candidate set only (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal lattice are true, since 2k is not a lattice vector there |
 
-The candidate set is enumerated, not searched: the zone-boundary vectors {0, ½}³ without the origin, plus (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal or trigonal lattice, one per star.
+The candidate set is enumerated, not searched: the zone-boundary vectors where k ≡ −k on the phase's own lattice (2k a reciprocal-lattice vector), plus (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal or trigonal lattice, one per star.
+On a primitive lattice those are {0, ½}³ without the origin; on a centred one they are not, and F, for one, adds the X points (1 0 0), (0 1 0) and (0 0 1).
 An incommensurate k is outside it, and so is any commensurate k it does not list, so a good pattern can score nothing.
 `solve_magnetic` takes another candidate set through `generator=`.
 

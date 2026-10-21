@@ -299,7 +299,7 @@ for c in arm.candidates[:3]:
 | `SatelliteCandidate.worst_offset_deg` | the largest Δ2θ among those | null when none matched |
 | `SatelliteCandidate.n_satellites` | satellite positions this k puts in range | a k that floods the pattern explains peaks by having a line everywhere |
 | `SatelliteCandidate.star_size` | arms of the star of k | |
-| `SatelliteCandidate.minus_k_distinct` | whether −k is a second vector | false when 2k is a reciprocal-lattice vector; the test respects centring, so on a C lattice (½ 0 0) is distinct from its negative and (0 0 ½) is not |
+| `SatelliteCandidate.minus_k_distinct` | whether −k is a second vector | false when 2k is a reciprocal-lattice vector; the test respects centring. in the default candidate set only (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal lattice are true, since 2k is not a lattice vector there |
 
 ## A moment, stated and refined
 
