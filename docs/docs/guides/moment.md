@@ -2,7 +2,8 @@
 # How to refit the nuclear model with the moment present
 
 Take the nuclear model from a pattern that has no moment in it, or refit every nuclear term in a fit that carries the moment, and only then read the moment.
-A nuclear model fitted to the ordered pattern with no moment in it has absorbed some of the magnetic intensity, and the moment that follows comes out low.
+A nuclear model fitted to the ordered pattern with no moment in it can absorb some of the magnetic intensity, and the moment that follows can come out low.
+On the one specimen below it did, by about two esds.
 
 [`solve_magnetic`](../reference/magnetic.md#solve_magnetic) does neither for you.
 It refits its own nuclear reference under the stages you give it, so the nuclear model it starts from is the one you hand it, and it never goes back to refit that model with the moment present.
@@ -107,3 +108,10 @@ The displacement parameters carried it: Cr went from −1.4 to 0.4 Å<sup>2</sup
 
 A route 2 answer is an estimate until the rounds agree.
 If the moment is still moving at the round cap, or the scale has moved by several esds, report both the blind and the last-round moment.
+
+The full script is `examples/guides/moment.py`.
+
+## See also
+
+- [`solve_magnetic`](../reference/magnetic.md#solve_magnetic) refits its own nuclear reference under the stages you give it, which is the step both routes here build on.
+- [How to keep a parameter fixed whatever the plan frees](hold.md) is the other way to keep a nuclear term at its reference value: `Refinement.hold` pins it against every stage of every plan, where route 1 simply leaves it out of the stages.

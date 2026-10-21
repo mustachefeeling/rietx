@@ -1,15 +1,16 @@
 """The fits behind `docs/docs/guides/moment.md`: the nuclear model refitted with the moment present.
 
 The page shows the lines between each pair of `guide:` markers and quotes what
-they print; every quoted number is asserted at the end, so a change that moves
-one fails `tests/test_examples.py`.
+they print; every number the page quotes or states in prose is asserted at the
+end, so a change that moves one fails `tests/test_examples.py`.
 
 Data: Cr2WO6 at 4 K and 150 K from `tests/data/`, loaded by `_cr2wo6_pair.py`
 beside this script.
 """
 
-# guide: reference start
+import tempfile
 
+# guide: reference start
 from _cr2wo6_pair import BACKGROUND, CELL, ZERO, instrument, nuclear_plan, pattern, trirutile
 
 import rietx as rx
@@ -52,8 +53,6 @@ print(f"Biso of Cr1 = {blind.fitted_structure.phases[0].atoms[1].biso.value:.1f}
 
 # guide: alternate start
 
-import tempfile  # noqa: E402
-
 # the winning class as a structure that carries its moment
 with tempfile.TemporaryDirectory() as folder:
     cif = next(p for p in solution.write_magcifs(folder)
@@ -71,6 +70,7 @@ everything = rx.RefinementPlan(stages=[rx.Stage("all", [
 
 ROUNDS = 5
 previous = moment.magnitude
+steps = []
 for n in range(1, ROUNDS + 1):
     ref = rx.Refinement(structure.model_copy(deep=True), fitted_instrument.model_copy(deep=True))
     result = ref.fit(ordered, plan=everything)
@@ -78,6 +78,7 @@ for n in range(1, ROUNDS + 1):
     print(f"round {n}: |m| = {row.magnitude:.2f} ± {row.magnitude_esd:.2f} μB, "
           f"Rwp {result.statistics.rwp:.2f}")
     structure, fitted_instrument = ref.fitted_structure, ref.fitted_instrument
+    steps.append((abs(row.magnitude - previous), row.magnitude_esd))
     if abs(row.magnitude - previous) < row.magnitude_esd:
         break
     previous = row.magnitude
@@ -95,6 +96,16 @@ assert n == 2 and abs(row.magnitude - 2.124) < 0.01 and row.magnitude_esd < 0.05
 assert 2.08 < reference.best.moments[0].magnitude < 2.14
 assert blind.fitted_structure.phases[0].atoms[1].biso.value < 0 < ref.fitted_structure.phases[0].atoms[1].biso.value
 assert abs(shift) < scale.stderr
+# the three moments the "Read the result" section compares, and the two checks it names
+assert abs(solution.best.moments[0].magnitude - 2.03) < 0.005 and abs(solution.best.moments[0].esd - 0.05) < 0.005
+assert abs(reference.best.moments[0].magnitude - 2.11) < 0.005 and abs(reference.best.moments[0].esd - 0.03) < 0.005
+assert abs(row.magnitude - 2.12) < 0.005 and abs(row.magnitude_esd - 0.04) < 0.005
+assert abs(abs(shift) / scale.stderr - 0.5) < 0.05
+assert abs(blind.fitted_structure.phases[0].atoms[1].biso.value + 1.4) < 0.05
+assert abs(ref.fitted_structure.phases[0].atoms[1].biso.value - 0.4) < 0.05
+# "round 1 moves the moment by 0.09 μB, more than its esd of 0.04, and round 2 by less than 0.001"
+assert abs(steps[0][0] - 0.09) < 0.005 and steps[0][0] > steps[0][1] and abs(steps[0][1] - 0.04) < 0.005
+assert steps[1][0] < 0.001
 
 # Holding the lattice at its 150 K values as well leaves a nuclear model that does not
 # describe the 4 K pattern: Rwp 0.23 against 0.11, and the moment barely moves.
@@ -107,7 +118,8 @@ only = rx.RefinementPlan(stages=[
 lattice_held = rx.solve_magnetic(frozen, ordered, sites=["Cr1"], ion="Cr3+", plan=only)
 print(f"lattice held: Rwp {lattice_held.best.rwp:.2f}, |m| = {lattice_held.best.moments[0].magnitude:.2f}")
 print(f"lattice freed: Rwp {reference.best.rwp:.2f}")
-assert lattice_held.best.rwp > 1.8 * reference.best.rwp
+assert abs(lattice_held.best.rwp - 0.23) < 0.005 and abs(reference.best.rwp - 0.11) < 0.005
+assert abs(lattice_held.best.moments[0].magnitude - 2.10) < 0.005
 assert abs(lattice_held.best.moments[0].magnitude - reference.best.moments[0].magnitude) < 0.05
 
 # Freeing the profile too, as the page says.
