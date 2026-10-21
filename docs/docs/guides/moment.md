@@ -85,26 +85,25 @@ One stage then frees the moment and every nuclear term.
 
 <!-- output of examples/guides/moment.py -->
 ```text
-round 1: |m| = 2.12 ± 0.04 μB, Rwp 0.10
-round 2: |m| = 2.12 ± 0.04 μB, Rwp 0.10
+round 1: |m| = 2.1 ± 0.04 μB, Rwp 0.10
+round 2: |m| = 2.1 ± 0.04 μB, Rwp 0.10
 scale moved 0.5 esd
-Biso of Cr1 = 0.4 Å²
 ```
 
 The loop stops when the moment moves by less than its own esd between two rounds, and after five rounds whatever it has done.
 Both are choices of this script, not settings of rietx.
-Here round 1 moves the moment by 0.09 μ<sub>B</sub>, more than its esd of 0.04, and round 2 moves it by less than 0.001.
+Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit depends on the platform), more than its esd of 0.04, and round 2 moves it by less than 0.001.
 
 ## Read the result
 
-On this pattern the three answers are 2.03 ± 0.05 μ<sub>B</sub> blind, 2.11 ± 0.03 with the reference and 2.12 ± 0.04 with the moment present.
-The blind moment is 0.09 μ<sub>B</sub>, about two esds, below the other two, which agree with each other.
+On this pattern the three answers are 2.03 ± 0.05 μ<sub>B</sub> blind, 2.11 ± 0.03 with the reference and 2.11 ± 0.04 with the moment present.
+The blind moment is 0.08 μ<sub>B</sub>, about two esds, below the other two, which agree with each other.
 This is one specimen with a k = 0 collinear moment, so it shows the effect and does not size it.
 
 The two printed checks say where the intensity went.
 The nuclear scale factor moved by half its esd between the blind fit and the last round, so on this pattern it did not carry the exchange.
 A scale that moves by more than its own esd is where to look first.
-The displacement parameters carried it: Cr went from −1.4 to 0.4 Å<sup>2</sup>.
+The displacement parameters carried it: Cr went from −1.4 Å<sup>2</sup> to about zero.
 
 A route 2 answer is an estimate until the rounds agree.
 If the moment is still moving at the round cap, or the scale has moved by several esds, report both the blind and the last-round moment.
