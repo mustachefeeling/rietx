@@ -1328,23 +1328,27 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.geometry.BOND_SLACK_ANG", "constant", tier=2, value=0.4,
         evidence=("CSD bond-perception convention (radii sum + 0.4 A), named in WP-1072; radii are "
                   "Cordero 2008, checked in the docstring (not checked by me)")),
-    Row("rietx.model.geometry.CONTACT_MAX_ANG", "constant", tier=3, value=3.5,
-        evidence=("report-only contact cap (GeometryTable.notes says it truncated); a test bounding the "
-                  "error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.model.geometry.CONTACT_MAX_ANG", "constant", tier=1, value=3.5,
+        evidence=("report scope: the contact search is complete within 3.5 A in an unreduced cell where a "
+                  "fixed one-cell shell drops a 3.04 A contact (tests/test_geometry_table.py, WP-2002)"),
+        grounds=("A report scope the output states: tests assert completeness within it and "
+                 "exact disclosure beyond it in GeometryTable.notes; tier 1 under B10 option 2 "
+                 "(ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.model.geometry.MAX_ASYM_ATOMS", "constant", tier=3, value=200,
-        evidence=("report-only skip of large phases (noted in GeometryTable.notes); a test bounding the "
-                  "error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.model.geometry.MAX_ASYM_ATOMS", "constant", tier=1, value=200,
+        evidence=("report scope: a phase past it is skipped and GeometryTable.notes says so (existing "
+                  "tests); the structure CIFs in tests/data reach 32 atoms (WP-2002, 2026-10-21)"),
+        grounds=("A report scope the output states: tests assert completeness within it and "
+                 "exact disclosure beyond it in GeometryTable.notes; tier 1 under B10 option 2 "
+                 "(ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.model.geometry.MAX_CONTACTS_PER_ATOM", "constant", tier=3, value=24,
-        evidence=("report-only contact cap (noted in GeometryTable.notes); a test bounding the error over "
-                  "the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.model.geometry.MAX_CONTACTS_PER_ATOM", "constant", tier=1, value=24,
+        evidence=("report scope: the note counts exactly what the cap drops and the kept contacts are the "
+                  "nearest (31 on corundum with the cap at 2, tests/test_geometry_table.py); tests/data's "
+                  "structures reach 20 a site (WP-2002, 2026-10-21)"),
+        grounds=("A report scope the output states: tests assert completeness within it and "
+                 "exact disclosure beyond it in GeometryTable.notes; tier 1 under B10 option 2 "
+                 "(ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.model.geometry.SYMMETRY_CODE_MAX_SHIFT", "constant", tier=1, value=4,
         evidence="format: CIF symmetry code digit = shift + 5, so -4..+4 (docstring)"),
@@ -1355,10 +1359,12 @@ ROWS: tuple[Row, ...] = (
         evidence=("numerical floor: any value between roundoff and the shortest real interatomic "
                   "d^2 (>0.1 A^2) gives the same lists")),
     Row("rietx.model.origin.A5_CLIP", "constant", tier=3, value=0.001,
-        evidence=("single cases, tests/test_floating_origin.py; a test bounding the error over the "
-                  "claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("floating-origin weight clip (WP-2002, 2026-10-21, tests/test_floating_origin.py): "
+                  "moves only the origin convention (contrast variances unchanged to 4e-16), but light "
+                  "sites' z esds sit up to 1.40 % from the hold limit over 1200 valid matrices against a "
+                  "1 % bar (an esd's own sampling error at N - P = 5000); 1e-4 gives 0.14 %"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.origin.A6_MAX_ITER", "constant", tier="invariant", value=2000,
         evidence=("answer-invariant: caps a weights-only iteration; worst measured 239 passes; "
@@ -1377,9 +1383,12 @@ ROWS: tuple[Row, ...] = (
         evidence=("numerical floor: roundoff of a quantity of order 1; lm stopped at min P -2.2e-16"
                   " on the face, trf at -0.45 (WP-1960 D4)")),
     Row("rietx.model.preferred_orientation.TEXTURE_SPHERE_SAMPLES", "constant", tier=3, value=2000,
-        evidence="sphere sampling density; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("sphere samples for the texture minimum (WP-2002, 2026-10-21, tests/test_texture.py): "
+                  "the sampled minimum misses the true one by 2.0e-3 to 7.9e-3 at orders 2-8 against a "
+                  "1e-3 bar (the digit TEXTURE_NOT_POSITIVE prints); the error falls as 1/N and 32 000 "
+                  "samples pass at about 10x the cost, or a local polish passes at any order"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.profiles.caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED", "constant", tier=1, value=5.545177444479562,
         evidence=("arithmetic: FWHM = 2 sqrt(2 ln2) sigma; pinned against GSAS-II's drawn LaB6 "
@@ -1388,10 +1397,13 @@ ROWS: tuple[Row, ...] = (
         evidence=("Scherrer (1918); Langford & Wilson (1978) J. Appl. Cryst. 11, 102 (0.89 sphere "
                   "FWHM; docstring; not checked)")),
     Row("rietx.model.profiles.caglioti._MIN_GAMMA_G2", "constant", tier=3, value=1e-08,
-        evidence=("Gaussian width floor (WP-1938); single case, tests/test_gaussian_width_floor.py; a "
-                  "test bounding the error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("Gaussian-variance floor (WP-2002, 2026-10-21, tests/test_gaussian_width_floor.py): "
+                  "max |dy|/sigma at fixed parameters 0 on SRM 660c, FAP and NAC and 4.8e-9 on cpd-1a; "
+                  "where it binds it moves a peak 4.4e-4 (Lorentz FWHM 0.005 deg) and 1.6e-4 (0.01 deg) "
+                  "of its height, within the lab and synchrotron bars, but 9.9e-4 at 0.003 deg; the "
+                  "LaB6 and cpd-1a answers end on the floor and move 1.2 esd on U under a 1e-10 floor"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.profiles.faddeeva.WEIDEMAN_N", "constant", tier=1, value=32,
         evidence=("numerical floor: abs error < 1e-12 vs scipy wofz over the upper half-plane, "
@@ -1452,9 +1464,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.profiles.voigt._SQRT2PI", "constant", tier=1, value=2.5066282746310002,
         evidence="arithmetic: sqrt(2 pi)"),
     Row("rietx.model.restraints.MIN_IMAGE_SHELL", "constant", tier=3, value=1,
-        evidence="image-shell search depth; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("restraint image-shell depth (WP-2002, 2026-10-21, tests/test_restraints.py): exact "
+                  "on Niggli-reduced, hexagonal and rhombohedral cells (400 000 pairs), but misses 72 of "
+                  "2518 pairs within 4 A in unreduced monoclinic cells at beta 135-150 deg, a shell of 2 "
+                  "still 10 of 14 105, so a restraint can bind the wrong image; sizing the shell by "
+                  "geometry._shell(g, d) is the fix (a code change)"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.restraints._COINCIDENT_D2", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: any value between roundoff and the shortest real interatomic "
@@ -1543,9 +1559,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING", "constant", value=0.1),
     Row("rietx.optimize.identifiability.TOP_CORRELATIONS_K", "constant", value=5),
     Row("rietx.optimize.least_squares.FD_STEP", "constant", tier=3, value=1e-06,
-        evidence="finite-difference step; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("finite-difference step (WP-2002, 2026-10-21, tests/test_cross_backend.py): every FD "
+                  "column of the 23 configurations within 2.3e-4 of a Richardson oracle against a 1e-3 "
+                  "bar, and at the FAP and NAC answers an answer shift of 3.3e-5 esd; fails where a "
+                  "reflection sits on the Gaussian-variance floor (LaB6 and cpd-1a answers, u column "
+                  "2.2e-2 off), a face of the clamp rather than of the step: 1e-8 does not cure it"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
     Row("rietx.optimize.least_squares.GTOL", "constant", tier="caller", value=1e-12,
         evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; GTOL "

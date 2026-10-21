@@ -341,3 +341,126 @@ def test_a_nearly_symmetric_cell_builds_the_same_terms():
     off = _phase(cell=_cell(3.15, 4.77, 120.0005), texture=SphericalHarmonicTexture(order=6))
     exact = _phase(texture=SphericalHarmonicTexture(order=6))
     assert list(_texture_rows(_table(off))) == list(_texture_rows(_table(exact)))
+
+
+# ------------------------------------- TEXTURE_SPHERE_SAMPLES over its domain (B10)
+#: what the sampled minimum may sit above the true one, in units of the random
+#: powder's P = 1: the last digit the ``TEXTURE_NOT_POSITIVE`` message prints
+SPHERE_MIN_BAR = 1e-3
+#: one cell per Laue class the domain test samples
+_SPHERE_CLASSES = {
+    "-1": ("P -1", (5.1, 6.2, 7.3, 80.0, 95.0, 105.0)),
+    "mmm": ("P m m m", (3.6, 4.4, 5.2, 90.0, 90.0, 90.0)),
+    "-3m1": ("P -3 m 1", (3.147, 3.147, 4.769, 90.0, 90.0, 120.0)),
+    "6/mmm": ("P 6/m m m", (3.1, 3.1, 5.0, 90.0, 90.0, 120.0)),
+}
+
+
+def _true_sphere_minimum(basis, v):
+    """min over the sphere of K(u)·v: a 20 000-point Fibonacci grid, then
+    Nelder-Mead in (polar, azimuth) from its five lowest points."""
+    from scipy.optimize import minimize
+
+    from rietx.crystallography.spherical_harmonics import sphere_points
+
+    grid = sphere_points(20_000)
+    f = np.asarray(basis.evaluate(grid)) @ v
+    lowest = float(f.min())
+
+    def at(t):
+        u = np.array([[np.sin(t[0]) * np.cos(t[1]), np.sin(t[0]) * np.sin(t[1]),
+                       np.cos(t[0])]])
+        return float((np.asarray(basis.evaluate(u)) @ v)[0])
+
+    for k in np.argsort(f)[:5]:
+        x = grid[k]
+        t0 = (np.arccos(np.clip(x[2], -1.0, 1.0)), np.arctan2(x[1], x[0]))
+        r = minimize(at, t0, method="Nelder-Mead",
+                     options={"xatol": 1e-10, "fatol": 1e-14})
+        lowest = min(lowest, float(r.fun))
+    return lowest
+
+
+def _sphere_minimum_error(order):
+    """The largest amount ``texture_summary``'s minimum sits above the true one,
+    over two random coefficient draws per Laue class and sample geometry, each
+    scaled so the true minimum is exactly 0.  Returns (error, which case)."""
+    from rietx.model.forward import compile_model
+
+    rng = np.random.default_rng(order)
+    worst = (0.0, None)
+    blank = rx.PatternData(two_theta=np.arange(10.0, 20.0, 0.05).tolist(),
+                           intensity=np.ones(200).tolist())
+    p = Parameter
+    for label, (space_group, cell) in _SPHERE_CLASSES.items():
+        phase = Phase(name="t", space_group=space_group,
+                      cell=Cell(**{k: p(value=v) for k, v in zip(
+                          ("a", "b", "c", "alpha", "beta", "gamma"), cell, strict=True)}),
+                      atoms=[Atom(label="Mg", species="Mg", x=p(value=0.0), y=p(value=0.0),
+                                  z=p(value=0.0))],
+                      texture=SphericalHarmonicTexture(order=order))
+        for ins in (Instrument.bragg_brentano(), Instrument.debye_scherrer(1.540598)):
+            structure = Structure(phases=[phase])
+            table = ParameterTable(structure, ins)
+            model = compile_model(structure, ins, blank, mode="rietveld")
+            cp = model.phases[0]
+            if cp.tex_basis is None or not np.any(cp.tex_weights):
+                continue
+            values = dict(table.decode(table.x0()))
+            for _ in range(2):
+                c = rng.normal(size=len(cp.tex_paths))
+                low = _true_sphere_minimum(cp.tex_basis, cp.tex_weights * c)
+                if low >= 0.0:
+                    continue
+                values.update(zip(cp.tex_paths, -c / low, strict=True))
+                _j, _on_reflections, on_sphere = model.texture_summary(0, values)
+                assert on_sphere >= -1e-9, f"{label}: sampled below the true minimum"
+                worst = max(worst, (on_sphere, f"{label}, {ins.geometry.kind}"),
+                            key=lambda t: t[0])
+    assert worst[1] is not None, "no case had a negative minimum to scale"
+    return worst
+
+
+@pytest.mark.parametrize("order", [
+    pytest.param(order, marks=pytest.mark.xfail(strict=True, reason=reason))
+    for order, reason in (
+        (2, "the 2000-point minimum sits 2.1e-3 above the true one (measured "
+            "2026-10-21; 2.4e-3 over eleven Laue classes in a probe)"),
+        (4, "2.0e-3 above (7.1e-3 over eleven classes)"),
+        (6, "7.9e-3 above (9.0e-3 over eleven classes)"),
+        (8, "5.6e-3 above (1.4e-2 over eleven classes; 1.8e-2 at order 10, "
+            "3.4e-2 at 12 and 4.4e-2 at 16)"))])
+def test_the_sampled_sphere_minimum_meets_the_true_one(order):
+    """``TEXTURE_SPHERE_SAMPLES`` = 2000 over the orders its comment claims.
+
+    B10 (ruled 2026-10-19): tier 1 once a test bounds the error over the
+    domain.  The comment claims l to 8 or so.  The quantity is the lowest
+    pole density P over the sphere, which ``PhaseTexture.min_p_sphere``
+    records and ``TEXTURE_NOT_POSITIVE`` fires on below zero.  Each case
+    scales random coefficients so the true minimum is exactly 0, the guard's
+    decision point, and then asks ``CompiledModel.texture_summary``, so the
+    shipped path is what is measured, reflections included.  Its minimum can
+    only sit above the true one, and a density dipping that far below zero
+    passes the guard unreported.
+
+    The bar is 1e-3 of the random powder, the last digit the message prints
+    (``{on_sphere:+.3f}``).  It is close to a tenth of the strongest peak's
+    σ/peak on lab FAP.XRA (7.2e-4), which is what a reflection sitting in
+    the dip would see.
+
+    Every order fails.  The error falls as 1/N with the sample count and
+    grows with the order.  Over eleven Laue classes at order 8 (a probe,
+    four draws each), 2000 points leave 1.4e-2, 8000 leave 3.6e-3 and
+    32 000 leave 8.5e-4, against 2.2e-3 at order 16.  One ``basis.evaluate``
+    costs 0.8 ms at 2000 points and 8.6 ms at 32 000 for order 8, and 3.3
+    and 36 ms for order 16.  A local polish from the lowest few samples, as
+    the reference here does, would meet the bar at any order.
+
+    Made to fail on 2026-10-21: ``rietx.model.forward.TEXTURE_SPHERE_SAMPLES``
+    patched to 32 000 left 7.2e-5, 3.2e-4, 3.2e-4 and 8.1e-4 and turned all
+    four rows XPASS(strict).
+    """
+    error, case = _sphere_minimum_error(order)
+    assert error <= SPHERE_MIN_BAR, (
+        f"order {order}: the sampled minimum sits {error:.2e} above the true one "
+        f"({case}; bar {SPHERE_MIN_BAR})")

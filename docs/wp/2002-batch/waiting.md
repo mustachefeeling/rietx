@@ -102,7 +102,15 @@ The window rows, measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC (`te
 - Landed: `WINDOW_MIN_DEG` and `StageSpec:window_slack_deg` at tier 1 (largest move 0.21° against 0.3°, so a 1.4× margin), `_BASES_CHUNK_ROWS` and `_DENSE_EIGEN_MAX` invariant.
 - Found beside them: windows are sized from start-of-stage widths, so a stage that widens peaks drops 3.0-6.5 % of an area by its end (LaB6 `profile`, cpd-1a `profile` and `sample_broadening`); every final stage holds the 2 % bound. No constant claims this; strict xfails record it.
 
-Domain tests still owed at tier 3: `FD_STEP`, `_MIN_GAMMA_G2`, `A5_CLIP`, `TEXTURE_SPHERE_SAMPLES`, `MIN_IMAGE_SHELL`, the three report-only geometry caps, and the interval and width-grid settings. The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
+Eight more, measured 2026-10-21 (each row's evidence has the numbers):
+
+- The three geometry caps (`CONTACT_MAX_ANG`, `MAX_ASYM_ATOMS`, `MAX_CONTACTS_PER_ATOM`) landed at tier 1, as a report scope: a domain test was the wrong frame for a cap on what a table lists, and the tests assert completeness within the scope and exact disclosure beyond it.
+- `FD_STEP` and `_MIN_GAMMA_G2` pass on the smooth domain and at the FAP and NAC answers, but the SRM 660c and cpd-1a protocol answers end with high-angle reflections on the Gaussian-variance floor, where an FD column is 2.2e-2 off and a polish moves U 1.2 plain esd under a 5e-7 step or a 1e-10 floor, at χ² 0.25 % worse. A defect of the clamp the solver leans on, not of either constant (forwarded to WP-1467); both stay tier 3.
+- `A5_CLIP` fails by a little (1.40 % against 1 %); 1e-4 passes at no measured cost.
+- `TEXTURE_SPHERE_SAMPLES` fails at every order (2.0e-3 to 7.9e-3 against 1e-3); 32 000 samples pass at 10× the cost, or a local polish at any order.
+- `MIN_IMAGE_SHELL` misses restraint images in unreduced monoclinic cells (β 135-150°), so a restraint can bind the wrong pair: a defect, fixed by sizing the shell with `geometry._shell(g, d)`.
+
+Domain tests still owed at tier 3: the interval settings (`PARAMETER_INTERVAL_*`) and the width-grid settings (`FRACTION_PROFILE_*`). The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
 
 ## B12: the form-factor follow-up (the other B12 rows landed with the pick-verb changes)
 
