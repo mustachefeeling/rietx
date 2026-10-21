@@ -25,13 +25,15 @@ from rietx.refine import FROZEN_COMPILE_CHI2_REL
 from tests.test_refine_synthetic import TRUE_W, perturbed_models, synthesize
 
 
-def _plan() -> rx.RefinementPlan:
+def _plan(closing_window_tol: float | None = None) -> rx.RefinementPlan:
+    """No closing stage by default here: it starts at the answer, so its frozen
+    compile is the result's and the finding below has nothing to say."""
     common = ["phases.*.scale", "instrument.background.*"]
     return rx.RefinementPlan(stages=[
         rx.Stage("scale", common),
         rx.Stage("all", common + ["instrument.profile.w",
                                   "instrument.zero_shift", "phases.*.cell.a"]),
-    ])
+    ], closing_window_tol=closing_window_tol)
 
 
 @pytest.fixture(scope="module")
@@ -57,8 +59,11 @@ def _rebuild(ref, pattern, result):
     """What a reader does: compile the fitted models, claiming every row the
     result reports as refined or tied as moving, as the last stage did."""
     moving = {p.path for p in result.parameters}
+    # and at the windows the answer stage ran at, which the result records
+    # (a plan's closing stage, WP-2002)
     model = compile_model(ref.fitted_structure, ref.fitted_instrument, pattern,
-                          moving_paths=moving)
+                          moving_paths=moving,
+                          window_area_tol=result.stages[-1].window_area_tol)
     table = ParameterTable(ref.fitted_structure, ref.fitted_instrument)
     return model, table.decode(table.x0())
 
@@ -98,13 +103,31 @@ def test_the_history_node_keeps_its_as_optimised_metrics(narrow_start):
         rel, rel=1e-9)
 
 
+def test_the_closing_stage_leaves_no_stale_figure(pattern):
+    """The same start under the shipped closing stage (WP-2002): it recompiles at
+    the answer, so the result's compile and the solve's agree, and the rebuild
+    reproduces the result at the windows the result records."""
+    structure, instrument = perturbed_models()
+    instrument.profile.w.value = TRUE_W / 10
+    instrument.zero_shift.value = -0.05
+    ref = rx.Refinement(structure, instrument, history=False)
+    result = ref.fit(pattern, plan=_plan(closing_window_tol=1e-3))
+    assert result.stages[-1].window_area_tol == 1e-3
+    assert not [d for d in result.diagnostics if d.code == "FROZEN_COMPILE_STALE"]
+    model, values = _rebuild(ref, pattern, result)
+    stats = result.statistics
+    reported = stats.chi2 * (stats.n_points - stats.n_free_parameters)
+    assert _chi2(model, values) == pytest.approx(reported, rel=1e-10)
+
+
 def test_a_result_is_silent_when_the_windows_did_not_matter(pattern):
     """Last stage frees nothing that sizes a window: the two compiles agree."""
     structure, instrument = perturbed_models()
     instrument.profile.w.value = TRUE_W
     ref = rx.Refinement(structure, instrument, history=False)
     result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
-        rx.Stage("scale", ["phases.*.scale", "instrument.background.*"])]))
+        rx.Stage("scale", ["phases.*.scale", "instrument.background.*"])],
+        closing_window_tol=None))
     assert not [d for d in result.diagnostics
                 if d.code == "FROZEN_COMPILE_STALE"]
 

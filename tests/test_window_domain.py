@@ -111,7 +111,7 @@ import rietx.model.forward as fwd
 from rietx.model import compiled
 from rietx.model.profiles.fcj import fcj_live, fcj_offsets_weights
 from rietx.params.vector import ParameterTable
-from rietx.schemas.plan import StageSpec
+from rietx.schemas.plan import CLOSING_WINDOW_TOL, StageSpec
 
 refine_mod = importlib.import_module("rietx.refine")
 
@@ -132,7 +132,15 @@ _C = 2.0 * np.sqrt(np.log(2.0))
 
 
 def _build(family):
-    """(data, structure, instrument, plan, fit kwargs) of the family's protocol."""
+    """(data, structure, instrument, plan, fit kwargs) of the family's protocol,
+    with no closing stage: the constants under test are the declared stages'."""
+    data, st, ins, plan, kw = _protocol(family)
+    plan.closing_window_tol = None
+    return data, st, ins, plan, kw
+
+
+def _protocol(family):
+    """(data, structure, instrument, plan, fit kwargs) as the acceptance suite fits them."""
     if family == "lab6":
         from tests.test_acceptance_srm660c import _nist_calibrated_plan, build_srm_inputs
         data, st, ins = build_srm_inputs()
@@ -162,7 +170,10 @@ def _build(family):
     data, st, ins = build_nac_inputs()
     kw = {"two_theta_limits": LIMITS}
     lb = rx.Refinement(st, ins, history=False)
-    lb.fit(data, mode="lebail", plan=rx.RefinementPlan.mccusker_default(), **kw)
+    lebail = rx.RefinementPlan.mccusker_default()
+    # the Le Bail pass seeds the Rietveld plan and stays as it was measured
+    lebail.closing_window_tol = None
+    lb.fit(data, mode="lebail", plan=lebail, **kw)
     st = lb.fitted_structure.model_copy(deep=True)
     ins = lb.fitted_instrument.model_copy(deep=True)
     st.phases[0].scale.value = 1e-6
@@ -332,8 +343,8 @@ def _fixed_point(family, start, consts):
         for _ in range(5):
             ref = rx.Refinement(st.model_copy(deep=True), ins.model_copy(deep=True),
                                 history=False)
-            res = ref.fit(f["data"], plan=rx.RefinementPlan(stages=[rx.Stage("polish", globs)]),
-                          **f["kw"])
+            res = ref.fit(f["data"], plan=rx.RefinementPlan(
+                stages=[rx.Stage("polish", globs)], closing_window_tol=None), **f["kw"])
             cur = _rows(res)
             st, ins = ref.fitted_structure, ref.fitted_instrument
             if prev is not None and max(_shift(cur, prev, background=False)[0],
@@ -483,3 +494,78 @@ def test_a_stage_without_window_slack_compiles_the_window_min_deg_windows():
     for a, b in zip(m_none.phases, m_min.phases, strict=True):
         assert np.array_equal(a.win, b.win)
     assert np.array_equal(np.asarray(m_none.evaluate(v)), np.asarray(m_min.evaluate(v)))
+
+
+@lru_cache(maxsize=None)
+def _closed(family):
+    """The protocol's declared stages at the shipped constants, then the closing
+    stage at ``CLOSING_WINDOW_TOL``: the answer a fit returns."""
+    was = compiled.set_enabled(True)
+    try:
+        data, st, ins, plan, kw = _build(family)
+        plan.closing_window_tol = CLOSING_WINDOW_TOL
+        ref = rx.Refinement(st, ins, history=False)
+        res = ref.fit(data, plan=plan, **kw)
+        assert res.stages[-1].name == "closing"
+        OUT.mkdir(exist_ok=True)
+        res.plot(path=str(OUT / f"window_domain_{family}_closing.png"))
+        import matplotlib.pyplot as plt
+        plt.close("all")
+        return {"data": data, "kw": kw, "rows": _rows(res),
+                "structure": ref.fitted_structure.model_copy(deep=True),
+                "instrument": ref.fitted_instrument.model_copy(deep=True)}
+    finally:
+        compiled.set_enabled(was)
+
+
+#: measured where the closing stage fails (2026-10-21)
+_CLOSING_FAILS = {
+    "lab6": ("0.908 esd on profile.u, not a window: the closing stage is one polish at 1e-3 to "
+             "every printed digit, a second recompile moves u 1 esd and a third 0.002, with the "
+             "high-angle Gaussian variance on the clamp floor (WP-1467)"),
+}
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("family", _cells(_CLOSING_FAILS))
+def test_the_closing_stage_meets_the_bar(family):
+    """The answer a fit returns meets both bars (the sixth round's Q1 and Q2).
+
+    The closing stage starts from the declared stages' answer at the shipped
+    2 % windows, so the reference starts there too: the fixed point at
+    ``TOL_CONVERGED`` polished from that answer.  Bar 1 draws the closing
+    answer at ``CLOSING_WINDOW_TOL`` and at ``TOL_CONVERGED``.  Bar 2 compares
+    the closing answer, one solve, with the reference fixed point.
+
+    Measured on 2026-10-21 (macOS arm64, ``[dev]``): bar 1 0.026, 0.022 and
+    0.091σ and bar 2 0.008, 0.018 and 0.019 esd on the fluorapatite, cpd-1a
+    and NAC (``lor_strain``, ``axial_sl``, ``profile.x``), the background
+    0.23-0.95 esd.  LaB6 meets bar 1 at 0.058σ and misses bar 2 by 0.908 esd
+    on ``profile.u``.  That is no window: its answer puts the highest-angle
+    reflections' Gaussian variance U·tan²θ + V·tanθ + W under the clamp
+    floor, where a polish moves U by an esd at any window (``waiting.md``
+    § B10, forwarded to WP-1467), so a second recompile moves it 1 esd and a
+    third 0.002.
+    """
+    f = _closed(family)
+    st, ins = f["structure"], f["instrument"]
+    lim = f["kw"].get("two_theta_limits")
+    table = ParameterTable(st, ins)
+    values = table.decode(table.x0())
+    draws = []
+    for tol in (CLOSING_WINDOW_TOL, TOL_CONVERGED):
+        model = fwd.compile_model(st, ins, f["data"], two_theta_limits=lim,
+                                  window_area_tol=tol)
+        draws.append(np.asarray(model.evaluate(values), dtype=float))
+    sig = np.asarray(model.sigma, dtype=float)
+    d = np.abs(draws[1] - draws[0]) / sig
+    j = int(np.argmax(d))
+    converged = _fixed_point(family, (), (("WINDOW_AREA_TOL", TOL_CONVERGED),))
+    rows = _shift(f["rows"], converged, background=False)
+    bkg = _shift(f["rows"], converged, background=True)
+    msg = (f"{family}, closing stage at {CLOSING_WINDOW_TOL}: max |dy|/sigma {d[j]:.3f} at "
+           f"{np.asarray(model.tt)[j]:.2f} deg (bar {NOISE_BAR}); answer {rows[0]:.3f} esd "
+           f"from the converged fixed point on {rows[1]} (bar {ESD_BAR}), background "
+           f"{bkg[0]:.2f} esd on {bkg[1]}")
+    print(msg)
+    assert d[j] <= NOISE_BAR and rows[0] <= ESD_BAR, msg

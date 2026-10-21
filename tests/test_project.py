@@ -582,14 +582,14 @@ def test_an_instrument_profile_is_the_other_read_point(tmp_path):
     doc = json.loads(path.read_text(encoding="utf-8"))
     doc.pop("schema_version")
     # V, whose declared floor survives WP-2002; zero_shift's box went
-    # (2026-10-20) and the widths' ceilings (2026-10-21), so the U left
-    # unrestored is one under its floor
+    # (2026-10-20) and the widths' chosen ceilings (2026-10-21, the 2θ axis's
+    # left since), so the U left unrestored is one under its floor
     doc["instrument"]["profile"]["v"].update(_BARE)
     doc["instrument"]["profile"]["u"].update({**_BARE, "value": -0.1})
     path.write_text(json.dumps(doc), encoding="utf-8")
     loaded = rx.load_instrument_profile(path, diagnostics=notes)
     assert (loaded.profile.v.min, loaded.profile.v.max, loaded.profile.v.unit) == (
-        -0.5, float("inf"), "deg^2")
+        -0.5, 180.0 ** 2, "deg^2")
     assert loaded.profile.u.min == -float("inf") and loaded.profile.u.value == -0.1
     by_code = {n.code: n for n in notes}
     assert by_code["DECLARED_RANGE_RESTORED"].where == ["instrument.profile.v"]

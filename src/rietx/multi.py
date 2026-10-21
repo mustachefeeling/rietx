@@ -1130,7 +1130,7 @@ class MultiHistogramRefinement:
                 fitted = [int(fitted_mask(d, lim).sum())
                           for d, lim in zip(data, limits, strict=True)]
                 stream.emit("fit_start", mode=mode,
-                            stages=[s.name for s in plan.stages],
+                            stages=[s.name for s in plan.run_stages()],
                             n_points=sum(len(d.two_theta) for d in data),
                             n_fitted=sum(fitted), n_histograms=n,
                             histograms=[{"histogram_index": h,
@@ -1339,9 +1339,13 @@ class MultiHistogramRefinement:
         models = None
         outcome = None
         carried_hold: list[str] = []
-        n_stages = len(plan.stages)
-        for index, (stage, ftol) in enumerate(
-                zip(plan.stages, plan.stage_ftols(), strict=True), start=1):
+        # the declared stages and the closing one, the single runner's
+        # schedule (WP-2002, the sixth round's Q1 and Q2)
+        stages = plan.run_stages()
+        n_stages = len(stages)
+        for index, (stage, ftol, window_tol) in enumerate(
+                zip(stages, plan.stage_ftols(), plan.stage_window_tols(),
+                    strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 freed = self.mtable.set_vary(stage.turn_on, True)
                 # what the glob matched and a hold refused (WP-1435): here only
@@ -1372,7 +1376,8 @@ class MultiHistogramRefinement:
                 self.mtable.reframe_moments()
                 models = [
                     compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
-                                  moving_paths=set(tab.moving_paths))
+                                  moving_paths=set(tab.moving_paths),
+                                  window_area_tol=window_tol)
                     for s, ins, d, lim, tab in zip(
                         self.mtable.structures, self.mtable.instruments, data, limits,
                         self.mtable.tables, strict=True)]
@@ -1549,7 +1554,8 @@ class MultiHistogramRefinement:
                     freed=freed,
                     n_constraint_truncations=outcome.n_constraint_truncations,
                     n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                    ftol=ftol, held=held, released=released,
+                    ftol=ftol, window_area_tol=window_tol,
+                    held=held, released=released,
                     held_reach={c: v for c, v in held_reach.items() if c in still},
                     scale_b_held=dict(scale_b_held),
                     moment_flat_axes=kept_axes,

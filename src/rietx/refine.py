@@ -133,7 +133,7 @@ from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.interval import PARAMETER_INTERVAL_LEVEL, PARAMETER_INTERVAL_MAX_REFITS
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData, require_two_theta
-from .schemas.plan import check_phase_support_sigma
+from .schemas.plan import check_closing_window_tol, check_phase_support_sigma
 from .schemas.results import (
     DELIVERABLES,
     AbsorptionCorrection,
@@ -2025,9 +2025,14 @@ class Refinement:
         #: hold the caller chose rather than the default.  Set beside
         #: ``result_``, because every such trial reads that result, and
         #: carried by :meth:`_carry_into`, so :meth:`_trial` inherits it.
+        #: ``window_area_tol`` is the answer stage's window fraction, a plan's
+        #: closing stage's (WP-2002, the sixth round's Q1 and Q2): a trial that
+        #: compares its χ² with the fit's must compile the same windows, since
+        #: the 2 % and 0.1 % windows of one answer differ by 37-1730 in χ².
         self._plan_settings: dict[str, float | None] = {
             "correlation_guard": CORRELATION_GUARD,
-            "phase_support_sigma": PHASE_SUPPORT_SIGMA}
+            "phase_support_sigma": PHASE_SUPPORT_SIGMA,
+            "window_area_tol": None}
 
         # history state
         self.history: RefinementTree | None = None
@@ -3813,7 +3818,8 @@ class Refinement:
         # a node written before the fields
         return self.run_stage(
             data, stage, correlation_guard=node.action.correlation_guard,
-            phase_support_sigma=node.action.phase_support_sigma)
+            phase_support_sigma=node.action.phase_support_sigma,
+            window_area_tol=node.action.window_area_tol)
 
     # ------------------------------------------------------------------
     # fitting
@@ -3914,7 +3920,8 @@ class Refinement:
                    stage_index: int = 1, n_stages: int = 1,
                    ftol: float | None = None,
                    prior_significance: np.ndarray | None = None,
-                   phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA):
+                   phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA,
+                   window_area_tol: float | None = None):
         """One stage: free params, recompile, solve, commit, guard.
 
         The recompile is what keeps the residual smooth *within* the stage —
@@ -4020,7 +4027,10 @@ class Refinement:
             # the stage's declared window capture slack (WP-1112): the same
             # frozen-at-compile shape as c_w, and None for every plan that
             # does not state one
-            window_slack_deg=stage.window_slack_deg)
+            window_slack_deg=stage.window_slack_deg,
+            # and the area its windows may drop: the closing stage's own, None
+            # for every declared stage (WP-2002, the sixth round's Q1 and Q2)
+            window_area_tol=window_area_tol)
         table.push_moment_frames(new_model)
         carried = False
         if model is not None and mode in ("lebail", "pawley") and model.mode == mode:
@@ -4730,7 +4740,7 @@ class Refinement:
                 # ``stage_start`` carries (#441): ``fitted_mask`` is the
                 # authority ``compile_model`` is pinned to (WP-1033)
                 stream.emit("fit_start", mode=mode,
-                            stages=[s.name for s in plan.stages],
+                            stages=[s.name for s in plan.run_stages()],
                             n_points=len(data.x()),
                             n_fitted=int(fitted_mask(data, two_theta_limits).sum()),
                             **stamp)
@@ -4795,14 +4805,15 @@ class Refinement:
             # it returns, never the last stage's start-of-stage one (#272)
             model, recompiled = self._final_compile(
                 model, table, outcome, data, mode, two_theta_limits,
-                plan.stages[-1])
+                plan.run_stages()[-1], plan.stage_window_tols()[-1])
             diagnostics.extend(recompiled)
             self._model = model
 
             if mode == "pawley":
                 diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
                 diagnostics.extend(_pawley_off_data_diagnostics(model, self.structure))
-            diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
+            diagnostics.extend(_constraint_diagnostics(plan.run_stages()[-1].name,
+                                                       outcome))
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results]))
             diagnostics.extend(_hold_diagnostics(stage_results,
@@ -4830,7 +4841,8 @@ class Refinement:
             self._fit_pattern = data
             self._plan_settings = {
                 "correlation_guard": plan.correlation_guard,
-                "phase_support_sigma": plan.phase_support_sigma}
+                "phase_support_sigma": plan.phase_support_sigma,
+                "window_area_tol": plan.stage_window_tols()[-1]}
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -4944,7 +4956,11 @@ class Refinement:
         the vector they were measured on.
         """
         model = outcome = guard = None
+        # the declared stages and the closing one, with the schedule of each
+        # (WP-2002, the sixth round's Q1 and Q2): the plan is the one authority
+        stages = plan.run_stages()
         ftols = plan.stage_ftols()
+        window_tols = plan.stage_window_tols()
         # a dataclass validates nothing, so the plan's threshold is checked
         # where it is read, in the words its mirror uses (WP-2002, B1)
         phase_support_sigma = check_phase_support_sigma(plan.phase_support_sigma)
@@ -4963,17 +4979,18 @@ class Refinement:
         moment_released: tuple | None = None
         #: (stage name, origin restraint) per stage (WP-1912)
         origins: list[tuple[str, CompiledOrigin | None]] = []
-        for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
-                                          start=1):
+        for k, (stage, ftol, window_tol) in enumerate(
+                zip(stages, ftols, window_tols, strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 model, outcome, guard, freed, hold = self._run_stage(
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
-                    stage_index=k, n_stages=len(plan.stages), ftol=ftol,
+                    stage_index=k, n_stages=len(stages), ftol=ftol,
                     # still the previous stage's here: the support hold
                     # starts from that answer as well as the screen (WP-1523)
                     prior_significance=answer_significance,
-                    phase_support_sigma=phase_support_sigma)
+                    phase_support_sigma=phase_support_sigma,
+                    window_area_tol=window_tol)
             # WP-1343: the moment's rung at this boundary, and the shift the
             # moment took when the widths were released.  Gated on what the
             # stage actually freed, so an ordinary fit never pays for the
@@ -5000,7 +5017,7 @@ class Refinement:
                     # stopped at the prescribed step 1 would have quoted.
                     moment_off_state = moment_off_state or rung
             stage_diagnostics = _guard_diagnostics(guard) + _covariance_diagnostics(
-                stage.name, outcome, answer=k == len(plan.stages))
+                stage.name, outcome, answer=k == len(stages))
             for d in stage_diagnostics:
                 if d.code in ("HIGH_CORRELATION", "FLAT_DIRECTION"):
                     # keyed by code *and* pair: a flat pair fires both, and a
@@ -5026,7 +5043,8 @@ class Refinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                ftol=ftol, held=hold.held, released=hold.released,
+                ftol=ftol, window_area_tol=window_tol,
+                held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 scale_b_held=hold.scale_b_held,
                 moment_flat_axes=hold.moment_flat_axes,
@@ -5058,6 +5076,7 @@ class Refinement:
                     # (Stage.ftol is None for every stage taking the plan's
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
+                    window_area_tol=window_tol,
                     # and the plan's two settings, for the same reason
                     # (WP-2002, B1)
                     phase_support_sigma=phase_support_sigma,
@@ -5079,6 +5098,7 @@ class Refinement:
     def _final_compile(self, model: CompiledModel, table: ParameterTable,
                        outcome, data: PatternData, mode: Mode,
                        two_theta_limits, stage: Stage,
+                       window_area_tol: float | None = None,
                        ) -> tuple[CompiledModel, list[Diagnostic]]:
         """A compile at the values a result returns, for the result (#272).
 
@@ -5090,7 +5110,7 @@ class Refinement:
         640c acceptance fixture.  The result's ``y_calc``, statistics and every
         per-point residual are therefore measured here, on one more compile
         with the last stage's own discrete settings (moving set, c_w, window
-        slack) and nothing else changed.  **What this does not move**: the
+        slack, and the closing stage's window area) and nothing else changed.  **What this does not move**: the
         solve, which ran on the frozen compile and is not biased by it (the
         issue measured the minimum moving ≤ 0.0014 esd); the covariance and
         every esd, which stay those of that solve's Jacobian; the weights,
@@ -5117,7 +5137,8 @@ class Refinement:
             two_theta_limits=two_theta_limits,
             moving_paths=set(table.moving_paths),
             restraint_weight_scale=stage.restraint_weight_scale,
-            window_slack_deg=stage.window_slack_deg)
+            window_slack_deg=stage.window_slack_deg,
+            window_area_tol=window_area_tol)
         # and the solve's moment frames, never the fresh compile's: this one is
         # built at the fitted cell, so a last stage that moved an angle would
         # otherwise read the refined moment DOFs in a frame they were never
@@ -5197,6 +5218,7 @@ class Refinement:
                   two_theta_limits: tuple[float, float] | None = None,
                   correlation_guard: float = CORRELATION_GUARD,
                   phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA,
+                  window_area_tol: float | None = None,
                   events=None, cancel=None, telemetry=None,
                   label: str | None = None) -> RefinementResult:
         """Run a single stage from the current state, recording a child node.
@@ -5220,9 +5242,17 @@ class Refinement:
         ``RefinementPlan.phase_support_sigma`` says what the second does, and
         ``None`` switches the absent-phase hold off for this stage (WP-2002, B1).
         A project's ``run_stage`` passes its stored plan's.
+
+        ``window_area_tol`` is the fraction of each peak's area this stage's
+        windows may drop, ``forward.WINDOW_AREA_TOL`` when ``None``.  A plan's
+        closing stage runs at ``RefinementPlan.closing_window_tol``, and
+        :meth:`cherry_pick` passes a recorded node's.  No closing stage
+        follows a stage run here.
         """
         _refuse_without_phases(self.structure, "run_stage")
         phase_support_sigma = check_phase_support_sigma(phase_support_sigma)
+        if window_area_tol is not None:
+            window_area_tol = check_closing_window_tol(window_area_tol)
         require_two_theta(data, "Refinement.run_stage()",
                           instrument=self.instrument)
         mode = mode or self._mode
@@ -5266,7 +5296,8 @@ class Refinement:
                         # stage run on its own is the state the caller is asking
                         # for, and it takes its own ftol or the solver default
                         ftol=stage.ftol,
-                        phase_support_sigma=phase_support_sigma)
+                        phase_support_sigma=phase_support_sigma,
+                        window_area_tol=window_area_tol)
             finally:
                 if (stream is not None and stream is not events
                         and stream is not recorder):
@@ -5299,7 +5330,8 @@ class Refinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                ftol=stage.ftol, held=hold.held, released=hold.released,
+                ftol=stage.ftol, window_area_tol=window_area_tol,
+                held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 scale_b_held=hold.scale_b_held,
                 moment_flat_axes=hold.moment_flat_axes,
@@ -5335,6 +5367,7 @@ class Refinement:
                     seed=stage.seed, strain_seed=stage.strain_seed,
                     restraint_weight_scale=stage.restraint_weight_scale,
                     ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
+                    window_area_tol=window_area_tol,
                     phase_support_sigma=phase_support_sigma,
                     correlation_guard=correlation_guard,
                 ), model, table, outcome, diagnostics)
@@ -5342,7 +5375,7 @@ class Refinement:
             # after the node, which keeps its as-optimised metrics: the result
             # is measured on a compile at the values it returns (#272)
             model, recompiled = self._final_compile(
-                model, table, outcome, data, mode, ttl, stage)
+                model, table, outcome, data, mode, ttl, stage, window_area_tol)
             diagnostics = diagnostics + recompiled
             self._model = model
 
@@ -5362,7 +5395,8 @@ class Refinement:
             # leaves the previous result and the pattern it was fitted to
             self._fit_pattern = data
             self._plan_settings = {"correlation_guard": correlation_guard,
-                                   "phase_support_sigma": phase_support_sigma}
+                                   "phase_support_sigma": phase_support_sigma,
+                                   "window_area_tol": window_area_tol}
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
@@ -5453,8 +5487,11 @@ class Refinement:
                 f"{mode} intensities are extracted by a fit, not computed from "
                 "the structure, so there is nothing to evaluate before one has "
                 "run. Fit first, or predict in rietveld mode.")
+        # at the windows the last fit's answer was measured on: a closing
+        # stage's, or the default (WP-2002, the sixth round's Q1 and Q2)
         model = compile_model(self.structure, self.instrument, grid,
-                              mode=mode, moving_paths=set(table.moving_paths))
+                              mode=mode, moving_paths=set(table.moving_paths),
+                              window_area_tol=self._plan_settings["window_area_tol"])
         if mode in ("lebail", "pawley"):
             _carry_lebail(self._model, model)
         return model.evaluate(table.decode(table.x0()))
@@ -9836,9 +9873,18 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     for path in state.free_paths:
         table.set_vary([path], True)
 
+    # the compile settings the stage ran at, which the node records: its
+    # windows (a closing stage's area fraction, WP-2002, the sixth round's Q1
+    # and Q2, and a declared capture slack) and its c_w.  At the defaults the
+    # curve would be a different model from the one the stage solved.  Every
+    # other kind of node carries the defaults.
+    action = node.action
     model = compile_model(structure, instrument, data, mode=state.mode,
                           two_theta_limits=state.two_theta_limits,
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          restraint_weight_scale=action.restraint_weight_scale,
+                          window_slack_deg=action.window_slack_deg,
+                          window_area_tol=action.window_area_tol)
     if state.mode in ("lebail", "pawley"):
         _restore_lebail(state.reflections, model)
 

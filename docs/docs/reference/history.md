@@ -126,6 +126,7 @@ A stage node also records the two plan settings its stage ran under, so a cherry
 |---|---|---|
 | `NodeAction.phase_support_sigma` | `3.0` | the absent-phase hold's threshold in esds; `None` means the hold was off |
 | `NodeAction.correlation_guard` | `0.98` | the \|ρ\| above which the stage reported a correlated pair |
+| `NodeAction.window_area_tol` | `None` | the fraction of each peak's area the stage's windows dropped; a plan's closing stage records `closing_window_tol`, and `None` is the default 2 % |
 
 A node written before 1.10 has neither field and reads as the defaults, which are what it ran at unless its plan set them.
 `api_call()` adds either setting to the stage's line only where it differs from the default.

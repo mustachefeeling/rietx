@@ -145,7 +145,7 @@ Lab: calibrate on a standard
 `pawley_default` is the only Pawley preset, and every preset but `profile_only` and `pawley_default` is Rietveld only.
 `Capabilities.plans` carries the same four facts as `PlanCapability` rows ([Plans](programs.md#plans)).
 
-A `RefinementPlan` holds its stages and four settings.
+A `RefinementPlan` holds its stages and five settings.
 
 | Field | Default | Holds |
 |---|---|---|
@@ -154,6 +154,7 @@ A `RefinementPlan` holds its stages and four settings.
 | `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
 | `RefinementPlan.lebail_passes` | 1 | the cap on Le Bail passes ([Le Bail passes](#le-bail-passes)) |
 | `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` switches the hold off ([Held parameters](#held-parameters)) |
+| `RefinementPlan.closing_window_tol` | 1e-3 | the fraction of each peak's area the closing stage's windows may drop; `None` runs no closing stage ([The closing stage](#the-closing-stage)) |
 
 ```python
 import rietx as rx
@@ -216,16 +217,18 @@ plan = rx.RefinementPlan.lab_bragg_brentano()
 assert plan.intermediate_ftol == 1e-6
 
 ftols = plan.stage_ftols()
+assert len(ftols) == len(plan.run_stages())
 assert set(ftols[:-1]) == {1e-6} and ftols[-1] is None
 ```
 
+The list is parallel to `RefinementPlan.run_stages`: the declared stages, then the closing stage ([The closing stage](#the-closing-stage)).
 Three rules decide a stage's tolerance, in this order.
 
 1. A stage that declares `Stage.ftol` runs at it.
-2. The last stage runs at the solver's default of 1e-9, shown as `None`, because it produces the answer.
+2. The last stage runs at the solver's default of 1e-9, shown as `None`, because it produces the answer. With a closing stage, that is the closing stage.
 3. Every other stage runs at `RefinementPlan.intermediate_ftol`.
 
-A one-stage plan is therefore all last stage, and nothing is loosened.
+A one-stage plan with no closing stage is therefore all last stage, and nothing is loosened.
 `StageResult.ftol` records the tolerance each stage ran at, so a result says which schedule produced it.
 `PlanSpec.intermediate_ftol` carries the setting into a project file and a history header, and the GUI's text document writes it as the `tolerance` line ([The GUI as a text document and a wire](gui-power.md)).
 
@@ -264,11 +267,71 @@ import rietx as rx
 
 plan = rx.RefinementPlan.lab_bragg_brentano()
 plan.intermediate_ftol = None
-assert plan.stage_ftols() == [None] * len(plan.stages)
+assert plan.stage_ftols() == [None] * len(plan.run_stages())
 ```
 
 Every stage then stops at the solver's default, as every fit before 1.1 did, to the bit.
 Use it for a number going into a paper, for a number reproduced from an earlier release, and in a test that pins a value.
+
+## The closing stage
+
+Every plan ends with one more stage than it declares.
+The closing stage recompiles the model at the answer, with peak windows that drop `RefinementPlan.closing_window_tol` of each peak's area, and solves once more with every pattern any declared stage freed.
+
+```python
+import rietx as rx
+
+plan = rx.RefinementPlan.lab_bragg_brentano()
+assert plan.closing_window_tol == 1e-3
+
+stages = plan.run_stages()
+assert len(stages) == len(plan.stages) + 1
+assert stages[-1].name == "closing"
+assert plan.stage_window_tols()[-1] == 1e-3
+```
+
+A stage fixes its peak windows, its reflection list and its axial-divergence sample points at the values it starts from, and holds them while the solver runs ([The forward model](../theory/forward-model.md)).
+Each window drops 2 % of its peak's area, and more once a peak widens during the stage.
+Two errors reach the answer of a plan without a closing stage:
+
+- The missing tails move refined values. Computed out to 5e-5 of the area, lab answers moved by up to 0.97 esd (the zincite scale on CPD cpd-1a, the Lorentzian size on the GSAS-II fluorapatite), and the background coefficients by 2 to 5 esd.
+- The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put cpd-1a's sample displacement 0.75 esd apart, because each start stopped the early stages in a different place.
+
+The closing stage takes the last declared stage's iteration budget, Le Bail cycles, restraint weight, window slack and `Stage.ftol`, and seeds nothing.
+It takes the solver's default tolerance, so the last declared stage becomes an intermediate one.
+`RefinementResult.stages` ends with it under the name `closing`, and `StageResult.window_area_tol` and `NodeAction.window_area_tol` record the fraction.
+A model rebuilt from `RefinementResult.parameters` reproduces the result's χ² when compiled with `window_area_tol=result.stages[-1].window_area_tol`.
+
+Measured on SRM 660c LaB6, the fluorapatite, cpd-1a and 11-BM NAC, each under its acceptance protocol (macOS arm64, `[dev]`, 2026-10-21):
+
+| | Fluorapatite | cpd-1a | NAC | LaB6 |
+|---|---|---|---|---|
+| Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 0.751 → 0.064 | 0.008 → 0.000 | 9.0 → 9.4 |
+| Fit time with the closing stage | 2.26× | 1.54× | 1.44× | 1.36× |
+
+LaB6's two starts reach two mirrored axial-divergence minima whatever the windows, so no window setting can make them agree.
+`tests/test_window_domain.py` holds the closing answer within 0.1 plain esd of the answer with converged tails on the fluorapatite, cpd-1a and NAC (0.008 to 0.019 esd).
+LaB6 misses it by 0.9 esd on `instrument.profile.u`.
+Its highest-angle reflections end with a Gaussian variance under the floor the width is clamped to, and there a recompile moves `u` by an esd at any window.
+
+BGMN ends its refinements the same way, with every parameter free and restarted from the previous answer (Doebelin and Kleeberg 2015).
+RIETAN-FP's automatic mode ends with everything refining together, and moves its windows at every evaluation.
+1e-3 drops less of a Lorentzian peak than TOPAS (2.0 %), MAUD (2.1 %), RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and EasyDiffraction, which compute the whole peak.
+
+Set `closing_window_tol` to `None` to run the declared stages alone:
+
+```python
+import rietx as rx
+
+plan = rx.RefinementPlan.lab_bragg_brentano()
+plan.closing_window_tol = None
+assert plan.run_stages() == plan.stages
+```
+
+The answer is then that of every fit before the setting, to the bit.
+A long series is the case for it: each pattern pays the closing stage's cost.
+`PlanSpec.closing_window_tol` carries the setting into a project file, and the GUI's text document writes it as the `closing` line.
+`Refinement.run_stage` runs no closing stage, and takes a `window_area_tol` of its own.
 
 ## Stage fields
 

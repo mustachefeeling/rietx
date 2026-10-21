@@ -77,7 +77,8 @@ MAGNETIC_STAGES = [
 def _plan(stages) -> rx.RefinementPlan:
     return rx.RefinementPlan(
         stages=[rx.Stage(name=n, turn_on=list(t), max_iter=200) for n, t in stages],
-        intermediate_ftol=1e-6)
+        intermediate_ftol=1e-6,
+        closing_window_tol=1e-3)   # WP-2002: the shipped closing stage, named rather than inherited
 
 
 def _p(value: float, **kw) -> Parameter:

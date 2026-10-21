@@ -1095,11 +1095,15 @@ class GuiSession:
         head = p.refinement._head_id
         if tree is None or head is None or head not in tree:
             return blank
+        # a run records the declared stages and then the closing one (WP-2002,
+        # the sixth round's Q1 and Q2), so it is that many nodes long; the
+        # ladder shows the declared stages, aligned from the run's start
+        n_run = len(plan.run_stages())
         run: list = []
         for node in reversed(tree.lineage(head)):
             if node.action.kind == "stage":
                 run.append(node)
-                if len(run) == len(plan.stages):
+                if len(run) == n_run:
                     break   # the *last* run: back-to-back runs of one plan
                             # leave 2N contiguous stage nodes, and aligning
                             # from the far end of them would read the first
@@ -1719,7 +1723,7 @@ class GuiSession:
                 return p.fit(plan=plan, events=stream, cancel=token)
 
             label = ""
-            n_stages = len(plan.stages)
+            n_stages = len(plan.run_stages())   # the closing stage counts
 
         p.live_dir.mkdir(exist_ok=True)  # a project copied without empty dirs
         with self._cond:

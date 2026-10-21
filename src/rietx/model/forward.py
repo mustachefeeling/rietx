@@ -205,8 +205,11 @@ WINDOW_MIN_DEG = 0.3
 _GAUSS_TAIL_C = 2.0 * np.sqrt(np.log(2.0))
 
 
-def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
-    """k(η): FWHM multiples holding all but ``WINDOW_AREA_TOL`` of the area.
+def window_fwhm_mult(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
+    """k(η): FWHM multiples holding all but ``tol`` of the area.
+
+    ``tol`` defaults to ``WINDOW_AREA_TOL``; a plan's closing stage passes its
+    own (``RefinementPlan.closing_window_tol``).
 
     The two-sided discarded area of the unit pseudo-Voigt outside ±k·Γ is
 
@@ -221,7 +224,7 @@ def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
     from scipy.special import erfc
 
     eta = np.clip(np.asarray(eta, dtype=np.float64), 0.0, 1.0)
-    tol = WINDOW_AREA_TOL
+    tol = WINDOW_AREA_TOL if tol is None else tol
 
     def discard(k):
         with np.errstate(divide="ignore"):
@@ -3528,7 +3531,8 @@ def magnetic_wanted(phase, source) -> bool:
 
 
 
-def _compile_extra_peaks(instrument, tt: np.ndarray, lams: list[float]
+def _compile_extra_peaks(instrument, tt: np.ndarray, lams: list[float],
+                         window_area_tol: float | None = None
                          ) -> tuple[CompiledExtraPeak, ...]:
     """Freeze one window per (emission line, declared sharp peak).
 
@@ -3556,7 +3560,7 @@ def _compile_extra_peaks(instrument, tt: np.ndarray, lams: list[float]
     for i, comp in enumerate(instrument.extra_components):
         if COMPONENT_AGGREGATE[comp.kind] != "ticks":
             continue
-        half = (float(window_fwhm_mult(np.float64(comp.eta.max)))
+        half = (float(window_fwhm_mult(np.float64(comp.eta.max), window_area_tol))
                 * comp.fwhm.max + WINDOW_MIN_DEG)
         n_lines = len(lams)
         win = np.zeros((n_lines, 2), dtype=np.int64)
@@ -3604,7 +3608,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                   two_theta_limits: tuple[float, float] | None = None,
                   moving_paths: set[str] | None = None,
                   restraint_weight_scale: float = 1.0,
-                  window_slack_deg: float | None = None) -> CompiledModel:
+                  window_slack_deg: float | None = None,
+                  window_area_tol: float | None = None) -> CompiledModel:
     """Freeze reflection lists, orbits, windows and FCJ nodes for one stage.
 
     ``moving_paths`` is every parameter the coming stage can move, or ``None``
@@ -3630,6 +3635,11 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     slack added to every window half-width (``Stage.window_slack_deg`` has
     the two-jobs story); ``None`` — every ordinary caller — is the default.
 
+    ``window_area_tol`` overrides ``WINDOW_AREA_TOL``, the area each window may
+    drop from its peak, for the phase windows and the declared sharp peaks
+    alike.  A plan's closing stage passes ``RefinementPlan.closing_window_tol``;
+    ``None`` is the default.
+
     The pattern must be in 2θ and the instrument a constant-wavelength one:
     this is the backstop for :func:`rietx.schemas.pattern.require_two_theta`,
     below every public entry that calls it, so a caller who assembled a compile
@@ -3640,6 +3650,10 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     if restraint_weight_scale < 0.0:
         raise ValueError(
             f"restraint_weight_scale must be >= 0 (got {restraint_weight_scale})")
+    if window_area_tol is not None and not 0.0 < window_area_tol < 1.0:
+        raise ValueError(
+            f"window_area_tol is a fraction of a peak's area, strictly between 0 "
+            f"and 1 (got {window_area_tol})")
     mask = pattern.in_range_mask()
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
     if two_theta_limits is not None:
@@ -3879,7 +3893,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                     on_data[:] |= (pos >= tt_min) & (pos <= tt_max)
                 slack = (WINDOW_MIN_DEG if window_slack_deg is None
                          else window_slack_deg)
-                half = window_fwhm_mult(eta_est) * gamma_est + slack
+                half = window_fwhm_mult(eta_est, window_area_tol) * gamma_est + slack
                 if fcj_on:
                     half = half + fcj_extent_deg(pos, sl_eff, hl_eff)
                 valid = np.isfinite(pos)
@@ -4070,7 +4084,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
               for name in HUMP_FIELDS)
         for i, comp in enumerate(instrument.extra_components)
         if COMPONENT_AGGREGATE[comp.kind] == "background")
-    peak_components = _compile_extra_peaks(instrument, tt, lams)
+    peak_components = _compile_extra_peaks(instrument, tt, lams, window_area_tol)
     if peak_components:
         # `RefinementResult.ticks` is keyed by name, so a phase actually called
         # "(extra)" and the declared-peak row would be one entry and one of the

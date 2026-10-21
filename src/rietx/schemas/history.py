@@ -82,6 +82,13 @@ class NodeAction(Base):
     and replays as it always did.  Written on ``"stage"`` nodes only; every
     other kind carries the defaults, which is what ``replay`` reads them at.
 
+    ``window_area_tol`` (WP-2002, the sixth round's Q1 and Q2) is the area
+    fraction the stage's windows were compiled to drop, a ``run_stage``
+    keyword for the same reason: a plan's closing stage runs at
+    ``RefinementPlan.closing_window_tol``, and a cherry-pick or ``replay`` at
+    the default would solve or draw a different model.  ``None`` is
+    ``forward.WINDOW_AREA_TOL``, what every node written before the field ran.
+
     ``ties``/``untied`` (WP-1070) are the ``"set_tie"`` action's own arguments,
     additive under the same rule.  They record what the action *did*, not the
     state it left: the whole tie register lives on
@@ -103,6 +110,8 @@ class NodeAction(Base):
     restraint_weight_scale: float = 1.0
     ftol: float | None = None
     window_slack_deg: float | None = None
+    #: the area fraction the stage's windows dropped (``None``: the default)
+    window_area_tol: float | None = None
     #: the absent-phase hold's threshold the stage ran at (``None``: the hold
     #: was off), written by ``Refinement._run_plan`` and ``run_stage``
     phase_support_sigma: float | None = 3.0
@@ -154,7 +163,8 @@ class NodeAction(Base):
                 f", {n}={v!r}" for n, v, off in
                 (("correlation_guard", self.correlation_guard, CORRELATION_GUARD),
                  ("phase_support_sigma", self.phase_support_sigma,
-                  PHASE_SUPPORT_SIGMA))
+                  PHASE_SUPPORT_SIGMA),
+                 ("window_area_tol", self.window_area_tol, None))
                 if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
                     f"max_iter={self.max_iter}{extras}){settings})")

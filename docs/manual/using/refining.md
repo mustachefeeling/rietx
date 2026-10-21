@@ -836,12 +836,14 @@ ftols = plan.stage_ftols()
 assert set(ftols[:-1]) == {1e-6} and ftols[-1] is None
 ```
 
-Three sources decide a stage's tolerance, in this order. A stage that declares
-its own `Stage.ftol` is solved at it. The last stage takes `None`, meaning the
-solver default, because it is the one that produces the answer. Every other
-stage takes `intermediate_ftol`. A one-stage plan is therefore all endpoint and
-nothing is loosened, which a warm series pattern collapsed to a single stage and
-the indexing validation fit both want.
+The list is parallel to `RefinementPlan.run_stages`, the declared stages and
+then the closing stage (below). Three sources decide a stage's tolerance, in
+this order. A stage that declares its own `Stage.ftol` is solved at it. The last
+stage takes `None`, meaning the solver default, because it is the one that
+produces the answer; with a closing stage, that is the closing stage. Every
+other stage takes `intermediate_ftol`. A one-stage plan with no closing stage
+is therefore all endpoint and nothing is loosened, which the indexing
+validation fit wants.
 
 `StageResult.ftol` reports what each stage was actually solved at, so a result
 says which schedule produced it without the plan beside it.
@@ -892,7 +894,7 @@ import rietx as rx
 
 plan = rx.RefinementPlan.lab_bragg_brentano()
 plan.intermediate_ftol = None
-assert plan.stage_ftols() == [None] * len(plan.stages)
+assert plan.stage_ftols() == [None] * len(plan.run_stages())
 ```
 
 Every stage then stops where the solver's own default says, as every fit before
@@ -906,6 +908,44 @@ default moves is not pinning anything.
 file, a history header and an agent request all record which schedule ran. In
 the GUI's text document it is the `tolerance` line, whose value is a number or
 the word `none`.
+
+## The closing stage
+
+Every plan ends with one stage more than it declares.
+`RefinementPlan.closing_window_tol`, 1e-3 by default, is the fraction of each
+peak's area that stage's windows may drop. The closing stage recompiles the
+model at the answer and solves once more with every glob any declared stage
+freed, taking the last declared stage's budget, cycles, restraint weight,
+window slack and `Stage.ftol`, and seeding nothing:
+
+```python
+import rietx as rx
+
+plan = rx.RefinementPlan.lab_bragg_brentano()
+stages = plan.run_stages()
+assert stages[-1].name == "closing" and len(stages) == len(plan.stages) + 1
+assert plan.stage_window_tols()[-1] == plan.closing_window_tol == 1e-3
+```
+
+Every stage freezes its windows at the values it starts from, and each window
+drops 2 % of its peak. The missing tails moved lab answers by up to 0.97 esd
+against converged ones, and the background by 2 to 5 esd; two Biso starts put
+cpd-1a's sample displacement 0.75 esd apart. After the closing stage the
+answer lies within 0.008-0.019 plain esd of the converged tails' on the
+fluorapatite, cpd-1a and 11-BM NAC, and two Biso starts agree to 0.000, 0.064
+and 0.000 esd, at 1.36-2.26× the fit time (2026-10-21). SRM 660c LaB6 stays
+0.9 esd away in `u`, its high-angle Gaussian variance on the clamp floor.
+BGMN ends its refinements the same way.
+
+`RefinementResult.stages` ends with it under the name `closing`.
+`StageResult.window_area_tol` and `NodeAction.window_area_tol` record the
+fraction, so `compile_model(..., window_area_tol=result.stages[-1].window_area_tol)`
+rebuilds the model the result was measured on. Set `closing_window_tol` to
+`None` to run the declared stages alone, which gives every earlier fit's answer
+to the bit; a long series is the case for it. `PlanSpec.closing_window_tol`
+carries it through JSON, and the text document writes it as the `closing` line.
+`Refinement.run_stage` runs no closing stage and takes its own
+`window_area_tol`.
 
 ## What a stage carries
 

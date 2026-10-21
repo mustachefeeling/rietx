@@ -866,6 +866,14 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: a cell of zero or negative volume has no metric, so the residual is "
                   "undefined there and the step must be rejected (issue #283)")),
     Row("rietx.schemas.results.StageResult.ftol", "action"),
+    Row("rietx.schemas.results.StageResult.window_area_tol", "action", tier=2, ambiguity=1,
+        evidence=("the record of the closing stage PlanSpec:closing_window_tol runs (that "
+                  "row's evidence: BGMN's closing run by default), written by both stage "
+                  "runners on every stage, None on a declared one"),
+        grounds=("Records the action rather than taking one: a reader rebuilding the model "
+                 "from the result passes it to compile_model (the sixth round's Q1 and Q2, "
+                 "ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.sequential.SeriesEntry.rung", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.reseeded", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.rwp_fence", "action"),
@@ -1319,8 +1327,11 @@ ROWS: tuple[Row, ...] = (
                   "GSAS-II 5.8.4 drops about 0.6 % of a pure Lorentzian (50 FWHM below, 75 "
                   "above, getWidthsCW)"),
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
-        approved="2026-10-19"),
+                 "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the sixth "
+                 "round's Q1 and Q2): it stays for the declared stages, which only steer, and the "
+                 "answer is computed in a closing stage at CLOSING_WINDOW_TOL; a plan with "
+                 "closing_window_tol=None still carries this constant's error into its answer."),
+        approved="2026-10-21"),
     Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=3, value=0.3,
         evidence=("minimum window half-width, the room a peak has to move within one stage; "
                   "measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC from starts near "
@@ -2079,6 +2090,14 @@ ROWS: tuple[Row, ...] = (
                  "option 2; tier 3 with a test bounding its error over the claimed domain "
                  "owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
         approved="2026-10-19"),
+    Row("rietx.schemas.plan.CLOSING_WINDOW_TOL", "constant", tier=1, value=0.001,
+        evidence=("numerical setting with a domain test (tests/test_window_domain.py, "
+                  "test_the_closing_stage_meets_the_bar): its windows are within 0.1 sigma of "
+                  "5e-5's at every point on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.022-0.091), "
+                  "and the closing answer within 0.1 plain esd of the 5e-5 fixed point on FAP, "
+                  "cpd-1a and NAC (0.008-0.019); LaB6 misses that by 0.908 esd on U from the "
+                  "Gaussian-variance clamp, which moves U at any window (WP-1467); 1.4-2.3x the "
+                  "fit time (WP-2002, the sixth round's Q1 and Q2)")),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
     Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", value=1e-06),
     Row("rietx.schemas.plan.PHASE_SUPPORT_SIGMA", "constant", tier=3, value=3.0,
@@ -2265,6 +2284,17 @@ ROWS: tuple[Row, ...] = (
         evidence="arithmetic: the empty container; resolve_plan supplies every plan a fit runs"),
     Row("rietx.schemas.plan.PlanSpec:correlation_guard", "default", value=0.98),
     Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", value=1e-06),
+    Row("rietx.schemas.plan.PlanSpec:closing_window_tol", "default", tier=2, ambiguity=1, value=0.001,
+        evidence=("BGMN ends every refinement ladder with a closing run, all free and restarted "
+                  "from the answer, by default (manual A.4; Doebelin & Kleeberg 2015 J. Appl. "
+                  "Cryst. 48, 1573, 2); RIETAN-FP's NAUTO = 2 ends with everything refining "
+                  "together, its windows moving each evaluation; MAUD's wizard has no final "
+                  "cycle (docs/wp/2002-batch/practice.md); the value is CLOSING_WINDOW_TOL's "
+                  "row; recorded in RefinementResult.stages as the stage named 'closing'"),
+        grounds=("The maintainer's ruling (the sixth round's Q2, option 3, 2026-10-21): every "
+                 "plan ends with a closing stage at tight windows, which removes the 2 % "
+                 "window's error from the answer and most of a staged plan's start dependence; "
+                 "None runs the declared stages alone, bit-identical to before.")),
     Row("rietx.schemas.plan.PlanSpec:lebail_passes", "default", tier="caller", ambiguity=1, value=1,
         evidence="opt-in: lebail_passes > 1, default 1 (one run, bit-identical to pre-WP-1323)"),
     Row("rietx.schemas.plan.PlanSpec:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
@@ -2385,6 +2415,13 @@ ROWS: tuple[Row, ...] = (
                   "checked"
                   "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.Refinement.run_stage:correlation_guard", "default", value=0.98),
+    Row("rietx.refine.Refinement.run_stage:window_area_tol", "default", tier=3, ambiguity=1, value=None,
+        evidence=("None resolves to forward.WINDOW_AREA_TOL and compiles the windows every stage "
+                  "did before WP-2002's closing stage, so it inherits that row's tier"),
+        grounds=("A stage driven by hand takes the declared stages' windows; a caller who wants "
+                 "the closing stage's states it, and cherry_pick passes a recorded node's (the "
+                 "sixth round's Q1 and Q2, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.refine.Refinement.run_stage:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
                   "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "

@@ -1376,7 +1376,10 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None, hold=()):
         result = ref.fit(data, plan=RefinementPlan(stages=[Stage(
             f"{last.name} (continued)", freed, max_iter=last.max_iter,
             ftol=last.ftol)], phase_support_sigma=plan.phase_support_sigma,
-            correlation_guard=plan.correlation_guard),
+            correlation_guard=plan.correlation_guard,
+            # and its closing stage, so a continued trial ends on the windows
+            # every other trial's χ² was measured on (WP-2002)
+            closing_window_tol=plan.closing_window_tol),
             two_theta_limits=limits, telemetry=False)
     return ref, result
 
@@ -2247,9 +2250,12 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     skipped: list[str] = []
 
     # --- the candidates, per site, merged into classes -----------------------
+    # the trials the package fits and ranks by ΔBIC pay for no closing stage
+    # when it chose the plan; a caller's plan keeps its own (WP-2002)
     plan = plan or RefinementPlan(stages=[
         Stage(name, list(paths))
-        for name, paths in zip(SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, strict=True)])
+        for name, paths in zip(SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, strict=True)],
+        closing_window_tol=None)
     # A stage that differed from its predecessor only by moment paths repeats
     # it here, and is dropped: the default's moduli and moment stages would
     # otherwise refit the reference twice under one free set, and move it.
@@ -2263,7 +2269,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     # ΔBIC compares them with is fitted under the same rule (WP-2002, B1)
     nuclear_plan = RefinementPlan(stages=nuclear_stages,
                                   phase_support_sigma=plan.phase_support_sigma,
-                                  correlation_guard=plan.correlation_guard)
+                                  correlation_guard=plan.correlation_guard,
+                                  closing_window_tol=plan.closing_window_tol)
 
     def enumerate_for(k_try):
         """Candidate classes for one k, or a sentence saying why there are none."""

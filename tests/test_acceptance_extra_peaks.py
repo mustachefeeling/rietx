@@ -135,6 +135,7 @@ def _plan(extra_stage: bool):
         stages.insert(2, rx.Stage("holder", ["instrument.extra_components.*"]))
         plan = rx.RefinementPlan(stages=stages)
         plan.intermediate_ftol = 1e-6
+        plan.closing_window_tol = 1e-3   # WP-2002: the shipped closing stage, named rather than inherited
     return plan
 
 

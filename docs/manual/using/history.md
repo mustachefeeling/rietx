@@ -94,8 +94,10 @@ and replaying it against a later one could hold a different set.
 
 A stage records its solver settings as well: `NodeAction.max_iter`,
 `NodeAction.lebail_cycles`, `NodeAction.seed`, `NodeAction.strain_seed`,
-`NodeAction.restraint_weight_scale`, `NodeAction.ftol` and
-`NodeAction.window_slack_deg`. They are there because
+`NodeAction.restraint_weight_scale`, `NodeAction.ftol`,
+`NodeAction.window_slack_deg` and `NodeAction.window_area_tol`, the fraction
+of each peak's area its windows dropped, which a plan's closing stage sets
+(see [](refining.md)). They are there because
 `Refinement.cherry_pick` rebuilds a `Stage` from this action and runs it
 somewhere else. A setting missing here would be a stage that replays as a
 different stage from the one recorded.
