@@ -1866,7 +1866,7 @@ def test_a_budget_stop_is_continued_from_where_it_stopped():
     start.cell.c.value += 0.004
     _ref, result = _fit(rx.Structure(phases=[start]), instrument,
                         data, starved)
-    assert [s.name for s in result.stages] == ["all (continued)"]
+    assert [s.name for s in result.stages] == ["all (continued)", "closing"]
     freed = {p.path for p in result.parameters if p.vary}
     assert "phases.0.scale" in freed and "phases.0.cell.a" in freed
     # each continuation keeps the last stage's one-iteration budget, so this
@@ -1882,7 +1882,7 @@ def test_a_converged_fit_is_not_refitted():
     _ref, result = _fit(rx.Structure(phases=[tetragonal()]), instrument,
                         data, NUCLEAR_PLAN)
     assert result.status == "converged"
-    assert [s.name for s in result.stages] == ["scale", "cell"]
+    assert [s.name for s in result.stages] == ["scale", "cell", "closing"]
 
 
 def _short(trial, status="max_iter"):

@@ -41,13 +41,15 @@ TT = np.arange(8.0, 150.0, 0.04)
 BASE = ["phases.*.scale", "instrument.background.c*"]
 CELL = ["phases.*.cell.*"]
 MOMENT = ["phases.*.atoms.*.moment.dof*"]
+# the declared stages' frames, both plans; the closing stage is tests/test_closing_stage.py's
 #: scale → cell → cell + moment: the angle moves in stage 2, before the moment
 PLAN_3 = rx.RefinementPlan(stages=[
     rx.Stage("scale", BASE), rx.Stage("cell", BASE + CELL),
-    rx.Stage("moment", BASE + CELL + MOMENT)])
+    rx.Stage("moment", BASE + CELL + MOMENT)], closing_window_tol=None)
 #: scale → cell + moment: the angle moves inside the stage that fits the moment
 PLAN_2 = rx.RefinementPlan(stages=[
-    rx.Stage("scale", BASE), rx.Stage("cell+moment", BASE + CELL + MOMENT)])
+    rx.Stage("scale", BASE), rx.Stage("cell+moment", BASE + CELL + MOMENT)],
+    closing_window_tol=None)
 
 
 def _atom(label, sp, xyz, biso, moment=None):

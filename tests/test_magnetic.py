@@ -1673,7 +1673,8 @@ def _fit(truth_phase, start_phase, *, background=20.0, stages=None,
     instrument = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
     data = rx.PatternData(two_theta=_grid().tolist(), intensity=y.tolist())
     ref = rx.Refinement(structure, instrument, solver=solver or DEFAULT_SOLVER)
-    result = ref.fit(data, plan=rx.RefinementPlan(stages=stages or [
+    # the declared stages' holds and turns; the closing stage is tests/test_closing_stage.py's
+    result = ref.fit(data, plan=rx.RefinementPlan(closing_window_tol=None, stages=stages or [
         rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
         rx.Stage("moment", ["phases.*.atoms.*.moment.dof*"]),
     ]))

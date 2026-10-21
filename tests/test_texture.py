@@ -220,7 +220,10 @@ def test_noise_free_coefficients_are_recovered_from_zero(label, geometry):
     result = fit.fit(data, plan=rx.RefinementPlan(stages=[
         rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
         rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
-                             "phases.*.texture.*"])]))
+                             "phases.*.texture.*"])],
+        # the declared stages' recovery, at the windows the pattern was predicted
+        # on; the closing stage is tests/test_closing_stage.py's
+        closing_window_tol=None))
     got = {r.path.rsplit(".", 1)[1]: r.value for r in result.parameters
            if ".texture." in r.path}
     for name, value in truth.items():
@@ -264,7 +267,10 @@ def _negative_density_case(solver):
     return fit.fit(data, plan=rx.RefinementPlan(stages=[
         rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
         rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
-                             "phases.*.texture.*"])]))
+                             "phases.*.texture.*"])],
+        # the declared stages' positivity guard; the closing stage is
+        # tests/test_closing_stage.py's
+        closing_window_tol=None))
 
 
 def test_the_default_driver_holds_p_at_the_reflections():
@@ -296,7 +302,10 @@ def test_the_record_matches_its_definition():
                      plan=rx.RefinementPlan(stages=[
                          rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
                          rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
-                                              "phases.*.texture.*"])]))
+                                              "phases.*.texture.*"])],
+                         # the declared stages' record, at the windows the pattern was
+                         # predicted on; the closing stage is tests/test_closing_stage.py's
+                         closing_window_tol=None))
     (row,) = result.texture
     expected = 1.0 + sum(v * v / (2 * int(k[1:].split("_")[0]) + 1) for k, v in truth.items())
     assert row.name == "t"
