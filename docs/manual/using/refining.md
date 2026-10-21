@@ -939,13 +939,22 @@ BGMN ends its refinements the same way.
 
 `RefinementResult.stages` ends with it under the name `closing`.
 `StageResult.window_area_tol` and `NodeAction.window_area_tol` record the
-fraction, so `compile_model(..., window_area_tol=result.stages[-1].window_area_tol)`
-rebuilds the model the result was measured on. Set `closing_window_tol` to
-`None` to run the declared stages alone, which gives every earlier fit's answer
-to the bit; a long series is the case for it. `PlanSpec.closing_window_tol`
-carries it through JSON, and the text document writes it as the `closing` line.
-`Refinement.run_stage` runs no closing stage and takes its own
-`window_area_tol`.
+fraction. A declared stage records `None`, which means the declared stages'
+2 %. Set `closing_window_tol` to `None` to run the declared stages alone, which
+gives every earlier fit's answer to the bit; a long series is the case for it.
+`PlanSpec.closing_window_tol` carries it through JSON, and the text document
+writes it as the `closing` line.
+
+A model evaluated outside a fit uses the closing stage's windows too. So
+`Refinement.predict(data)` redraws a default fit's `y_calc`, and a synthetic
+pattern drawn with it carries the tails a default fit fits. At those windows
+the axial-divergence asymmetry is also sampled more finely. To rebuild the
+model of a fit that ran without a closing stage, pass the recorded fraction
+through `rietx.model.forward.recorded_window_tol`:
+`compile_model(..., window_area_tol=recorded_window_tol(result.stages[-1].window_area_tol))`.
+`Refinement.run_stage` runs no closing stage, so its `window_area_tol` defaults
+to the closing stage's fraction as well. Pass `rietx.model.forward.WINDOW_AREA_TOL`
+for the faster declared-stage windows.
 
 ## What a stage carries
 

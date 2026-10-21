@@ -104,7 +104,7 @@ def _mnf2(*, size=0.0, strain=0.0, moment=(0.0, 0.0, 4.6), magnetic=True):
     return ph
 
 
-def _state(ph, *, moving=None, step=0.02, lo=8.0, hi=140.0):
+def _state(ph, *, moving=None, step=0.02, lo=8.0, hi=140.0, window_area_tol=None):
     st = rx.Structure(phases=[ph])
     ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
     ins.profile.u.value, ins.profile.w.value = 0.05, 0.02
@@ -113,7 +113,8 @@ def _state(ph, *, moving=None, step=0.02, lo=8.0, hi=140.0):
     pat = rx.PatternData(two_theta=tt.tolist(),
                          intensity=np.ones_like(tt).tolist())
     model = compile_model(st, ins, pat, mode="rietveld",
-                          moving_paths=None if moving is None else set(moving))
+                          moving_paths=None if moving is None else set(moving),
+                          window_area_tol=window_area_tol)
     table = ParameterTable(st, ins)
     return model, table, table.decode(table.x0())
 
@@ -1272,7 +1273,10 @@ def test_a_fit_with_no_magnetic_component_pays_no_forward_evaluation():
 # * the answer: the preset's last stage recompiles at the reached width, so
 #   the shipped floor and a floor at the planted width give one answer to
 #   0.017, 0.031 and 0.081 esd.  A plan that ends on the stage freeing the
-#   width keeps the clipping: 0.07, 0.17 and 0.57 esd on the moment.
+#   width keeps the clipping: 0.07, 0.17 and 0.57 esd on the moment.  Since
+#   the closing stage, every plan ends recompiled at the reached width, and
+#   the preset's two floors agree to 0.000 esd at 0.30 deg (the seventh
+#   round's Q2).  The package's magnetic default solve runs no closing stage.
 #
 # The whole effect is the window's: with WINDOW_AREA_TOL at 5e-5 every window
 # spans the pattern and the two floors give the same answer to the bit.
@@ -1315,7 +1319,10 @@ def test_the_magnetic_floor_holds_the_area_bound_at_the_widths_a_stage_reaches(w
     fail once (2026-10-21) by patching MAGNETIC_SIZING_FLOOR to 0.3 before the
     compile: both xfail cells turned XPASS(strict)."""
     from rietx.model.forward import WINDOW_AREA_TOL
-    model, _t, v = _state(_mnf2(), moving=["phases.0.magnetic_lor_size"], step=0.05)
+    # a declared stage's windows, where the floor sizes a width freed from
+    # zero: the closing stage recompiles at the width reached
+    model, _t, v = _state(_mnf2(), moving=["phases.0.magnetic_lor_size"], step=0.05,
+                          window_area_tol=WINDOW_AREA_TOL)
     assert model.mag_split(0)
     lost, at = _window_loss(model, {**v, "phases.0.magnetic_lor_size": width},
                             model.phases[0].win_mag)
@@ -1328,9 +1335,11 @@ def test_the_magnetic_floor_holds_the_area_bound_at_the_widths_a_stage_reaches(w
 def test_the_preset_answer_does_not_depend_on_the_magnetic_floor(monkeypatch):
     """The planted round trip at SIZE under the shipped three-step preset,
     with the floor shipped and at the planted width: one answer to 0.1 plain
-    esd (the larger of the two) on every row but the background (measured
-    0.031, the width itself).  Made to fail once (2026-10-21) by running the preset
-    without its last stage, which left 0.17 esd on the moment."""
+    esd (the larger of the two) on every row but the background.  Measured
+    0.000 behind the closing stage the preset now ends in, and 0.031 (the width
+    itself) before it, when its last declared stage recompiled at the reached
+    width (WP-2002, 2026-10-21).  Made to fail once (2026-10-21) by running the
+    preset without its last stage, which left 0.17 esd on the moment."""
     import rietx.model.forward as fwd
     ph = _mnf2(size=SIZE)
     ins = rx.Instrument.constant_wavelength_neutron(LAMBDA_CW)
@@ -1371,4 +1380,5 @@ def test_the_preset_answer_does_not_depend_on_the_magnetic_floor(monkeypatch):
         esds = [e for e in (ea, eb) if e]
         if esds:
             worst = max(worst, (abs(a - b) / max(esds), path), key=lambda t: t[0])
+    print(f"the floor moves {worst[1]} by {worst[0]:.3f} esd")
     assert worst[0] <= 0.1, f"the floor moves {worst[1]} by {worst[0]:.3f} esd"

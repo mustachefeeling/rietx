@@ -451,14 +451,15 @@ class SolveCost:
         non-extraction; it is not a quality bar, and a tighter one needs a
         measurement on public data.
         """
-        from ..model.forward import compile_model
+        from ..model.forward import WINDOW_AREA_TOL, compile_model
         from ..params.vector import ParameterTable
 
         instrument = refinement.fitted_instrument
         # the dummy-atom compile drops every moment, so ask the fitted one
         _refuse_magnetic_model(compile_model(
             refinement.fitted_structure, instrument, data, mode="rietveld",
-            two_theta_limits=refinement._two_theta_limits))
+            two_theta_limits=refinement._two_theta_limits,
+            window_area_tol=WINDOW_AREA_TOL))
         result = getattr(refinement, "result_", None)
         if result is None:
             raise ExtractionRefused(
@@ -486,7 +487,8 @@ class SolveCost:
         # those keep M0 banded, and at 1e-3 NAC's grew a third denser, so the
         # floor is this model's and can sit above the extraction's own χ²
         model = compile_model(structure, instrument, data, mode="rietveld",
-                              two_theta_limits=refinement._two_theta_limits)
+                              two_theta_limits=refinement._two_theta_limits,
+                              window_area_tol=WINDOW_AREA_TOL)
         if len(model.tt) != result.statistics.n_points:
             raise ValueError(
                 f"data gives {len(model.tt)} fitted points where the extraction "

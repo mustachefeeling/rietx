@@ -111,9 +111,13 @@ from ..schemas.instrument import (
 )
 from ..schemas.pattern import PatternData, require_two_theta
 
-# re-exported beside the screen it is read against (``phase_support``); the
-# plan carries the number since WP-2002 B1, so it is defined beside the mirror
-from ..schemas.plan import PHASE_SUPPORT_SIGMA  # noqa: F401
+# PHASE_SUPPORT_SIGMA is re-exported beside the screen it is read against
+# (``phase_support``); the plan carries the number since WP-2002 B1, so it is
+# defined beside the mirror
+from ..schemas.plan import (
+    CLOSING_WINDOW_TOL,
+    PHASE_SUPPORT_SIGMA,  # noqa: F401
+)
 from ..schemas.project import check_interval
 from ..schemas.structure import Structure
 from . import compiled
@@ -139,11 +143,11 @@ from .preferred_orientation import (
     march_dollase_and_dr,
     march_dollase_factors,
     orbit_layout,
+    sphere_minimum,
     texture_factors,
     texture_index,
     texture_term_weights,
 )
-    sphere_minimum,
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import (
     fcj_extent_deg,
@@ -194,12 +198,33 @@ from .restraints import (
 #: was ≈ 0.64 % at η = 0.6, unstated).  Rwp rises in the third digit as the
 #: truncated tail residue becomes visible — Rwp is an identity check here,
 #: not the metric.
+#:
+#: Since WP-2002 it is the **declared stages'** fraction only.  The answer is
+#: measured in the closing stage at ``schemas.plan.CLOSING_WINDOW_TOL``, and
+#: every compile that does not say otherwise uses that fraction too: a
+#: ``predict`` on a grid, a synthetic pattern, a stage run by hand (the
+#: seventh round's Q1).  The plan runner asks for this one by name, through
+#: :func:`recorded_window_tol`.
 WINDOW_AREA_TOL = 2e-2
 #: Absolute slack added to every half-width: windows are frozen per stage,
 #: so a peak must stay inside its window while zero-shift, displacement and
 #: the cell move it during the stage — this is movement headroom, not tail
 #: coverage (a cold fit's zero error is instrument-scale, ~0.1°).
 WINDOW_MIN_DEG = 0.3
+
+def recorded_window_tol(tol: float | None) -> float:
+    """A stage's window fraction as a record or a plan states it, for a compile.
+
+    ``None`` in ``StageResult.window_area_tol``, ``NodeAction.window_area_tol``
+    and ``RefinementPlan.stage_window_tols()`` is a declared stage, which ran
+    at :data:`WINDOW_AREA_TOL`.  Every history written before WP-2002 says
+    ``None`` and ran there.  :func:`compile_model`'s own ``None`` is the
+    closing stage's fraction instead, so a caller rebuilding a stage from its
+    record passes the value through here first.  Read at call time, so a
+    patched ``WINDOW_AREA_TOL`` reaches every declared stage.
+    """
+    return WINDOW_AREA_TOL if tol is None else tol
+
 
 #: 2·√(ln 2) — the Gaussian tail argument: a unit-area Gaussian of FWHM Γ
 #: has σ = Γ/(2√(2 ln 2)), so the area outside ±k·Γ is erfc(2√(ln 2)·k)
@@ -256,6 +281,14 @@ AXIAL_SIZING_FLOOR = 0.02
 #: shift at the values the stage compiles from, which the window follows
 #: (WP-1908).  A stage that frees the zero or a geometry shift from those
 #: values still has only this margin for what it moves during the stage.
+#:
+#: Since WP-2002 (the seventh round's Q2) it is the declared stages' margin and
+#: a floor for the rest.  A compile at the closing stage's windows generates
+#: each phase's reflections out to the widest window a reflection at either
+#: edge of the range carries, which reaches tens of degrees on a lab
+#: Lorentzian.  At this fixed margin the tail of a reflection just past the end
+#: left 0.124-0.186σ at the last points of FAP and cpd-1a against a bar of 0.1σ
+#: (``tests/test_window_domain.py``).
 REFLECTION_MARGIN_DEG = 0.5
 
 #: WP-1343.  When a magnetic broadening term is about to be *refined* from
@@ -3639,10 +3672,21 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     slack added to every window half-width (``Stage.window_slack_deg`` has
     the two-jobs story); ``None`` — every ordinary caller — is the default.
 
-    ``window_area_tol`` overrides ``WINDOW_AREA_TOL``, the area each window may
-    drop from its peak, for the phase windows and the declared sharp peaks
-    alike.  A plan's closing stage passes ``RefinementPlan.closing_window_tol``;
-    ``None`` is the default.
+    ``window_area_tol`` is the area each window may drop from its peak, for the
+    phase windows and the declared sharp peaks alike.  ``None`` is
+    ``schemas.plan.CLOSING_WINDOW_TOL``, the fraction an answer is measured
+    at, so a model evaluated outside a fit is the model a default fit's answer
+    came from (WP-2002, the seventh round's Q1).  The plan runner passes
+    ``WINDOW_AREA_TOL`` for a declared stage and the plan's
+    ``closing_window_tol`` for its closing stage; a caller rebuilding a stage
+    from its record passes :func:`recorded_window_tol` of the recorded value.
+    At ``CLOSING_WINDOW_TOL`` or tighter the compile takes the closing stage's
+    precision throughout: the axial-divergence quadrature takes the closing
+    node rule (``profiles.fcj.CLOSING_NODES_PER_FWHM``), and each phase's
+    reflections are generated out to the widest window a reflection at either
+    edge of the range carries, never less than ``REFLECTION_MARGIN_DEG``.  So
+    the recorded window fraction also says which rules a stage ran, and a
+    declared stage compiles as it did before.
 
     The pattern must be in 2θ and the instrument a constant-wavelength one:
     this is the backstop for :func:`rietx.schemas.pattern.require_two_theta`,
@@ -3654,10 +3698,17 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     if restraint_weight_scale < 0.0:
         raise ValueError(
             f"restraint_weight_scale must be >= 0 (got {restraint_weight_scale})")
-    if window_area_tol is not None and not 0.0 < window_area_tol < 1.0:
+    if window_area_tol is None:
+        window_area_tol = CLOSING_WINDOW_TOL
+    if not 0.0 < window_area_tol < 1.0:
         raise ValueError(
             f"window_area_tol is a fraction of a peak's area, strictly between 0 "
             f"and 1 (got {window_area_tol})")
+    # the closing stage's precision, for every compile at its windows or
+    # tighter: the FCJ closing node rule, and reflections out to the widest
+    # window at either edge.  A declared stage keeps both as they were, so a
+    # plan with closing_window_tol=None is the fit it was (the seventh round's Q2)
+    closing_precision = window_area_tol <= CLOSING_WINDOW_TOL
     mask = pattern.in_range_mask()
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
     if two_theta_limits is not None:
@@ -3746,12 +3797,48 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     _extra = _extra[np.isfinite(_extra)]
     widen_lo = max(float(_extra.max()), 0.0) if _extra.size else 0.0
     widen_hi = max(-float(_extra.min()), 0.0) if _extra.size else 0.0
-    # capped at backscatter: d_min = λ/(2·sin θ_max) folds back past 180°, so
-    # a window widened beyond it would generate *fewer* reflections, not more
-    lo_eff = max(tt_min - zero - REFLECTION_MARGIN_DEG - widen_lo, 0.1)
-    hi_eff = min(tt_max - zero + REFLECTION_MARGIN_DEG + widen_hi, 180.0)
-    sin_lo = np.sin(np.radians(lo_eff / 2.0)) * lam_gen / max(lams)
-    gen_min = max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05)
+    def _edge_half(phase, ip: int, y_extra: float = 0.0) -> np.ndarray:
+        """The widest window a reflection of ``phase`` at the fitted range's low
+        and high edges carries, in deg 2θ: ``_size_family``'s sizing below, at
+        the edge angles and at the angles those windows first reach, for the
+        nuclear family and any magnetic one.  ``y_extra`` is the largest
+        Stephens Λ(hkl), a tanθ coefficient beside Y."""
+        prof = instrument.profile
+        slack = WINDOW_MIN_DEG if window_slack_deg is None else window_slack_deg
+        mag = [phase.magnetic_lor_size.value, phase.magnetic_lor_strain.value]
+        for k, path in enumerate((f"phases.{ip}.magnetic_lor_size",
+                                  f"phases.{ip}.magnetic_lor_strain")):
+            if path in moving_paths or mag[k] > 0.0:
+                mag[k] = max(mag[k], MAGNETIC_SIZING_FLOOR)
+
+        def half(two_theta):
+            theta = 0.5 * two_theta
+            g = gaussian_fwhm(theta, prof.u.value, prof.v.value, prof.w.value,
+                              phase.gauss_size.value, phase.gauss_strain.value)
+            out = np.zeros_like(two_theta)
+            for xs, ys in {(0.0, 0.0), tuple(mag)}:
+                lor = lorentzian_fwhm(theta, prof.x.value + phase.lor_size.value + xs,
+                                      prof.y.value + phase.lor_strain.value + ys + y_extra)
+                gamma, eta = tch_gamma_eta(g, lor)
+                out = np.maximum(out, window_fwhm_mult(eta, window_area_tol) * gamma + slack)
+            if fcj_on:
+                out = out + fcj_extent_deg(two_theta, sl_eff, hl_eff)
+            return np.where(np.isfinite(out), out, 180.0)
+
+        edges = np.array([tt_min, tt_max])
+        first = half(edges)
+        reach = np.clip(edges + np.array([-1.0, 1.0]) * first, 0.1, 179.9)
+        return np.maximum(first, half(reach))
+
+    def _generation_range(margin_lo: float, margin_hi: float) -> tuple[float, float]:
+        """(lowest, highest) 2θ a phase's reflections are generated over: the
+        fitted range widened by the geometry's shift and by the margins.
+        Capped at backscatter: d_min = λ/(2·sin θ_max) folds back past 180°, so
+        a window widened beyond it would generate *fewer* reflections, not more."""
+        lo = max(tt_min - zero - margin_lo - widen_lo, 0.1)
+        hi = min(tt_max - zero + margin_hi + widen_hi, 180.0)
+        sin_lo = np.sin(np.radians(lo / 2.0)) * lam_gen / max(lams)
+        return max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05), hi
 
     # Anomalous scattering: f′ + i·f″ per species, frozen for the stage.  The
     # source owns it (it is a property of the wavelength, not the structure),
@@ -3770,8 +3857,26 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # label.  ``None`` is exactly the old path, so every other phase
         # enumerates the identical list in the identical order.
         group = resolve_group(phase.space_group, phase.symmetry_operations)
+        # At the closing precision, out to the widest window a reflection at
+        # either edge carries, and at least ``REFLECTION_MARGIN_DEG``: a
+        # reflection outside the range whose tail reaches in belongs to the
+        # pattern its window would draw (WP-2002, the seventh round's Q2).  A
+        # Stephens block widens the windows by its own Λ(hkl), so its largest on
+        # the first list widens the range once more.
+        margins = (np.maximum(_edge_half(phase, ip), REFLECTION_MARGIN_DEG)
+                   if closing_precision else np.full(2, REFLECTION_MARGIN_DEG))
+        gen_min, hi_eff = _generation_range(*margins)
         refl = generate_reflections(group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
+        if closing_precision and phase.microstrain is not None and len(refl.index):
+            lam_max = float(np.max(strain_width_deg(
+                monomial_matrix(refl.index), np.array(phase.microstrain.values()),
+                d_spacings(refl.index, *cell))))
+            wider = np.maximum(_edge_half(phase, ip, lam_max), margins)
+            if np.any(wider > margins):
+                gen_min, hi_eff = _generation_range(*wider)
+                refl = generate_reflections(group, cell, lam_gen,
+                                            two_theta_max=hi_eff, two_theta_min=gen_min)
         # WP-1326: a declared propagation vector adds the satellites at
         # Q = H ± k as a second ReflectionSet, frozen here with the nuclear one
         # and merged into a single list (see ``CompiledPhase.satellites``).
@@ -3912,7 +4017,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                     for k in range(n):
                         if valid[k] and i1[k] > i0[k]:
                             fcj_n[il, k] = fcj_node_count(float(pos[k]), float(gamma_est[k]),
-                                                          sl_eff, hl_eff)
+                                                          sl_eff, hl_eff, closing=closing_precision)
 
         _size_family(win, fcj_n, 0.0, 0.0, primary=True)
         if mag_split:

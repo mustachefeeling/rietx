@@ -62,6 +62,7 @@ from .model.forward import (
     CompiledModel,
     Mode,
     compile_model,
+    recorded_window_tol,
 )
 from .model.geometry import cell_volumes, geometry_table
 from .model.microstructure import microstructure_table
@@ -133,7 +134,11 @@ from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.interval import PARAMETER_INTERVAL_LEVEL, PARAMETER_INTERVAL_MAX_REFITS
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData, require_two_theta
-from .schemas.plan import check_closing_window_tol, check_phase_support_sigma
+from .schemas.plan import (
+    CLOSING_WINDOW_TOL,
+    check_closing_window_tol,
+    check_phase_support_sigma,
+)
 from .schemas.results import (
     DELIVERABLES,
     AbsorptionCorrection,
@@ -3551,7 +3556,8 @@ class Refinement:
             model = compile_model(structure, instrument, data, mode=mode,
                                   two_theta_limits=limits,
                                   moving_paths=set(table.moving_paths),
-                                  window_area_tol=self._plan_settings["window_area_tol"])
+                                  window_area_tol=recorded_window_tol(
+                                      self._plan_settings["window_area_tol"]))
             # a "centroid" phase's origin rows, or the probe's covariance
             # reads the floating origin as a flat direction (WP-1912)
             model.origin = compile_origin(model, table)
@@ -3823,7 +3829,9 @@ class Refinement:
         return self.run_stage(
             data, stage, correlation_guard=node.action.correlation_guard,
             phase_support_sigma=node.action.phase_support_sigma,
-            window_area_tol=node.action.window_area_tol)
+            # a declared stage's record says None and ran at the declared 2 %,
+            # which run_stage's own None no longer is (the seventh round's Q1)
+            window_area_tol=recorded_window_tol(node.action.window_area_tol))
 
     # ------------------------------------------------------------------
     # fitting
@@ -4033,8 +4041,9 @@ class Refinement:
             # does not state one
             window_slack_deg=stage.window_slack_deg,
             # and the area its windows may drop: the closing stage's own, None
-            # for every declared stage (WP-2002, the sixth round's Q1 and Q2)
-            window_area_tol=window_area_tol)
+            # for every declared stage (WP-2002, the sixth round's Q1 and Q2),
+            # which compiles at the declared 2 % by name
+            window_area_tol=recorded_window_tol(window_area_tol))
         table.push_moment_frames(new_model)
         carried = False
         if model is not None and mode in ("lebail", "pawley") and model.mode == mode:
@@ -5150,7 +5159,7 @@ class Refinement:
             moving_paths=set(table.moving_paths),
             restraint_weight_scale=stage.restraint_weight_scale,
             window_slack_deg=stage.window_slack_deg,
-            window_area_tol=window_area_tol)
+            window_area_tol=recorded_window_tol(window_area_tol))
         # and the solve's moment frames, never the fresh compile's: this one is
         # built at the fitted cell, so a last stage that moved an angle would
         # otherwise read the refined moment DOFs in a frame they were never
@@ -5256,10 +5265,12 @@ class Refinement:
         A project's ``run_stage`` passes its stored plan's.
 
         ``window_area_tol`` is the fraction of each peak's area this stage's
-        windows may drop, ``forward.WINDOW_AREA_TOL`` when ``None``.  A plan's
-        closing stage runs at ``RefinementPlan.closing_window_tol``, and
-        :meth:`cherry_pick` passes a recorded node's.  No closing stage
-        follows a stage run here.
+        windows may drop.  ``None`` is ``schemas.plan.CLOSING_WINDOW_TOL``, the
+        fraction an answer is measured at: no closing stage follows a stage run
+        here, so its answer is computed on its own windows (WP-2002, the
+        seventh round's Q1).  Pass ``forward.WINDOW_AREA_TOL`` for the declared
+        stages' faster windows.  :meth:`cherry_pick` passes a recorded node's.
+        The stage's ``window_area_tol`` records the fraction it ran at.
         """
         _refuse_without_phases(self.structure, "run_stage")
         phase_support_sigma = check_phase_support_sigma(phase_support_sigma)
@@ -5271,6 +5282,8 @@ class Refinement:
                     f"window_area_tol is the fraction of each peak's area this "
                     f"stage's windows may drop, a number strictly between 0 and 1, "
                     f"or None for the default; got {window_area_tol!r}") from None
+        else:
+            window_area_tol = CLOSING_WINDOW_TOL
         require_two_theta(data, "Refinement.run_stage()",
                           instrument=self.instrument)
         mode = mode or self._mode
@@ -5483,12 +5496,16 @@ class Refinement:
         one of them in a peak tail at a window edge.  ``RefinementResult.y_calc``
         is the first of the two — the curve the fit actually minimised.
 
-        A grid compiles at the default windows whatever this object has
-        fitted, so a never-fitted twin carrying the same models returns the
-        same array.  A plan's closing stage measures its answer on windows
-        dropping ``closing_window_tol`` of each peak (WP-2002), so to redraw
-        ``y_calc`` on another grid, compile with
-        ``window_area_tol=result.stages[-1].window_area_tol``.
+        A grid compiles at ``compile_model``'s default windows whatever this
+        object has fitted, so a never-fitted twin carrying the same models
+        returns the same array.  That default is the closing stage's
+        ``CLOSING_WINDOW_TOL`` (WP-2002, the seventh round's Q1), the windows a
+        default fit measures its answer on, so a grid redraws a default fit's
+        ``y_calc`` and a synthetic pattern carries the tails a default fit
+        fits.  A plan with ``closing_window_tol=None`` measured its answer at
+        the declared stages' ``forward.WINDOW_AREA_TOL`` instead; redraw it
+        with ``compile_model(..., window_area_tol=recorded_window_tol(
+        result.stages[-1].window_area_tol))``.
         """
         table = ParameterTable(self.structure, self.instrument)
         if two_theta is None:
@@ -9916,7 +9933,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
                           moving_paths=set(table.moving_paths),
                           restraint_weight_scale=action.restraint_weight_scale,
                           window_slack_deg=action.window_slack_deg,
-                          window_area_tol=action.window_area_tol)
+                          window_area_tol=recorded_window_tol(action.window_area_tol))
     if state.mode in ("lebail", "pawley"):
         _restore_lebail(state.reflections, model)
 

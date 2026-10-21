@@ -30,7 +30,7 @@ from .backend.api import backend_dtype_note
 from .crystallography.symmetry import reflection_label_row
 from .history.events import _attach_progress, as_event_stream
 from .model.components import EXTRA_TICK_KEY
-from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
+from .model.forward import PHASE_SUPPORT_SIGMA, compile_model, recorded_window_tol
 from .model.microstructure import microstructure_table
 from .optimize.blocked import BlockJacobian
 from .optimize.cancel import RefinementCancelled
@@ -1377,7 +1377,7 @@ class MultiHistogramRefinement:
                 models = [
                     compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
                                   moving_paths=set(tab.moving_paths),
-                                  window_area_tol=window_tol)
+                                  window_area_tol=recorded_window_tol(window_tol))
                     for s, ins, d, lim, tab in zip(
                         self.mtable.structures, self.mtable.instruments, data, limits,
                         self.mtable.tables, strict=True)]

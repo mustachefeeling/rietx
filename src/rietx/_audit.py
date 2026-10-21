@@ -1326,10 +1326,16 @@ ROWS: tuple[Row, ...] = (
                   "against a bar of 0.1 sigma a point (tests/test_window_domain.py); 5 deg is "
                   "bit-identical to 20 deg on both, and the margin needed grows with the window: "
                   "at the closing stage's 1e-3 windows 0.186 and 0.124 sigma at the last "
-                  "points, the answers moving 0.026 and 0.043 esd (WP-2002, 2026-10-21)"),
+                  "points, the answers moving 0.026 and 0.043 esd (WP-2002, 2026-10-21); a compile "
+                  "at the closing windows generates out to the widest edge window instead, and the "
+                  "closing answer then meets 0.1 sigma (0.027 FAP, 0.022 cpd-1a) at 1.3x the FAP "
+                  "fit's time"),
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
-        approved="2026-10-19"),
+                 "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh "
+                 "round's Q2): it stays for the declared stages, which only steer, and a compile at "
+                 "CLOSING_WINDOW_TOL or tighter generates reflections out to the widest window at "
+                 "either edge, with this as its floor."),
+        approved="2026-10-21"),
     Row("rietx.model.forward.WINDOW_AREA_TOL", "constant", tier=3, value=0.02,
         evidence=("window area tolerance; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC against 5e-5 (converged): fails on all four, "
                   "max |dy|/sigma 0.71-2.15 at fixed parameters against a bar of 0.1, a converged "
@@ -1341,10 +1347,11 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the sixth "
                  "round's Q1 and Q2): it stays for the declared stages, which only steer, and the "
-                 "answer is computed in a closing stage at CLOSING_WINDOW_TOL.  Its error still "
-                 "reaches a number a caller reads from a plan with closing_window_tol=None, a "
-                 "stage run by hand, predict(grid), the magnetic default solve's trial moments "
-                 "and SolveCost.from_pawley."),
+                 "answer is computed in a closing stage at CLOSING_WINDOW_TOL, as is every "
+                 "evaluation outside a fit and a stage run by hand (the seventh round's Q1).  Its "
+                 "error still reaches a number a caller reads from a plan with "
+                 "closing_window_tol=None, the magnetic default solve's trial moments and "
+                 "SolveCost.from_pawley."),
         approved="2026-10-21"),
     Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=3, value=0.3,
         evidence=("minimum window half-width, the room a peak has to move within one stage; "
@@ -1469,14 +1476,24 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.profiles.faddeeva._WEIDEMAN_L", "constant", tier=1, value=4.756828460010884,
         evidence=("arithmetic: derived from WEIDEMAN_N with no free factor, Weideman (1994) J. "
                   "Numer. Anal. 31, 1497 (docstring)")),
+    Row("rietx.model.profiles.fcj.CLOSING_MAX_NODES", "constant", tier=1, value=1024,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile at CLOSING_WINDOW_TOL or tighter (the closing stage, a stage run by hand, every evaluation outside a fit), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
+    Row("rietx.model.profiles.fcj.CLOSING_MIN_NODES", "constant", tier=1, value=10,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile at CLOSING_WINDOW_TOL or tighter (the closing stage, a stage run by hand, every evaluation outside a fit), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
+    Row("rietx.model.profiles.fcj.CLOSING_NODES_PER_FWHM", "constant", tier=1, value=12.0,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile at CLOSING_WINDOW_TOL or tighter (the closing stage, a stage run by hand, every evaluation outside a fit), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
+    Row("rietx.model.profiles.fcj.CLOSING_SKIP_EXTENT_FWHM_RATIO", "constant", tier=1, value=0.0003,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile at CLOSING_WINDOW_TOL or tighter (the closing stage, a stage run by hand, every evaluation outside a fit), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
     Row("rietx.model.profiles.fcj.MAX_NODES", "constant", tier=3, value=64,
         evidence=("FCJ quadrature cap; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
                   "fails where it binds, past extent/FWHM 10 (lab below ~6.2 deg at S/L = H/L = "
                   "0.025, FWHM 0.07), 0.21-0.26 of the peak; synchrotron fails at eta 0.5 and 1"),
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
-                 "(ruled 2026-10-19) until the constants are ruled on."),
-        approved="2026-10-19"),
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, which only steer, and the answer is sampled at the "
+                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.MIN_NODES", "constant", tier=3, value=8,
         evidence=("FCJ quadrature floor; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
                   "passes lab eta <= 0.5 (worst 3.95e-4), fails lab eta 1 (7.9e-4) and "
@@ -1484,8 +1501,10 @@ ROWS: tuple[Row, ...] = (
                   "floors every reflection at 8 images, so only a rise changes anything"),
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
-                 "(ruled 2026-10-19) until the constants are ruled on."),
-        approved="2026-10-19"),
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, which only steer, and the answer is sampled at the "
+                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.NODES_PER_FWHM", "constant", tier=3, value=6.0,
         evidence=("FCJ quadrature density; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
                   "passes lab eta 0 (4.4e-4), fails lab eta 0.5 and 1 (2.4e-3, 5.6e-3) and "
@@ -1493,16 +1512,20 @@ ROWS: tuple[Row, ...] = (
                   "the images sit on a zero-length segment"),
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
-                 "(ruled 2026-10-19) until the constants are ruled on."),
-        approved="2026-10-19"),
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, which only steer, and the answer is sampled at the "
+                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.SKIP_EXTENT_FWHM_RATIO", "constant", tier=3, value=0.02,
         evidence=("FCJ skip below this extent; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
                   "fails both at 9.5e-3, the error being about 0.48 x extent/FWHM, so the bar "
                   "needs 1.5e-3 (lab) or 3.7e-4 (synchrotron)"),
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
-                 "(ruled 2026-10-19) until the constants are ruled on."),
-        approved="2026-10-19"),
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, which only steer, and the answer is sampled at the "
+                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.pseudovoigt._4LN2", "constant", tier=1, value=2.772588722239781,
         evidence="arithmetic: exp(-4 ln2 x^2/G^2) puts the half maximum at x = G/2"),
     Row("rietx.model.profiles.pseudovoigt._SQRT_LN2_PI", "constant", tier=1, value=0.46971863934982566,
@@ -2487,14 +2510,17 @@ ROWS: tuple[Row, ...] = (
                   "checked"
                   "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.Refinement.run_stage:correlation_guard", "default", value=0.98),
-    Row("rietx.refine.Refinement.run_stage:window_area_tol", "default", tier=3, ambiguity=1, value=None,
-        evidence=("None resolves to forward.WINDOW_AREA_TOL and compiles the windows every stage "
-                  "did before WP-2002's closing stage, so it inherits that row's tier"),
-        grounds=("A stage driven by hand takes the declared stages' windows, so its answer "
-                 "carries their error (the GUI's Run this stage among them); a caller who wants "
-                 "the closing stage's states it, and cherry_pick passes a recorded node's. The "
-                 "ruling (the sixth round's Q1 and Q2, 2026-10-21) covers a plan's closing "
-                 "stage, not this seat, which the maintainer has not ruled on."),
+    Row("rietx.refine.Refinement.run_stage:window_area_tol", "default", tier=1, ambiguity=1, value=None,
+        evidence=("None resolves to schemas.plan.CLOSING_WINDOW_TOL, the windows an answer is "
+                  "measured on, and inherits that row's tier and domain test; the stage records "
+                  "the fraction it ran at"),
+        grounds=("No closing stage follows a stage driven by hand (the GUI's Run this stage "
+                 "among them), so its own windows compute its answer; at the declared stages' "
+                 "2 % that answer carried up to 0.97 esd on lab data. A caller wanting the fast "
+                 "stage passes WINDOW_AREA_TOL, and cherry_pick passes a recorded node's "
+                 "through forward.recorded_window_tol. Ruled 2026-10-21 (the seventh round's "
+                 "Q1, evaluation outside a fit at the closing windows, which the brief extended "
+                 "to this seat)."),
         approved="2026-10-21"),
     Row("rietx.refine.Refinement.run_stage:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "

@@ -301,8 +301,11 @@ def _y(family, start, consts):
     mp = _patched(consts)
     try:
         st, ins = f["structure"], f["instrument"]
+        # a declared stage's windows, read after the patch: compile_model's own
+        # default is the closing stage's fraction (the seventh round's Q1)
         model = fwd.compile_model(st, ins, f["data"],
-                                  two_theta_limits=f["kw"].get("two_theta_limits"))
+                                  two_theta_limits=f["kw"].get("two_theta_limits"),
+                                  window_area_tol=fwd.WINDOW_AREA_TOL)
         table = ParameterTable(st, ins)
         y = np.asarray(model.evaluate(table.decode(table.x0())), dtype=float)
         return np.asarray(model.tt), y, np.asarray(model.sigma, dtype=float)

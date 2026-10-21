@@ -989,11 +989,14 @@ class StageResult(Base):
     #: the fraction of each peak's area this stage's windows dropped, or
     #: ``None`` for ``forward.WINDOW_AREA_TOL`` — what every declared stage
     #: takes.  A plan's closing stage runs at ``closing_window_tol`` (WP-2002,
-    #: the sixth round's Q1 and Q2), and the result's curves and statistics
-    #: are measured at the last stage's, so a reader rebuilding the model from
-    #: ``RefinementResult.parameters`` passes this to ``compile_model`` to
-    #: reproduce them: the 2 % and 0.1 % windows of one answer differ by up to
-    #: 0.6 % in χ².
+    #: the sixth round's Q1 and Q2), a stage run by hand at the fraction it
+    #: ran at, and the result's curves and statistics are measured at the last
+    #: stage's.  So a reader rebuilding the model from
+    #: ``RefinementResult.parameters`` passes
+    #: ``forward.recorded_window_tol(this)`` to ``compile_model`` to reproduce
+    #: them, ``compile_model``'s own default being the closing stage's
+    #: fraction: the 2 % and 0.1 % windows of one answer differ by up to 0.6 %
+    #: in χ².
     window_area_tol: float | None = None
     #: steps the bounded-LM driver held on a linear-inequality constraint (the
     #: Stephens strain cone, or the Γ_G² floor of WP-1938 D7) during this

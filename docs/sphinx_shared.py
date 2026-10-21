@@ -52,7 +52,12 @@ from rietx.model.geometry import (
     VARIANCE_CANCELLATION_FLOOR,
 )
 from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
-from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
+from rietx.model.profiles.fcj import (
+    CLOSING_NODES_PER_FWHM,
+    CLOSING_SKIP_EXTENT_FWHM_RATIO,
+    NODES_PER_FWHM,
+    SKIP_EXTENT_FWHM_RATIO,
+)
 from rietx.optimize.least_squares import STATIONARY_ANGLE_LEVEL
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
 from rietx.optimize.statistics import (
@@ -82,6 +87,7 @@ from rietx.report.schemas import (
 from rietx.schemas.fraction import FRACTION_PROFILE_DCHI2
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.interval import PARAMETER_INTERVAL_MAX_REFITS
+from rietx.schemas.plan import CLOSING_WINDOW_TOL
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
 
@@ -258,6 +264,9 @@ MYST_SUBSTITUTIONS = {
     "Y3_HANDOVER_STOL": f"{_itc_handover('Y3+'):.3f}",
     "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,
+    "CLOSING_NODES_PER_FWHM": CLOSING_NODES_PER_FWHM,
+    "CLOSING_SKIP_EXTENT_FWHM_RATIO": CLOSING_SKIP_EXTENT_FWHM_RATIO,
+    "CLOSING_WINDOW_TOL": CLOSING_WINDOW_TOL,
     "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,
     "SKIP_EXTENT_FWHM_RATIO": SKIP_EXTENT_FWHM_RATIO,
     "STRAIN_CAP_RANGE_FRACTION": STRAIN_CAP_RANGE_FRACTION,

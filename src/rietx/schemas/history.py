@@ -87,7 +87,10 @@ class NodeAction(Base):
     keyword for the same reason: a plan's closing stage runs at
     ``RefinementPlan.closing_window_tol``, and a cherry-pick or ``replay`` at
     the default would solve or draw a different model.  ``None`` is
-    ``forward.WINDOW_AREA_TOL``, what every node written before the field ran.
+    ``forward.WINDOW_AREA_TOL``, what every declared stage and every node
+    written before the field ran; ``compile_model``'s own ``None`` is the
+    closing stage's fraction, so a reader passes this through
+    ``forward.recorded_window_tol`` (the seventh round's Q1).
 
     ``ties``/``untied`` (WP-1070) are the ``"set_tie"`` action's own arguments,
     additive under the same rule.  They record what the action *did*, not the

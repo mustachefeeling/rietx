@@ -547,13 +547,16 @@ def _fcj_mix(x, two_theta, fwhm, sl, hl, n):
     return omega @ pseudo_voigt(d, fwhm, 1.0), omega @ pseudo_voigt(d, fwhm, 0.0)
 
 
-def _fcj_constants():
+def _fcj_constants(closing=False):
     m = fcj_module
+    if closing:
+        return (m.CLOSING_NODES_PER_FWHM, m.CLOSING_MIN_NODES, m.CLOSING_MAX_NODES,
+                m.CLOSING_SKIP_EXTENT_FWHM_RATIO)
     return (m.NODES_PER_FWHM, m.MIN_NODES, m.MAX_NODES, m.SKIP_EXTENT_FWHM_RATIO)
 
 
 @lru_cache(maxsize=4)
-def _fcj_domain_cases(constants):
+def _fcj_domain_cases(constants, closing=False):
     """Every case as (family, region, 2θ, S/L, H/L, FWHM, extent/FWHM, n,
     {η: error}).  The region names the constant that decides n.
 
@@ -571,7 +574,7 @@ def _fcj_domain_cases(constants):
                 tts.add(_fcj_tt_at_ratio((n_min - 4) / per_fwhm, fwhm, sl, hl, above))
             for tt in sorted(tts):
                 ratio = _fcj_ratio(tt, fwhm, sl, hl)
-                n = fcj_node_count(tt, fwhm, sl, hl)
+                n = fcj_node_count(tt, fwhm, sl, hl, closing=closing)
                 uncapped = int(np.ceil(4.0 + per_fwhm * ratio))
                 region = ("skip" if n == 0 else "min" if uncapped <= n_min
                           else "cap" if uncapped > n_max else "rule")
@@ -588,8 +591,8 @@ def _fcj_domain_cases(constants):
     return rows
 
 
-def _assert_fcj_bar(family, region, eta):
-    rows = [r for r in _fcj_domain_cases(_fcj_constants())
+def _assert_fcj_bar(family, region, eta, closing=False):
+    rows = [r for r in _fcj_domain_cases(_fcj_constants(closing), closing)
             if r[0] == family and r[1] == region]
     if not rows:
         # the constant decides no case of this family's domain, so it meets
@@ -672,6 +675,23 @@ def test_fcj_nodes_per_fwhm_meets_the_bar(family, eta):
 def test_fcj_max_nodes_meets_the_bar(family, eta):
     """``MAX_NODES``: the cap, which binds on large extents at low angle."""
     _assert_fcj_bar(family, "cap", eta)
+
+
+@pytest.mark.slow  # 18-20 s serial for the 24 cells, on the fcj-domain worker
+@pytest.mark.xdist_group("fcj-domain")
+@pytest.mark.parametrize("region", ["skip", "min", "rule", "cap"])
+@pytest.mark.parametrize("family, eta", _fcj_cells({}))
+def test_the_closing_node_rule_meets_the_bar(family, eta, region):
+    """The closing rule (``CLOSING_NODES_PER_FWHM`` 12, ``CLOSING_MIN_NODES`` 10,
+    ``CLOSING_MAX_NODES`` 1024, ``CLOSING_SKIP_EXTENT_FWHM_RATIO`` 3e-4), which
+    ``compile_model`` takes at the closing stage's windows or tighter, over the
+    domain the four tests above fail on (WP-2002, the seventh round's Q2).
+    The declared stages keep the rule above, since the closing stage computes
+    the answer.  Measured 2026-10-21 over a finer grid of this domain (8 500
+    cases): worst 1.6e-4 lab and 9.9e-5 synchrotron, 0.25 and 0.81 of the
+    bars.  Made to fail on 2026-10-21 with ``CLOSING_NODES_PER_FWHM`` patched
+    to 6."""
+    _assert_fcj_bar(family, region, eta, closing=True)
 
 
 # ---------------------------------------------------------------------------
