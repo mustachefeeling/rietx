@@ -219,7 +219,9 @@ cutting it.
       four files. `test_background_auto`'s repeats measured under 0.2 s each
       and were left (E had paired the wrong fits). The indexing wiring tests
       cost the ambiguity sweep, not the search, so the lever was
-      `max_candidates`, with one engine only alongside it.*
+      `max_candidates`, with one engine only alongside it. The priors row
+      went back to its full search at review: it also asserts the engines'
+      rank-1 candidate, a ranking claim.*
 - [ ] **Re-measure.** Run the fast tier on the final tree locally (venv and
       platform quoted) and read ten main runs (Acceptance).
 - [ ] **Skill:** none. This changes how the repo is tested, not how rietx is

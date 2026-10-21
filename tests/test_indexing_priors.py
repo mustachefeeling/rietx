@@ -108,23 +108,17 @@ def test_a_correct_prior_surfaces_truth_in_the_first_streamed_shortlist():
     """The other half of the acceptance: a correct analogue prior (the true
     cell perturbed by a few hundred ppm) jumps its system to the front, so
     the first ``consensus:<system>`` snapshot on the ladder is the prior's
-    system and already carries the truth.
-
-    A claim about the queue and the stream, so one engine reporting one
-    candidate carries it, and the snapshot must then lead with the truth.  The
-    run's cost was the ambiguity sweep over the full report (~17 s here, which
-    one engine alone does not shorten: each of its candidates is "found by
-    every engine", so each is checked), and nothing here reads it (WP-2019)."""
+    system and already carries the truth."""
     peaks, true_cell = synthetic_peaks("tetragonal")
     prior = tuple(v * (1.0003 if i < 3 else 1.0)
                   for i, v in enumerate(true_cell))
     events: list = []
     res = index_pattern(
-        peaks, events=events.append, preset="full", engines=("dichotomy",),
+        peaks, events=events.append, preset="full",
         spec=SearchSpec(systems=("cubic", "tetragonal"),
                         prior_cells=(prior,), min_d_axis=2.0, max_d_axis=12.0,
                         max_volume=1500.0, shift_allowance_deg=1e-9,
-                        budget_seconds=120.0, max_candidates=1))
+                        budget_seconds=120.0))
     snaps = [e["data"] for e in events if e["kind"] == "stage_end"
              and e["data"].get("consensus")]
     assert snaps and snaps[0]["system"] == "tetragonal", (
