@@ -1341,8 +1341,10 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the sixth "
                  "round's Q1 and Q2): it stays for the declared stages, which only steer, and the "
-                 "answer is computed in a closing stage at CLOSING_WINDOW_TOL; a plan with "
-                 "closing_window_tol=None still carries this constant's error into its answer."),
+                 "answer is computed in a closing stage at CLOSING_WINDOW_TOL.  Its error still "
+                 "reaches a number a caller reads from a plan with closing_window_tol=None, a "
+                 "stage run by hand, predict(grid), the magnetic default solve's trial moments "
+                 "and SolveCost.from_pawley."),
         approved="2026-10-21"),
     Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=3, value=0.3,
         evidence=("minimum window half-width, the room a peak has to move within one stage; "
@@ -2050,18 +2052,26 @@ ROWS: tuple[Row, ...] = (
                   "by stating max")),
     Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN", "constant", value=0.005),
     Row("rietx.schemas.instrument.HARMONIC_WEIGHT_SEED", "constant", tier="invariant", value=0.01,
-        evidence=("answer-invariant behind the closing stage: seeds 0.001 and 0.3 against "
-                  "0.01 within 0.1 plain esd (at most 0.003) at true lambda/2 weights 0.003 "
-                  "and 0.05, a synthetic CW neutron corundum, the one family a harmonic has "
-                  "here (tests/test_staged_start_invariance.py, the sixth round's Q2 bar)")),
+        evidence=("answer-invariant behind the closing stage only (closing_window_tol=None "
+                  "keeps the 0.15 esd it moved before): seeds 0.001 and 0.3 against 0.01 within "
+                  "0.1 plain esd (at most 0.003) at true lambda/2 weights 0, 0.003 and 0.05, a "
+                  "synthetic CW neutron corundum drawn by the package's own forward model, the "
+                  "one family a harmonic has here (tests/test_staged_start_invariance.py, the "
+                  "sixth round's Q2 bar)")),
     Row("rietx.schemas.instrument.HUMP_FWHM_MIN", "constant", value=0.1),
-    Row("rietx.schemas.instrument.TCHZ_CEILING_DEG", "constant", tier=1, value=180.0,
-        evidence=("arithmetic: the width of the 2theta axis (180 deg for X and Y, its square for "
-                  "U, V and W), four orders over any measured line, so it bounds no fit LM runs; "
-                  "kept finite because TRF scales a step by a finite bound's distance and by 1 "
-                  "for an infinite one: CPD brucite Stephens under TRF stopped at Rwp 0.17891, "
-                  "one S_HKL t = -203, without it and at 0.17878 with the pre-removal t values "
-                  "with it (WP-2002, the sixth round's Q7, ruled (a) 2026-10-21)")),
+    Row("rietx.schemas.instrument.TCHZ_CEILING_DEG", "constant", tier=3, value=180.0,
+        evidence=("the width of the 2theta axis (180 deg for X and Y, its square for U, V and W), "
+                  "four orders over any measured line, so no fit reaches it; it exists for TRF, "
+                  "which scales a step by a finite bound's distance and by 1 for an infinite one: "
+                  "CPD brucite Stephens under TRF stopped at Rwp 0.17891, one S_HKL t = -203, "
+                  "without it, and at 0.17878 with the pre-removal t values with it, the closing "
+                  "stage off (one family); with the closing stage on, TRF collapses that fit "
+                  "again (t = -268), so the Stephens suite declines it; none of the seven "
+                  "programs bounds these widths, the reason named here"),
+        grounds=("A solver-path setting, held at tier 3 as B10's are until refits of three "
+                 "families under TRF agree with and without it; kept on the maintainer's ruling "
+                 "(the sixth round's Q7, (a), 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.instrument._DIFC_MIN", "constant", tier=1, value=1.0,
         evidence=("physics: DIFC = (m_N/h)(L1+L2)2 sin(theta) is strictly positive; 1 us/A is three"
                   " orders under the smallest real bank (GEM bank 1, ~740)")),
@@ -2325,8 +2335,14 @@ ROWS: tuple[Row, ...] = (
                   "from the answer, by default (manual A.4; Doebelin & Kleeberg 2015 J. Appl. "
                   "Cryst. 48, 1573, 2); RIETAN-FP's NAUTO = 2 ends with everything refining "
                   "together, its windows moving each evaluation; MAUD's wizard has no final "
-                  "cycle (docs/wp/2002-batch/practice.md); the value is CLOSING_WINDOW_TOL's "
-                  "row; recorded in RefinementResult.stages as the stage named 'closing'"),
+                  "cycle, but its windows also move every evaluation, so the window error the "
+                  "stage removes never arises there (docs/wp/2002-batch/practice.md); the value "
+                  "is CLOSING_WINDOW_TOL's row; SRM 660c's cell 4.1568823 A without it and "
+                  "4.1568821 with it, +24.6 ppm from the reference both ways; it fails twice: on "
+                  "SRM 660c one closing solve sits 0.908 esd from the fixed point in u (the "
+                  "Gaussian clamp, WP-1467), and under TRF it collapses CPD brucite's S_HKL "
+                  "(t = -268); recorded in RefinementResult.stages as the stage named "
+                  "'closing'"),
         grounds=("The maintainer's ruling (the sixth round's Q2, option 3, 2026-10-21): every "
                  "plan ends with a closing stage at tight windows, which removes the 2 % "
                  "window's error from the answer and most of a staged plan's start dependence; "
@@ -2464,9 +2480,11 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.Refinement.run_stage:window_area_tol", "default", tier=3, ambiguity=1, value=None,
         evidence=("None resolves to forward.WINDOW_AREA_TOL and compiles the windows every stage "
                   "did before WP-2002's closing stage, so it inherits that row's tier"),
-        grounds=("A stage driven by hand takes the declared stages' windows; a caller who wants "
-                 "the closing stage's states it, and cherry_pick passes a recorded node's (the "
-                 "sixth round's Q1 and Q2, ruled 2026-10-21)."),
+        grounds=("A stage driven by hand takes the declared stages' windows, so its answer "
+                 "carries their error (the GUI's Run this stage among them); a caller who wants "
+                 "the closing stage's states it, and cherry_pick passes a recorded node's. The "
+                 "ruling (the sixth round's Q1 and Q2, 2026-10-21) covers a plan's closing "
+                 "stage, not this seat, which the maintainer has not ruled on."),
         approved="2026-10-21"),
     Row("rietx.refine.Refinement.run_stage:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "

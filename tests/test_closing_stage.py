@@ -141,5 +141,5 @@ def test_run_stage_takes_a_window_fraction_and_refuses_a_bad_one(closed, pattern
     out = ref.run_stage(pattern, stage, window_area_tol=5e-3)
     assert ref.history[out.node_id].action.window_area_tol == 5e-3
     assert ref._plan_settings["window_area_tol"] == 5e-3
-    with pytest.raises(ValueError, match="closing_window_tol"):
+    with pytest.raises(ValueError, match="window_area_tol is the fraction"):
         ref.run_stage(pattern, stage, window_area_tol=1.5)

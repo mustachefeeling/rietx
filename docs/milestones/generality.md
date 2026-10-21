@@ -63,7 +63,9 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    default (a dissenter) does not move a statistic, threshold or default off tier 2.
    Where they differ, rietx chooses by its design rules from inside the range of existing
    practice, and a choice outside that range names its reason in the row (WP-2002's sixth
-   round, Q5, ruled 2026-10-21). Computing a statistic is not acting on it: every
+   round, Q5, ruled 2026-10-21). A value between two programs' values is inside the range.
+   A default that switches on an action still faces the action's judgement ground below,
+   where a dissent counts. Computing a statistic is not acting on it: every
    code reports R_Bragg and WP-1069 rejects it as evidence; GSAS-II concatenates multi-range
    scans and rietx refuses to. A statistic or threshold here is kept, and the registry
    entry names the source. An action here still faces the judgement ground under tier 3.

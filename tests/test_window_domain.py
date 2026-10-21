@@ -85,7 +85,10 @@ and 0.119 σ (cpd-1a, 149.9°) at the last points, and moves the fluorite
 2° still leaves 0.114 σ and 0.11 esd on cpd-1a, whose high-angle windows are
 about 4° wide.  5° is identical to 20° on both.  The margin needed grows with
 the window, so a tighter ``WINDOW_AREA_TOL`` needs a wider margin: at 5e-5
-the 0.5° margin leaves 0.169 σ on FAP.
+the 0.5° margin leaves 0.169 σ on FAP.  At the closing stage's 1e-3 windows it
+leaves 0.186 σ on FAP and 0.124 σ on cpd-1a at the last points, and moves the
+closing answer 0.026 and 0.043 esd (measured 2026-10-21; the margin test below
+still runs the declared stages' 2 %).
 
 Each assertion was made to fail once, on 2026-10-21.  The real-data ones were
 rerun with the module constant patched in-process (``rietx.model.forward``)

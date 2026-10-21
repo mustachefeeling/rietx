@@ -3545,9 +3545,13 @@ class Refinement:
             structure = self.structure.model_copy(deep=True)
             instrument = self.instrument.model_copy(deep=True)
             table.apply_to_models(structure, instrument)
+            # at the windows the last answer was measured on: a closing
+            # stage's (WP-2002), or the 2 % truncation reads as a gain on
+            # every width and background candidate at a converged fit
             model = compile_model(structure, instrument, data, mode=mode,
                                   two_theta_limits=limits,
-                                  moving_paths=set(table.moving_paths))
+                                  moving_paths=set(table.moving_paths),
+                                  window_area_tol=self._plan_settings["window_area_tol"])
             # a "centroid" phase's origin rows, or the probe's covariance
             # reads the floating origin as a flat direction (WP-1912)
             model.origin = compile_origin(model, table)
@@ -5260,7 +5264,13 @@ class Refinement:
         _refuse_without_phases(self.structure, "run_stage")
         phase_support_sigma = check_phase_support_sigma(phase_support_sigma)
         if window_area_tol is not None:
-            window_area_tol = check_closing_window_tol(window_area_tol)
+            try:
+                window_area_tol = check_closing_window_tol(window_area_tol)
+            except ValueError:
+                raise ValueError(
+                    f"window_area_tol is the fraction of each peak's area this "
+                    f"stage's windows may drop, a number strictly between 0 and 1, "
+                    f"or None for the default; got {window_area_tol!r}") from None
         require_two_theta(data, "Refinement.run_stage()",
                           instrument=self.instrument)
         mode = mode or self._mode
@@ -5467,7 +5477,8 @@ class Refinement:
         reuses the model compiled for the last stage, whose per-reflection
         window index ranges were frozen at the values the stage *started*
         from; a grid argument compiles fresh, so the windows are sized at the
-        values it *ended* on.  Measured on the synthetic five-stage fit: 36 of
+        values it *ended* on.  Measured on the synthetic five-stage fit, before
+        the closing stage and so at one window fraction throughout: 36 of
         4200 channels differ at all, by at most 8e-6 of the peak height, every
         one of them in a peak tail at a window edge.  ``RefinementResult.y_calc``
         is the first of the two — the curve the fit actually minimised.
@@ -5903,10 +5914,19 @@ class Refinement:
 #: intermediate stage's cut is a different matrix (cumulative staging adds
 #: columns), and unkeyed it was appended once per stage, so one persistent
 #: combination printed as many copies as the plan has stages.
+#:
+#: ``ADP_NOT_POSITIVE_DEFINITE``, ``STEPHENS_STRAIN_NOT_POSITIVE``,
+#: ``TEXTURE_NOT_POSITIVE`` and ``HUMP_TOO_NARROW`` read values the stage landed
+#: on too, and join on WP-2002's closing stage: it makes every plan's last
+#: declared stage an intermediate one, so a finding that stage raised and the
+#: closing stage cleared would otherwise reach the result as a claim about an
+#: answer that does not hold it (the generality judge, 2026-10-21).
 _REVISABLE_CODES = ("BOUND_HIT", "FLOOR_HIT", "RESOLUTION_NOT_POSITIVE",
                     "RESOLUTION_UNCONSTRAINED",
                     "BISO_UNUSUALLY_LARGE", "BISO_NEGATIVE",
-                    "COVARIANCE_DIRECTION_DISCARDED")
+                    "COVARIANCE_DIRECTION_DISCARDED",
+                    "ADP_NOT_POSITIVE_DEFINITE", "STEPHENS_STRAIN_NOT_POSITIVE",
+                    "TEXTURE_NOT_POSITIVE", "HUMP_TOO_NARROW")
 
 
 #: ``FLOOR_HIT``'s advice: the limit that carried load is a lower bound of

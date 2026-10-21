@@ -33,8 +33,10 @@ arm that stays inside its budget.
 
 The harmonic weight seed is measured on a synthetic constant-wavelength neutron
 corundum with a known λ/2 line, the one family a harmonic has (the held-out
-Nd₂Ru₂O₇ pair stays unused).  Seeds 0.001, 0.1 and 0.3 against the shipped 0.01
-agree to 0.003 esd at a true weight of 0.003 and to 0.001 at 0.05.
+Nd₂Ru₂O₇ pair stays unused).  Seeds 0.001 and 0.3 against the shipped 0.01
+agree to 0.003 esd at a true weight of 0.003 and to 0.001 at 0.05 (0.1 was
+measured too, at 0.001), and at a true weight of 0, the case a caller who
+declares a harmonic to look for one meets.
 """
 
 from __future__ import annotations
@@ -195,7 +197,7 @@ def _harmonic_fit(pattern, scale: float, seed: float) -> dict:
     return _plotted(result, f"harmonic_seed{seed}")
 
 
-@pytest.mark.parametrize("true_weight", [0.003, 0.05])
+@pytest.mark.parametrize("true_weight", [0.0, 0.003, 0.05])
 def test_the_harmonic_seed_does_not_change_the_answer(true_weight):
     assert HARMONIC_WEIGHT_SEED == 0.01
     pattern, scale = _synthetic(true_weight)

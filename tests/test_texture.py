@@ -281,8 +281,8 @@ def test_trf_goes_negative_and_the_guard_says_so():
     result = _negative_density_case("trf")
     (row,) = result.texture
     assert row.min_p_reflections < -0.1
-    # the texture stage and the closing stage both fire it, on one path, and
-    # the result keeps the later, the answer's (WP-2002)
+    # the texture stage and the closing stage both fire it, and the result
+    # takes it off the answer's vector alone (WP-2002)
     assert [s.name for s in result.stages][-1] == "closing"
     (diag,) = [d for d in result.diagnostics if d.code == "TEXTURE_NOT_POSITIVE"]
     assert diag.where == ["phases.0.texture"]

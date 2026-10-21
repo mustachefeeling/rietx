@@ -1107,6 +1107,17 @@ class GuiSession:
         head = p.refinement._head_id
         if tree is None or head is None or head not in tree:
             return blank
+        out = cls._aligned_rwp(tree, head, stages)
+        if any(r is not None for r in out) or len(stages) == len(plan.stages):
+            return out
+        # a run recorded before every plan closed (WP-2002) has the declared
+        # stages alone; its numbers still describe the rungs it ran
+        return cls._aligned_rwp(tree, head, list(plan.stages)) + [None]
+
+    @classmethod
+    def _aligned_rwp(cls, tree, head, stages) -> list[float | None]:
+        """The last run of ``len(stages)`` stage nodes, aligned to ``stages``."""
+        blank: list[float | None] = [None] * len(stages)
         run: list = []
         for node in reversed(tree.lineage(head)):
             if node.action.kind == "stage":
