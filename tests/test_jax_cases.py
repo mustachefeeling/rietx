@@ -355,9 +355,15 @@ def test_a_real_run_fails_each_jax_skip_the_selection_cannot_see(tmp_path):
     out = proc.stdout + proc.stderr
     assert proc.returncode == pytest.ExitCode.TESTS_FAILED, out[-3000:]
     assert "1 failed, 2 skipped, 1 error" in out, out[-3000:]
+    # A summary line is the node id, then " - " and the message: whole where
+    # `CI` is set (pytest stops truncating there), cut to the terminal or
+    # dropped elsewhere.  So read the node id alone, and count the message in
+    # the long-form sections, which print it once each either way.
     lines = out.splitlines()
-    assert any(line.startswith("FAILED") and line.endswith("test_cases.py::test_skips_through_a_helper")
-               for line in lines), out[-3000:]
-    assert any(line.startswith("ERROR") and line.endswith("test_module_spelled.py")
-               for line in lines), out[-3000:]
-    assert out.count("tests/jax_cases.py does not select it") == 2
+    heads = [line.split(" - ", 1)[0] for line in lines]
+    assert any(head.startswith("FAILED") and head.endswith("test_cases.py::test_skips_through_a_helper")
+               for head in heads), out[-3000:]
+    assert any(head.startswith("ERROR") and head.endswith("test_module_spelled.py")
+               for head in heads), out[-3000:]
+    body = [line for line in lines if not line.startswith(("FAILED", "ERROR"))]
+    assert sum(line.count("tests/jax_cases.py does not select it") for line in body) == 2

@@ -357,6 +357,15 @@ the merge.
   4. If the slowest job is still over 15 min, the levers left are
      `test_magnetic_isotropy` (1418's) and the documentation's own cost on
      the newest leg.
+- **CI fix (PR #1095, run 39682111529):**
+  - `test_a_real_run_fails_each_jax_skip_the_selection_cannot_see` failed on
+    py3.11 2/2 and py3.14 2/2 and passed locally.
+  - The cause: GitHub Actions sets `CI`, and there pytest prints a short-summary
+    line whole, with ` - <message>` after the node id. Elsewhere it cuts the
+    message to the terminal or drops it.
+  - So the assertions now read the node id before ` - `, and count the guard's
+    message in the long-form sections only.
+  - Reproduced with `CI=true`; both modes now pass 51 of 51.
 
 - **2026-10-21** — Created from a test-suite review session, which asked where
   the fast tier's time goes and measured it rather than reading it off the
