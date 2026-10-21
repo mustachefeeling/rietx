@@ -673,6 +673,124 @@ def test_fcj_max_nodes_meets_the_bar(family, eta):
 
 
 # ---------------------------------------------------------------------------
+# AXIAL_SIZING_FLOOR over the claimed domain (WP-2002, B10)
+# ---------------------------------------------------------------------------
+#
+# A stage that frees S/L or H/L from zero compiles its quadrature nodes and its
+# windows as if both were AXIAL_SIZING_FLOOR, then solves on that model however
+# far the ratios walk.  The claimed domain is where they may walk to in one
+# stage: help.py's typical 0.01-0.05 for each ratio, equal, unequal and one at
+# zero.  cpd-1a's QPA protocol frees S/L alone from zero and ends its
+# ``lines_axial`` stage at 0.041.  On that stage the frozen model and one
+# compiled at the stage's end differ by up to 0.31 σ at 87.3° (converged
+# windows, WINDOW_AREA_TOL 5e-5; measured WP-2002), against 0.000 σ with the
+# floor at 0.06.  The next stage recompiles, so the floor reaches the answer
+# only through the path: the two floors' fixed points differ by 0.16 esd at a
+# χ² 0.008 apart, and one floor at 0.05 makes the protocol fits 1.25-1.8×
+# slower (LaB6, FAP, cpd-1a), since the floor also applies by value to every
+# positive ratio under it.
+#
+# Two errors, each held only where the node rule at the reached ratios meets
+# its own bar, so that the rule's failures (the tests above) are not counted
+# against the floor:
+#
+# 1. quadrature: the profile at the reached ratios on the floor's node count,
+#    against 512 nodes, in units of the peak maximum, against the lab bar;
+# 2. window: the area the reached profile loses outside a window sized at the
+#    floor, against WINDOW_AREA_TOL, the bound every window claims.
+#
+# Made to fail once each (2026-10-21) by patching AXIAL_SIZING_FLOOR to 0.05 in
+# the module before the cases were built: both tests turned XPASS(strict).
+
+_AXIAL_REACHED = ((0.01, 0.01), (0.02, 0.02), (0.03, 0.03), (0.05, 0.05), (0.04, 0.0),
+                  (0.05, 0.0), (0.04, 0.02), (0.05, 0.01))
+_AXIAL_FWHM = (0.03, 0.07, 0.15, 0.3)
+_AXIAL_TT = (3.0, 8.0, 15.0, 22.0, 30.0, 45.0, 60.0, 75.0, 85.0, 95.0, 120.0, 140.0, 160.0)
+
+
+def _kept_pv(c, fwhm, eta, a, b):
+    """Area of the unit pseudo-Voigt centred at ``c`` on [a, b]."""
+    from scipy.special import erf
+    k = 2.0 * np.sqrt(np.log(2.0))
+    ua, ub = (a - c) / fwhm, (b - c) / fwhm
+    lor = (np.arctan(2.0 * ub) - np.arctan(2.0 * ua)) / np.pi
+    return eta * lor + (1.0 - eta) * 0.5 * (erf(k * ub) - erf(k * ua))
+
+
+@lru_cache(maxsize=4)
+def _axial_floor_cases(floor, slack, tol):
+    """Every case as (S/L, H/L, FWHM, 2θ, η, n floor, n reached, quadrature
+    error at each, area lost to each window).  The arguments key the cache,
+    so a patched constant builds its own table."""
+    from rietx.model.forward import window_fwhm_mult
+    rows = []
+    for (sl, hl) in _AXIAL_REACHED:
+        for fwhm in _AXIAL_FWHM:
+            for tt in _AXIAL_TT:
+                n_floor = fcj_node_count(tt, fwhm, floor, floor)
+                # compiled where the stage ended, the floor still applies by value
+                n_reach = fcj_node_count(tt, fwhm, max(sl, floor), max(hl, floor))
+                ext = float(fcj_extent_deg(np.array(tt), sl, hl))
+                x = np.arange(tt - ext - 6 * fwhm, tt + ext + 6 * fwhm, fwhm / 20)
+                n_ref = max(512, 4 * n_reach)
+                ref = _fcj_mix(x, tt, fwhm, sl, hl, n_ref)
+                at_floor = _fcj_mix(x, tt, fwhm, sl, hl, n_floor)
+                at_reach = _fcj_mix(x, tt, fwhm, sl, hl, n_reach)
+                phi, om = fcj_offsets_weights(tt, sl, hl, n_ref)
+                halves = [float(fcj_extent_deg(np.array(tt), a, b))
+                          for a, b in ((floor, floor), (max(sl, floor), max(hl, floor)))]
+                for eta in _FCJ_ETA:
+                    r = eta * ref[0] + (1 - eta) * ref[1]
+                    err = [float(np.max(np.abs(eta * g[0] + (1 - eta) * g[1] - r)) / r.max())
+                           for g in (at_floor, at_reach)]
+                    k = float(window_fwhm_mult(np.float64(eta)))
+                    lost = [1.0 - float(om @ _kept_pv(phi, fwhm, eta, tt - h, tt + h))
+                            for h in (k * fwhm + slack + e for e in halves)]
+                    rows.append((sl, hl, fwhm, tt, eta, n_floor, n_reach, *err, *lost))
+    return rows
+
+
+def _axial_rows():
+    from rietx.model import forward
+    return _axial_floor_cases(forward.AXIAL_SIZING_FLOOR, forward.WINDOW_MIN_DEG,
+                              forward.WINDOW_AREA_TOL)
+
+
+@pytest.mark.xdist_group("axial-floor-domain")
+@pytest.mark.xfail(strict=True, reason=(
+    "AXIAL_SIZING_FLOOR 0.02: refined from zero to S/L = H/L = 0.05, 15 nodes leave 0.27 of "
+    "the peak maximum at 140 deg, FWHM 0.03 (64 nodes at the reached ratios: 1.8e-4; bar "
+    "7.2e-4); 313 of the 1019 cases the reached count passes fail, from S/L = H/L = 0.03 "
+    "(2.8e-2) and S/L 0.04 beside H/L 0 (6.4e-3) up"))
+def test_axial_floor_quadrature_meets_the_bar_over_the_reached_ratios():
+    """The floor's node count serves the ratios a stage may reach from zero
+    wherever the count at the reached ratios does."""
+    bar = _FCJ_BAR["lab"]
+    held = [r for r in _axial_rows() if r[8] <= bar]
+    sl, hl, fwhm, tt, eta, n_f, n_r, err, err_r, *_ = max(held, key=lambda r: r[7])
+    assert err <= bar, (
+        f"{n_f} nodes sized at the floor leave {err:.2e} of the peak maximum at S/L {sl}, "
+        f"H/L {hl}, FWHM {fwhm}, 2theta {tt}, eta {eta} ({n_r} at the reached ratios: "
+        f"{err_r:.1e}); the bar is {bar:.2e}")
+
+
+@pytest.mark.xdist_group("axial-floor-domain")
+@pytest.mark.xfail(strict=True, reason=(
+    "AXIAL_SIZING_FLOOR 0.02: a window sized at the floor loses 0.195 of a peak refined from "
+    "zero to S/L = H/L = 0.05 (8 deg, FWHM 0.03, eta 0), 0.054 at 0.03 each; 55 of 1248 "
+    "cases over the bound WINDOW_AREA_TOL 0.02"))
+def test_axial_floor_window_holds_the_area_bound_over_the_reached_ratios():
+    """A window sized at the floor keeps all but ``WINDOW_AREA_TOL`` of the
+    reached profile wherever a window sized at the reached ratios does."""
+    from rietx.model.forward import WINDOW_AREA_TOL
+    held = [r for r in _axial_rows() if r[10] <= WINDOW_AREA_TOL]
+    sl, hl, fwhm, tt, eta, *_, lost, lost_r = max(held, key=lambda r: r[9])
+    assert lost <= WINDOW_AREA_TOL, (
+        f"a window sized at the floor loses {lost:.3f} of the area at S/L {sl}, H/L {hl}, "
+        f"FWHM {fwhm}, 2theta {tt}, eta {eta} ({lost_r:.4f} sized at the reached ratios)")
+
+
+# ---------------------------------------------------------------------------
 # synthetic doublet round-trip
 # ---------------------------------------------------------------------------
 

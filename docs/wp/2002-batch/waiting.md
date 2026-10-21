@@ -91,7 +91,18 @@ No B10 row is unaudited now. `MAX_NODES` landed at tier 3 on 2026-10-21 beside t
 - The first proposal, 12 / 10 / 1024 / 3e-4: worst 0.25 (lab) and 0.81 (synchrotron) of the bar, images ×1.57 and ×1.37, fit wall clock ×1.15-1.3 on the two lab protocols, no parameter moved past 0.025 esd.
 - Splitting the nodes between the two segments by length instead of equally is unsafe, because the split would be frozen per stage while S/L and H/L refine. A segment with zero length at compile time (S/L = H/L, or one aperture at zero) gets no nodes and then grows, and its share of the peak is missing: errors 950-1390× the bar. Both lab acceptance protocols start on S/L = H/L and refine off it. A floor of 4 nodes per segment still fails at up to 480×. So the equal split stays.
 - The skip ratio's bound is split-independent: a peak drawn symmetric errs by at most 0.477 × extent/FWHM, so 3.67e-4 is the ceiling.
-- Measured effect of today's error on answers: SRM 660c with every reflection at 512 nodes moved no parameter past 0.04 esd. The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
+- Measured effect of today's error on answers: SRM 660c with every reflection at 512 nodes moved no parameter past 0.04 esd.
+
+The window rows, measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC (`tests/test_window_domain.py`'s docstring has every number). The bar is 0.1 of each point's own σ at fixed parameters, and 0.1 plain esd on every non-background row after both arms are polished to a fixed point from one common start:
+
+- `WINDOW_AREA_TOL` 2e-2 fails on all four: up to 2.15σ at a point, and a converged refit moves the cpd-1a zincite scale 0.97 esd, FAP's `lor_size` 0.91 and the background 2.1-5.1. At 1e-3 all four pass, at 1.2-3.5× the fit time (FAP the dearest); at 2e-4, 1.9-6.8×. Against it: from the shipped answer FAP's χ² is 110 higher with converged tails, the other three 37-1730 lower.
+- `REFLECTION_MARGIN_DEG` 0.5° fails on FAP and cpd-1a (0.12σ, 0.10 esd); 5° is bit-identical to 20°. The coherent fix generates reflections out to the largest window half-width at the range edges (`forward.py:3733-3734`).
+- `AXIAL_SIZING_FLOOR` 0.02 fails for a stage that frees S/L and H/L from zero and reaches the typical 0.05 (0.27 of the peak maximum, 19.5 % of an area dropped); 0.05 passes at 1.25-1.8× the fit time, mostly because the floor also applies to every positive ratio below it (`forward.py:3693-3696`), which a separate refine-from-zero floor would avoid.
+- `MAGNETIC_SIZING_FLOOR` 0.1° drops 3.2-4.1 % of a magnetic peak at the planted widths; the preset's answer moves 0.031 esd. Raise it to ≥ 0.3, or size from the width's bound as `_compile_extra_peaks` does (`forward.py:3910-3919`).
+- Landed: `WINDOW_MIN_DEG` and `StageSpec:window_slack_deg` at tier 1 (largest move 0.21° against 0.3°, so a 1.4× margin), `_BASES_CHUNK_ROWS` and `_DENSE_EIGEN_MAX` invariant.
+- Found beside them: windows are sized from start-of-stage widths, so a stage that widens peaks drops 3.0-6.5 % of an area by its end (LaB6 `profile`, cpd-1a `profile` and `sample_broadening`); every final stage holds the 2 % bound. No constant claims this; strict xfails record it.
+
+Domain tests still owed at tier 3: `FD_STEP`, `_MIN_GAMMA_G2`, `A5_CLIP`, `TEXTURE_SPHERE_SAMPLES`, `MIN_IMAGE_SHELL`, the three report-only geometry caps, and the interval and width-grid settings. The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
 
 ## B12: the form-factor follow-up (the other B12 rows landed with the pick-verb changes)
 

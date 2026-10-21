@@ -220,3 +220,37 @@ def test_the_ragged_view_keeps_the_none_patterns():
             assert np.array_equal(f[4], le[4])   # Ω survives the lean build
             assert le[5] is le[6] is le[7] is le[8] is le[9] is None
             assert na[5] is not None and na[8] is None and na[9] is None
+
+
+@pytest.mark.parametrize("shape", ["tchz_pv", "voigt"])
+def test_the_fcj_chunk_size_leaves_every_plane_bit_identical(shape, monkeypatch):
+    """``_BASES_CHUNK_ROWS`` (128) bounds the transient (chunk, nodes, window)
+    planes of the numpy FCJ path and nothing else (WP-2002, B10).
+
+    Every row's node mix is its own matmul and every element of a plane its
+    own expression, so no row reads another and the claim is bit-identity, not
+    a tolerance.  Asserted at 1, 7, 128 and 4096 rows on every derivative
+    plane and on the forward pattern, on a fixture whose largest frozen node
+    count holds 298 rows: 128 cuts it in three and 7 in 43.  ``voigt`` is the
+    shape the compiled kernels decline, so it reaches this loop with the tier
+    on as well.  Made to fail once (2026-10-21) by making ``_node_mix`` scale
+    its output by 1 + 2⁻⁵² on an odd chunk length: the 1- and 7-row builds differed.
+    """
+    import rietx.model.forward as fwd
+    model, values = _compiled(axial=True, shape=shape)
+    biggest = max(len(r) for cp in model.phases for n, r in cp.batch.buckets.items() if n)
+    assert biggest > 128, "no node count spans more than one chunk"
+    built = []
+    for rows in (1, 7, 128, 4096):
+        monkeypatch.setattr(fwd, "_BASES_CHUNK_ROWS", rows)
+        bases = model.derivative_bases(values, axial_derivs=True)
+        planes = [p for entries in bases.entries for row in entries for p in row[4:]]
+        built.append((planes, np.asarray(model.evaluate(values))))
+    ref_planes, ref_y = built[0]
+    for planes, y in built[1:]:
+        assert np.array_equal(y, ref_y)
+        assert len(planes) == len(ref_planes)
+        for got, want in zip(planes, ref_planes):
+            assert (got is None) == (want is None)
+            if got is not None:
+                assert np.array_equal(got, want)

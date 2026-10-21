@@ -1254,14 +1254,22 @@ ROWS: tuple[Row, ...] = (
         evidence=("physics: (r_e x 1e4 A/um)^2 with r_e = 2.818 fm is 0.079411; GSAS-II 5.8.4 "
                   "GSASIIstrMath.GetPwdrExt uses the same value (checked)")),
     Row("rietx.model.forward.AXIAL_SIZING_FLOOR", "constant", tier=3, value=0.02,
-        evidence="window sizing floor; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("window and node sizing floor for S/L, H/L freed from zero; fails: sized at 0.02, "
+                  "a stage reaching 0.05/0.05 leaves 0.27 of the peak maximum (15 nodes; bar 7.2e-4) "
+                  "and drops up to 19.5 % of a peak area (tests/test_lab_instrument.py, the axial "
+                  "floor block); 0.05 passes at 1.25-1.8x fit time, mostly because the floor also "
+                  "applies to every positive ratio below it (forward.py:3693-3696)"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.forward.MAGNETIC_SIZING_FLOOR", "constant", tier=3, value=0.1,
-        evidence="window sizing floor; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("window sizing floor for a magnetic width freed from zero; fails: at the widths "
+                  "the MnF2 test file plants (0.22, 0.30 deg) frozen windows drop 3.2 and 4.1 % of a "
+                  "magnetic peak against 2 %, and a plan ending on the width stage moves the moment "
+                  "0.07-0.57 esd; the preset's answer moves 0.031 esd "
+                  "(tests/test_magnetic_width.py); one family"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC", "constant", tier=3, value=0.5,
         evidence=("WP-0306: 'the point past which least squares cannot apportion intensity'; LaB6 "
@@ -1278,27 +1286,35 @@ ROWS: tuple[Row, ...] = (
                  "constrain, and the group sum stays free; kept at 1.0 (B12, ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.model.forward.REFLECTION_MARGIN_DEG", "constant", tier=3, value=0.5,
-        evidence=("reflection-list margin past the scan; a test bounding the error over the claimed "
-                  "domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("reflection-list margin past the scan; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC: fails on FAP (0.124 sigma at "
+                  "129.98 deg, 0.016 esd) and cpd-1a (0.119 sigma, 0.103 esd on fluorite lor_strain), "
+                  "against a bar of 0.1 sigma a point (tests/test_window_domain.py); 5 deg is "
+                  "bit-identical to 20 deg on both, and the margin needed grows with the window"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.forward.WINDOW_AREA_TOL", "constant", tier=3, value=0.02,
-        evidence=("window area tolerance; single case at tests/test_extra_components.py:1426; a test "
-                  "bounding the error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("window area tolerance; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC against 5e-5 (converged): fails on all four, "
+                  "max |dy|/sigma 0.71-2.15 at fixed parameters against a bar of 0.1, a converged "
+                  "refit moving non-background rows 0.17-0.97 esd (cpd-1a zincite scale, FAP "
+                  "lor_size) and background 2.1-5.1 esd (tests/test_window_domain.py); 1e-3 passes "
+                  "at 1.2-3.5x fit time"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
         approved="2026-10-19"),
-    Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=3, value=0.3,
-        evidence="minimum window half-width; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=1, value=0.3,
+        evidence=("minimum window half-width, the room a peak has to move within one stage; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC"
+                  " (7 cells, warm and cold starts): the largest move is 0.21 deg (1.4x margin), and "
+                  "slack 0 and 1 deg move nothing at converged windows (tests/test_window_domain.py)"),
+        grounds=("A numerical setting whose domain test passes; tier 1 under B10 option 2 "
+                 "(ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.model.forward._BASES_CHUNK_ROWS", "constant", tier=3, value=128,
-        evidence=("chunking of the derivative bases; bit-identity measured once in a scratch probe, no "
-                  "test; an identity test is owed"),
-        grounds=("An internal split that should leave the answer bit-identical; tier 3 until a test "
-                 "asserts the identity, then invariant (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.model.forward._BASES_CHUNK_ROWS", "constant", tier="invariant", value=128,
+        evidence=("chunking of the derivative bases; bit-identical at 1, 7, 128 and 4096 rows on a "
+                  "298-row node bucket, every derivative plane and the forward pattern, tchz_pv and "
+                  "voigt (tests/test_derivative_bases_batched.py)"),
+        grounds=("An internal split whose test asserts the identity; invariant under B10 "
+                 "option 2 (ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.model.forward._GAUSS_TAIL_C", "constant", tier=1, value=1.6651092223153954,
         evidence=("arithmetic: sigma = G/(2 sqrt(2 ln2)) so the area outside +-kG is erfc(2 "
@@ -1513,11 +1529,14 @@ ROWS: tuple[Row, ...] = (
                  "tier 3 until refits of three families on either side give one answer "
                  "(ruled 2026-10-20)."),
         approved="2026-10-20"),
-    Row("rietx.optimize.blocked._DENSE_EIGEN_MAX", "constant", tier=3, value=64,
-        evidence=("dense against blocked eigen-solve switch; no test drives a fit across 64; an identity "
-                  "test is owed"),
-        grounds=("An internal split that should leave the answer bit-identical; tier 3 until a test "
-                 "asserts the identity, then invariant (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.optimize.blocked._DENSE_EIGEN_MAX", "constant", tier="invariant", value=64,
+        evidence=("dense against Lanczos |lambda|max; it only places the pseudo-inverse cut: across "
+                  "the switch (83-84 and 204 columns) |lambda|max agrees to 3.7e-14 relative against a "
+                  "1e-6 tolerance, the nearest eigenvalue sits 2.4e10x the cut away, and esds, "
+                  "correlations and discarded directions are bit-identical "
+                  "(tests/test_parametric_series.py)"),
+        grounds=("An internal split whose test asserts the identity; invariant under B10 "
+                 "option 2 (ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.optimize.identifiability.EXCHANGE_MIN_LOADING", "constant", value=0.05),
     Row("rietx.optimize.identifiability.SOFT_MODES_K", "constant", value=3),
@@ -2234,11 +2253,11 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.plan.StageSpec:restraint_weight_scale", "default", tier=1, ambiguity=1, value=1.0,
         evidence=("arithmetic: c_w = 1 is the identity, every restraint at the σ its caller "
                   "declared (bit-identical to pre-WP-1074)")),
-    Row("rietx.schemas.plan.StageSpec:window_slack_deg", "default", tier=3, ambiguity=1, value=None,
-        evidence=("None resolves to WINDOW_MIN_DEG and inherits its tier; a test bounding the error over "
-                  "the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.schemas.plan.StageSpec:window_slack_deg", "default", tier=1, ambiguity=1, value=None,
+        evidence=("None resolves to WINDOW_MIN_DEG and compiles bit-identical windows and pattern "
+                  "(tests/test_window_domain.py), so it inherits that row's tier"),
+        grounds=("A numerical setting whose domain test passes; tier 1 under B10 option 2 "
+                 "(ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.schemas.instrument.Source:kind", "default", tier=1, ambiguity=1, value="xray_cw",
         evidence="arithmetic: a union tag, no value judgement"),
