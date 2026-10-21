@@ -301,6 +301,12 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `intermediate_ftol=None` is the bit-identical way back and what a golden declares; the record
   says what a stage **ran** at, never what it declared (`StageResult.ftol`, `NodeAction.ftol`),
   or a cherry-pick replays what never happened.
+  **Every plan ends in a closing stage** (WP-2002): `run_stages()` appends one recompiled at the
+  answer on windows dropping `closing_window_tol` (1e-3) of each peak, so the last *declared*
+  stage is an intermediate one. A runner iterates `run_stages()` beside `stage_ftols()` and
+  `stage_window_tols()`, never `plan.stages`; a reader rebuilding a result compiles at
+  `result.stages[-1].window_area_tol`, a trial comparing χ² with the fit takes it through
+  `_plan_settings`, and a plan the package builds for a trial it discards declares `None`.
 - **An unconstrained linear block is already solved jointly; profiling it out cannot buy an
   evaluation** — VarPro's win is over alternation, never done here (measured 1.00× on 34 of 34
   pure-Gauss-Newton stages, 0.79× overall). What survives: *correctness* (esds marginalised over
