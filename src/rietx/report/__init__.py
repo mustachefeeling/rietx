@@ -244,6 +244,10 @@ def _reading_models(model, structure, instrument):
     first.  Read this way the displaced specimen ranks the displacement first
     at 0.995.
 
+    The texture screen takes ``shapes`` alone, so its misfit is read at the
+    declared precision too: it shares a point's misfit over that model's
+    windows, and the two must come from one compile.
+
     Without ``structure`` and ``instrument``, or for a Pawley model (whose
     intensity block is the solve's), both are ``model``.
     """

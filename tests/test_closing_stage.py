@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 import rietx as rx
+from rietx.model.forward import WINDOW_AREA_TOL
 from rietx.refine import replay
 from rietx.schemas.plan import CLOSING_WINDOW_TOL, PlanSpec
 from rietx.sequential import _collapse
@@ -120,7 +121,9 @@ def test_a_fit_records_the_closing_stage_and_its_windows(closed, unclosed):
     assert [s.name for s in result_u.stages] == ["scale_bkg", "cell"]
     assert all(n.action.window_area_tol is None
                for n in ref_u.history.nodes.values() if n.action.kind == "stage")
-    assert ref_u._plan_settings["window_area_tol"] is None
+    # resolved, since a trial hands it to run_stage, whose None is the closing
+    # fraction: a 2 % fit's trials refit at 2 %
+    assert ref_u._plan_settings["window_area_tol"] == WINDOW_AREA_TOL
     # the closing stage moves the answer, if only a little, on this fixture
     assert result.statistics.chi2 != result_u.statistics.chi2
 

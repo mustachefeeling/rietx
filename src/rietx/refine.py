@@ -4855,7 +4855,11 @@ class Refinement:
             self._plan_settings = {
                 "correlation_guard": plan.correlation_guard,
                 "phase_support_sigma": plan.phase_support_sigma,
-                "window_area_tol": plan.stage_window_tols()[-1]}
+                # resolved, never the record's None: a trial hands this to
+                # run_stage, whose None is the closing fraction, so a plan with
+                # closing_window_tol=None would refit at 0.1 % windows against
+                # a χ² measured at the declared 2 %
+                "window_area_tol": recorded_window_tol(plan.stage_window_tols()[-1])}
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
