@@ -141,8 +141,13 @@ import rietx as rx
 action = rx.NodeAction(kind="stage", name="cell",
                        turn_on=["phases.*.cell.*"], max_iter=200)
 assert action.api_call() == (
-    "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=200))")
+    "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=200), "
+    "window_area_tol=0.02)")
 ```
+
+A node that records no window fraction is a declared stage, which dropped 2 %
+of each peak. `run_stage` defaults to the closing stage's fraction, so the line
+names the 2 % to repeat the stage that ran.
 
 The line is computed from the fields, so it cannot disagree with them.
 A stage's line always carries `max_iter`.

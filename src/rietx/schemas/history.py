@@ -34,7 +34,7 @@ from .instrument import Instrument
 # lives in ``schemas/plan.py`` (WP-1004); the compat re-export was deleted
 # pre-freeze (WP-1003), so import both from there.
 from .params import TieSpec
-from .plan import CORRELATION_GUARD, PHASE_SUPPORT_SIGMA, PlanSpec
+from .plan import CLOSING_WINDOW_TOL, CORRELATION_GUARD, PHASE_SUPPORT_SIGMA, PlanSpec
 from .results import Statistics
 from .structure import Structure
 
@@ -161,13 +161,19 @@ class NodeAction(Base):
             # the plan settings are run_stage's keywords, not the Stage's, so
             # they follow the Stage's parenthesis, on the same rule.  Compared
             # with run_stage's own defaults, never with this class's literals:
-            # a retuned constant must not drop a keyword the line needs
+            # a retuned constant must not drop a keyword the line needs.  The
+            # window is the fraction the stage ran at, a recorded None being a
+            # declared stage's 2 %, and run_stage's own default is the closing
+            # fraction (the seventh round's Q1)
+            from ..model.forward import recorded_window_tol
+
             settings = "".join(
                 f", {n}={v!r}" for n, v, off in
                 (("correlation_guard", self.correlation_guard, CORRELATION_GUARD),
                  ("phase_support_sigma", self.phase_support_sigma,
                   PHASE_SUPPORT_SIGMA),
-                 ("window_area_tol", self.window_area_tol, None))
+                 ("window_area_tol", recorded_window_tol(self.window_area_tol),
+                  CLOSING_WINDOW_TOL))
                 if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
                     f"max_iter={self.max_iter}{extras}){settings})")

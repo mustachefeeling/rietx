@@ -108,8 +108,10 @@ def test_a_fit_records_the_closing_stage_and_its_windows(closed, unclosed):
     assert result.stages[-1].ftol is None and result.stages[-2].ftol == 1e-6
     nodes = [n for n in ref.history.nodes.values() if n.action.kind == "stage"]
     assert [n.action.window_area_tol for n in nodes] == [None, None, 1e-3]
-    assert "window_area_tol=0.001" in nodes[-1].action.api_call()
-    assert "window_area_tol" not in nodes[0].action.api_call()
+    # each line replays what ran: run_stage's own default is the closing
+    # fraction, so the closing node names no window and a declared one its 2 %
+    assert "window_area_tol" not in nodes[-1].action.api_call()
+    assert nodes[0].action.api_call().endswith("window_area_tol=0.02)")
     # the trials a report runs on the caller's behalf compare χ² with this
     # fit's, so they inherit its answer windows
     assert ref._plan_settings["window_area_tol"] == 1e-3

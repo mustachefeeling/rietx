@@ -390,10 +390,10 @@ windows no longer cover the profile and `FROZEN_COMPILE_STALE` fires.
 so the fit is not in the lowest basin along the ridge.
 
 A synthetic trace of CaF₂ in LaB₆ (lab Cu Kα, a 10-count amorphous hump under a
-six-term Chebyshev) reproduces the shape. The fit gives 1.19 ± 0.39 wt%. The
-profile admits 0.86 % to 77 % in two basins separated by a barrier the data sees
-(Δχ² 15 against a cut of 5.2), `excess` 99, and fires. Without the hump and with
-five times the CaF₂, one basin at 3.8-3.9 % and `excess` 0.22: silent. By hand
+six-term Chebyshev) reproduces the shape. The fit gives 0.93 ± 0.33 wt%. The
+profile admits 0.93 % to 77.1 % in two basins separated by a barrier the data sees
+(Δχ² 15.8 against a cut of 5.2), `excess` 118, and fires. Without the hump and with
+five times the CaF₂, one basin at 3.29-3.94 % and `excess` 0.47: silent. By hand
 the same scan is `ref.branch()`, `trial.set_vary([axis], False)`, then per value
 `set_values` and `run_stage(data, rx.Stage("width_pin", []))`, with χ² = `chi2 · (n_points − n_free_parameters)`.
 

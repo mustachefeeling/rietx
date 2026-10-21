@@ -187,8 +187,8 @@ phase's strongest lines. Before 1.10 the record was the warning
 chosen rather than measured.
 
 On that synthetic fixture, LaB₆ with a trace of CaF₂ and a small amorphous hump
-under a six-term Chebyshev background, the fit reports CaF₂ at 1.19 ± 0.39 wt%.
-The profile admits everything from 0.86 % to 77 %, in two basins separated by a
+under a six-term Chebyshev background, the fit reports CaF₂ at 0.93 ± 0.33 wt%.
+The profile admits everything from 0.93 % to 77.1 %, in two basins separated by a
 barrier the data can see.
 
 This is a different failure from a wrong ZMV. A fraction is proportional to

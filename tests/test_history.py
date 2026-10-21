@@ -520,14 +520,19 @@ def test_a_cherry_pick_replays_zero_le_bail_cycles_as_zero(pattern):
 
 
 def test_stage_node_without_seeds_renders_unchanged(pattern):
-    """An unseeded stage's api_call keeps its pre-WP-1004 text exactly."""
+    """An unseeded stage's api_call keeps its pre-WP-1004 Stage text exactly.
+
+    A declared stage names its windows after it: run_stage's own default is
+    the closing stage's fraction since WP-2002's seventh round, so a line
+    without the keyword would replay a different stage from the one that ran."""
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins)
     # the declared stages' rendered call; the closing stage is tests/test_closing_stage.py's
     ref.fit(pattern, plan=_with_settings(SHORT, closing_window_tol=None))
     node = ref.history[ref.history.order[-1]]
     assert node.action.api_call() == (
-        "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40))")
+        "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40), "
+        "window_area_tol=0.02)")
 
 
 # ------------------------------- the plan settings a stage ran at (WP-2002, B1)
@@ -551,7 +556,8 @@ def test_a_cherry_pick_replays_the_plan_settings_the_stage_ran_at(pattern):
     action = ref.history[picked].action
     assert (action.phase_support_sigma, action.correlation_guard) == (5.0, 0.9)
     assert action.api_call().endswith(
-        "max_iter=40), correlation_guard=0.9, phase_support_sigma=5.0)")
+        "max_iter=40), correlation_guard=0.9, phase_support_sigma=5.0, "
+        "window_area_tol=0.02)")
     reloaded = rx.NodeAction.model_validate_json(action.model_dump_json())
     assert (reloaded.phase_support_sigma, reloaded.correlation_guard) == (5.0, 0.9)
 
@@ -571,7 +577,7 @@ def test_the_hold_switched_off_is_recorded_and_rendered():
                            phase_support_sigma=None)
     assert action.api_call() == (
         "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], "
-        "max_iter=100), phase_support_sigma=None)")
+        "max_iter=100), phase_support_sigma=None, window_area_tol=0.02)")
     reloaded = rx.NodeAction.model_validate_json(action.model_dump_json())
     assert reloaded.phase_support_sigma is None
 
@@ -604,8 +610,10 @@ def test_a_node_written_before_the_plan_settings_replays_at_the_defaults(
     picked = tree.order[-1]
     action = tree[picked].action
     assert (action.phase_support_sigma, action.correlation_guard) == (3.0, 0.98)
+    # a node written before the window field ran at the declared 2 %
     assert action.api_call() == (
-        "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40))")
+        "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40), "
+        "window_area_tol=0.02)")
 
     old = rx.Refinement.from_node(tree, picked)
     old.cherry_pick(picked, pattern)
