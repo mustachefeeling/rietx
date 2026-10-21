@@ -580,11 +580,30 @@ def test_a_phase_too_large_to_search_says_so(monkeypatch):
     assert g.notes and "search limit" in g.notes[0]
 
 
+def test_a_bond_past_the_contact_radius_is_found():
+    """``CONTACT_MAX_ANG`` bounds contacts, never bonds.  CsCl's Cs–Cl at
+    a√3/2 = 3.571 Å is inside the radii's 2.44 + 1.02 + 0.4 = 3.86 Å and past
+    the 3.5 Å contact radius, so each ion lists its eight counter-ions and
+    nothing else: Cs···Cs and Cl···Cl sit at a = 4.123 Å.
+
+    Made to fail on 2026-10-21: with the search stopped at the contact radius
+    the table listed no distance at all.
+    """
+    phase = _p1_phase((4.123,) * 3 + (90.0,) * 3,
+                      [("Cs", "Cs", 0.0, 0.0, 0.0), ("Cl", "Cl", 0.5, 0.5, 0.5)])
+    phase = phase.model_copy(update={"space_group": "P m -3 m"})
+    g, *_ = _table_for(phase)
+    assert _distances(g, "Cs", "Cl") == [3.5706] * 8
+    assert _distances(g, "Cl", "Cs") == [3.5706] * 8
+    assert g.contacts == [] and not g.notes
+    assert len([a for a in g.angles if a.atom_2 == "Cs"]) == 28
+
+
 def test_the_criteria_travel_with_the_table():
     g, *_ = _table_for(corundum_phase())
     assert g.bond_slack == geom.BOND_SLACK_ANG
     assert g.contact_max == geom.CONTACT_MAX_ANG
-    assert all(d.distance <= g.contact_max + 1e-9 for d in g.distances)
+    assert all(d.distance <= g.contact_max + 1e-9 for d in g.contacts)
     assert len(g.bonds) + len(g.contacts) == len(g.distances)
 
 

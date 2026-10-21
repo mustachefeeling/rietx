@@ -47,7 +47,12 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
 
 1. **Physics or arithmetic.** Deterministic from the model: a symmetry-fixed angle, a
    column with zero gradient, σ withheld because the scale is unknown. Kept. A numerical
-   floor such as `rcond` belongs here.
+   floor such as `rcond` belongs here. So does a numerical setting, which controls how
+   accurately rietx computes something rather than what it decides (a quadrature node
+   count, how far a peak's tails are computed), once a test shows its error stays under a
+   stated bar over every input it claims to handle (B10, ruled 2026-10-19). So does a cap
+   on what a report lists, once a test shows the report is complete inside the cap and
+   its notes count what lies outside it (ruled 2026-10-21, WP-2002's fifth round).
 2. **Established practice.** A citation that validated it, or the same action taken *by
    default* in GSAS-II, FullProf or TOPAS. Computing a statistic is not acting on it: every
    code reports R_Bragg and WP-1069 rejects it as evidence; GSAS-II concatenates multi-range

@@ -1334,33 +1334,25 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.geometry.BOND_SLACK_ANG", "constant", tier=2, value=0.4,
         evidence=("CSD bond-perception convention (radii sum + 0.4 A), named in WP-1072; radii are "
                   "Cordero 2008, checked in the docstring (not checked by me)")),
-    Row("rietx.model.geometry.CONTACT_MAX_ANG", "constant", tier=3, value=3.5,
-        evidence=("contact search radius: complete within 3.5 A in an unreduced cell where a "
-                  "fixed one-cell shell drops a 3.04 A contact (tests/test_geometry_table.py, "
-                  "WP-2002); but the neighbour search stops there too, so a bond the module's "
-                  "own criterion counts past 3.5 A (Cs-Cl near 3.57 A) is never found, and no "
-                  "note says so, while the docstring calls bonds uncapped"),
-        grounds=("A cap on what a report lists; the rule has no class for a report scope, so "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the maintainer rules on one "
-                 "(rulings.md, fifth round)."),
-        approved="2026-10-19"),
-    Row("rietx.model.geometry.MAX_ASYM_ATOMS", "constant", tier=3, value=200,
-        evidence=("a phase past it is skipped and GeometryTable.notes says so (existing tests); "
-                  "the structure CIFs in tests/data reach 32 atoms, the search time at 200 is "
-                  "unmeasured, and a caller cannot raise it (WP-2002, 2026-10-21)"),
-        grounds=("A cap on what a report lists; the rule has no class for a report scope, so "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the maintainer rules on one "
-                 "(rulings.md, fifth round)."),
-        approved="2026-10-19"),
-    Row("rietx.model.geometry.MAX_CONTACTS_PER_ATOM", "constant", tier=3, value=24,
-        evidence=("the note counts exactly what the cap drops and the kept contacts are the "
-                  "nearest, bonds never dropped (31 on corundum with the cap at 2, "
+    Row("rietx.model.geometry.CONTACT_MAX_ANG", "constant", tier=1, value=3.5,
+        evidence=("report scope (tier 1's cap clause, ruled 2026-10-21): every contact within "
+                  "3.5 A is listed, in an unreduced cell where a fixed one-cell shell drops a "
+                  "3.04 A contact, and bonds are found past it (CsCl's 3.571 A Cs-Cl, eight a "
+                  "site; the search once stopped at the radius and listed none), "
+                  "tests/test_geometry_table.py; the radius travels on "
+                  "GeometryTable.contact_max (WP-2002)")),
+    Row("rietx.model.geometry.MAX_ASYM_ATOMS", "constant", tier=1, value=200,
+        evidence=("report scope (tier 1's cap clause, ruled 2026-10-21): a phase past it is "
+                  "skipped whole and GeometryTable.notes says so, tests/test_geometry_table.py; "
+                  "the structure CIFs in tests/data reach 32 atoms. The search time at 200 is "
+                  "unmeasured and a caller cannot raise it, a cost question rather than one of "
+                  "completeness (WP-2002)")),
+    Row("rietx.model.geometry.MAX_CONTACTS_PER_ATOM", "constant", tier=1, value=24,
+        evidence=("report scope (tier 1's cap clause, ruled 2026-10-21): the note counts "
+                  "exactly what the cap drops, the kept contacts are the nearest and bonds are "
+                  "never dropped (31 on corundum with the cap at 2, "
                   "tests/test_geometry_table.py); tests/data's structures reach 20 a site "
-                  "(WP-2002, 2026-10-21)"),
-        grounds=("A cap on what a report lists; the rule has no class for a report scope, so "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the maintainer rules on one "
-                 "(rulings.md, fifth round)."),
-        approved="2026-10-19"),
+                  "(WP-2002)")),
     Row("rietx.model.geometry.SYMMETRY_CODE_MAX_SHIFT", "constant", tier=1, value=4,
         evidence="format: CIF symmetry code digit = shift + 5, so -4..+4 (docstring)"),
     Row("rietx.model.geometry.VARIANCE_CANCELLATION_FLOOR", "constant", tier=1, value=1e-12,

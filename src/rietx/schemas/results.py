@@ -774,7 +774,7 @@ class GeometryTable(Base):
     #: the listing criteria actually used, so a row can be read without
     #: knowing which version of the module produced it
     bond_slack: float = 0.0           # Å, added to the covalent-radius sum
-    contact_max: float = 0.0          # Å, the nonbonding search radius
+    contact_max: float = 0.0          # Å, the nonbonding listing radius; bonds are not bounded by it
     notes: list[str] = Field(default_factory=list)
 
     @property

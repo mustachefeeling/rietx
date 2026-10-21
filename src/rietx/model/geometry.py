@@ -90,13 +90,16 @@ BOND_SLACK_ANG = 0.40
 #: distances are still reported; only the loop they land in changes.
 DEMOTE_METAL_METAL = True
 
-#: Non-bonded contacts are searched out to this distance, in Å.  McCusker §11
+#: Non-bonded contacts are listed out to this distance, in Å.  McCusker §11
 #: asks for "both bonding and nonbonding" distances without naming a range.
-#: This is a **search radius**, not a physical constant: 3.5 Å reaches the
+#: This is a **listing radius**, not a physical constant: 3.5 Å reaches the
 #: second coordination sphere of the oxides and framework solids powder
 #: Rietveld is usually about (ZnO's nearest Zn···Zn and O···O are both the
 #: 3.25 Å a axis), and is short enough that the row count stays readable.  It
-#: is recorded on the table, so a row can be read without guessing it.
+#: is recorded on the table, so a row can be read without guessing it.  It
+#: bounds contacts only: the search reaches the longest pair the radii could
+#: call a bond, so CsCl's 3.57 Å Cs–Cl is listed (WP-2002; a search stopping
+#: here once dropped it with no note).
 CONTACT_MAX_ANG = 3.5
 
 #: Contacts kept per asymmetric-unit atom, nearest first.  Bonds and angles are
@@ -306,26 +309,30 @@ def _phase_items(phase, sites, values, ip: int, notes: list[str]):
     """
     cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in _CELL_NAMES)
     g = _metric_g(cell)
-    shifts = _shell(g, CONTACT_MAX_ANG)
     symops = _symop_table(resolve_group(phase.space_group,
                                         phase.symmetry_operations))
     elements = [_element(a.species) for a in phase.atoms]
     radii = [float(e.covalent_r) for e in elements]
     metal = [bool(e.is_metal) for e in elements]
     labels = [a.label for a in phase.atoms]
+    # the longest pair the radii could call a bond, past the contact radius
+    # for heavy atoms (Cs: 2.44 Å)
+    longest = max(radii, default=0.0)
+    shifts = _shell(g, max(CONTACT_MAX_ANG, 2.0 * longest + BOND_SLACK_ANG))
 
     bonds, contacts, angles = [], [], []
     dropped = 0
     for i in range(sites.n_asym):
         bonded, near = [], []
+        reach = max(CONTACT_MAX_ANG, radii[i] + longest + BOND_SLACK_ANG)
         for j, rot, tran, shift, d in _neighbours(sites, values, ip, i, g,
-                                                  shifts, CONTACT_MAX_ANG):
+                                                  shifts, reach):
             entry = (j, rot, tran, shift, d,
                      _symmetry_code(_symop_index(symops, rot, tran), shift))
             if (d <= radii[i] + radii[j] + BOND_SLACK_ANG
                     and not (DEMOTE_METAL_METAL and metal[i] and metal[j])):
                 bonded.append(entry)
-            else:
+            elif d <= CONTACT_MAX_ANG:
                 near.append(entry)
         if len(near) > MAX_CONTACTS_PER_ATOM:
             dropped += len(near) - MAX_CONTACTS_PER_ATOM
