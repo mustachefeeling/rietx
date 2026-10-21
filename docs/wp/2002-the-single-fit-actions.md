@@ -157,7 +157,11 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       interval and width-grid domain tests. 4th session: the three geometry caps and the
       restraint image shell to tier 1, under the rule's new cap and numerical-setting
       clauses; the fourteen tier-2 rows resting on a program default checked against
-      seven programs (`2002-batch/practice.md`).*
+      seven programs (`2002-batch/practice.md`). 6th session: the seventh round's
+      settings tiered (`A5_CLIP`, the texture polish and the closing FCJ rule tier 1, the
+      magnetic floor invariant behind the closing stage, the margin and the axial floor
+      tier 3); `GTOL`/`XTOL` tier 3 under the caller-tier ruling and
+      `DEFAULT_HARMONIC_ORDER`'s row gone with the constant.*
 - [x] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
       found, none measured: `2002-batch/clashes.md`. Moved to
@@ -186,7 +190,8 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       ceilings removed, Q4's switched-off roughness said in its warning, Q6's cap clause,
       both search defects fixed. Left: Q1-Q3's builds (the sixth round) and B14's lifts.
       5th session: the sixth round built (the closing stage, the roughness seed's record,
-      the axis ceilings, the tier-2 rule). Left: B14's lifts.*
+      the axis ceilings, the tier-2 rule). Left: B14's lifts. 6th session: no demotion;
+      left: B14's lifts.*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved
@@ -198,7 +203,10 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       removal and the two search fixes moved no bit-identity golden (darwin/arm64).
       5th session: the closing stage moves every default fit; no bit-identity golden moved
       (they pin forward-model residuals), every acceptance suite names the setting, and the
-      guides' quoted numbers were re-measured.*
+      guides' quoted numbers were re-measured. 6th session: evaluation outside a fit at
+      the closing windows and the closing FCJ rule moved every synthetic pattern; the
+      goldens declare their capture windows and stay bit-identical (darwin/arm64), and the
+      guides (main's new moment guide too) were re-measured.*
 - [x] `intermediate_ftol` and any other candidate for the answer-invariant class: the
       invariance test, or the row tiered. *3rd session: the test ran and failed in plain
       esds (0.033-0.074 on cpd-1a) and a hold flips with the tolerance; the rows wait on
@@ -228,13 +236,15 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       0.5 % window polishes wrote `window_domain_*` PNGs; the last-stage, closing-stage and
       Biso-start measurements are scratch scripts with no figure, their numbers in
       `rulings.md` § Sixth round. 5th session: `staged_start_*` and
-      `window_domain_*_closing` PNGs.*
+      `window_domain_*_closing` PNGs. 6th session: probes only (scratch scripts, no
+      figure); their numbers are in `rulings.md`'s seventh and eighth rounds.*
 - [ ] Skill: none here. A demoted verdict's meaning goes into the package's own output and
       never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
       role). List each skill row that named a demoted verdict, for 2008. *2nd session:
       `references/magnetic.md`'s abstained row and `api-magnetic.md`'s criterion (from
       `make_api_index.py`) rewritten for the tie ruling; `OCCUPANCY_ABOVE_ONE`'s row
-      unchanged in words, now at info.*
+      unchanged in words, now at info. 6th session: one row added, not a demoted
+      verdict: `references/batch-operating.md` 9c.34, the closing stage's speed switch.*
 
 ## The batch (2026-10-19)
 
