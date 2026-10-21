@@ -1,6 +1,6 @@
 """Suite-wide hygiene and the fixtures that share an expensive refinement.
 
-Five things live here, in the order they have to happen:
+Six things live here, in the order they have to happen:
 
 1. **Headless matplotlib.**  Every test refinement writes obs/calc/diff PNGs
    (CLAUDE.md's Tests convention), so ``MPLBACKEND=Agg`` is set before anything
@@ -27,7 +27,14 @@ Five things live here, in the order they have to happen:
    ``xdist_group`` marks refits the shared fixtures and mis-measures every
    wall-clock budget, both without failing, so ``pytest_configure`` refuses it
    rather than leaving it to be noticed in a ``--durations`` list.
-5. **The ``--shard K/N`` selection.**  A CI fast leg runs as N jobs, because
+5. **The ``--jax-cases`` selection, and its guard.**  CI's jax job runs only
+   the cases that reach jax, read off their code (``tests/jax_cases.py``,
+   WP-2019).  It runs after ``-m``'s own deselection and before the shard
+   split.  Wherever jax does not import, a case that skips for want of jax
+   while the selection does not hold it fails instead, and so does a module
+   skipped at import for it: every leg but the jax job lacks jax, so such a
+   case would run on no per-push leg, and a skip is how that would look.
+6. **The ``--shard K/N`` selection.**  A CI fast leg runs as N jobs, because
    its two-core runner gives no more workers to add (WP-1547).  Each job keeps
    shard K of the collected files, split by recorded seconds with every file
    and every ``xdist_group`` whole (``tests/shards.py``).  It runs after
@@ -153,17 +160,32 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--shard", metavar="K/N", default=None,
         help="run shard K of N: whole files, xdist groups kept together, "
              "split by tests/shard_times.json (tests/shards.py)")
+    parser.addoption(
+        "--jax-cases", action="store_true", default=False,
+        help="run only the cases that reach jax (tests/jax_cases.py)")
 
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Keep the items of shard K's files, after every other selection has run.
+    """Keep the cases that reach jax, then shard K's files, after every other
+    selection has run.
 
     Under xdist the controller collects nothing: each worker collects, runs
     this hook and reports its list, and xdist refuses a run whose workers
-    disagree.  So the split is a function of the items alone.  ``shards.assign``
-    breaks every tie by name, never by collection order or a clock.
+    disagree.  So both selections are functions of the items alone.
+    ``jax_cases.reaches`` reads each case's code, and ``shards.assign`` breaks
+    every tie by name, never by collection order or a clock.
     """
+    if getattr(config.option, "jax_cases", False):
+        from tests import jax_cases
+
+        kept: list[pytest.Item] = []
+        dropped: list[pytest.Item] = []
+        for item in items:
+            (kept if jax_cases.reaches(item) else dropped).append(item)
+        if dropped:
+            config.hook.pytest_deselected(items=dropped)
+        items[:] = kept
     spec = getattr(config.option, "shard", None)
     if spec is None:
         return
@@ -198,19 +220,40 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.hookimpl(wrapper=True)
 def pytest_make_collect_report(collector: pytest.Collector):
-    """Report a module skipped at import from shard 1 alone.
+    """Fail a module skipped at import for want of jax that the selection
+    cannot reach; leave out one ``--jax-cases`` does not select; and report
+    the rest from shard 1 alone.
 
     A module-level ``importorskip`` skips the file before it has an item, so
-    the selection above cannot place it, and every shard reported its skip.
-    On CI's first sharded run the py3.14 leg's two shards summed to eight
-    more than the unsharded count: jax, torch and six browser files (WP-1547).
-    A leg's passed+skipped must sum to the unsharded total, because that total
-    is how a module that never ran gets seen (tests/CLAUDE.md § Quoting
-    numbers).
+    neither selection above can place it.  Rule (c) of ``tests/jax_cases.py``
+    reads the module itself, which is how the guard and ``--jax-cases`` judge
+    it.  Under ``--shard``, every shard used to report its skip, and on CI's
+    first sharded run the py3.14 leg's two shards summed to eight more than
+    the unsharded count: jax, torch and six browser files (WP-1547).  A leg's
+    passed+skipped must sum to the unsharded total, because that total is how
+    a module that never ran gets seen (tests/CLAUDE.md § Quoting numbers).
     """
     report = yield
-    spec = getattr(collector.config.option, "shard", None)
-    if spec is not None and report.skipped and isinstance(collector, pytest.Module):
+    if not (report.skipped and isinstance(collector, pytest.Module)):
+        return report
+    from tests import jax_cases
+
+    config = collector.config
+    reason = jax_cases.skip_reason(report.longrepr)
+    if jax_cases.SKIPS_FOR_JAX.search(reason) and not jax_cases.jax_importable():
+        failure = jax_cases.outside_selection(
+            reason, jax_cases.module_reaches(collector.path), collector.nodeid)
+        if failure is not None:
+            report.outcome = "failed"
+            report.longrepr = failure
+            return report
+    if getattr(config.option, "jax_cases", False) \
+            and not jax_cases.module_reaches(collector.path):
+        report.outcome = "passed"   # outside the selection, like a deselected case
+        report.longrepr = None
+        return report
+    spec = getattr(config.option, "shard", None)
+    if spec is not None:
         from tests import shards
 
         try:
@@ -220,6 +263,29 @@ def pytest_make_collect_report(collector: pytest.Collector):
         if k != 1:
             report.outcome = "passed"
             report.longrepr = None
+    return report
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
+    """Fail a case that skips for want of jax where the selection cannot reach it.
+
+    Only where jax does not import, since that is where such a case skips.
+    The jax job runs ``--jax-cases`` alone and every other leg lacks jax, so a
+    case ``tests/jax_cases.py`` cannot see would run on no per-push leg, and
+    its skip would say so to nobody.  An xfail is left alone.
+    """
+    report = yield
+    if not report.skipped or hasattr(report, "wasxfail"):
+        return report
+    from tests import jax_cases
+
+    reason = jax_cases.skip_reason(report.longrepr)
+    if jax_cases.SKIPS_FOR_JAX.search(reason) and not jax_cases.jax_importable():
+        failure = jax_cases.outside_selection(reason, jax_cases.reaches(item), item.nodeid)
+        if failure is not None:
+            report.outcome = "failed"
+            report.longrepr = failure
     return report
 
 

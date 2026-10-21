@@ -19,17 +19,17 @@ until the record is rewritten.
 rewrites the record from one CI run's junit files, fetched with ``gh run
 download RUN -p 'junit-*' -D DIR``.  Each subdirectory is one job, named
 ``junit-<leg>`` or ``junit-<leg>-<shard>``, and a leg's shards sum together.  A
-file's seconds sum its cases, leaving out skipped ones.  The record holds two
-profiles, because the jax leg's costs differ from the others' file by file
-(``test_cross_backend.py`` ~390 s there against ~15 s on numpy).  ``numpy`` is
-each file's median share of a Python leg times the median Python leg, since one
-run's legs differ by up to 1.6× on the same tree.  ``jax`` is the jax leg's
-seconds.  SOURCE names the run in the record.
+file's seconds sum its cases, leaving out skipped ones.  The record holds one
+profile, ``numpy``: each file's median share of a Python leg times the median
+Python leg, since one run's legs differ by up to 1.6× on the same tree.  The jax
+job is read past.  It held a second profile while it ran the whole tier in
+shards, its costs differing file by file (``test_cross_backend.py`` ~390 s there
+against ~15 s on numpy), and since WP-2019 it runs ``--jax-cases`` as one job,
+which no record places.  SOURCE names the run in the record.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import math
 import re
@@ -57,15 +57,9 @@ def parse(spec: str) -> tuple[int, int]:
     return k, n
 
 
-def profile() -> str:
-    """The record's profile for this environment: does jax import here?"""
-    return "jax" if importlib.util.find_spec("jax") is not None else "numpy"
-
-
-def recorded_seconds(which: str | None = None, path: Path = RECORD) -> dict[str, float]:
-    """One profile of the record, keyed by repo-relative POSIX file path."""
-    record = json.loads(path.read_text(encoding="utf-8"))
-    return record[which or profile()]
+def recorded_seconds(path: Path = RECORD) -> dict[str, float]:
+    """The record's seconds, keyed by repo-relative POSIX file path."""
+    return json.loads(path.read_text(encoding="utf-8"))["numpy"]
 
 
 def units(pairs: Iterable[tuple[str, str | None]]) -> list[frozenset[str]]:
@@ -154,7 +148,7 @@ def leg_seconds(directory: Path) -> dict[str, dict[str, float]]:
 
 
 def record(directory: Path, source: str) -> dict:
-    """The record's contents: both profiles from one run's junit files."""
+    """The record's contents from one run's junit files, its Python legs alone."""
     legs = leg_seconds(directory)
     python = {name: files for name, files in legs.items() if name.startswith("py")}
     if not python:
@@ -165,8 +159,7 @@ def record(directory: Path, source: str) -> dict:
         f: round(statistics.median(files.get(f, 0.0) / totals[name]
                                    for name, files in python.items()) * scale, 1)
         for f in set().union(*python.values())}
-    jax = {f: round(s, 1) for f, s in legs.get("jax", {}).items()}
-    return {"source": source, "numpy": numpy, "jax": jax}
+    return {"source": source, "numpy": numpy}
 
 
 def main(argv: list[str]) -> int:
@@ -177,8 +170,7 @@ def main(argv: list[str]) -> int:
     source = argv[1] if len(argv) == 2 else directory.name
     out = record(directory, source)
     RECORD.write_text(json.dumps(out, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    for which in ("numpy", "jax"):
-        print(f"{which}: {len(out[which])} files, {math.fsum(out[which].values()):.0f} s")
+    print(f"numpy: {len(out['numpy'])} files, {math.fsum(out['numpy'].values()):.0f} s")
     return 0
 
 

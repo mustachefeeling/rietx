@@ -111,12 +111,13 @@ def test_no_shard_option_leaves_the_collection_alone():
     assert len(items) == 2
 
 
-def test_the_record_reads_shares_of_python_legs_and_the_jax_leg_whole(tmp_path):
+def test_the_record_reads_shares_of_python_legs_and_reads_past_the_jax_job(tmp_path):
     """Two Python legs at different runner speeds give one numpy profile.
 
     ``py3.12`` runs twice as slow and comes as two shards, which sum.  A skip
     costs nothing, a test class belongs to its module, and a module skipped at
-    import (no classname) is not a file the record can place."""
+    import (no classname) is not a file the record can place.  The jax job runs
+    ``--jax-cases`` unsharded since WP-2019, so its seconds place nothing."""
     def write(job, cases):
         (tmp_path / job).mkdir()
         body = "".join(
@@ -134,8 +135,7 @@ def test_the_record_reads_shares_of_python_legs_and_the_jax_leg_whole(tmp_path):
     out = shards.record(tmp_path, "run 1")
     # both legs give a 3/4 share to test_a; the median leg total is (4 + 8)/2
     assert out == {"source": "run 1",
-                   "numpy": {"tests/test_a.py": 4.5, "tests/test_b.py": 1.5},
-                   "jax": {"tests/sub/test_c.py": 7.0, "tests/test_a.py": 0.0}}
+                   "numpy": {"tests/test_a.py": 4.5, "tests/test_b.py": 1.5}}
 
 
 def test_a_leg_missing_a_shard_another_leg_has_is_refused(tmp_path):
@@ -149,18 +149,20 @@ def test_a_leg_missing_a_shard_another_leg_has_is_refused(tmp_path):
         shards.record(tmp_path, "run 1")
 
 
-def test_the_committed_record_covers_most_of_the_suite_in_both_profiles():
+def test_the_committed_record_covers_most_of_the_suite():
     """A file the record lacks costs balance and never a test, so nothing goes
     red when the record goes stale.  An empty or garbled profile would be the
-    same silence across every file, and this row is the one that sees it."""
+    same silence across every file, and this row is the one that sees it.  It
+    holds one profile: the jax job no longer shards, so a second would be a
+    name nothing reads (WP-2019)."""
     record = json.loads(shards.RECORD.read_text(encoding="utf-8"))
     files = {p.relative_to(ROOT).as_posix() for p in (ROOT / "tests").rglob("test_*.py")}
+    assert set(record) == {"source", "numpy"}
     assert record["source"]
-    for which in ("numpy", "jax"):
-        seconds = record[which]
-        assert all(f.startswith("tests/") and f.endswith(".py") and s >= 0
-                   for f, s in seconds.items())
-        assert len(files & seconds.keys()) > len(files) / 2, which
+    seconds = shards.recorded_seconds()
+    assert all(f.startswith("tests/") and f.endswith(".py") and s >= 0
+               for f, s in seconds.items())
+    assert len(files & seconds.keys()) > len(files) / 2
 
 
 def _collected(*extra):

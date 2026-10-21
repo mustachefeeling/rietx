@@ -170,14 +170,19 @@ cutting it.
 
 - [ ] **Refresh the shard record.** Rewrite `tests/shard_times.json` from the
       latest green main run's junit artifacts, both profiles. The commit names
-      the run.
-- [ ] **Select the jax leg's cases.**
+      the run. *Superseded in part 2026-10-21: one profile, `numpy`, since the
+      jax job no longer shards (next item). Blocked here: the session's network
+      policy refuses the artifact host (`*.blob.core.windows.net`).*
+- [x] **Select the jax leg's cases.**
   - Derive the selection from what each case imports or skips on, and run the
     leg as one job.
   - Add a guard that fails when a case needs jax and falls outside the
     selection.
   - `ci.yml`'s header says what the leg no longer covers per push and where it
     runs instead (`full`, `middle`).
+  - *Done 2026-10-21: `tests/jax_cases.py` (three rules read off the code),
+    `--jax-cases` in `conftest`, and the guard there on every leg without jax.
+    The record's `jax` profile went with the shards.*
 - [ ] **Run the documentation on one leg.**
   - The guide scripts and the manual builds run on the newest per-push leg
     with the tutorials, and skip elsewhere through the same switch pattern as
