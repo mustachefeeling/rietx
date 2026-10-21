@@ -1,6 +1,6 @@
 # WP-1326 — satellites at G ± k, with no moment model: is it magnetic?
 
-Milestone: magnetic · Status: 🔄 2026-09-26 — the satellites and their report arm landed from outside (PR #468); the public k ≠ 0 pattern and the Cr₂WO₆ PNG remain
+Milestone: magnetic · Status: 🔄 2026-10-21 — the satellites and their report arm landed from outside (PR #468), and the public k ≠ 0 pattern `Magnetic-III` with its ranking test (PR #1069); the PNGs remain
 Depends on: — (first rung of the magnetic scattering track; 1327 builds on
 its reflection list)
 Priority: P2 2026-09-23 — the open milestone's first rung, nothing blocks it
@@ -184,7 +184,7 @@ not both be declared on one phase.
       tutorial repository (`Magnetic-II/data`, ORNL data distributed by
       Argonne; licence checked per file, a `tests/data/README.md` row each);
       they serve 1327's acceptance as well. (Vendored by WP-1327's PR #433.)
-- [ ] Source a public constant-wavelength neutron pattern with a published
+- [x] Source a public constant-wavelength neutron pattern with a published
       k ≠ 0 structure (search the maintainer's corpus first, then ask; the
       GSAS-II `Magnetic-III` … `-V` folders are the first place to look).
       *Two candidates confirmed 2026-10-03*, each a CW neutron pattern under
@@ -195,6 +195,7 @@ not both be declared on one phase.
       Pr₀.₅Sr₀.₅MnO₃ on LLB 3T2, k = (1, 0, 0) on the Fmmm cell (the
       A-centring made magnetic). The published structure each answers to is
       still to cite. WP-1343's acceptance 4 wants the same data.
+      (`Magnetic-III` vendored by PR #1069, 2026-10-21.)
 - [ ] Tests, including the acceptance below, with obs/calc/diff PNGs to
       `tests/output/`.
 
@@ -228,6 +229,40 @@ not both be declared on one phase.
   the fence this track opens.
 
 ## Handover log
+
+### 2026-10-21 — the first real k ≠ 0 pattern landed from outside
+
+PR #1069 (head `03e76b44`) merged as `c93b974b` by `/pr-review`. Tests and
+test data only; `satellites.py` is untouched.
+
+*Done.* The `Magnetic-III` candidate named on 2026-10-03 is vendored:
+`tests/data/gsas2_d1b_ba6co6.xye` (Ba₆Co₆ClO₁₆, ILL D1B, 1.4 K, λ = 2.394 Å,
+3 120 points, no σ), `tests/data/gsas2_d1b.prm` (only its `ICONS` wavelength
+is read, since `read_gsas_prm` refuses profile function 2), and the GSAS-II
+tutorials licence beside them. Each has a `tests/data/README.md` row with the
+upstream commit and sha256, and there is one `ATTRIBUTION.md` row. The tutorial's
+`Ba6Co6.cif` is not vendored; its coordinates are typed into the test and
+cited. `test_ba6co6_d1b_returns_the_tutorials_k_first_with_every_other_candidate_behind`
+(slow, in `tests/test_satellites_acceptance.py`) runs six McCusker stages from
+those coordinates and reads `report().satellites`. (0, 0, ½) ranks first,
+matching 3 of 3 unexplained peaks, and the four other candidates match none.
+The fit runs under `compiled.set_enabled(False)`.
+*What the review established.* The tier is `characterisation`: the k is the
+tutorial's label, not checked against Mentré et al., *Solid State Sci.* **10**,
+471 (2008), which is closed access. The evidence is thin, three weak peaks with
+a random-placement null of P ≈ 0.004 measured outside rietx, and the test
+asserts the ranking only, never a peak position or a moment.
+*Tasks.* The sourcing task is ticked for `Magnetic-III`; `Magnetic-IV`
+(Pr₀.₅Sr₀.₅MnO₃) stays unvendored. The tests task stays open: no obs/calc/diff
+PNGs, and no k ≠ 0 structure refinement. WP-1343's acceptance 4 and WP-1329's
+row H want real k ≠ 0 data too; #1073's Ba₂FeSbSe₅ series is held on a written
+redistribution permission.
+*Gate:* stacked with #1011 on `main` `3437d52d` as `abe6d9e2`, Linux x86_64,
+4 cores, `[dev,jax]`, `-n 3`, nothing else running: fast 10 986 passed,
+132 skipped, 3 xfailed; `-m slow` 319 passed, 16 skipped, 1 xfailed. `main` after both merges
+(`c93b974b`) is content-identical to that tree.
+*Next:* the obs/calc/diff PNGs, and a moment refinement on this pattern if the
+published structure can be checked.
 
 ### 2026-10-03 — two public k ≠ 0 patterns found, by a cleanup session
 
