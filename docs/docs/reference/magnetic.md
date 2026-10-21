@@ -369,6 +369,9 @@ A trial fit or nuclear reference that stops on its iteration budget is continued
 `solve_magnetic` refuses a pattern that is not constant-wavelength neutron, a refinement that has not fitted, a phase that already declares a magnetic space group, and a phase that declares a propagation vector.
 Everything else, such as no unexplained intensity or a tie at the top, is reported.
 
+The nuclear model it starts from is the one in the refinement you hand it, fitted without a moment.
+[How to refit the nuclear model with the moment present](../guides/moment.md) gives two ways to start from a better one.
+
 ### The solution
 
 | Field | Is | Reads as |
