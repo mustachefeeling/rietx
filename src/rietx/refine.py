@@ -5230,7 +5230,7 @@ class Refinement:
             phase_support_sigma=plan.phase_support_sigma)
         report = build_report(result, model=model,
                               values=table.decode(outcome.theta), plan=plan,
-                              structure=self.structure,
+                              structure=self.structure, instrument=self.instrument,
                               free_paths=list(table.free_paths))
         return report.for_stage(name)
 
@@ -5555,7 +5555,8 @@ class Refinement:
         table.pull_moment_frames(self._model)
         return build_report(self.result_, model=self._model,
                             values=table.decode(table.x0()), plan=plan,
-                            structure=self.structure, held=list(self._held),
+                            structure=self.structure, instrument=self.instrument,
+                            held=list(self._held),
                             free_paths=list(self._free_paths), **kw)
 
     def check_rigid_bodies(self, data: PatternData, **kw):

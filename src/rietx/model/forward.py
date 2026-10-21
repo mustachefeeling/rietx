@@ -869,6 +869,11 @@ class CompiledModel:
     # esd is built from them.  Scaled there, all of them would come back ×√c_w
     # with no test failing that a reader would connect to the change.
     restraint_weight_scale: float = 1.0
+    # The area fraction this compile's windows drop, as ``compile_model``
+    # resolved it, and so also which FCJ node rule ran (WP-2002).  The
+    # FitReport reads it to know which precision it was handed
+    # (``report._reading_models``).
+    window_area_tol: float | None = None
     # The origin restraint of a ``Phase.floating_origin = "centroid"`` phase
     # (WP-1912, Flack & Schwarzenbach 1988; ``model.origin``): one row per
     # direction this solve's free set can slide the phase along.  ``None``
@@ -4184,6 +4189,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                    else None),
         pawley=pawley, restraints=restraints,
         restraint_weight_scale=float(restraint_weight_scale),
+        window_area_tol=float(window_area_tol),
     )
 
 

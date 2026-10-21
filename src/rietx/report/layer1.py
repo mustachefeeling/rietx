@@ -215,12 +215,19 @@ def attribute_region(model: CompiledModel, bases: DerivativeBases,
 
 
 def attribute_regions(model: CompiledModel, values: dict[str, float],
-                      regions: list[Region]) -> list[RegionAttribution]:
-    """Layer-1 attribution for every region (gates evaluated per region)."""
+                      regions: list[Region], *,
+                      shapes: CompiledModel | None = None) -> list[RegionAttribution]:
+    """Layer-1 attribution for every region (gates evaluated per region).
+
+    The misfit is read off ``model`` and the shape basis off ``shapes``
+    (``model`` when not given), which must share its grid: the report hands in
+    a model at the closing precision and one at the declared stages' precision
+    (``report._reading_models``).
+    """
     y_calc = model.evaluate(values)
     delta = model.y_obs - y_calc
     sqrt_w = 1.0 / model.sigma
-    bases = model.derivative_bases(values)
+    bases = (model if shapes is None else shapes).derivative_bases(values)
     out = []
     for region in regions:
         att = attribute_region(model, bases, region, delta, sqrt_w)

@@ -1226,7 +1226,8 @@ class MultiHistogramRefinement:
         return build_report(
             self.result_.for_histogram(histogram),
             model=self._models[histogram], values=answer["values"],
-            plan=plan, structure=answer["structure"], held=answer["held"],
+            plan=plan, structure=answer["structure"],
+            instrument=answer["instrument"], held=answer["held"],
             free_paths=answer["free_paths"], **kw)
 
     def _freeze_answer(self) -> list[dict]:
@@ -1251,6 +1252,7 @@ class MultiHistogramRefinement:
             out.append({
                 "values": table.decode(table.x0()),
                 "structure": structure.model_copy(deep=True),
+                "instrument": self.mtable.instruments[h].model_copy(deep=True),
                 "held": held,
                 # what ``Refinement._record_free_paths`` records: free, or
                 # held by the last stage

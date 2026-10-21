@@ -119,7 +119,8 @@ def _result_for(structure, ins, data):
 def _report_for(structure, ins, data, **kw):
     """Build the full report for a *given* (unrefined) model state."""
     result, model, values = _result_for(structure, ins, data)
-    return build_report(result, model=model, values=values, **kw)
+    kw.setdefault("structure", structure)
+    return build_report(result, model=model, values=values, instrument=ins, **kw)
 
 
 def _coefficients(report, kind):
