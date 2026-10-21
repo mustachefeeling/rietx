@@ -80,7 +80,9 @@ a finding.
    off its reference (a certified cell, a weighed composition, the cross-code
    envelope)? Quote any measurement of that cost.
 5. Which tier, with its source? For tier 2, what the cited program does *by
-   default*, and whether you checked that in this repository or recall it.
+   default*, and whether you checked that in this repository or recall it. A
+   dissenting program keeps a statistic, threshold or default at tier 2; a
+   choice outside the range of the seven must name its reason.
    For `invariant`, the test asserting its margin, by file and name, or say
    that none exists.
 6. How many unrelated dataset families support the threshold, counted by

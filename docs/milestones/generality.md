@@ -53,14 +53,17 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    stated bar over every input it claims to handle (B10, ruled 2026-10-19). So does a cap
    on what a report lists, once a test shows the report is complete inside the cap and
    its notes count what lies outside it, or for a cap on distance the report states the
-   distance (WP-2002's fifth round, Q6, 2026-10-21; the lead's reading of the answer
-   awaits the maintainer's confirmation, the sixth round's Q4).
-2. **Established practice.** A citation that validated it, or the same action taken *by
-   default* in an established Rietveld program. The programs are the seven rietx-bench
-   runs: GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction (widened
-   from the first three on 2026-10-21). A row resting on a program default names the
-   programs it checked and what each does by default. A program that does otherwise by
-   default is a dissenter; one without the feature is neither. Computing a statistic is not acting on it: every
+   distance (WP-2002's fifth round, Q6, 2026-10-21; confirmed in the sixth round, Q4).
+2. **Established practice.** Something a known code has already validated: a citation
+   that validated it, or the same choice made *by default* in an established Rietveld
+   program. The programs are the seven rietx-bench runs: GSAS-II, FullProf, TOPAS,
+   RIETAN-FP, BGMN, MAUD and EasyDiffraction (widened from the first three on
+   2026-10-21). A row resting on a program default names the programs it checked and what
+   each does by default. The programs disagree, and a program that does otherwise by
+   default (a dissenter) does not move a statistic, threshold or default off tier 2.
+   Where they differ, rietx chooses by its design rules from inside the range of existing
+   practice, and a choice outside that range names its reason in the row (WP-2002's sixth
+   round, Q5, ruled 2026-10-21). Computing a statistic is not acting on it: every
    code reports R_Bragg and WP-1069 rejects it as evidence; GSAS-II concatenates multi-range
    scans and rietx refuses to. A statistic or threshold here is kept, and the registry
    entry names the source. An action here still faces the judgement ground under tier 3.
