@@ -123,7 +123,8 @@ full-width value can fuse with its neighbour:
   read as written; the counter number is checked and not folded into it,
   because the manual states the esd only as σ = √I and does not say how it
   follows when NCTR > 1 — so an STD bank still takes the Poisson fallback on
-  the value as written.
+  the value as written, and any NCTR above one is reported through
+  ``PATTERN_INTENSITY_SCALED`` with the range found.
 """
 
 from __future__ import annotations
@@ -587,9 +588,11 @@ def _read_bank(p: Path, lines: list[str],
                         min(len(arr), nchan), p)
         y, sig = arr[:, 0], arr[:, 1]
     else:  # STD: counts only, positional (counter number, value); Poisson esd
-        y = np.array(_std_fields(body, p), dtype=np.float64)[:nchan]
+        values, counters = _std_fields(body, p)
+        y = np.array(values, dtype=np.float64)[:nchan]
         x = _synth_axis(axis, bintype, lines, bank_line, c1, c2, len(y), p)
         sig = None
+        _std_counter_diagnostic(p, counters[:nchan], diagnostics)
 
     n = min(len(x), nchan) if type_flag != "FXYE" else len(x)
     x, y = x[:n], y[:n]
@@ -961,7 +964,7 @@ def _esd_fields(body: list[str], p: Path) -> list[float]:
     return out
 
 
-def _std_fields(body: list[str], p: Path) -> list[float]:
+def _std_fields(body: list[str], p: Path) -> tuple[list[float], list[int]]:
     """An STD bank's values, read **positionally**: ``(I2, F6.0)`` per field.
 
     Larson & Von Dreele (2004), LAUR 86-748, "GSAS raw powder file", p. 217:
@@ -977,8 +980,11 @@ def _std_fields(body: list[str], p: Path) -> list[float]:
     A wholly blank field ends a short final record and is skipped, as in
     :func:`_esd_fields`; a field with a counter number and no value, or a
     value that is not a number, is refused naming the record and columns.
+    Returns the values and, beside them, each field's counter number with a
+    blank or zero read as one, as the manual does.
     """
     out: list[float] = []
+    counters: list[int] = []
     for lineno, raw in enumerate(body, start=1):
         line = raw.rstrip()
         for start in range(0, len(line), ESD_FIELD_CHARS):
@@ -1001,7 +1007,33 @@ def _std_fields(body: list[str], p: Path) -> list[float]:
                     f"{where}, whose last six characters are not a number — "
                     "the record is not the (I2, F6.0) fixed format an STD "
                     "bank is written in") from None
-    return out
+            counters.append(max(int(counter or 0), 1))
+    return out, counters
+
+
+def _std_counter_diagnostic(p: Path, counters: list[int],
+                            diagnostics: list[Diagnostic] | None) -> None:
+    """Say so when an STD bank's counter number exceeds one.
+
+    The manual (Larson & Von Dreele 2004, p. 217) does not say whether ``YO``
+    is then a total over the counters or a per-counter mean, so the scale the
+    intensities are on is not established: σ stays withheld and the value as
+    written (``src/rietx/io/CLAUDE.md`` § σ, "Neither settles it").
+    """
+    if diagnostics is None or not counters or max(counters) <= 1:
+        return
+    lo, hi = min(counters), max(counters)
+    found = f"{lo} to {hi}" if lo != hi else f"{hi}"
+    diagnostics.append(Diagnostic(
+        level="warning", code="PATTERN_INTENSITY_SCALED",
+        message=(f"{p.name}: the STD bank's counter numbers (NCTR) run {found}"
+                 ", where more than one counter collected a step. The GSAS "
+                 "manual does not say whether the value is then the total "
+                 "over the counters or a per-counter mean, so the scale of "
+                 "the intensities is not established. The values are read as "
+                 "written and no σ was supplied."),
+        where=["sigma"],
+        suggestion="Export the scan in counts, or supply the esds."))
 
 
 def _floats(tokens: list[str], p: Path, flag: str) -> list[float]:

@@ -928,7 +928,8 @@ def test_an_std_bank_that_writes_its_counter_numbers_reads_the_counts(tmp_path):
     p = write_gsas(tmp_path / "counters.gda", bintype="CONST", flag=None,
                    body=gsas_std_rows(zip(_STD_COUNTERS, _STD_COUNTS)),
                    nchan=len(_STD_COUNTS), nrec=2, coeffs=(600, 5, 0, 0))
-    d = rx.read_pattern(p)
+    notes: list = []
+    d = rx.read_pattern(p, diagnostics=notes)
     assert d.intensity == _STD_COUNTS
     assert len(d.two_theta) == len(_STD_COUNTS)
     assert d.two_theta[0] == pytest.approx(6.0)
@@ -937,6 +938,12 @@ def test_an_std_bank_that_writes_its_counter_numbers_reads_the_counts(tmp_path):
     # states σ = √I only, and not how it follows for NCTR > 1 (#1061)
     assert d.sigma is None
     assert d.metadata["format"] == "gsas-std"
+    # ... and the report says so: file, code and the NCTR range found
+    scaled = [n for n in notes if n.code == "PATTERN_INTENSITY_SCALED"]
+    assert len(scaled) == 1
+    assert "counters.gda" in scaled[0].message
+    assert "run 1 to 20" in scaled[0].message
+    assert scaled[0].where == ["sigma"]
 
 
 @pytest.mark.parametrize("counter", [None, 0, 1])
@@ -945,7 +952,9 @@ def test_a_blank_zero_or_unit_counter_number_reads_the_same(tmp_path, counter):
     p = write_gsas(tmp_path / "unit.gda", bintype="CONST", flag="STD",
                    body=gsas_std_rows((counter, v) for v in _STD_COUNTS),
                    nchan=len(_STD_COUNTS), nrec=2, coeffs=(600, 5, 0, 0))
-    assert rx.read_pattern(p).intensity == _STD_COUNTS
+    notes: list = []
+    assert rx.read_pattern(p, diagnostics=notes).intensity == _STD_COUNTS
+    assert not [n for n in notes if n.code == "PATTERN_INTENSITY_SCALED"]
 
 
 @pytest.mark.parametrize("bad, where", [
