@@ -1291,21 +1291,25 @@ ROWS: tuple[Row, ...] = (
                   "a stage reaching 0.05/0.05 leaves 0.27 of the peak maximum (15 nodes; bar 7.2e-4) "
                   "and drops up to 19.5 % of a peak area (tests/test_lab_instrument.py, the axial "
                   "floor block); 0.05 passes at 1.25-1.8x fit time, mostly because the floor also "
-                  "applies to every positive ratio below it (forward.py:3693-3696); the 0.27 is "
-                  "transient, since the next stage recompiles, and on cpd-1a the two floors' "
-                  "answers differ by 0.16 esd at chi2 0.008 apart"),
+                  "applies to every positive ratio below it; the error is transient, since the next "
+                  "stage recompiles, and the answers of the floors 0.02 and 0.05 differ by 0.229, "
+                  "0.516 and 0.380 plain esd on LaB6, FAP and cpd-1a without the closing stage and "
+                  "by 0.007, 0.002 and 0.138 behind it (tests/test_staged_start_invariance.py; "
+                  "cpd-1a's corundum c a strict xfail; WP-2002, 2026-10-21)"),
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
-        approved="2026-10-19"),
-    Row("rietx.model.forward.MAGNETIC_SIZING_FLOOR", "constant", tier=3, value=0.1,
-        evidence=("window sizing floor for a magnetic width freed from zero; fails: at the widths "
-                  "the MnF2 test file plants (0.22, 0.30 deg) frozen windows drop 3.2 and 4.1 % of a "
-                  "magnetic peak against 2 %, and a plan ending on the width stage moves the moment "
-                  "0.07-0.57 esd; the preset's answer moves 0.031 esd "
-                  "(tests/test_magnetic_width.py); one family"),
-        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until the constant is ruled on."),
-        approved="2026-10-19"),
+                 "tier 3 under B10 option 2 (ruled 2026-10-19).  The seventh round's Q2 (ruled "
+                 "2026-10-21) left it alone if it passed behind the closing stage; it passes on "
+                 "LaB6 and FAP and misses on cpd-1a, so it stays here, owed to the maintainer."),
+        approved="2026-10-21"),
+    Row("rietx.model.forward.MAGNETIC_SIZING_FLOOR", "constant", tier="invariant", value=0.1,
+        evidence=("answer-invariant behind the closing stage only: a magnetic width freed from "
+                  "zero is drawn on windows sized at the floor, which lose 3.2 and 4.1 % of a "
+                  "magnetic peak at the planted 0.22 and 0.30 deg against 2 %, and the closing "
+                  "stage recompiles at the width reached; the preset's answer with the floor "
+                  "shipped and at the planted width agrees to 0.000 plain esd (0.031 before the "
+                  "closing stage), on the synthetic MnF2 round trip, one family "
+                  "(tests/test_magnetic_width.py); the package's magnetic default solve runs no "
+                  "closing stage (WP-2002, the seventh round's Q2, 2026-10-21)")),
     Row("rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC", "constant", tier=3, value=0.5,
         evidence=("WP-0306: 'the point past which least squares cannot apportion intensity'; LaB6 "
                   "only (synchrotron and Cu, tests/test_pawley.py), never swept; second pass owed"),

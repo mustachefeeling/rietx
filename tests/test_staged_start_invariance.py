@@ -1,4 +1,4 @@
-"""Three starts that stop changing the answer behind the closing stage (WP-2002).
+"""Starts and a floor that stop changing the answer behind the closing stage (WP-2002).
 
 The sixth round's Q2 (ruled 2026-10-21, option 3): every plan ends in a closing
 stage at tight windows, and a staged plan's start test passes at 0.1 plain esd
@@ -16,7 +16,20 @@ start                            fluorapat.   cpd-1a  NAC    LaB6
 ===============================  ===========  ======  =====  ===========
 Biso 0.5 against 1.5 Å²          0.000        0.070   0.000  9.36
 ``intermediate_ftol`` 1e-6/None  0.000        0.042   0.000  0.000
+axial sizing floor 0.02/0.05     0.002        0.138   n/a    0.007
 ===============================  ===========  ======  =====  ===========
+
+The axial sizing floor (``forward.AXIAL_SIZING_FLOOR``) sizes the windows and
+FCJ nodes of a stage that frees S/L or H/L from zero.  At 0.02 a stage reaching
+0.05 leaves 0.27 of the peak maximum and drops 19.5 % of a peak's area, and the
+two floors' answers differed by 0.16 esd on cpd-1a before the closing stage.
+The closing stage recompiles at the ratios reached, where the floor no longer
+binds (the seventh round's Q2), and cuts the floor's reach from 0.229, 0.516
+and 0.380 plain esd (LaB6, FAP, cpd-1a, both arms with no closing stage) to
+0.007, 0.002 and 0.138.  cpd-1a still misses the bar on corundum's ``c``: its
+``lines_axial`` stage frees S/L alone from zero, and one closing solve does not
+undo the path, so it is a strict xfail and the floor stays at tier 3.  NAC is a
+synchrotron pattern and refines no axial ratio.
 
 LaB6's two Biso starts land in its two mirrored axial-divergence minima, S/L and
 H/L exchanged, under every window setting (WP-2012), so it is a strict xfail.
@@ -90,7 +103,7 @@ def _compiled_tier_on():
     compiled.set_enabled(was)
 
 
-def _fit(family: str, *, biso: float | None = None, ftol="shipped") -> dict:
+def _fit(family: str, *, biso: float | None = None, ftol="shipped", tag: str = "") -> dict:
     data, st, ins, plan, kw = w._protocol(family)
     assert plan.closing_window_tol == 1e-3, "the acceptance protocols ride the shipped stage"
     if ftol != "shipped":
@@ -101,7 +114,7 @@ def _fit(family: str, *, biso: float | None = None, ftol="shipped") -> dict:
                 atom.biso.value = biso
     result = rx.Refinement(st, ins, history=False).fit(data, plan=plan, **kw)
     assert result.stages[-1].name == "closing"
-    return _plotted(result, f"{family}_biso{biso}_ftol{ftol}")
+    return _plotted(result, f"{family}_biso{biso}_ftol{ftol}{tag}")
 
 
 def _assert_within_bar(a: dict, b: dict, what: str):
@@ -123,6 +136,26 @@ def test_the_intermediate_tolerance_does_not_change_the_answer(family):
     """``intermediate_ftol`` 1e-6 against every stage at the solver's 1e-9."""
     _assert_within_bar(_fit(family), _fit(family, ftol=None),
                        f"{family}, intermediate_ftol 1e-6 against None")
+
+
+@pytest.mark.parametrize("family", [
+    "lab6", "fap",
+    pytest.param("cpd1a", marks=pytest.mark.xfail(strict=True, reason=(
+        "0.138 plain esd on corundum's cell c behind the closing stage (0.380 on the "
+        "corundum scale without it): the lines_axial stage frees S/L from zero, and "
+        "one closing solve does not undo the path (measured 2026-10-21)")))])
+def test_the_axial_sizing_floor_does_not_change_the_answer(family, monkeypatch):
+    """``AXIAL_SIZING_FLOOR`` 0.02 against 0.05, the value its domain test
+    passes at (``tests/test_lab_instrument.py``), on the three lab protocols
+    that refine the axial ratios.  Made to fail on 2026-10-21 by running both
+    arms with ``closing_window_tol=None`` (a scratch probe of this comparison):
+    0.229 esd on LaB6's ``x`` and 0.516 on the fluorapatite ``lor_size``."""
+    import rietx.model.forward as fwd
+
+    shipped = _fit(family)
+    monkeypatch.setattr(fwd, "AXIAL_SIZING_FLOOR", 0.05)
+    _assert_within_bar(shipped, _fit(family, tag="_axialfloor0.05"),
+                       f"{family}, AXIAL_SIZING_FLOOR 0.02 against 0.05")
 
 
 @pytest.mark.xfail(strict=True, reason=(
