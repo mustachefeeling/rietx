@@ -292,6 +292,8 @@ Every refinement now ends with one stage more than its plan declares. After the 
 - Cost through the shipped code, two interleaved runs each, nothing else running: LaB6 1.05-1.19×, FAP 2.03-2.05×, cpd-1a 1.37-1.38×, NAC 1.12-1.26×. Last session's probe read 1.36-2.26× with the last declared stage at 1e-9.
 - `REFLECTION_MARGIN_DEG` at the closing windows: 0.186σ and 0.124σ at the last points of FAP and cpd-1a, the answers moving 0.026 and 0.043 esd (recorded on its row, not fixed).
 - Brucite under TRF with the ceilings at 180°: Rwp 0.17878, t 0.36, −1.22, 0.40, 2.29; no-ceiling control 0.17891, t −203.
+- Full selection, once, on main merged in, after the review: 5 failed, 11 372 passed, 202 skipped, 46 xfailed, `[dev]`, darwin/arm64, 29:55, another session's suite overlapping its last minutes. The five are slow tests the closing stage moved, and their six files then passed alone (29 passed): the roughness-seed test read its stage as the last (it now declares no closing stage, as B3 was measured); the PowderLine hump's budget is spent by the closing stage rather than the declared `extra_components` stage (the test now asks the last stage freeing it); the neutron width test's single esd moved with the closing stage, still one value at four starts to 1.5e-8 (`x` 0.0098437 → 0.0102720, `y` 0.018101 → 0.0189972); the NAC termination golden gains the `stage closing` line (regenerated); and the 150 K magnetic solve's class-3 pair, which a correlation near its threshold folds, stops folding when the nuclear reference ends in a closing stage (moduli 0.514 and 0.131 with esds 0.69 and 2.79), so the shared Cr₂WO₆ fixture fits its reference at the declared stages alone.
+- Fast selection on main merged in (32 merges, `5a99ba928`), after the review: 1 failed, 11 012 passed, 191 skipped, 32 xfailed, `[dev]`, darwin/arm64, 5:44, nothing else running; the failure was the root CLAUDE.md over its 993-line cap, fixed by folding the new clause into the schedule bullet. The added tests cost 3.53 s in the fast tier on this machine (`test_closing_stage.py` 0.43 s for its 7), none joining the tail; the closing-stage and start tests are `slow`.
 - Fast selection, final tree before the review: 3 failed, 10 948 passed, 191 skipped, 31 xfailed, 5:47, nothing else running; the three fixed in `a737f66cb` (WP-2019's log line, the landing panel's numbers, `predict` made independent of what the object fitted). The first run after the default changed: 127 failed, 10 808 passed.
 - Lanes (four `general-purpose` Opus agents on disjoint test files, not dispatched under `/wp-start` 6c, so `session_usage.py lanes` sees none): 198 573, 274 275, 207 882 and 328 297 tokens. Main context peaked at 798 K over 351 requests.
 
@@ -301,6 +303,220 @@ Every refinement now ends with one stage more than its plan declares. After the 
 - Under TRF, the closing stage stops CPD brucite where one S_HKL esd collapses (t = −268 against −1.22); LM is unaffected. The Stephens suite declines the closing stage for both fits its information criteria compare.
 - Guard messages now name the closing stage (`HOLD_BLOCKED_PLAN`, `STAGE_PATH_UNKNOWN`, `HIGH_CORRELATION`). Kept, since the stage is visible everywhere else.
 - `SolveCost.from_pawley` stays on the declared stages' windows: at 1e-3 NAC's banded M0 grew a third denser.
+
+*Review.* `/code-review high --fix` over `876d345ab..HEAD` found ten. Fixed in `1f58008b6`: `suggest()`'s probe compiled at the 2 % windows while the answer it scores sits on the closing stage's; `predict`'s docstring quoted a pre-closing measurement as current; `run_stage(window_area_tol=1.5)` refused in the words of a plan field; a history recorded before the closing stage blanked every rung of the GUI ladder; `CLOSING_WINDOW_TOL`'s comment and `PlanSpec`'s description quoted another measurement and cost range than the matrix's record. Declined, each a judgement rather than a defect: the declared sharp peaks' windows at 1e-3 (k(η = 1) = 318, so a default member's window covers the pattern; deliberate, and one member is one column); `CELL_RUNAWAY` once per stage that fired (deliberate in both runners; the closing stage can add one); a magnetic continuation now running two solves over one free set (a cost); `summary()`'s `plan:` line listing the declared stages (the stage lines name `closing`, and changing it moves the NAC termination golden and every guide); the series payload's `n_stages` counting the declared plan.
+
+*Generality.* The judge's report follows unedited. The author's answer sits under each `weak`.
+
+**Rows added**
+
+**`rietx.schemas.plan.CLOSING_WINDOW_TOL` (constant, tier 1, 1e-3)**
+
+**holds.** The case for acting is stronger: at 1e-3 the window error stays under a tenth of each point's noise on all four families. The one gap is that all four are X-ray patterns. (The constant is the fraction of each peak's area that the closing stage's windows leave out. The closing stage is the extra all-free solve that every plan now ends with.)
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "The area each peak's window may drop in a plan's closing stage" (`schemas/plan.py` docstring) | Yes. It also applies to declared sharp peaks (`model/forward.py:3638-3641`). | clear |
+| 2. Kind | constant, no `ambiguity` | A numerical setting: it sets how accurately rietx computes, and decides nothing. | n/a |
+| 3. Case against | "1e-3 drops less than TOPAS …, MAUD …, RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and EasyDiffraction" (plan.py) | The value lies inside the seven programs' range (`docs/wp/2002-batch/practice.md` § How far a peak is computed). The only refiner who would choose otherwise is a batch user who takes TOPAS's or MAUD's 2 % for speed. That is a cost preference, and the plan setting serves it. | weak |
+| 4. Case for | At 2 %, "up to 0.97 esd on lab data … the background 2 to 5 esd" (plan.py) | Confirmed in `tests/test_window_domain.py`'s docstring table. At 1e-3: 0.058, 0.026, 0.022 and 0.091σ at the worst point, and 0.003-0.020 esd. | strong |
+| 5. Tier and source | tier 1 under B10 (the 2026-10-19 ruling on numerical settings), via `test_the_closing_stage_meets_the_bar` | The test exists. LaB6 is a strict xfail on the answer bar: 0.908 esd on U. The module docstring shows that U moves 0.9-1.2 esd "under every window setting", so the miss belongs to the Gaussian-width clamp (WP-1467), not to this number. The window-error bar itself passes on LaB6 (0.058σ). | holds |
+| 6. Families | SRM 660c, FAP, cpd-1a, NAC | Four laboratories: NIST, the GSAS-II tutorial, the CPD round robin, APS 11-BM. The reference is the same code at a converged window, which verifies the arithmetic. That is the right test for a numerical setting. Not covered: constant-wavelength neutron, magnetic peaks, declared sharp peaks. | holds, X-ray only |
+| 7. Record | — | `StageResult.window_area_tol` on the stage named `closing` | present |
+
+Would change the verdict: a constant-wavelength neutron pattern, or a pattern with magnetic or declared sharp peaks, failing the 0.1σ point bar at 1e-3.
+
+**`rietx.schemas.plan.PlanSpec:closing_window_tol` (default, tier 2, ambiguity 1, 1e-3)**
+
+**weak.** The case for acting is stronger and was measured. But the tier-2 ground rests on one program's default (BGMN). The row's own evidence names a staging program with no final cycle (MAUD) while the row claims the first kind. And two measured failures of the action are missing from the row.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "every plan ends with a closing stage at tight windows" (row grounds) | It adds one more all-free solve to every fit, which the caller did not ask for. `None` turns it off. | clear |
+| 2. Kind | `ambiguity=1` | The first kind needs unanimity among competent refiners. The evidence says "MAUD's wizard has no final cycle". A defensible reading is that MAUD is not a dissenter: its windows move at every evaluation (practice.md § Staging), so the window half of the problem never arises there. The row does not make that argument. | weak |
+| 3. Case against | none given in the row | Three cases. (i) A batch user: the fluorapatite fit takes 2.03-2.05× as long (plan.py). (ii) A TRF user (TRF is the opt-in trust-region solver; LM is the default): `tests/test_acceptance_stephens.py:168-173` says "under TRF the closing stage stops brucite where one S_HKL's esd collapses (t = -268 against -1.22)". (S_HKL are the Stephens anisotropic-strain coefficients.) That suite therefore opts out. (iii) LaB6: one closing solve is not a fixed point, and a second recompile moves U by 1 esd (`test_window_domain.py` `_CLOSING_FAILS`). No audit row mentions (ii) or (iii). GSAS-II, TOPAS, FullProf and EasyDiffraction do not stage, so they count neither way. | moderate, unrecorded |
+| 4. Case for | "removes the 2 % window's error from the answer and most of a staged plan's start dependence" (grounds) | Two Biso starts: cpd-1a 0.751 → 0.064 esd, fluorapatite 0.119 → 0.000, NAC 0.008 → 0.000 (`rulings.md` § Sixth round). Left to the caller, every default fit carries up to about 1 esd of error silently, because nothing reports the window error. | strong |
+| 5. Tier and source | BGMN by default (manual §A.4; Doebelin & Kleeberg 2015 §2); RIETAN-FP's `NAUTO = 2` | practice.md records BGMN's closing run. I read practice.md, not the BGMN manual or the paper. Neither practice.md nor the row says `NAUTO = 2` is RIETAN-FP's default. So tier 2 rests on one program. The amended rule allows that for a default. But this default switches on an action, and the rule's tier-2 text does not say which reading governs that case (see the rule-text item below). | weak |
+| 6. Families | four, against the whole protocol run at 1e-3 | The reference is the code's own arm. **none given** on distance from an independent reference: SRM 660c's certified cell or CPD's weighed composition. The Q1 brief says "I have not measured that against SRM 660c's certified cell". | gap |
+| 7. Record | "recorded in RefinementResult.stages as the stage named 'closing'" | Also `StageResult.window_area_tol`, and the `.rxt` line `closing`. | present |
+
+Would change the verdict: the row naming the LaB6 and TRF-brucite failures, stating why MAUD is not a dissenter, and giving the SRM 660c cell's distance from its certificate with the closing stage on and off.
+
+> Author: done in `1f58008b6`. MAUD's windows move every evaluation, so the error the stage removes never arises there; both failures named; SRM 660c's cell is 4.1568823 Å off and 4.1568821 Å on, +24.6 ppm from the reference both ways.
+
+**`rietx.schemas.results.StageResult.window_area_tol` (action, tier 2)**
+
+**holds.** It is the record field the rule requires a kept action to leave, and it takes no action itself.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "Records the action rather than taking one" (grounds) | Nothing. It reports the closing stage's window fraction. | clear |
+| 2. Kind | `ambiguity=1` | Inherited from the action it records. | n/a |
+| 3. Case against | — | none found | — |
+| 4. Case for | "a reader rebuilding the model from the result passes it to compile_model" | `replay` and `cherry_pick` read the node's copy (`refine.py:3819-3822`, `9885-9899`). | holds |
+| 5. Tier and source | tier 2 via the PlanSpec row, approved 2026-10-21 | Its tier stands or falls with that row. | as that row |
+| 6. Families | — | n/a | — |
+| 7. Record | — | It is the record. `NodeAction.window_area_tol` is its history twin. | present |
+
+Would change the verdict: a stage whose compile used a window fraction other than the one this field reports.
+
+**`rietx.refine.Refinement.run_stage:window_area_tol` (default `None`, tier 3)**
+
+**weak.** The case against the 2 % default is stronger. The grounds lean on "declared stages only steer", which does not hold for a stage run by hand. No closing stage follows such a stage, so its answer carries the 2 % window error.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "None resolves to forward.WINDOW_AREA_TOL" (evidence) | A hand-run stage compiles at 2 % windows. | clear |
+| 2. Kind | `ambiguity=1` | A refiner polishing by hand would not choose the steering windows for the last solve, so the data do not settle this one way. | doubtful |
+| 3. Case against | none given | The GUI's single-stage run calls `p.run_stage(stage, …)` with no window fraction (`gui/session.py:1583`). A GUI user who ends on a hand-run stage gets an answer up to 0.97 esd off on lab data, and only a `None` in the record says so. | moderate |
+| 4. Case for | "A stage driven by hand takes the declared stages' windows; a caller who wants the closing stage's states it" (grounds) | It matches fit()'s declared stages and is cheaper. The package's own trials pass `**trial._plan_settings`, which now carries the fit's fraction (layer2, intervals, fraction profiles), so they are consistent. | moderate |
+| 5. Tier and source | tier 3, inherits `WINDOW_AREA_TOL`, approved 2026-10-21 citing Q1 and Q2 | The sixth-round answers (`rulings.md:259-268`) rule on a plan's closing stage. They do not mention hand-run stages. **none given** for a ruling on this seat. | weak |
+| 6. Families | inherited | The same four families, all failing at 2 %. | — |
+| 7. Record | — | `StageResult.window_area_tol = None` and `NodeAction.window_area_tol` | present |
+
+Would change the verdict: a ruling that a hand-run stage is a steering stage, or the GUI passing the stored plan's fraction to its last stage.
+
+> Author: the grounds now say a hand-run stage carries the 2 % error and that the seat is unruled; it goes to the maintainer with the evaluation-windows question.
+
+**`rietx.schemas.instrument.TCHZ_CEILING_DEG` (constant, tier 1, 180)**
+
+**weak.** The case for a finite ceiling is real but rests on one TRF fit. The number exists to steer TRF's steps, which makes it a solver-path setting, not arithmetic. And under the shipped default the fit it was measured on still fails.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the width of the 2theta axis (180 deg for X and Y, its square for U, V and W)" (evidence) | A finite upper bound on all five peak-width coefficients. | clear |
+| 2. Kind | constant | n/a | n/a |
+| 3. Case against | none given | None of GSAS-II, FullProf, RIETAN-FP, TOPAS, MAUD or EasyDiffraction bounds these by default (practice.md § Peak-width limits). So the choice lies outside practice, and the row names its reason, as the new rule asks. "LM … gives the same answer either way" (`ProfileTCHZ` docstring): no test found. | moderate |
+| 4. Case for | "CPD brucite Stephens under TRF stopped at Rwp 0.17891, one S_HKL t = -203, without it and at 0.17878 … with it" | Confirmed in `rulings.md:287-293`. Any finite ceiling, at 10 or at 1000, restores the fit. | strong on one fit |
+| 5. Tier and source | tier 1, "arithmetic" | The arithmetic part holds for X, Y and W: no line is wider than the axis. For U, the width term is U·tan²θ, so at 2θ = 10° U at its ceiling still gives a FWHM of about 16°. That is far past any line, but it is not "the axis width". The reason the number exists is TRF's path. The rulings record that B10 holds solver-path switches at tier 3 until refits of three families agree (`rulings.md:429-433`). | weak |
+| 6. Families | one: CPD brucite, under TRF | One family. Part of the evidence is an Rwp comparison. And `test_acceptance_stephens.py:168-173` now declares `closing_window_tol=None`, because with the closing stage TRF brucite collapses again (t = -268). The ceiling's measured benefit therefore holds only with the closing stage off. | weak |
+| 7. Record | — | none. A ceiling that bound would raise `BOUND_HIT`, but nothing shows it steering TRF. | absent |
+
+Would change the verdict: TRF refits of three families with and without the ceiling, with the closing stage on, plus an LM bit-identity check with the ceiling in place.
+
+> Author: retiered to tier 3 as a solver-path setting, the closing-stage failure in its evidence (`1f58008b6`); the three-family TRF refits are owed.
+
+**Rows moved off `UNAUDITED_BASELINE`**
+
+These leave the list and nothing is added, so the list shrinks and no reason is owed.
+
+**`rietx.schemas.instrument.HARMONIC_WEIGHT_SEED` (invariant, 0.01)**
+
+**weak.** The margin is wide: 0.003 against a bar of 0.1. But it rests on one synthetic family, misses the true-weight-0 case, and the invariance holds only while the closing stage is on. (The seed is the starting weight of the λ/2 harmonic line.)
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | the start of the λ/2 weight | yes | clear |
+| 2. Kind | constant | n/a | n/a |
+| 3. Case against (the seed matters) | — | Before the closing stage the weight moved 0.15 esd and one background coefficient 0.86 between seeds (`waiting.md` § B8 and B9). With `closing_window_tol=None` that is still the behaviour. | moderate |
+| 4. Case for (invariant) | "seeds 0.001 and 0.3 against 0.01 within 0.1 plain esd (at most 0.003)" (evidence; plain esd is the esd without the Bérar-Lelann inflation) | Confirmed in `tests/test_staged_start_invariance.py`'s docstring. | strong where tested |
+| 5. Tier and source | invariant, `test_the_harmonic_seed_does_not_change_the_answer` | The test asserts the 0.1 bar, not the measured margin. Its docstring lists seeds "0.001, 0.1 and 0.3", but the code runs 0.001 and 0.3. The label is unconditional, yet the invariance holds only behind the closing stage. Last session the judge raised the same objection about `NFEV_PER_ITERATION` (WP-2002 file, line 548). | weak |
+| 6. Families | "a synthetic CW neutron corundum, the one family a harmonic has" | One family. Its data come from rietx's own forward model, so the test contains no model error. True weights 0.003 and 0.05 only. True weight 0, the usual case when a caller turns harmonics on to look, is not in the test. | weak |
+| 7. Record | — | `HARMONIC_ABSENT` / `HARMONIC_FRACTION` | present |
+
+Would change the verdict: a true-weight-0 case, the held-out Nd₂Ru₂O₇ pair, and the row saying it is invariant only with the closing stage on.
+
+> Author: true weight 0 added and passing, the row says "behind the closing stage only", the docstring corrected (`1f58008b6`); the held-out pair stays held out.
+
+**`rietx.schemas.plan.INTERMEDIATE_FTOL` and `PlanSpec:intermediate_ftol` (tier 3, 1e-6)**
+
+**holds.** The case for acting is stronger. Four unrelated families agree within 0.042 plain esd with the arm that converges every stage, and the one failing case favours the shipped value. Two gaps: no distance from an independent reference, and the saving was measured before the closing stage existed. (The setting is the stopping tolerance on stages before the last.)
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | stops every stage but the last at 1e-6 | The last declared stage now stops early too, since the closing stage is last. | clear |
+| 2. Kind | `ambiguity=1` | Efficiency, near answer-invariant. I agree. | agree |
+| 3. Case against | "fails on cpd-1a with an absent zircon declared, 0.185 esd on fluorite a" | Confirmed (strict xfail). At 1e-9 the unseen zircon's cell walks until the stage budget runs out, so the shipped value is the better arm. practice.md does not survey stopping tolerances, and I found no program default. | weak |
+| 4. Case for | "1.00-2.15x fewer evaluations (WP-1113/1123)" | Measured before the closing stage. **none given** behind it. | moderate |
+| 5. Tier and source | tier 3, approved 2026-10-21 (Q2, bar 0.1 plain esd) | matches `rulings.md:259-268` | holds |
+| 6. Families | SRM 660c, FAP, cpd-1a, NAC | Four laboratories. The reference is the other arm, which verifies and does not validate. **none given** on distance from the certificate or the weighed composition. | gap |
+| 7. Record | — | `StageResult.ftol`, `NodeAction.ftol` | present |
+
+Would change the verdict: the evaluation saving re-measured behind the closing stage, and the SRM 660c cell and CPD fractions against their references under both arms.
+
+**`rietx.schemas.plan.StageSpec:ftol` (default `None`, tier 3)**
+
+**holds.** It defers to the plan's schedule, and its evidence is the intermediate tolerance's, copied verbatim. Would change the verdict: a stage-level default other than "defer to the plan".
+
+**`rietx.schemas.results.StageResult.ftol` (action, tier 3)**
+
+**holds.** It records the tolerance each stage ran at, never the one it declared. Would change the verdict: a stage whose solver ran at a tolerance other than the recorded one.
+
+**`rietx.schemas.results.StageResult.seeded` (action, tier 3)**
+
+**weak.** The Suortti half holds. The Pitschke half lets the starting value pick between two minima that the data score, and it reports nothing. Rule 1 puts that in the second kind, while the row claims the first. (Suortti and Pitschke are the two surface-roughness corrections.)
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the one shipped seed is _ROUGHNESS_STAGE's 0.3" | It starts both roughness strengths at 0.3 when they sit on their floor of 0. | clear |
+| 2. Kind | `ambiguity=1` | Pitschke from 0 lands in a minimum with χ² 4.8 % lower, outside the model's valid range. From 0.3 it reaches the switched-off branch (`rulings.md` Q3). Two outcomes the data score make this the second kind: rank them, pick only in Rule 1's two cases. | disagree |
+| 3. Case against | the author's case in Q3: a careful user may want to see that the data prefer the correction, answered with "The warning already shows them that" | `ROUGHNESS_OUTSIDE_REGIME` fires on the branch reached from 0. From the shipped 0.3 the fit stays in range, so as I read it that warning does not fire there, and the caller never learns that a lower-χ² branch exists. I inferred this and did not run it. FullProf's examples start at 1.23-1.50 (practice.md). Where that start lands: none measured. | moderate |
+| 4. Case for | "from 0.3 the fit reaches the switched-off branch inside the model's valid range" | From 0, CPD zincite's scale goes ×2.1 and Biso(O) goes 0.05 → 0.59. | strong |
+| 5. Tier and source | tier 3, ruled (c) on 2026-10-21 | Ruling (c) was "Split the constant". The build keeps one number in the code and records the two models apart, which matches the option's substance. | holds |
+| 6. Families | Suortti: five patterns, three families; Pitschke: CPD only | As stated. Suortti is measured against each family's reference ("the same distance from each reference", waiting.md § B3). | Suortti holds, Pitschke one family |
+| 7. Record | — | `StageResult.seeded`. `ROUGHNESS_OUTSIDE_REGIME` fires only on the branch reached from 0. | partial |
+
+Would change the verdict: the 0.3 path reporting that a start at 0 reaches a lower χ² out of range (the ranking), or Pitschke measured on a second family.
+
+> Author: the maintainer ruled (c) on a brief that stated the lower out-of-range χ² from 0; the ranking report is a fair follow-up and is not built.
+
+**Rows changed in evidence or grounds**
+
+**`rietx.model.forward.WINDOW_AREA_TOL` (grounds and approval changed)**
+
+**weak.** The new grounds name one place where the 2 % error still reaches an answer. This same change leaves several others: a hand-run stage (`run_stage`), `predict(grid)`, and the magnetic default solve, whose `MagneticTrial.moments` (`strategy/magnetic.py:387`, plan at `:2253-2258`) are numbers a caller reads. Would change the verdict: grounds that list every place still returning numbers at 2 %.
+
+> Author: the grounds now list all five (`1f58008b6`).
+
+**`rietx.model.forward.REFLECTION_MARGIN_DEG` (evidence changed)**
+
+**holds** as a tier-3 row. Two problems: the added numbers sit in no test or docstring, and the test guarding the margin measures it at windows the answer no longer uses. The closing stage made the default answer's error larger on the fluorapatite (0.124 → 0.186σ). Would change the verdict: the margin test run at `CLOSING_WINDOW_TOL`, with the new numbers in its docstring.
+
+> Author: the numbers are now in `test_window_domain.py`'s docstring; the margin test stays at the declared stages' 2 %.
+
+**Rule text changed**
+
+**`docs/milestones/generality.md` § The rule, tier 2, and `.claude/agents/generality-review.md` question 5**
+
+**weak.** The text records the maintainer's Q5 answer faithfully. It leaves open how a default that switches on an action is treated, and `closing_window_tol` is that case. (i) A default that turns on an action now escapes the dissent test, while the same action keyed on its record field does not; tier and kind are separate axes, so this is no contradiction, but the text should say that a dissent still bears on a default's `ambiguity`. (ii) "Inside the range" is silent on whether a value no program uses earns tier 2, such as 1e-3, between GSAS-II's 0.5 % and zero. (iii) The removed sentence "one without the feature is neither" leaves open, for actions, whether a program lacking the feature dissents. MAUD and the closing stage are the live case. Would change the verdict: one sentence on a default that switches an action, and one on interpolated values.
+
+> Author: two sentences added (`1f58008b6`): a value between two programs' is inside the range, and a default that switches on an action still faces the judgement ground, where a dissent counts.
+
+**`docs/milestones/generality.md` § The rule, tier 1's cap clause (marked confirmed)**
+
+**holds.** The maintainer confirmed the clause.
+
+**Heuristics the table cannot see**
+
+**(a) The closing stage itself (`RefinementPlan.closing_stage`, `strategy/staged.py`)**
+
+**weak.** The case for acting is strong and measured. Three design choices inside the stage have no evidence given: (i) it copies the last stage's iteration budget onto an all-free solve, and B11's three budget rows were measured before the closing stage; (ii) it is a single solve, and on LaB6 a second recompile moves U by 1 esd; (iii) under TRF it collapses brucite's S_HKL (t = -268). Would change the verdict: the budget margin measured behind the closing stage, and the TRF and LaB6 cases recorded in a row.
+
+> Author: the full suite re-asks B11's margins on the final tree; (ii) and (iii) are now on the closing stage's row.
+
+**(b) The package's trial plans declaring `closing_window_tol=None`**
+
+**holds** for the ranking trials. **weak** for the magnetic default solve, because its trials' moments are numbers the caller reads; the window error on magnetic peaks was not measured. The nuclear reference carries the plan's setting, so ΔBIC compares like with like. Would change the verdict: the moment error measured at 2 % against 1e-3 on the LaMnO₃ acceptance pattern.
+
+> Author: kept for cost and recorded on `WINDOW_AREA_TOL`'s row; the LaMnO₃ measurement is owed.
+
+**(c) Per-stage findings collapsed by code and paths (`restated`, `refine._run_plan`)**
+
+**holds** as de-duplication. One gap is inferred, not measured: a finding that the closing stage clears stays. This applies to `ADP_NOT_POSITIVE_DEFINITE`, `STEPHENS_STRAIN_NOT_POSITIVE` and `TEXTURE_NOT_POSITIVE`, which are not re-taken on the converged vector. Such a finding stays in the result's diagnostics and reads as a statement about the answer. Would change the verdict: a test where the closing stage clears a finding that the last declared stage raised.
+
+> Author: closed in `1f58008b6`: those three and `HUMP_TOO_NARROW` are re-taken on the answer.
+
+**(d) `Refinement.predict(grid)` at the default windows; `SolveCost.from_pawley` at the declared stages' windows**
+
+**weak** for `predict`. **holds** for `from_pawley`. On a default fit, `predict(data)` now differs from `y_calc` by the 2 % against 0.1 % gap, and `predict` takes no window argument. Would change the verdict: `predict` accepting a window fraction, or defaulting to the last fit's, with the docstring's measurement redone.
+
+> Author: the docstring is dated; defaulting to the last fit's broke the never-fitted-twin test, and a window argument waits on the evaluation-windows question.
+
+**(e) The acceptance suites declare `closing_window_tol=1e-3`; the Stephens suite declares `None`**
+
+**holds** for the suites that declare it. **weak** for the Stephens suite, which leaves the shipped default unpinned under TRF. Would change the verdict: the TRF failure carried into the `PlanSpec:closing_window_tol` and `TCHZ_CEILING_DEG` rows, or a Stephens case pinned with the closing stage on under LM.
+
+> Author: both rows carry it now (`1f58008b6`).
 
 *Forwarded.* WP-1467 (LaB6's clamp xfail), WP-2012 (its mirror behind the closing stage), WP-2003 (the series pays the closing stage per pattern, unmeasured along a chain), WP-2015 (presets end in it), WP-2017 (the landed rows, the margin at closing windows, the six settings), WP-2018 (the closing stage against every per-stage action). Filed: WP-2019.
 
