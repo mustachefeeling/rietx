@@ -83,3 +83,5 @@ datasets it was tested on.
 - `docs/milestones/generality.md` § The rule (tiers and demotion).
 
 ## Handover log
+
+- **2026-10-21** — Filed by the WP-2002 session from the maintainer's answer to the sixth round's Q6. Nothing built; the survey is the first task.

@@ -5471,6 +5471,13 @@ class Refinement:
         4200 channels differ at all, by at most 8e-6 of the peak height, every
         one of them in a peak tail at a window edge.  ``RefinementResult.y_calc``
         is the first of the two — the curve the fit actually minimised.
+
+        A grid compiles at the default windows whatever this object has
+        fitted, so a never-fitted twin carrying the same models returns the
+        same array.  A plan's closing stage measures its answer on windows
+        dropping ``closing_window_tol`` of each peak (WP-2002), so to redraw
+        ``y_calc`` on another grid, compile with
+        ``window_area_tol=result.stages[-1].window_area_tol``.
         """
         table = ParameterTable(self.structure, self.instrument)
         if two_theta is None:
@@ -5495,11 +5502,8 @@ class Refinement:
                 f"{mode} intensities are extracted by a fit, not computed from "
                 "the structure, so there is nothing to evaluate before one has "
                 "run. Fit first, or predict in rietveld mode.")
-        # at the windows the last fit's answer was measured on: a closing
-        # stage's, or the default (WP-2002, the sixth round's Q1 and Q2)
         model = compile_model(self.structure, self.instrument, grid,
-                              mode=mode, moving_paths=set(table.moving_paths),
-                              window_area_tol=self._plan_settings["window_area_tol"])
+                              mode=mode, moving_paths=set(table.moving_paths))
         if mode in ("lebail", "pawley"):
             _carry_lebail(self._model, model)
         return model.evaluate(table.decode(table.x0()))
