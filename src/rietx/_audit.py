@@ -1460,10 +1460,12 @@ ROWS: tuple[Row, ...] = (
         evidence="arithmetic: (2/G) sqrt(ln2/pi) normalises the FWHM-parameterised Gaussian"),
     Row("rietx.model.profiles.pseudovoigt._TCH_ETA", "constant", tier=2, value=(1.36603, -0.47719, 0.11116),
         evidence=("Thompson, Cox & Hastings (1987) J. Appl. Cryst. 20, 79, eq 5 (docstring); TCHZ "
-                  "is the default CW shape of GSAS-II and FullProf's TCH function")),
+                  "is the default CW shape of GSAS-II and FullProf's TCH function"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the same coefficients in GSAS-II, FullProf, RIETAN-FP, EasyDiffraction and TOPAS (whose 0.1116 for the cubic term is likely a misprint); MAUD and BGMN use no TCH")),
     Row("rietx.model.profiles.pseudovoigt._TCH_GAMMA", "constant", tier=2, value=(2.69269, 2.42843, 4.47163, 0.07842),
         evidence=("Thompson, Cox & Hastings (1987) J. Appl. Cryst. 20, 79, eq 4; GSAS-II 5.8.4 "
-                  "GSASIIpwd.py:975 same coefficients (checked)")),
+                  "GSASIIpwd.py:975 same coefficients (checked)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the same coefficients in GSAS-II, FullProf, RIETAN-FP, EasyDiffraction and TOPAS; MAUD and BGMN use no TCH")),
     Row("rietx.model.profiles.voigt.GAUSS_FWHM_TO_SIGMA", "constant", tier=1, value=2.3548200450309493,
         evidence="arithmetic: FWHM = 2 sqrt(2 ln2) sigma"),
     Row("rietx.model.profiles.voigt._SQRT2", "constant", tier=1, value=1.4142135623730951,
@@ -1730,7 +1732,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.qpa.BRINDLEY_MU_R_FENCE", "constant", tier=2, value=0.05,
         evidence=("Brindley (1945) Phil. Mag. 36, 347: medium powders mu*D <= 0.1, D = 2R; FullProf"
                   " manual's QPA section gives the same classes (checked: FullProf_Manual.pdf, 0.01"
-                  " < mD < 0.1)")),
+                  " < mD < 0.1)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): FullProf prints the classes; the others not checked")),
     Row("rietx.optimize.statistics.COLUMN_SAFE_EXPONENT", "constant", tier=1, value=400,
         evidence=("arithmetic: 2^-400 = 3.9e-121 squares to 1.5e-241, a normal double; 1/d^2 stays "
                   "under 1e241 (docstring, WP-1463)")),
@@ -1756,7 +1759,8 @@ ROWS: tuple[Row, ...] = (
                   "covariance's pinv would discard the direction anyway (docstring derivation)")),
     Row("rietx.params.vector.CELL_MIN_LENGTH_A", "constant", tier=2, value=1.5,
         evidence=("TOPAS Tech Ref Version 9 § 2.17 Table 2-1 (checked 2026-10-19): a, b, c floored "
-                  "at Max(1.5, ...)")),
+                  "at Max(1.5, ...)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): TOPAS alone floors a cell length, and the other six have no floor; it binds on no real cell")),
     Row("rietx.params.vector.CELL_SAFETY_ANGLE_DEG", "constant", tier=3, value=6.0,
         evidence=("three times CELL_WINDOW_ANGLE_DEG; WP-1110's trigger: a visible phase sharing "
                   "its cell with a 2 % trace copy ran 4.16 -> 3803 A in one stage; fired in none "
@@ -2306,14 +2310,16 @@ ROWS: tuple[Row, ...] = (
         evidence=("GSAS-II 5.8.4 applies Cromer-Liberman f', f'' to every X-ray histogram with no "
                   "switch (GSASIIstrIO.py:251-273, on every refinement path; checked); WP-1001: "
                   "round-robin QPA RMS 2.26 to 0.62 wt %; None declines it and "
-                  "DISPERSION_NEGLECTED says so")),
+                  "DISPERSION_NEGLECTED says so"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): all seven apply f', f'' by default, BGMN through the .ano table its default LAMBDA names")),
     Row("rietx.schemas.instrument.Source:harmonics", "default", tier=1, ambiguity=1, value=(),
         evidence=("physics/arithmetic: an X-ray Source refuses a declared harmonic "
                   "(harmonics_supported False, f' shared across lines), so empty is the only legal "
                   "value; off is exact")),
     Row("rietx.refine.Refinement.fit:mode", "default", tier=2, ambiguity=1, value="rietveld",
         evidence=("GSAS-II 5.8.4 GSASIIphsGUI.py:9404: a phase-histogram's 'LeBail' defaults False,"
-                  " i.e. Rietveld (checked)")),
+                  " i.e. Rietveld (checked)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS make the user state it")),
     Row("rietx.refine.Refinement.fit:plan", "default", tier=3, ambiguity=1, value="mccusker_default",
         evidence=("McCusker et al. (1999) J. Appl. Cryst. 32, 36, the order only (docstring); no "
                   "program ships a default plan; it frees the zero and no displacement, which "
@@ -2325,7 +2331,8 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.refine.Refinement.fit:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to the "
-                  "full data range on import (checked)")),
+                  "full data range on import (checked)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
     Row("rietx.refine.Refinement.fit:events", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: an observation channel; "
                   "tests/test_answer_invariant_defaults.py asserts the answer bit-identical with it"
@@ -2349,11 +2356,13 @@ ROWS: tuple[Row, ...] = (
                   " on")),
     Row("rietx.refine.Refinement.run_stage:mode", "default", tier=2, ambiguity=1, value=None,
         evidence=("None continues the Refinement's current mode (the last fit, run_stage or "
-                  "checkout set it), 'rietveld' on a fresh one: GSAS-II LeBail False, checked")),
+                  "checkout set it), 'rietveld' on a fresh one: GSAS-II LeBail False, checked"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS make the user state it")),
     Row("rietx.refine.Refinement.run_stage:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("None continues the Refinement's current limits (the last fit, run_stage or "
                   "checkout set them), the full range on a fresh one: GSAS-II full-range Limits, "
-                  "checked")),
+                  "checked"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
     Row("rietx.refine.Refinement.run_stage:correlation_guard", "default", value=0.98),
     Row("rietx.refine.Refinement.run_stage:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
@@ -2382,7 +2391,8 @@ ROWS: tuple[Row, ...] = (
                   "the answer bit-identical with it on")),
     Row("rietx.refine.refine:mode", "default", tier=2, ambiguity=1, value="rietveld",
         evidence=("GSAS-II 5.8.4 GSASIIphsGUI.py:9404: a phase-histogram's 'LeBail' defaults False,"
-                  " i.e. Rietveld (checked)")),
+                  " i.e. Rietveld (checked)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS make the user state it")),
     Row("rietx.refine.refine:plan", "default", tier=3, ambiguity=1, value="mccusker_default",
         evidence=("McCusker et al. (1999) J. Appl. Cryst. 32, 36, the order only (docstring); no "
                   "program ships a default plan; it frees the zero and no displacement, which "
@@ -2394,7 +2404,8 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.refine.refine:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to the "
-                  "full data range on import (checked)")),
+                  "full data range on import (checked)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
     Row("rietx.refine.refine:backend", "default", tier="caller", ambiguity=1, value="numpy",
         evidence=("opt-in: jax/torch/torch-mps need an extra no default install has; not "
                   "answer-invariant, since another backend agrees only to fp tolerance (torch-mps "
@@ -2402,7 +2413,8 @@ ROWS: tuple[Row, ...] = (
                   "holds columns, not answers)")),
     Row("rietx.refine.refine:solver", "default", tier=2, ambiguity=1, value="lm",
         evidence=("GSAS-II 5.8.4 GSASIIobj.DefaultControls 'deriv type': 'analytic Hessian' runs "
-                  "GSASIImath.HessianLSQ, a Marquardt-damped solve (checked)")),
+                  "GSASIImath.HessianLSQ, a Marquardt-damped solve (checked)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): Marquardt-damped in six; FullProf dissents, Gauss-Newton with relaxation factors")),
     Row("rietx.refine.refine:history", "default", tier="invariant", ambiguity=1, value=False,
         evidence=("answer-invariant: a history tree; tests/test_answer_invariant_defaults.py "
                   "asserts the answer bit-identical with it on")),
@@ -2440,7 +2452,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.background.auto.auto_background:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("the range a fit without limits uses (Refinement.fit:two_theta_limits); "
                   "GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to "
-                  "the full data range on import (checked, the fit row)")),
+                  "the full data range on import (checked, the fit row)"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): the full range in six, BGMN the instrument function's")),
     Row("rietx.background.auto.auto_background:source", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: as wavelength, it reaches only the contamination screen; "
                   "tests/test_answer_invariant_defaults.py asserts the BackgroundChoice equal "
@@ -2449,7 +2462,8 @@ ROWS: tuple[Row, ...] = (
         evidence=("unseeded, every coefficient at the schema's 0.0; GSAS-II 5.8.4 starts a new "
                   "Chebyshev at the constant (1.0, 0, 0) and not from the data "
                   "(GSASIIdataGUI.py:2207, inventory check); seed=True is the opt-in, and #725 "
-                  "is open on flipping it")),
+                  "is open on flipping it"
+                  "; seven programs, 2026-10-21 (docs/wp/2002-batch/practice.md): none of the seven seeds a background from the data by default")),
     Row("rietx.sequential.refine_sequential:carry", "default", value=("*",)),
     Row("rietx.sequential.refine_sequential:carry_hkl_intensities", "default", value=True),
     Row("rietx.sequential.refine_sequential:backend", "default", value="numpy"),
