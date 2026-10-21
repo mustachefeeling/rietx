@@ -1313,15 +1313,23 @@ ROWS: tuple[Row, ...] = (
                  "2026-10-22) keeps it at tier 3 for WP-2017's second pass over a refine-from-zero "
                  "floor of its own."),
         approved="2026-10-22"),
-    Row("rietx.model.forward.MAGNETIC_SIZING_FLOOR", "constant", tier="invariant", value=0.1,
-        evidence=("answer-invariant behind the closing stage only: a magnetic width freed from "
+    Row("rietx.model.forward.MAGNETIC_SIZING_FLOOR", "constant", tier=3, value=0.1,
+        evidence=("invariant behind the closing stage only: a magnetic width freed from "
                   "zero is drawn on windows sized at the floor, which lose 3.2 and 4.1 % of a "
                   "magnetic peak at the planted 0.22 and 0.30 deg against 2 %, and the closing "
                   "stage recompiles at the width reached; the preset's answer with the floor "
                   "shipped and at the planted width agrees to 0.000 plain esd (0.031 before the "
                   "closing stage), on the synthetic MnF2 round trip, one family "
-                  "(tests/test_magnetic_width.py); the package's magnetic default solve runs no "
-                  "closing stage (WP-2002, the seventh round's Q2, 2026-10-21)")),
+                  "(tests/test_magnetic_width.py); the package's magnetic default solve, a plan "
+                  "with closing_window_tol=None and a stage run by hand have none, and a plan "
+                  "ending on the stage that frees the width keeps the clipping: 0.07, 0.17 and "
+                  "0.57 esd on the moment (WP-2002, the seventh round's Q2, 2026-10-21)"),
+        grounds=("A numerical setting whose domain test passes behind the closing stage and "
+                 "fails on the paths without one; tier 3 under B10 option 2 (ruled 2026-10-19), "
+                 "the value left alone under the seventh round's Q2 (ruled 2026-10-21).  It was "
+                 "first recorded invariant, a class with no conditional form (the generality "
+                 "judge, 2026-10-22)."),
+        approved="2026-10-21"),
     Row("rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC", "constant", tier=3, value=0.5,
         evidence=("WP-0306: 'the point past which least squares cannot apportion intensity'; LaB6 "
                   "only (synchrotron and Cu, tests/test_pawley.py), never swept; second pass owed"),
@@ -1353,7 +1361,7 @@ ROWS: tuple[Row, ...] = (
                  "round's Q2): an edge rule at CLOSING_WINDOW_TOL was built and reverted (evidence), "
                  "so this margin serves every compile; the eighth round (ruled 2026-10-22) keeps "
                  "it at 0.5 deg, the 0.03-0.04 esd it costs recorded, for WP-2017's second pass."),
-        approved="2026-10-21"),
+        approved="2026-10-22"),
     Row("rietx.model.forward.WINDOW_AREA_TOL", "constant", tier=3, value=0.02,
         evidence=("window area tolerance; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC against 5e-5 (converged): fails on all four, "
                   "max |dy|/sigma 0.71-2.15 at fixed parameters against a bar of 0.1, a converged "
@@ -1369,7 +1377,9 @@ ROWS: tuple[Row, ...] = (
                  "evaluation outside a fit and a stage run by hand (the seventh round's Q1).  Its "
                  "error still reaches a number a caller reads from a plan with "
                  "closing_window_tol=None, the magnetic default solve's trial moments and "
-                 "SolveCost.from_pawley."),
+                 "SolveCost.from_pawley, and on purpose the FitReport's shapes, which "
+                 "report._reading_models compiles at this fraction (the eighth round's item 1, "
+                 "ruled 2026-10-22)."),
         approved="2026-10-21"),
     Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=3, value=0.3,
         evidence=("minimum window half-width, the room a peak has to move within one stage; "
@@ -1436,7 +1446,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.origin.A6_MAX_ITER", "constant", tier="invariant", value=2000,
         evidence=("answer-invariant: caps a weights-only iteration; reached by 498 of the 1200 "
                   "realisable (A5) failures at A5_CLIP 1e-4, every one met by the sum solve; "
-                  "tests/test_floating_origin.py:694 asserts eq 21 met where (A6) stalls at its cap")),
+                  "tests/test_floating_origin.py::test_eq_21_is_met_where_a5_holds_by_a_hair asserts "
+                  "eq 21 met where (A6) stalls at its cap")),
     Row("rietx.model.origin.A6_RTOL", "constant", tier=2, value=0.001,
         evidence=("Flack & Schwarzenbach (1988) Acta Cryst. A44, 499, Appendix: 'about five "
                   "iterations ... the 0.1% level' (docstring)")),
@@ -1509,8 +1520,10 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
                  "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
-                 "the declared stages, which only steer, and the answer is sampled at the "
-                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
         approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.MIN_NODES", "constant", tier=3, value=8,
         evidence=("FCJ quadrature floor; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
@@ -1520,8 +1533,10 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
                  "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
-                 "the declared stages, which only steer, and the answer is sampled at the "
-                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
         approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.NODES_PER_FWHM", "constant", tier=3, value=6.0,
         evidence=("FCJ quadrature density; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
@@ -1531,8 +1546,10 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
                  "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
-                 "the declared stages, which only steer, and the answer is sampled at the "
-                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
         approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.SKIP_EXTENT_FWHM_RATIO", "constant", tier=3, value=0.02,
         evidence=("FCJ skip below this extent; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
@@ -1541,8 +1558,10 @@ ROWS: tuple[Row, ...] = (
         grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
                  "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
                  "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
-                 "the declared stages, which only steer, and the answer is sampled at the "
-                 "closing rule (CLOSING_NODES_PER_FWHM and its siblings)."),
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
         approved="2026-10-21"),
     Row("rietx.model.profiles.pseudovoigt._4LN2", "constant", tier=1, value=2.772588722239781,
         evidence="arithmetic: exp(-4 ln2 x^2/G^2) puts the half maximum at x = G/2"),

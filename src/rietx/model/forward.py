@@ -288,8 +288,8 @@ AXIAL_SIZING_FLOOR = 0.02
 #: edge window removed that, at 1.3× the FAP fit's time, and let tail-only
 #: reflections lift the scale-B separation (``refine._scale_b_separation``) over
 #: its floor on a narrow scan, so a closing stage freed a ridge its declared
-#: stages held: tried and reverted in WP-2002's seventh round, owed to the
-#: maintainer.
+#: stages held: tried and reverted in WP-2002's seventh round, and the eighth
+#: round kept 0.5° for WP-2017's second pass.
 REFLECTION_MARGIN_DEG = 0.5
 
 #: WP-1343.  When a magnetic broadening term is about to be *refined* from
