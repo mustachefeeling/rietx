@@ -1,6 +1,6 @@
 # WP-1329 — the moment in a series: the onset, the hold, the trajectory
 
-Milestone: magnetic · Status: 🔄 2026-10-01 — tasks 1–4 and both review follow-ups landed (PRs #522, #589); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
+Milestone: magnetic · Status: 🔄 2026-10-21 — tasks 1–4 and both review follow-ups landed (PRs #522, #589), the two codes' skill rows moved to `references/magnetic.md` (PR #1062); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
 Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 
@@ -190,6 +190,29 @@ chain on the same data is reported as a range, never gated.
   [1325](1325-parametric-series.md) the parametric question.
 
 ## Handover log
+
+### 2026-10-21 — the two codes' skill rows moved to the magnetic file, by `/pr-review`
+
+The skill's rows for `SEQUENTIAL_MOMENT_HOLD` and `SEQUENTIAL_MOMENT_ONSET`
+now sit in `references/magnetic.md`, in a new § Series codes, beside the rest of
+the magnetic family. That is issue #286's ruling (one order-parameter question,
+one file), and PR #385 set the precedent of moving codes to where their reader
+meets them. An agent reading a moment series now finds both codes in the file
+it is already reading for the moment.
+
+*Done:* PR #1062 (`0669ea6e`, outside contributor), merged as `e1cab2ee` by
+`/pr-review`, in a five-PR stack gated together. The row text moved unchanged.
+`series.md` keeps a pointer beside its `SEQUENTIAL_PERSISTENT_FINDING` one, and
+its count went from eleven to nine, so nine table rows, the abstention and the
+two moment codes still make "the twelfth" true. All three skill copies were
+re-synced byte for byte. The gate was the fast suite and the full `-m slow`
+suite on the merged tree of main `05ac4bac` and the five PRs. `main` after the
+last merge is that tree.
+*What it does not do:* touch task 5. PR #1073 (row H, Ba₂FeSbSe₅ on LLB G4.1)
+is an open outside PR for task 5, not yet reviewed.
+*Gotcha:* the PR landed after #1050 had edited `references/magnetic.md`. The two
+merged clean, and the combined file was read before the merge.
+*Next:* task 5 (#1073 is the candidate).
 
 ### 2026-10-03 — the checklist follows the status, by a cleanup session
 
