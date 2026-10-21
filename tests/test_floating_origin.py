@@ -802,6 +802,7 @@ def _realisable_a5_failures(n_per_seed=400):
     return mats
 
 
+@pytest.mark.slow  # 15 s serial: the 1200-matrix domain test, run nightly like the other B10 domain tests
 def test_the_clipped_centroid_stays_within_an_esds_own_error_of_the_hold():
     """``A5_CLIP`` over its domain: every (A5) failure a data matrix can have.
 

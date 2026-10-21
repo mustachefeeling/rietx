@@ -424,6 +424,7 @@ def _sphere_minimum_error(order):
     return worst
 
 
+@pytest.mark.slow  # 10.5 s serial for the four orders, run nightly like the other B10 domain tests
 @pytest.mark.parametrize("order", [2, 4, 6, 8])
 def test_the_sampled_sphere_minimum_meets_the_true_one(order):
     """``TEXTURE_SPHERE_SAMPLES`` = 2000, polished, over the orders its comment claims.
