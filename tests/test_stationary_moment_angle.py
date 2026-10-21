@@ -14,7 +14,9 @@ Gauss-Newton step to where their columns vanish, Δχ² there with the other
 columns refitted by one linear step, against the χ̄² cut for that many
 one-sided directions.  A set that passes leaves the covariance.  The fixtures
 are ``test_magnetic_solve``'s two-site set simulated with Poisson noise, about
-half a second a fit.
+3.4 s a fit, and about 15× that with the automatic profile interval of each
+angle left out (52.1 s for ``_fit(0.0, seed=4)``; Linux x86-64, WP-2019).  So
+``_fit`` computes the interval only for the rows that read it.
 """
 from __future__ import annotations
 
@@ -58,11 +60,13 @@ def _plan() -> rx.RefinementPlan:
 
 
 def _fit(tilt: float, *, two: bool = True, start_tilt: float | None = None,
-         seed: int | None = None, intervals: bool = True):
+         seed: int | None = None, intervals: bool = False):
     """Mn1 at 3.5 μ_B tilted ``tilt`` from **a**, Mn2 at 0.7 along **a**.
 
-    ``intervals=False`` turns off the profile interval the fit computes for
-    each angle it leaves out (WP-2002), as on a package trial.
+    ``intervals=True`` keeps the profile interval the fit computes for each
+    angle it leaves out (WP-2002).  Off by default, as on a package trial,
+    because it is most of a fit's cost here and only the rows that read it
+    pay for it (WP-2019).
     """
     T = _solve()
     mag = _magnetic()
@@ -125,7 +129,7 @@ def test_a_stop_beside_the_symmetry_direction_leaves_the_angles_out():
     cut makes at 5 % (WP-1929 measured 3 of 48), so the seed is chosen for a
     low statistic and only the verdict is pinned.
     """
-    ref, _data, result = _fit(0.0, seed=4)
+    ref, _data, result = _fit(0.0, seed=4, intervals=True)
     stage = result.stages[-1]
     (only,) = stage.moment_angle_tests
     assert only.paths == ANGLES and only.reached and only.zeroed
@@ -275,7 +279,7 @@ def test_an_angle_without_an_esd_still_has_a_profile_interval(nudge):
     macOS runners unnudged.
     """
     ref, data, result = _fit(0.0, two=False, seed=2,
-                             start_tilt=0.04 * (1.0 + nudge))
+                             start_tilt=0.04 * (1.0 + nudge), intervals=True)
     azimuth = f"{MN1}.dof2"
     (passed,) = [t for t in result.stages[-1].moment_angle_tests if t.zeroed]
     assert azimuth in passed.paths and _rows(result)[azimuth].stderr is None
@@ -304,7 +308,7 @@ def test_a_left_out_angle_carries_its_interval_and_the_history_gains_no_node():
     own node.  Every other row, and every row of the fit with them off, has
     ``interval`` ``None``.
     """
-    ref, _data, result = _fit(0.0, two=False, seed=2, start_tilt=0.04)
+    ref, _data, result = _fit(0.0, two=False, seed=2, start_tilt=0.04, intervals=True)
     off_ref, _data, off = _fit(0.0, two=False, seed=2, start_tilt=0.04,
                                intervals=False)
     (passed,) = [t for t in result.stages[-1].moment_angle_tests if t.zeroed]
@@ -407,6 +411,7 @@ def test_an_angle_a_named_variable_drives_leaves_the_covariance():
         m1=Moment.from_values(_vec(3.3, 0.04, 0.03), "Mn3+", vary=True),
         m2=Moment.from_values(_vec(0.75, 0.03, 0.03), "Mn3+", vary=True),
         magnetic=mag)]), instrument)
+    ref._auto_intervals = False   # no row here reads one (_fit's docstring)
     start = {r.path: r.value for r in ref.parameters()}
     ref.add_variable("phi", start[f"{MN1}.dof2"])
     ref.tie_equal([f"{MN1}.dof2", f"{MN2}.dof2"], source="vars.phi")

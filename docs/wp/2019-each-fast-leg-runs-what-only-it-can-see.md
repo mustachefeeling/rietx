@@ -185,11 +185,17 @@ cutting it.
   - The decision says what a guide could break on one Python version and not
     another.
   - `test_examples.py`'s docstring gets its cost model re-measured.
-- [ ] **Stop the interval cost where nothing reads it.**
+- [x] **Stop the interval cost where nothing reads it.**
   - The 21 cases that do not assert on the interval stop computing it, through
     the switch WP-2002 settles (see its Inherited).
   - The five that assert on it keep it.
   - `test_stationary_moment_angle.py`'s docstring cost is corrected.
+  - *Done 2026-10-21 through `Refinement._auto_intervals`, the only switch
+    there is: 2002's open branch keeps it private, and a public one would be
+    a rename here. Both files' `_fit` helpers default it off, and the five
+    readers pass `intervals=True`. `refine_sequential` takes no switch, so
+    `test_a_series_moment_row_states_the_written_back_moment` still pays for
+    one pattern's intervals (5.6 s).*
 - [x] **Cut `test_cell_runaway_safety`'s triclinic Le Bail case.** Test the
       reset directly, or mark it `slow` and see it pass once in the nightly's
       `full`. *Marked `slow` (2026-10-21): the reset of this cell and the reset
