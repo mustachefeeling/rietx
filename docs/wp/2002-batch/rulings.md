@@ -292,6 +292,132 @@ the lead decides by the design rules and records the choice here.
   under TRF with every ceiling at the axis width, Rwp 0.17878 and t 0.36, −1.22, 0.40,
   2.29; the no-ceiling control in the same script 0.17891 and t −203.34.
 
+## Seventh round: asked and answered 2026-10-21
+
+The 5th session's handover left two items for the maintainer. The 6th session re-briefed
+both in plain words (below, whole) after one new measurement: the synthetic LaB6 round
+trip of `tests/test_refine_synthetic.py`, five noise draws, one Gaussian noise vector
+shared by both draws (`q1_synthetic.py` in that session's scratchpad). Data drawn at 2 %
+and fitted with the closing stage land, against the same data drawn at 1e-3: cell and
+zero 0.01 esd apart, W 0.10, the scale 0.19, the background constant 3.4. When the data's
+windows match the windows of the fit's last stage, the two fits agree within 0.02 esd on
+every non-background row. The background constant sits about 8 esd from truth in every arm,
+which is weighting by the observed counts (σ² = y_obs biases the level about one count
+low), not a window.
+
+**Answers.**
+
+- **Q1**: option 2, evaluation outside a fit defaults to the closing stage's windows. With a
+  question: "we got the different window settings from bgmn and rietan though??" Answered:
+  the closing *run* is BGMN's (one last all-free solve restarted from the answer), and
+  RIETAN-FP's automatic mode has the same shape; neither changes its window setting
+  between stages. RIETAN-FP recomputes its windows at every evaluation with one cut (0.002
+  of each peak's height), BGMN computes whole peaks. So two window settings in one fit are
+  rietx's own, because rietx freezes windows per stage and they do not, and 1e-3 is
+  rietx's measured value between GSAS-II's 0.5 % and BGMN's whole peak. In both programs a
+  calculated pattern uses the fit's windows, which option 2 matches.
+- **Q2**: option 2, each setting fixed by its kind.
+
+**The lead's choices inside the answers** (the sixth round's standing instruction):
+
+- A stage run by hand (`Refinement.run_stage`, the GUI's single-stage run) takes the
+  closing windows by default. The brief proposed it under option 2 and the maintainer did
+  not object. A caller wanting the fast stage passes `window_area_tol=WINDOW_AREA_TOL`.
+- A recorded `window_area_tol` of `None` keeps meaning the declared stages' 2 %, so every
+  history written before this round replays unchanged; only the compile's own default moves.
+- The FCJ rule on the closing stage is the first proposal's set (`NODES_PER_FWHM` 12,
+  `MIN_NODES` 10, `MAX_NODES` 1024, `SKIP_EXTENT_FWHM_RATIO` 3e-4: worst 0.25 and 0.81 of
+  the lab and synchrotron bars), the margin chosen over the cheapest set (11 / 8 / 768 /
+  3.5e-4 at 0.95 of the bar): the cost falls on one stage only. It is chosen by the window
+  fraction: a compile at windows as tight as `CLOSING_WINDOW_TOL` or tighter samples FCJ
+  at the closing rule, so a record's window fraction also says which rule ran.
+
+### The two briefs as sent (2026-10-21)
+
+#### Q1. Which windows should evaluation outside a fit use?
+
+**The decision.** Whether `predict()` and `compile_model()` should default to the closing stage's 0.1 % windows instead of 2 %. These two calls evaluate a model without fitting it. People use them to redraw a figure, to compute a curve on another grid, and to draw a synthetic pattern for testing a refinement against known truth. This needs you because it changes a default users call, and it moves the synthetic data in 39 test files (the previous session's count).
+
+**Context.** Outside a fit, rietx still computes at 2 %. That has two consequences.
+
+First, `predict(data)` after a default fit no longer returns the curve the fit minimised. The previous session measured the gap at 1.85e-4 of the tallest peak. You would not see that on a plot. In the tails it is not small against the noise: on a synthetic LaB6 pattern I drew today, the 2 % and 0.1 % curves differ by up to 0.8σ at one point.
+
+Second, synthetic data drawn at 2 % are missing 2 % of each peak's tails, and the closing stage then fits tails the data lack. When the closing stage became the default, 127 fast tests failed. Two of the four parallel subagents that sorted them found recovery tests failing for this reason. The tests covered texture coefficients, magnetic moment angles, and the claims of `AIR_SCATTER_UNDECLARED` (the diagnostic saying the pattern shows air scatter the model does not declare). When the data were redrawn at 0.1 %, every one of them recovered its truth. The subagents made those tests pass by declaring `closing_window_tol=None`, which runs only the declared stages. So those tests now exercise a path that a default user never runs.
+
+Today I measured the size of this effect on the synthetic LaB6 round trip: synchrotron data, 4200 points, five noise draws, with the same noise added to both patterns. I compared data drawn at 2 % with data drawn at 0.1 %, both fitted with the closing stage:
+- cell and zero shift: 0.01 esd apart
+- Caglioti W: up to 0.10 esd
+- phase scale: up to 0.19 esd
+- background constant: up to 3.4 esd
+
+When the data's windows match the windows of the fit's last stage, the two fits agree within 0.02 esd on everything but the background. So the shifts above come from the mismatch alone. This pattern has narrow, nearly Gaussian peaks. Lab peaks with Lorentzian tails lose more area at 2 %, so I expect larger shifts there. I have not measured one.
+
+One option is ruled out: making `predict` default to whatever windows the object's last fit used. A test requires that a never-fitted copy with the same models predicts the same array as the fitted one. That keeps `predict` a function of the model alone.
+
+**Aim.** A curve computed from an answer should be the curve that produced it, and synthetic tests should exercise the path users run. This serves anyone who redraws a figure or checks a refinement on synthetic data. It also serves you, through tests that test what ships.
+
+**Options.**
+1. **Do nothing.** Evaluation stays at 2 %. `predict` stays up to 1.85e-4 of the peak height away from `y_calc`. A user checking a refinement on synthetic data sees the shifts above and cannot tell them from a refinement error. The tests keep their `None` declarations. No cost.
+2. **Default evaluation outside a fit to 0.1 %.** `predict` on the fitted grid should then match `y_calc` to about 8e-6 of the peak height, the gap frozen windows always left (expected, not measured). Synthetic data would carry the tails.
+   - Cost to users: a pure Lorentzian's window becomes 20 times wider, because the area left out falls as one over the window width. One evaluation took 0.01 to 0.02 s at either setting on the LaB6 grid (measured).
+   - Cost to me: the synthetic data in 39 test files move, and the numbers pinned in them need re-pinning. The `None` declarations that exist only because of the mismatch can then go.
+   - Reversible: one constant.
+3. **Give `predict` a window argument and keep 2 % as its default.** A user who knows to ask gets 0.1 %, and tests that draw synthetic data pass it. Everyone else still gets a `predict` that disagrees with `y_calc`.
+
+**Practice.** GSAS-II, MAUD, RIETAN-FP and EasyDiffraction recompute peak ranges at every evaluation (`practice.md`, checked last session). Each of the seven programs surveyed has one window setting. So in each of them, the pattern calculated at the answer is the fitted curve. From memory, and not checked this session, a calculate-only run in TOPAS or FullProf uses the same peak-range setting as its refinement. Among the programs surveyed, rietx is the only one with two window settings inside one fit, so the question does not arise elsewhere. Option 2 matches what they do.
+
+**Recommendation.** Option 2. The answer is computed at 0.1 %, so anything computed from the answer should be too. The strongest case against is the re-pinning work in 39 files. A user's own script that calls `compile_model` would also see its numbers move slightly. I would change my mind if one `predict` call took more than about a second on a large lab pattern with Lorentzian peaks.
+
+A related default waits on this answer. A stage run by hand (`run_stage`, and the GUI's single-stage run) also computes at 2 %, and no closing stage follows it. A GUI user who ends on a hand-run stage gets an answer up to about 1 esd off on lab data. That is the 2 % window's measured error. Option 2 could cover hand-run stages too, at an estimated 1.2 to 3.5 times that stage's time (inferred from whole-fit measurements). I would include it unless you want hand-run stages kept fast.
+
+#### Q2. The six other numerical settings that failed their tests
+
+**The decision.** Whether I apply each setting's measured fix. On 19 October you ruled that a numerical setting needs no sign-off from you once a test shows its arithmetic error stays under a tenth of the counting noise. A numerical setting is one that controls how carefully rietx computes and decides nothing about the science. Seven of them failed that test. The peak window was the largest failure, and the closing stage fixed it. Last round I proposed the same rule for the other six: tight values where the answer is computed. Your ruling built the closing stage but did not say whether the six follow it. Nothing has been built for them. Your standing instruction would let me decide this myself. I'm asking because the fixes move every converged fit.
+
+**Context.** Reading the six again, my proposed rule fits only two of them. They fall into three groups.
+
+*Settings frozen for each stage, where a closing-stage value helps.*
+- **The FCJ sampling rule (four constants).** rietx computes FCJ axial-divergence asymmetry (Finger, Cox and Jephcoat) as a sum of shifted copies of the symmetric peak. These constants set how many copies each peak gets.
+  - Error today: up to 5.6e-3 of the peak maximum on Lorentzian lab peaks. That is eight times the bar, which is a tenth of σ at FAP's strongest peak. Synchrotron peaks fail at every shape.
+  - Effect on answers: small. SRM 660c with 512 copies on every reflection moved no parameter past 0.04 esd.
+  - Fix: the cheapest set that passes uses 1.13 to 1.43 times as many copies, and lands only 5 % inside the bar. An earlier passing set cost 1.15 to 1.3 times the whole fit on the two lab protocols. On the closing stage alone, the cost would fall on one stage.
+- **The reflection margin (0.5°).** rietx generates reflections only up to 0.5° past each end of the scan. A reflection just outside the scan whose tail reaches in is therefore missing.
+  - Error: 0.12 to 0.19σ at the last points of FAP and cpd-1a, with answers moving 0.02 to 0.10 esd. The closing stage's wider windows made it worse.
+  - Fix: generate reflections out to the widest window. A 5° margin already gives results identical to 20°. This is cheap enough to apply to every stage.
+
+*Window floors that the closing stage probably fixes already.*
+- **The axial sizing floor (0.02).** When the axial-divergence ratios S/L and H/L start at zero, rietx sizes windows and copies as if they were 0.02. A stage that refines them to a typical 0.05 is undersampled until the next stage recompiles. The errors are 0.27 of the peak maximum, and 19.5 % of a peak's area dropped. A floor of 0.05 passes, at 1.25 to 1.8 times the fit time.
+- **The magnetic sizing floor (0.1°).** The same problem, for a magnetic peak width that starts at zero. The frozen windows drop 3.2 to 4.1 % of a magnetic peak. A plan ending on the width stage moved the moment by 0.07 to 0.57 esd.
+
+Both errors last only until the next recompile. The closing stage recompiles at the refined values, so neither floor should bind at the answer. That is an inference: I have not measured either floor with the closing stage on. One exception: the package's own default magnetic solve runs without a closing stage.
+
+*Settings unrelated to stages.*
+- **The origin-fix clip (`A5_CLIP`, 1e-3).** In a polar space group, rietx fixes the floating origin by weighting the atoms (Flack and Schwarzenbach 1988). The clip is a floor on those weights. It puts light atoms' z esds 1.40 % off, against a 1 % bar. A clip of 1e-4 gives 0.14 %, at no measured cost.
+- **The texture sphere sampling (2000 directions).** `TEXTURE_NOT_POSITIVE` warns when the refined pole density goes negative somewhere, which is unphysical. rietx checks 2000 directions and can miss a narrow dip. Dips down to −2e-3 to −7.9e-3 go unreported, against a bar of 1e-3 (the precision the warning prints). Checking 32 000 directions passes, at ten times the check's cost. A local minimisation started from the lowest of the 2000 directions passes at every order.
+
+**Aim.** Keep each setting's arithmetic error below the noise, at the smallest added fit time. This serves every user, mostly without their noticing.
+
+**Options.**
+1. **Do nothing.** All six stay at tier 3 with their failures recorded. Tier 3 is the audit table's tier for a setting chosen without a test that bounds it. WP-2017 inherits them; it is the planned second pass that measures every tier-3 setting on three dataset families. Users keep the errors above:
+   - answers move up to 0.04 esd from the FCJ rule and up to 0.10 esd from the margin
+   - some negative texture goes unwarned
+   - light-atom esds in polar groups stay 1.4 % off
+2. **Fix each by its group.**
+   - the margin: extended to the widest window, on every stage
+   - the FCJ rule: the passing set, on the closing stage only
+   - the two floors: measured with the closing stage on, and left alone if they pass
+   - `A5_CLIP`: set to 1e-4
+   - the texture check: given the local minimisation
+
+   Each lands at tier 1 under your 19 October ruling once its test passes. The clip has no measured cost. The FCJ change adds time to the closing stage; I expect under 1.3 times that stage's time, not measured. The margin and texture fixes add work I expect to be small, also not measured. Every converged fit moves slightly, and the goldens (the bit-identity reference results) need re-pinning. Each constant can be reverted on its own.
+3. **Tight values on every stage.** The FCJ passing set and the 0.05 axial floor apply everywhere. This is the simplest code. It costs 1.15 to 1.3 times and 1.25 to 1.8 times the fit time on every fit, on top of the closing stage's 1.05 to 2.05 times.
+
+**Practice.** Last round's survey of the seven programs covered only the peak window. I have not checked how they set FCJ sample counts, reflection margins, origin fixing or texture positivity checks. No program manual I have read states the accuracy of a setting like these.
+
+**Recommendation.** Option 2. Each fix has already been measured to pass, and only the FCJ change has a cost worth weighing. The strongest case against: it makes six changes that move every converged fit, for errors mostly under 0.1 esd in the answer, and WP-2017 will measure these settings on three families anyway. If you prefer a split, I can make the three cheap fixes now (margin, clip, texture) and leave FCJ and the two floors to WP-2017.
+
+## The sixth round's briefs, kept whole
+
 ### The three briefs as sent (2026-10-21)
 
 Kept here whole, so the session that reads the answers reads them against this wording. A seventh round's answers land under a new heading above this one.

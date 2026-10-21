@@ -200,6 +200,11 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       as the sixth round's Q2, with a closing stage measured (`rulings.md` § Sixth round).
       5th session: behind the shipped closing stage, tier 3 with its failing case
       (`tests/test_staged_start_invariance.py`); the harmonic seed invariant.*
+- [ ] The seventh round's builds (`2002-batch/rulings.md` § Seventh round): evaluation
+      outside a fit and a stage run by hand at the closing windows, the tests' `None`
+      declarations that existed for the mismatch removed; the six settings by kind (the
+      margin to the widest window, the FCJ closing rule, the two floors measured behind
+      the closing stage, `A5_CLIP` 1e-4, the texture check's local minimisation).
 - [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
