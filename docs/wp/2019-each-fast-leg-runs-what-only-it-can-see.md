@@ -1,6 +1,6 @@
 # WP-2019 — each fast leg runs what only it can see, and the tail is cut again
 
-Milestone: unscheduled · Status: 🔄 2026-10-21 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-21 — five of seven tasks landed (PR #1095); the shard refresh is blocked on the artifact host, the ten-run acceptance reads main after the merge
 Track: The repo's own process
 Depends on: —
 Priority: P3 2026-10-21 — cost-only: the slowest per-push job is 19.6 min, at 1547's 20-min bar, but the py3.14 shards grew 30 % in ten days, so the bar will not hold
@@ -224,7 +224,7 @@ cutting it.
       rank-1 candidate, a ranking claim.*
 - [ ] **Re-measure.** Run the fast tier on the final tree locally (venv and
       platform quoted) and read ten main runs (Acceptance).
-- [ ] **Skill:** none. This changes how the repo is tested, not how rietx is
+- [x] **Skill:** none. This changes how the repo is tested, not how rietx is
       driven.
 
 ## Acceptance

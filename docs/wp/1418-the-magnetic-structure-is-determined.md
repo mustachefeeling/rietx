@@ -749,6 +749,15 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   docstring's "class 3 stops short" is stale on Linux. The bands for option
   (a) should be re-derived from the class-3 pair, whose sum sits 0.018 inside
   the 0.5 edge, before the PR is taken.
+- **2026-10-21, from [2019](2019-each-fast-leg-runs-what-only-it-can-see.md)
+  (PR #1095): `test_magnetic_isotropy.py` is now the fast tier's largest
+  file.** 968 of 5 487 worker-seconds over its 199 cases (`[dev]`, Linux
+  x86-64, Python 3.12, `-n 4`, the whole tier at 39de013), its top cases
+  77-98 s each. A CI shard takes a file whole (`tests/shards.py`), so this one
+  file is a floor under whichever shard holds it, and 2019's per-push target
+  (the slowest fast job at 15 min or less) depends on it. The
+  fixture-or-faster-`analyse` choice this section already holds is the lever;
+  2019 left the file alone as this WP's.
 
 ## Non-goals
 
