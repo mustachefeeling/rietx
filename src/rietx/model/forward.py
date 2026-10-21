@@ -282,14 +282,14 @@ AXIAL_SIZING_FLOOR = 0.02
 #: (WP-1908).  A stage that frees the zero or a geometry shift from those
 #: values still has only this margin for what it moves during the stage.
 #:
-#: Since WP-2002 (the seventh round's Q2) it is the declared stages' margin and
-#: a floor for the rest.  A Rietveld compile at the closing stage's windows
-#: generates each phase's reflections out to the widest window a reflection at
-#: either edge of the range carries, which reaches tens of degrees on a lab
-#: Lorentzian.  Le Bail and Pawley keep this margin: a reflection centred past
-#: the edge would have its intensity fitted to its tail alone.  At this fixed margin the tail of a reflection just past the end
-#: left 0.124-0.186σ at the last points of FAP and cpd-1a against a bar of 0.1σ
-#: (``tests/test_window_domain.py``).
+#: At the closing stage's windows this margin leaves 0.186σ and 0.124σ at the
+#: last points of FAP and cpd-1a against a bar of 0.1σ, the answers moving 0.026
+#: and 0.043 esd (``tests/test_window_domain.py``).  Generating out to the widest
+#: edge window removed that, at 1.3× the FAP fit's time, and let tail-only
+#: reflections lift the scale-B separation (``refine._scale_b_separation``) over
+#: its floor on a narrow scan, so a closing stage freed a ridge its declared
+#: stages held: tried and reverted in WP-2002's seventh round, owed to the
+#: maintainer.
 REFLECTION_MARGIN_DEG = 0.5
 
 #: WP-1343.  When a magnetic broadening term is about to be *refined* from
@@ -3681,16 +3681,10 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     ``WINDOW_AREA_TOL`` for a declared stage and the plan's
     ``closing_window_tol`` for its closing stage; a caller rebuilding a stage
     from its record passes :func:`recorded_window_tol` of the recorded value.
-    At ``CLOSING_WINDOW_TOL`` or tighter the compile takes the closing stage's
-    precision throughout: the axial-divergence quadrature takes the closing
-    node rule (``profiles.fcj.CLOSING_NODES_PER_FWHM``), and in Rietveld mode
-    each phase's reflections are generated out to the widest window a
-    reflection at either edge of the range carries, never less than
-    ``REFLECTION_MARGIN_DEG``.  Le Bail and Pawley keep that margin, since a
-    reflection centred past the edge would have its intensity fitted to its
-    tail alone.  So
-    the recorded window fraction also says which rules a stage ran, and a
-    declared stage compiles as it did before.
+    At ``CLOSING_WINDOW_TOL`` or tighter the axial-divergence quadrature takes
+    the closing node rule (``profiles.fcj.CLOSING_NODES_PER_FWHM``), so the
+    recorded window fraction also says which rule a stage ran, and a declared
+    stage compiles as it did before.
 
     The pattern must be in 2θ and the instrument a constant-wavelength one:
     this is the backstop for :func:`rietx.schemas.pattern.require_two_theta`,
@@ -3708,10 +3702,9 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         raise ValueError(
             f"window_area_tol is a fraction of a peak's area, strictly between 0 "
             f"and 1 (got {window_area_tol})")
-    # the closing stage's precision, for every compile at its windows or
-    # tighter: the FCJ closing node rule, and reflections out to the widest
-    # window at either edge.  A declared stage keeps both as they were, so a
-    # plan with closing_window_tol=None is the fit it was (the seventh round's Q2)
+    # the closing stage's FCJ node rule, for every compile at its windows or
+    # tighter.  A declared stage keeps the rule it had, so a plan with
+    # closing_window_tol=None is the fit it was (the seventh round's Q2)
     closing_precision = window_area_tol <= CLOSING_WINDOW_TOL
     mask = pattern.in_range_mask()
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
@@ -3801,48 +3794,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     _extra = _extra[np.isfinite(_extra)]
     widen_lo = max(float(_extra.max()), 0.0) if _extra.size else 0.0
     widen_hi = max(-float(_extra.min()), 0.0) if _extra.size else 0.0
-    def _edge_half(phase, ip: int, y_extra: float = 0.0) -> np.ndarray:
-        """The widest window a reflection of ``phase`` at the fitted range's low
-        and high edges carries, in deg 2θ: ``_size_family``'s sizing below, at
-        the edge angles and at the angles those windows first reach, for the
-        nuclear family and any magnetic one.  ``y_extra`` is the largest
-        Stephens Λ(hkl), a tanθ coefficient beside Y."""
-        prof = instrument.profile
-        slack = WINDOW_MIN_DEG if window_slack_deg is None else window_slack_deg
-        mag = [phase.magnetic_lor_size.value, phase.magnetic_lor_strain.value]
-        for k, path in enumerate((f"phases.{ip}.magnetic_lor_size",
-                                  f"phases.{ip}.magnetic_lor_strain")):
-            if path in moving_paths or mag[k] > 0.0:
-                mag[k] = max(mag[k], MAGNETIC_SIZING_FLOOR)
-
-        def half(two_theta):
-            theta = 0.5 * two_theta
-            g = gaussian_fwhm(theta, prof.u.value, prof.v.value, prof.w.value,
-                              phase.gauss_size.value, phase.gauss_strain.value)
-            out = np.zeros_like(two_theta)
-            for xs, ys in {(0.0, 0.0), tuple(mag)}:
-                lor = lorentzian_fwhm(theta, prof.x.value + phase.lor_size.value + xs,
-                                      prof.y.value + phase.lor_strain.value + ys + y_extra)
-                gamma, eta = tch_gamma_eta(g, lor)
-                out = np.maximum(out, window_fwhm_mult(eta, window_area_tol) * gamma + slack)
-            if fcj_on:
-                out = out + fcj_extent_deg(two_theta, sl_eff, hl_eff)
-            return np.where(np.isfinite(out), out, 180.0)
-
-        edges = np.array([tt_min, tt_max])
-        first = half(edges)
-        reach = np.clip(edges + np.array([-1.0, 1.0]) * first, 0.1, 179.9)
-        return np.maximum(first, half(reach))
-
-    def _generation_range(margin_lo: float, margin_hi: float) -> tuple[float, float]:
-        """(lowest, highest) 2θ a phase's reflections are generated over: the
-        fitted range widened by the geometry's shift and by the margins.
-        Capped at backscatter: d_min = λ/(2·sin θ_max) folds back past 180°, so
-        a window widened beyond it would generate *fewer* reflections, not more."""
-        lo = max(tt_min - zero - margin_lo - widen_lo, 0.1)
-        hi = min(tt_max - zero + margin_hi + widen_hi, 180.0)
-        sin_lo = np.sin(np.radians(lo / 2.0)) * lam_gen / max(lams)
-        return max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05), hi
+    # capped at backscatter: d_min = λ/(2·sin θ_max) folds back past 180°, so
+    # a window widened beyond it would generate *fewer* reflections, not more
+    lo_eff = max(tt_min - zero - REFLECTION_MARGIN_DEG - widen_lo, 0.1)
+    hi_eff = min(tt_max - zero + REFLECTION_MARGIN_DEG + widen_hi, 180.0)
+    sin_lo = np.sin(np.radians(lo_eff / 2.0)) * lam_gen / max(lams)
+    gen_min = max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05)
 
     # Anomalous scattering: f′ + i·f″ per species, frozen for the stage.  The
     # source owns it (it is a property of the wavelength, not the structure),
@@ -3861,29 +3818,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # label.  ``None`` is exactly the old path, so every other phase
         # enumerates the identical list in the identical order.
         group = resolve_group(phase.space_group, phase.symmetry_operations)
-        # At the closing precision, out to the widest window a reflection at
-        # either edge carries, and at least ``REFLECTION_MARGIN_DEG``: a
-        # reflection outside the range whose tail reaches in belongs to the
-        # pattern its window would draw (WP-2002, the seventh round's Q2).  A
-        # Stephens block widens the windows by its own Λ(hkl), so its largest on
-        # the first list widens the range once more.  Rietveld only: in Le Bail
-        # and Pawley each reflection's intensity is a parameter, and one centred
-        # past the edge would be fitted to its tail alone.
-        edge_margin = closing_precision and mode == "rietveld"
-        margins = (np.maximum(_edge_half(phase, ip), REFLECTION_MARGIN_DEG)
-                   if edge_margin else np.full(2, REFLECTION_MARGIN_DEG))
-        gen_min, hi_eff = _generation_range(*margins)
         refl = generate_reflections(group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
-        if edge_margin and phase.microstrain is not None and len(refl.index):
-            lam_max = float(np.max(strain_width_deg(
-                monomial_matrix(refl.index), np.array(phase.microstrain.values()),
-                d_spacings(refl.index, *cell))))
-            wider = np.maximum(_edge_half(phase, ip, lam_max), margins)
-            if np.any(wider > margins):
-                gen_min, hi_eff = _generation_range(*wider)
-                refl = generate_reflections(group, cell, lam_gen,
-                                            two_theta_max=hi_eff, two_theta_min=gen_min)
         # WP-1326: a declared propagation vector adds the satellites at
         # Q = H ± k as a second ReflectionSet, frozen here with the nuclear one
         # and merged into a single list (see ``CompiledPhase.satellites``).
