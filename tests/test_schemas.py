@@ -360,7 +360,7 @@ def test_old_python_passing_a_transform_to_a_declared_field_keeps_its_floor():
     from rietx.schemas.instrument import ProfileTCHZ
 
     prof = ProfileTCHZ(u=Parameter(value=0.01, transform="softplus"))
-    assert (prof.u.min, prof.u.max, prof.u.unit) == (0.0, math.inf, "deg^2")
+    assert (prof.u.min, prof.u.max, prof.u.unit) == (0.0, 180.0 ** 2, "deg^2")
 
 
 def test_an_unknown_transform_is_refused_by_name():
@@ -373,12 +373,13 @@ def test_a_bare_width_outside_the_declared_box_is_refused_by_name():
     ``Parameter`` through unbounded; inheriting the box closes that, and the
     refusal names the field, the box and ``coarse`` rather than arriving as
     ``Parameter``'s anonymous bounds error.  An explicit bound still wins.
-    The box has floors only since 2026-10-21 (WP-2002, the fifth round's Q5),
-    so the refusal is of a value under ``u``'s floor."""
+    The box's chosen ceilings went on 2026-10-21 (WP-2002, the fifth round's
+    Q5) and its ceiling is the 2θ axis (the sixth round's Q7), so the refusal is
+    of a value under ``u``'s floor."""
     from rietx.schemas.instrument import ProfileTCHZ
 
     with pytest.raises(ValidationError, match=r"ProfileTCHZ\.u: value -0\.1 lies "
-                       r"outside bounds \[-0\.05, inf\].*ProfileTCHZ\.coarse"):
+                       r"outside bounds \[-0\.05, 32400\.0\].*ProfileTCHZ\.coarse"):
         ProfileTCHZ(u=Parameter(value=-0.1, vary=True))
     assert ProfileTCHZ(u=Parameter(value=1.576, vary=True)).u.value == 1.576
     wide = ProfileTCHZ(u=Parameter(value=-0.1, vary=True, min=-0.5, max=5.0))
