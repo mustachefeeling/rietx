@@ -1197,7 +1197,13 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     Every number in the returned phase is derived; nothing is copied from a
     published structure.  The parent's cell, coordinates, occupancies and
     displacement parameters come through unchanged, and the cell parameters are
-    the parent's carried through P.
+    the parent's carried through P.  The **scale** is the parent's divided by
+    |det P|²: the child cell holds the parent's atoms |det P| times, so every
+    parent reflection's F is |det P| times larger in it (the first control in
+    ``tests/test_magnetic_supercell.py``), and a scale carried unchanged would
+    restate a converged nuclear fit |det P|² times too strong.  Divided, the
+    restated phase with its moments at zero computes the parent's pattern, and
+    its weight fraction is unchanged, since Z·M·V grows by the same |det P|².
     """
     if (candidate is None) == (group is None):
         raise ValueError(
@@ -1453,7 +1459,10 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             setting=None,
             propagation_vector_parent=(None if k is None
                                        else tuple(str(c) for c in k))),
-        scale=Parameter(value=parent.scale.value),
+        # |det P|² is |F_child / F_parent|² on every parent reflection (the
+        # docstring's scale sentence), so this is the parent's intensity scale
+        # restated, not a seed
+        scale=Parameter(value=parent.scale.value / len(cosets) ** 2),
         # the declaration, not a hold: the child's table derives which DOF
         # fixes the child group's origin (WP-1912)
         floating_origin=parent.floating_origin,

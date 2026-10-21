@@ -1005,11 +1005,14 @@ def test_a_magnetic_supercell_phase_round_trips_in_its_own_cell(tmp_path):
     assert phase.magnetic_symmetry.propagation_vector_parent is not None
     assert back.magnetic_symmetry.propagation_vector_parent is None
 
+    # the phase scale is a fit quantity a magCIF does not carry, and the
+    # statement's is the parent's over |det P|², so the read-back takes it
     grid = np.linspace(10.0, 90.0, 2001)
     instrument = rx.Instrument.constant_wavelength_neutron(1.54, fwhm_deg=0.35)
     y0, y1 = (np.asarray(rx.Refinement(rx.Structure(phases=[ph]),
                                        instrument).predict(grid))
-              for ph in (phase, back.model_copy(update={"name": phase.name})))
+              for ph in (phase, back.model_copy(update={
+                  "name": phase.name, "scale": phase.scale.model_copy()})))
     assert np.max(np.abs(y1 - y0)) <= 1e-9 * np.max(y0)
 
 
