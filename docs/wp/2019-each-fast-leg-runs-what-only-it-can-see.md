@@ -183,13 +183,18 @@ cutting it.
   - *Done 2026-10-21: `tests/jax_cases.py` (three rules read off the code),
     `--jax-cases` in `conftest`, and the guard there on every leg without jax.
     The record's `jax` profile went with the shards.*
-- [ ] **Run the documentation on one leg.**
+- [x] **Run the documentation on one leg.**
   - The guide scripts and the manual builds run on the newest per-push leg
     with the tutorials, and skip elsewhere through the same switch pattern as
     `RIETX_TUTORIALS`, so passed+skipped holds on every leg.
   - The decision says what a guide could break on one Python version and not
     another.
   - `test_examples.py`'s docstring gets its cost model re-measured.
+  - *Done 2026-10-21: one switch, `RIETX_DOCS` (it replaces
+    `RIETX_TUTORIALS`), in `tests/documentation.py`, which holds the decision.
+    The builds skip in their session fixtures, so their readers in
+    `test_help.py` skip with them. `test_documentation_switch.py` runs a case
+    from each site under the switch.*
 - [x] **Stop the interval cost where nothing reads it.**
   - The 21 cases that do not assert on the interval stop computing it, through
     the switch WP-2002 settles (see its Inherited).
