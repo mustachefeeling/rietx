@@ -2146,10 +2146,18 @@ def test_a_wavelength_is_held_while_the_cell_it_is_degenerate_with_is_free(
     assert all("cell held" in why for why in held.values()), held
 
 
-def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(fitted):
+def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(blank, tmp_path,
+                                                            pattern_file):
     """The ladder's Rwp is the history node's, bit for bit — not a second
     number computed for the panel."""
-    _, client, project = fitted
+    session, client = blank
+    project = _open(session, tmp_path / "rungs.rex", pattern_file)
+    plan = client.get("/api/plan")[1]["plan"]
+    # the declared stages' Rwp; the closing stage is tests/test_closing_stage.py's
+    plan["closing_window_tol"] = None
+    assert client.put("/api/plan", {"plan": plan})[0] == 200
+    assert client.post("/api/run", {"kind": "fit"})[0] == 200
+    _wait_idle(client)
     payload = _ladder(client)
     got = [s["rwp"] for s in payload["stages"]]
     assert all(r is not None for r in got), got
@@ -2167,6 +2175,28 @@ def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(fitted):
     # relative, measured), so the bar holds either way
     result = project.refinement.result_
     assert got[-1] == pytest.approx(result.statistics.rwp, rel=1e-4)
+
+
+def test_the_closing_stage_is_the_ladders_last_rung(blank, tmp_path, pattern_file):
+    """The stage a plan appends (WP-2002) has a rung of its own, read-only,
+    carrying its node's Rwp, which is the answer's to the staleness above: the
+    last declared rung's is not (0.04141 there against the result's 0.04164)."""
+    session, client = blank
+    project = _open(session, tmp_path / "closing.rex", pattern_file)
+    assert client.post("/api/run", {"kind": "fit"})[0] == 200
+    _wait_idle(client)
+    closing = _ladder(client)["closing"]
+    assert closing["name"] == "closing" and closing["window_area_tol"] == 1e-3
+    node = project.refinement.history[project.refinement._head_id]
+    assert node.action.name == "closing"
+    assert closing["rwp"] == node.metrics.statistics.rwp
+    result = project.refinement.result_
+    assert closing["rwp"] == pytest.approx(result.statistics.rwp, rel=1e-4)
+
+    plan = client.get("/api/plan")[1]["plan"]
+    plan["closing_window_tol"] = None
+    assert client.put("/api/plan", {"plan": plan})[0] == 200
+    assert _ladder(client)["closing"] is None
 
 
 def test_freeing_a_parameter_does_not_wipe_the_stage_rwp(blank, tmp_path,
@@ -2223,8 +2253,11 @@ def test_running_the_same_plan_twice_shows_the_second_run(blank, tmp_path,
     nodes = [n.metrics.statistics.rwp for n in
              project.refinement.history.lineage(project.refinement._head_id)
              if n.action.kind == "stage"]
-    assert len(nodes) == 2 * len(second)
-    assert second == nodes[len(second):]     # run 2…
+    # a run records its closing stage too, a node the ladder does not show
+    n_run = len(project.doc.plan.to_plan().run_stages())
+    assert n_run == len(second) + 1
+    assert len(nodes) == 2 * n_run
+    assert second == nodes[n_run:n_run + len(second)]     # run 2…
     assert first == nodes[:len(first)]       # …and run 1 is what run 1 showed
 
     # a *partial* run on top of a complete one aligns with neither, so the

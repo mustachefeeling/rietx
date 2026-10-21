@@ -1059,14 +1059,23 @@ class GuiSession:
                 "n_matched": len(matched), "n_free": len(after),
             })
 
-        for entry, rwp in zip(stages, self._stage_rwp(p, plan), strict=True):
+        rwps = self._stage_rwp(p, plan)
+        for entry, rwp in zip(stages, rwps, strict=False):
             entry["rwp"] = rwp
+        # the stage the plan appends (WP-2002, the sixth round's Q1 and Q2):
+        # every glob again at tight windows, read-only here, and its Rwp is
+        # the answer's, which the last declared rung's is not
+        closing = plan.closing_stage()
+        closing_entry = None if closing is None else {
+            "name": closing.name, "window_area_tol": plan.closing_window_tol,
+            "rwp": rwps[-1]}
         reached = {path for entry in stages for path in entry["frees"]}
         set_aside = [row.path for row in rows.values()
                      if row.vary and row.refinable and row.path not in reached]
         return {"mode": mode, "n_parameters": len(rows),
                 "n_free_final": stages[-1]["n_free"] if stages else 0,
                 "set_aside": set_aside, "stages": stages,
+                "closing": closing_entry,
                 "head": p.refinement._head_id,
                 "live": self._state != "idle"}
 
@@ -1083,27 +1092,26 @@ class GuiSession:
 
     @classmethod
     def _stage_rwp(cls, p: Project, plan) -> list[float | None]:
-        """One Rwp per plan stage, off the history nodes the run recorded.
+        """One Rwp per stage the plan runs, off the history nodes the run recorded.
 
-        The alignment rule is in :meth:`plan_resolve`'s docstring; this is it
-        applied.  ``None`` everywhere is the ordinary answer before the first
-        run, and the honest one whenever the plan on screen is not the plan
-        that ran.
+        Parallel to ``plan.run_stages()``: the declared stages, then the
+        closing stage when the plan has one (WP-2002), whose Rwp is the
+        answer's.  The alignment rule is in :meth:`plan_resolve`'s docstring;
+        this is it applied.  ``None`` everywhere is the ordinary answer before
+        the first run, and the honest one whenever the plan on screen is not
+        the plan that ran.
         """
-        blank: list[float | None] = [None] * len(plan.stages)
+        stages = plan.run_stages()
+        blank: list[float | None] = [None] * len(stages)
         tree = p.refinement.history
         head = p.refinement._head_id
         if tree is None or head is None or head not in tree:
             return blank
-        # a run records the declared stages and then the closing one (WP-2002,
-        # the sixth round's Q1 and Q2), so it is that many nodes long; the
-        # ladder shows the declared stages, aligned from the run's start
-        n_run = len(plan.run_stages())
         run: list = []
         for node in reversed(tree.lineage(head)):
             if node.action.kind == "stage":
                 run.append(node)
-                if len(run) == n_run:
+                if len(run) == len(stages):
                     break   # the *last* run: back-to-back runs of one plan
                             # leave 2N contiguous stage nodes, and aligning
                             # from the far end of them would read the first
@@ -1112,7 +1120,7 @@ class GuiSession:
                 break   # the run has ended, or something ended it before it
         run.reverse()
         out = list(blank)
-        for k, stage in enumerate(plan.stages):
+        for k, stage in enumerate(stages):
             if k >= len(run):
                 break
             node = run[k]
