@@ -243,7 +243,8 @@ tables are `practice.md`. The measurements added this round, on SRM 660c, FAP, c
   asked again with the finding that no program supplies a Pitschke start; lead's pick (c),
   split the constant. Q4-Q6 came from the handover's reviews: whether the fifth round's
   Q6 answer meant yes, how tier 2 counts a dissenting program, and a backstop for a
-  runaway instrument width. All six wait on the maintainer; the briefs are below.
+  runaway instrument width. Q7 came from the full suite: removing the width ceilings
+  moved the brucite TRF fit. All seven wait on the maintainer; the briefs are below.
 - A correction to the fifth round's Q5 brief and to this session's report: the TCHZ size
   term is X (Γ_L = X/cosθ + Y·tanθ), so the old ceiling that capped the Lorentzian size
   near 8 nm at Cu Kα was X ≤ 1°, not Y ≤ 1°. The code review caught it in the schema's
@@ -412,6 +413,28 @@ at 0.5.
 - (c) Nothing until a real fit shows a runaway.
 
 Lead's pick: (a). It is the same physical argument the sample terms already rest on.
+
+#### Q7. Removing the width ceilings moved one acceptance fit
+
+The full suite ran once on the final tree and found one consequence of Q5's build. The
+brucite Stephens test fits under TRF, the bounded solver the cone test needs. TRF scales
+each step by the distance to a parameter's finite bounds. An infinite upper bound gets a
+different scaling, so the path changes even where no width comes near a ceiling. Without
+the ceilings the fit stops at a worse point: Rwp 0.17891 against 0.17877, U on its floor
+of -0.05, and one strain coefficient's esd 66 against 14 737 (t = -203 against 0.37). The
+test's "at most one coefficient 2σ from zero" fails. No width reached 1 in either fit (Y
+0.086 at most). Any finite ceiling restores the old answer to its printed digits: every
+ceiling at 10, or at 1000. The default solver, LM, is unaffected, and the bit-identity
+goldens did not move. The test is a strict xfail until this is ruled.
+
+- (a) A ceiling no peak can reach: the width of the whole 2θ axis (180° for X and Y,
+  180² deg² for U, V and W). It caps nothing physical and gives TRF a finite bound.
+- (b) No ceiling, and re-pin the brucite test at the new, worse point.
+- (c) Restore the old ceilings.
+
+Lead's pick: (a). It keeps the ruling's substance and restores the measured answer.
+(b) re-pins a number that moved away from the better fit. Not yet measured: the brucite
+fit at a 180° ceiling itself.
 
 ## Still open (first round's list, kept for the record)
 

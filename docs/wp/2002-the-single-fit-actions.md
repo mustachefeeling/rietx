@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-21 — fifth round built (tier 2 widened, width ceilings gone, two search defects fixed); six questions wait (rulings.md § Sixth round); B14's lifts and two domain tests remain
+Milestone: generality · Status: 🔄 2026-10-21 — fifth round built (tier 2 widened, width ceilings gone, two search defects fixed); seven questions wait (rulings.md § Sixth round); B14's lifts and two domain tests remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -264,9 +264,9 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
 
 ## Handover log
 
-### 2026-10-21 (4th session) — the fifth round built; six questions for the maintainer, three re-briefed against seven programs
+### 2026-10-21 (4th session) — the fifth round built; seven questions for the maintainer, three re-briefed against seven programs
 
-This session built the maintainer's fifth-round answers and checked the three questions sent back against all seven programs rietx-bench runs. The peak window that drops 2 % of each peak's area turns out to be ordinary practice: TOPAS and MAUD drop the same, and FullProf's examples drop more while holding the window for a whole run. A closing stage at tight windows removes both that error and most of a staged plan's start-dependence: two Biso starts agree to 0.000 esd on the fluorapatite and NAC, and to 0.064 on cpd-1a, against 0.75 today, at 1.36-2.26× the fit time. The TCHZ width ceilings are gone, report caps are a tier-1 class, tier 2 names seven programs, and a switched-off Suortti block says its esds depend on where it stopped. Two defects that needed no ruling are fixed: the bond search missed bonds longer than 3.5 Å, and the restraint search missed the nearest image in skewed monoclinic cells. Six questions wait on the maintainer: the three sent back, re-briefed, and three the handover's reviews raised.
+This session built the maintainer's fifth-round answers and checked the three questions sent back against all seven programs rietx-bench runs. The peak window that drops 2 % of each peak's area turns out to be ordinary practice: TOPAS and MAUD drop the same, and FullProf's examples drop more while holding the window for a whole run. A closing stage at tight windows removes both that error and most of a staged plan's start-dependence: two Biso starts agree to 0.000 esd on the fluorapatite and NAC, and to 0.064 on cpd-1a, against 0.75 today, at 1.36-2.26× the fit time. The TCHZ width ceilings are gone, report caps are a tier-1 class, tier 2 names seven programs, and a switched-off Suortti block says its esds depend on where it stopped. Two defects that needed no ruling are fixed: the bond search missed bonds longer than 3.5 Å, and the restraint search missed the nearest image in skewed monoclinic cells. Seven questions wait on the maintainer: the three sent back, re-briefed, three the handover's reviews raised, and one the full suite raised: without the width ceilings, the solver TRF stops the brucite acceptance fit at a worse point, though no width comes near a ceiling.
 
 *Done.*
 - The fifth round's answers recorded (`2002-batch/rulings.md` § Fifth round's answers): Q4 delegated, Q5 (a), Q6 read as agreement, Q1-Q3 asked back, and the note to widen tier 2.
@@ -285,7 +285,7 @@ This session built the maintainer's fifth-round answers and checked the three qu
 - A closing all-free stage at 1e-3 after today's plan: within 0.052 esd of all-1e-3, at 1.36-2.26×.
 - Biso started at 0.5 and 1.5 Å² (today / last-stage tight / closing stage): FAP 0.119 / 0.013 / 0.000, cpd-1a 0.751 / 0.734 / 0.064, NAC 0.008 / 0.006 / 0.000, LaB6 9.0 / 9.0 / 9.4 (its mirrored minima under every setting; forwarded to WP-2012).
 - Fast selection after the ceilings went: 5 failed, 10 930 passed, 191 skipped, 31 xfailed (each failure asserted a ceiling; fixed in `f39bb5cf7`). On the final tree (main has not moved, so it is the merged tree): 10 935 passed, 191 skipped, 31 xfailed, `[dev]`, darwin/arm64, 5:01 with no other suite running. The 3rd session's tree, adjusted for its own two later changes, was 10 934 passed and 31 xfailed: +1 here, from +1 geometry (CsCl), +1 roughness, and neutron's two ceiling tests replaced by one. The added tests cost 0.05 s (geometry, three over the branch), 0.04 s (roughness) and 0.00 s (neutron), one run on this machine; none joins the tail.
-- [FULL]
+- Full selection, once, on the final tree before the xfail (main had not moved, so it is the merged tree): 2 failed, 11 282 passed, 202 skipped, 41 xfailed, `[dev]`, darwin/arm64, 22:28, alone. The handover-log check failed on the judge's `#####` sub-headings (now bold labels). `test_acceptance_stephens.py`'s brucite test failed: without the ceilings TRF stops at Rwp 0.17891 against 0.17877, u on its floor, one S_HKL esd 66 against 14 737 (t = -203). With the old ceilings it passes; so it does with every ceiling at 10 and at 1000, and no width reaches 1. It is a strict xfail citing the sixth round's Q7. The full selection was not rerun after that one-test change.
 
 *Review.* `/code-review high --fix` over `fdfde9fff..HEAD` found nine; five fixed in `a5f2c5f23`: the ProfileTCHZ docstring named Y as the size term where X (1/cosθ) is, `constant_wavelength_neutron`'s docstring still described the ceilings and the `fwhm_deg` raise, the bond search sized one shell per phase for its heaviest atom (2.4-3.4× the search for a light atom), the roughness help's "also switched off" read as a third off state, and the derived-quantities reference called `contact_max` the search radius. Declined: vectorising the image search (0.87 ms an image in P 2₁/c, 39 ms for a 192-op orbit; a vectorised pass could change which of two equidistant images a restraint takes); a backstop for the instrument widths (a design change past the Q5 ruling, now the sixth round's Q6); a near-off test for TRF in the roughness sentence (the test pins exactly-off on purpose); lifting stored ceilings at read (recorded as the stored file's own bound). The generality judge's fixable findings landed in `c9c28fb73`: the Q4 record, two stale `waiting.md` lines, four rows counting six programs where the survey names five and BGMN, the survey's sources, the cap clause's distance case, and the warning naming its off state.
 
@@ -295,7 +295,7 @@ This session built the maintainer's fifth-round answers and checked the three qu
 
 *Generality.*
 
-##### generality.md § The rule, tier 1: the numerical-setting clause
+**generality.md § The rule, tier 1: the numerical-setting clause**
 
 **holds.** The clause copies B10's ruling of 2026-10-19 faithfully (B10 is the batch's class of numerical settings). The case for writing it down is stronger, and the one weakness is that the rule does not say who sets the error bar.
 
@@ -311,7 +311,7 @@ This session built the maintainer's fifth-round answers and checked the three qu
 
 Would change the verdict: a ruling that the bar is the maintainer's (Q2's answer), quoted in each row that uses this clause, or the clause naming that bar.
 
-##### generality.md § The rule, tier 1: the report-cap clause
+**generality.md § The rule, tier 1: the report-cap clause**
 
 **weak.** The clause is sensible for a cap that counts what it drops. Its authority is an interpretation of an ambiguous reply, and its second condition cannot be met by a distance cap.
 
@@ -329,7 +329,7 @@ Would change the verdict: the maintainer confirming Q6 in words, and the clause 
 
 > Author: the reading goes back to the maintainer as the sixth round's Q4, and the clause now says "or for a cap on distance the report states the distance" and that its reading awaits confirmation (`c9c28fb73`).
 
-##### generality.md § The rule, tier 2: the seven programs
+**generality.md § The rule, tier 2: the seven programs**
 
 **weak.** Widening the program list is the maintainer's instruction and its direction is sound. The new wording leaves two gaps, and the same session filled them in opposite directions.
 
@@ -347,7 +347,7 @@ Would change the verdict: wording on (d) and (e), a stated count of agreeing pro
 
 > Author: (d), (e) and (f) go to the maintainer as the sixth round's Q5; `practice.md` now carries a sources table (`c9c28fb73`). The list is the maintainer's instruction; Jana2020 is listed and excluded in rietx-bench for want of a batch mode.
 
-##### rietx.model.geometry.CONTACT_MAX_ANG (3 → 1)
+**rietx.model.geometry.CONTACT_MAX_ANG (3 → 1)**
 
 **holds.** The case for tier 1 is stronger: completeness inside 3.5 Å is tested, and the bond-search defect is fixed and tested. The clause's "count what lies outside" fits a radius only loosely.
 
@@ -365,7 +365,7 @@ Would change the verdict: the cap clause failing confirmation. Separately, `wait
 
 > Author: `waiting.md` corrected (`c9c28fb73`).
 
-##### rietx.model.geometry.MAX_ASYM_ATOMS (3 → 1)
+**rietx.model.geometry.MAX_ASYM_ATOMS (3 → 1)**
 
 **holds.** The clause's letter is met: the phase is skipped whole and the note says so. The cost the value exists to bound is still unmeasured, and the row says so itself.
 
@@ -381,7 +381,7 @@ Would change the verdict: the cap clause failing confirmation. Separately, `wait
 
 Would change the verdict: a timing at 200 atoms showing fit-close cost that no caller would accept, or the need for a caller override.
 
-##### rietx.model.geometry.MAX_CONTACTS_PER_ATOM (3 → 1)
+**rietx.model.geometry.MAX_CONTACTS_PER_ATOM (3 → 1)**
 
 **holds.** This is the cleanest fit to the cap clause, and nothing in the change argues against it.
 
@@ -397,7 +397,7 @@ Would change the verdict: a timing at 200 atoms showing fit-close cost that no c
 
 Would change the verdict: only the cap clause failing confirmation.
 
-##### rietx.model.restraints.MIN_IMAGE_SHELL (3 → 1)
+**rietx.model.restraints.MIN_IMAGE_SHELL (3 → 1)**
 
 **holds.** The second pass makes the search exact by construction, and a slow domain test checks it on five cell families. Nothing argues for the old state.
 
@@ -415,7 +415,7 @@ Would change the verdict: none expected. `waiting.md:114` still calls this "a de
 
 > Author: `waiting.md` corrected (`c9c28fb73`).
 
-##### The twelve tier-2 rows with only the seven-program sentence added
+**The twelve tier-2 rows with only the seven-program sentence added**
 
 `_TCH_ETA`, `_TCH_GAMMA`, `BRINDLEY_MU_R_FENCE`, `Source:dispersion`, `fit:mode`, `run_stage:mode`, `refine:mode`, the four `two_theta_limits` rows, `auto_background:seed`.
 
@@ -435,7 +435,7 @@ Would change the verdict: TOPAS's `two_theta_limits` default found not to be the
 
 > Author: the four rows and `practice.md` now name the five, BGMN's range and TOPAS's unstated default; `practice.md` carries a sources table (`c9c28fb73`).
 
-##### rietx.refine.refine:solver (stays tier 2 with FullProf dissenting)
+**rietx.refine.refine:solver (stays tier 2 with FullProf dissenting)**
 
 **weak.** The row names a dissenter while keeping first-kind ambiguity. The reading that "the dissent clause governs actions only" is not in the rule.
 
@@ -453,7 +453,7 @@ Would change the verdict: refits on three families showing LM and relaxed Gauss-
 
 > Author: to the maintainer as the sixth round's Q5, whose option (a) puts the solver with B10's solver-path switches at tier 3 until refits agree.
 
-##### rietx.params.vector.CELL_MIN_LENGTH_A (stays tier 2 on TOPAS alone)
+**rietx.params.vector.CELL_MIN_LENGTH_A (stays tier 2 on TOPAS alone)**
 
 **weak.** The stakes are low, but the reasoning contradicts how the same survey removed the TCHZ ceilings.
 
@@ -471,7 +471,7 @@ Would change the verdict: the physics argument written into the row (which would
 
 > Author: to the maintainer as the sixth round's Q5, whose option (a) moves the floor to tier 1 on the physics argument.
 
-##### TCHZ_BOUNDS and TCHZ_BOUNDS_COARSE: the five ceilings removed, and the `fwhm_deg` fence with them
+**TCHZ_BOUNDS and TCHZ_BOUNDS_COARSE: the five ceilings removed, and the `fwhm_deg` fence with them**
 
 **holds.** The case for removal is stronger: none of the seven programs bounds these widths by default, and the ceilings capped a physical quantity. The case for keeping them is a guard whose use was never measured.
 
@@ -489,7 +489,7 @@ Would change the verdict: a fit on real data where a width ran away and the ceil
 
 > Author: the runaway-width gap goes to the maintainer as the sixth round's Q6. The size term is X, not Y, corrected in `a5f2c5f23`. The U and V floors were kept by the Q5 ruling ("keep the floors and lower bounds"); their seven-program reading falls under Q5.
 
-##### ROUGHNESS_UNCONSTRAINED: reporting the off-state dependence instead of re-solving
+**ROUGHNESS_UNCONSTRAINED: reporting the off-state dependence instead of re-solving**
 
 **holds** on the decision. The report states the fact and stops, and the case for re-solving rests on one family for a case the maintainer called rare. The batch record contradicts the code, and that must be fixed. (Suortti is one of the two surface-roughness intensity corrections. This warning fires when the refined roughness changes intensity by under 1 %.)
 
@@ -508,7 +508,7 @@ Would change the verdict: the ×4.4 reproduced on a second and third family, or 
 > Author: `rulings.md` now records the report as chosen over (b), and the message names the off state it found (`c9c28fb73`).
 
 *Next.*
-1. The maintainer answers the sixth round's six questions (`rulings.md` § Sixth round, each brief whole there): Q1 the peak window, Q2 the start-test bar and a closing stage, Q3 Pitschke's start, Q4 whether the fifth round's Q6 answer meant yes, Q5 how tier 2 counts a dissenting program, Q6 a range backstop for runaway instrument widths. Q2's answer decides Q1's build: a closing stage carries the tight windows if Q2 takes option 3, otherwise the plan's last stage does.
+1. The maintainer answers the sixth round's six questions (`rulings.md` § Sixth round, each brief whole there): Q1 the peak window, Q2 the start-test bar and a closing stage, Q3 Pitschke's start, Q4 whether the fifth round's Q6 answer meant yes, Q5 how tier 2 counts a dissenting program, Q6 a range backstop for runaway instrument widths, Q7 a finite ceiling no peak can reach, so TRF's brucite fit returns (its acceptance test is a strict xfail until then). Q2's answer decides Q1's build: a closing stage carries the tight windows if Q2 takes option 3, otherwise the plan's last stage does.
 2. Build the answers. A closing stage is a runner change (every plan gains a final all-free stage recompiled at the answer), re-pins the goldens, and is followed by rerunning the intermediate-tolerance and harmonic-seed start tests behind it. The six other failing numerical settings take the same rule. Q3 (c) splits the roughness stage's one `seed=0.3` (`strategy/staged.py`) into Suortti's b (start-invariant) and Pitschke's c (tier 3, its failure recorded).
 3. B14's lifts with the ~50-guard list to the judge; the interval and width-grid domain tests.
 
