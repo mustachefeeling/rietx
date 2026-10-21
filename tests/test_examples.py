@@ -38,6 +38,8 @@ from pathlib import Path
 
 import pytest
 
+from tests import documentation
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = REPO_ROOT / "examples"
 
@@ -154,6 +156,7 @@ def fetched_state(tmp_path_factory):
     return {STATE_DIR_ENV: str(state)}
 
 
+@documentation.elsewhere
 @pytest.mark.parametrize("script", GUIDE_SCRIPTS, ids=lambda path: path.stem)
 def test_every_guide_script_prints_what_its_page_quotes(script, fetched_state):
     """One script per Guides page (WP-1986), named after the page.
