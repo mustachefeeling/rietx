@@ -255,6 +255,109 @@ gh run view <id> --json jobs   # each "fast …" job's startedAt to completedAt;
 
 ## Handover log
 
+### 2026-10-21 (2nd session) — each leg runs what only it can see; the record is still the old one
+
+Each per-push job now does the part only it can do. The jax job runs the
+handful of cases that reach jax instead of the whole tier again, and a guard
+on every other leg makes sure none of those cases quietly runs nowhere. The
+tutorials, guide scripts and manual builds execute on the newest Python
+alone. Tests no longer pay for a profile interval they never read, the
+tier's single longest case moved to the nightly, and three measured repeats
+are shared. What this does to CI's wall clock is not known yet, for two
+reasons: the shard record could not be refreshed (this environment cannot
+download CI artifacts), and the WP's acceptance reads ten main runs after
+the merge.
+
+- **Done** (PR #1095): tasks 2-6 and the skill line. A WP-2003 handover
+  repair also rides this branch (f036bf9).
+  - `tests/jax_cases.py`: a case reaches jax by a parameter, its own code or
+    a fixture's naming jax, or its module importing or skipping on jax at
+    import. `--jax-cases` selects it, and `conftest` fails a jax skip outside
+    the selection wherever jax cannot be found. The guard was made to fail on
+    `test_rotation`'s two jax rows.
+  - `ci.yml`: `fast jax` is one unsharded job, and its header says what it no
+    longer covers per push and where that runs instead.
+  - `tests/documentation.py`: `RIETX_DOCS` replaces `RIETX_TUTORIALS`.
+  - Interval: off by default in both moment-angle `_fit` helpers.
+  - Triclinic runaway case: marked `slow`.
+  - Repeats: `recovered` in `test_indexing_engines`, a `recipe-tables` group,
+    and `max_candidates` on the indexing wiring rows.
+  - Shard record: the `jax` profile is gone. The record weighs a file from the
+    legs that ran the most of its cases, each leg on a clock built from files
+    every leg ran alike. Otherwise the documentation, now on one leg, would be
+    halved where it runs.
+- **Measured** (`[dev]`, Linux x86-64, Python 3.12, 4 cores, nothing else
+  running):
+  - **Fast tier on the final tree** (`6848e61`; later commits touch `docs/` only): 11 010 passed, 203 skipped,
+    3 xfailed, 22:57 wall.
+    - 5 446 worker-s, against Context's 6 294 at 3437d52; main has moved
+      since, so that ranks and does not price.
+    - The documentation is 956 of it.
+  - **Count:** +51 `test_jax_cases`, +2 `test_documentation_switch`, +2
+    `test_shards` rows, −1 to `slow`, so a net +54. No new skip in the tier.
+  - **The added tests** cost 16.0 s: `test_jax_cases` 13.3 s (its subprocess
+    rows), `test_documentation_switch` 2.7 s. Neither joins the tail.
+  - **Jax rows on `.venv`:** 74 jax skips (73 cases and one module), all
+    inside the selection.
+  - **A throwaway `[dev,jax]` venv** (Python 3.13, jax 0.12.0): the selection
+    is 86 passed and 5 skipped, none of the skips for jax.
+  - **Repeats:** 285.6 → 164.2 worker-s over the four files the lane
+    measured. The priors row was then put back to its full search, so its
+    ~15 s returns.
+  - **Interval:** 3.4 s a fit without it, against 52.1 s with it.
+  - **The case moved to `slow`** passes locally under `-m slow`: 1 passed in
+    41.9 s alone, on a quiet machine. The 217 s in Context was its time inside
+    the loaded `-n 4` tier, so the saving per push is less than that figure.
+  - **Guides:** 614 s, median 13.8 s.
+  - **Lanes** (`session_usage.py lanes`):
+
+    | lane | est | requests | main at dispatch | lane $ | saved $ |
+    |---|---|---|---|---|---|
+    | jax-selection | 30 | 110 | 249K | 8.41 | −0.45 |
+    | repeats | 35 | 95 | 383K | 6.41 | +3.57 |
+
+    Trial row +3.13 (+9 %). Selective policy at 300K-450K peak: −7 % over two
+    sessions.
+- **Review** (`/code-review high --fix`): four fixes taken, in 886325f and
+  6848e61.
+  - The record's clock now reads case counts (my first version still halved
+    the guides).
+  - One shared guard for both hooks.
+  - The CI concurrency sentence.
+  - The priors row's narrowing was reverted, not strengthened, because it
+    also asserts the engines' rank 1.
+
+  Declined:
+  - `jax_importable` uses `find_spec`. A real import probe would import jax at
+    collection.
+  - A method with a column-0 string literal cannot be dedented, so rule (b)
+    misses it. The guard still catches the case.
+  - `test_manual_api` executes Part 1's python blocks on every leg, and the
+    switch does not reach it. That is a scope call for the next session.
+- **Gotchas:**
+  - **Artifacts:** `gh run download` cannot reach
+    `*.blob.core.windows.net` from this environment, and neither can the
+    GitHub MCP's download URL.
+  - **Biggest file:** `test_magnetic_isotropy` is the tier's largest file
+    (968 worker-s), and a shard takes it whole. Forwarded to 1418.
+  - **A clashing WP-2019:** WP-2002's open branch files its own WP-2019, and
+    no test refuses a duplicate number. Forwarded to 2002, and suggested as a
+    task.
+  - **One-engine indexing:** a one-engine `index_pattern` sweeps every
+    candidate for ambiguity and runs about 2× an all-engine one
+    (`consensus.checked_indices`). Suggested as a task, no owner WP found.
+- **Next**, in this order:
+  1. Refresh the shard record from a green main run once the artifact host is
+     reachable. Run `python -m tests.shards DIR`, one profile, under the new
+     weighting. Without it the shards stay unbalanced: the latest main run's
+     py3.14 shards were 18.0 and 8.5 min.
+  2. After #1095 merges, read ten main runs (Acceptance).
+  3. See `test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`
+     pass once in the nightly's `full`.
+  4. If the slowest job is still over 15 min, the levers left are
+     `test_magnetic_isotropy` (1418's) and the documentation's own cost on
+     the newest leg.
+
 - **2026-10-21** — Created from a test-suite review session, which asked where
   the fast tier's time goes and measured it rather than reading it off the
   shard record.
