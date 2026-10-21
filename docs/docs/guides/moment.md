@@ -114,4 +114,4 @@ The full script is `examples/guides/moment.py`.
 ## See also
 
 - [`solve_magnetic`](../reference/magnetic.md#solve_magnetic) refits its own nuclear reference under the stages you give it, which is the step both routes here build on.
-- [How to keep a parameter fixed whatever the plan frees](hold.md) is the other way to keep a nuclear term at its reference value: `Refinement.hold` pins it against every stage of every plan, where route 1 simply leaves it out of the stages.
+- [How to keep a parameter fixed whatever the plan frees](hold.md) is the other way to keep a nuclear term at its reference value: `Refinement.hold` pins it against every stage of every plan, where route 1 leaves it out of the stages.
