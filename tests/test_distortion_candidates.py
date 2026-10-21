@@ -372,3 +372,78 @@ def test_driving_is_the_built_from_irrep_and_primary_is_the_isotropy_test(at_r):
     assert other.primary is True
     assert imma.driving.irrep == imma.irrep == "S10"
     assert not hasattr(imma, "primary") and not hasattr(imma, "secondary")
+
+
+# --------------------------------------------------------------------------
+# review round 2 (#996): the probe's tolerance, scale and seed decide no child
+# --------------------------------------------------------------------------
+
+K_X = (Fraction(0), Fraction(0), Fraction(1, 2))
+K_M = (Fraction(1, 2), Fraction(1, 2), Fraction(0))
+#: Seeds whose *first* draw keeps an accidental operation of S6(a,b) at R on
+#: the O site (4 of seeds 0-199 do; at Γ on Mn none): a single-draw probe
+#: refused that child as ``DISTORTION_CHILD_LARGER``.
+UNLUCKY_SEEDS = (142, 194)
+
+
+def _setting(cands):
+    """What the probe decides, per candidate: the child's group, (P, p) and its atoms."""
+    return [(c.label, c.child_group, np.asarray(c.transform[0]).tolist(),
+             np.asarray(c.transform[1]).tolist(),
+             [(a.label, a.x.value, a.y.value, a.z.value) for a in c.child.atoms])
+            for c in cands]
+
+
+@pytest.fixture(scope="module")
+def at_x_and_m():
+    parent = _perovskite(3.9)
+    return parent, {k: I.distortion_candidates(parent, k) for k in (K_X, K_M)}
+
+
+def _every_call(at_r, at_gamma, at_x_and_m):
+    """The suite's calls, Γ, R, X and M, each with the answer at the shipped probe."""
+    (r_parent, r), (g_parent, g), (xm_parent, xm) = at_r, at_gamma, at_x_and_m
+    return [(r_parent, K_R, ["O"], r), (g_parent, K_GAMMA, "Mn", g),
+            *((xm_parent, k, None, cands) for k, cands in xm.items())]
+
+
+@pytest.mark.parametrize("probe", [
+    {"_PROBE_SYMPREC": 1e-6}, {"_PROBE_RMS": 0.01}, {"_PROBE_RMS": 0.2},
+], ids=["symprec-1e-6", "rms-0.01", "rms-0.2"])
+def test_the_probe_tolerance_and_scale_decide_no_child(at_r, at_gamma, at_x_and_m,
+                                                       monkeypatch, probe):
+    """A tolerance 1000× tighter, or a field 5× smaller or 4× larger: the same children.
+
+    The bound on ``_PROBE_SYMPREC`` and ``_PROBE_RMS``: the operation check fixes
+    an answered child, and this pins the raise path, a false
+    ``DISTORTION_CHILD_LARGER`` (any raise fails the test) on every call.
+    """
+    for name, value in probe.items():
+        monkeypatch.setattr(I, name, value)
+    for parent, k, sites, expected in _every_call(at_r, at_gamma, at_x_and_m):
+        assert _setting(I.distortion_candidates(parent, k, sites=sites)) == _setting(expected)
+
+
+def test_a_tolerance_at_the_probe_scale_finds_extra_operations(at_gamma, monkeypatch):
+    """The positive arm: past the field's rms, spglib keeps the parent's 48 operations."""
+    parent, _ = at_gamma
+    monkeypatch.setattr(I, "_PROBE_SYMPREC", 4 * I._PROBE_RMS)
+    with pytest.raises(ValueError, match="DISTORTION_CHILD_LARGER.* keeps 48 operations"):
+        I.distortion_candidates(parent, K_GAMMA, sites="Mn")
+
+
+@pytest.mark.parametrize("seed", [1, 2026, *UNLUCKY_SEEDS])
+def test_the_probe_seed_decides_no_child(at_r, at_gamma, monkeypatch, seed):
+    """Other seeds, including two whose first draw is unlucky: the same children, P, p, atoms."""
+    monkeypatch.setattr(I, "_PROBE_SEED", seed)
+    for parent, k, sites, expected in _every_call(at_r, at_gamma, (None, {})):
+        assert _setting(I.distortion_candidates(parent, k, sites=sites)) == _setting(expected)
+
+
+def test_one_unlucky_draw_does_not_refuse_a_child(at_r, monkeypatch):
+    """The positive arm of the seed test: with a single draw, an unlucky seed refuses S6(a,b)."""
+    parent, _ = at_r
+    monkeypatch.setattr(I, "_PROBE_SEED", UNLUCKY_SEEDS[0])
+    monkeypatch.setattr(I, "_PROBE_DRAWS", 1)
+    with pytest.raises(ValueError, match=r"DISTORTION_CHILD_LARGER.*S6\(a,b\)"):
+        I.distortion_candidates(parent, K_R, sites=["O"])

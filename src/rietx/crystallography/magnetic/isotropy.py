@@ -2032,10 +2032,16 @@ def _expand_configurations(space: OrderParameterSpace,
 #: The scale (Å, rms over the cell) of the generic H-invariant displacement
 #: whose symmetry spglib reads to state a displacive candidate in a standard
 #: setting, and spglib's tolerance on it: the field is 50× the tolerance, so
-#: every operation of H survives it and no accidental one does.
+#: every operation of H survives it.  An accidental one survives a draw by
+#: chance, when the field's component breaking it is under the tolerance at
+#: every atom it moves: on the cubic perovskite at Γ, X, M and R, 3 calls in
+#: 320 at 50× (seeds 0-79) and 7 in 120 at 10× (seeds 0-29).  So a child is
+#: refused only when every one of ``_PROBE_DRAWS`` independent draws disagrees
+#: with H; the first draw is the one an answered call has always used.
 _PROBE_RMS = 0.05
 _PROBE_SYMPREC = 1e-3
 _PROBE_SEED = 1419
+_PROBE_DRAWS = 3
 
 
 @dataclass(frozen=True, eq=False)
@@ -2210,26 +2216,29 @@ def _standard_child(parent, parent_group, candidate: MagneticCandidate):
             perm[i] = hit[0]
         return perm
 
-    rng = np.random.default_rng(_PROBE_SEED)
-    raw = rng.standard_normal(positions.shape)
-    field = np.zeros_like(raw)
-    for rot, tran in ops:
-        field[image_of(rot, tran)] += raw @ rot.T.astype(float)
-    field /= len(ops)
+    perms = [image_of(rot, tran) for rot, tran in ops]
     metric_p = _parent_metric_symmetric(parent, rot_g)
     metric_m = p_m.T @ metric_p @ p_m
-    rms = np.sqrt(np.einsum("ni,ij,nj->", field, metric_m, field) / len(field))
-    if rms < 1e-9:
-        raise RuntimeError(f"{candidate.label}: no displacement of the parent's atoms is "
-                           "invariant under its isotropy group; this is a bug")
-    field *= _PROBE_RMS / rms
-
     lattice = np.linalg.cholesky(metric_m)
-    try:
-        data = spglib.get_symmetry_dataset((lattice, (positions + field) % 1.0, types),
-                                           symprec=_PROBE_SYMPREC)
-    except SPGLIB_REFUSALS:
-        data = None
+    rng = np.random.default_rng(_PROBE_SEED)
+    for _ in range(_PROBE_DRAWS):  # a refusal needs every draw to disagree with H
+        raw = rng.standard_normal(positions.shape)
+        field = np.zeros_like(raw)
+        for (rot, _tran), perm in zip(ops, perms):
+            field[perm] += raw @ rot.T.astype(float)
+        field /= len(ops)
+        rms = np.sqrt(np.einsum("ni,ij,nj->", field, metric_m, field) / len(field))
+        if rms < 1e-9:
+            raise RuntimeError(f"{candidate.label}: no displacement of the parent's atoms is "
+                               "invariant under its isotropy group; this is a bug")
+        field *= _PROBE_RMS / rms
+        try:
+            data = spglib.get_symmetry_dataset((lattice, (positions + field) % 1.0, types),
+                                               symprec=_PROBE_SYMPREC)
+        except SPGLIB_REFUSALS:
+            data = None
+        if data is not None and len(data.rotations) == len(ops):
+            break
     if data is None:
         raise ValueError(
             f"DISTORTION_CHILD_UNIDENTIFIED: spglib names no space group for a generic "
@@ -2349,7 +2358,8 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
     so is the group; this function adds the setting and the basis.  A child
     whose group a generic displacement of these atoms does not keep exactly
     (``DISTORTION_CHILD_LARGER``) or spglib does not name
-    (``DISTORTION_CHILD_UNIDENTIFIED``) is refused.
+    (``DISTORTION_CHILD_UNIDENTIFIED``) is refused, after three independent
+    draws of the displacement have each failed, since one can by chance.
     """
     from ..representation.distortion import _refuse_shared_sites, distortion_basis
     from ..symmetry import resolve_group
