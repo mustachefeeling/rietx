@@ -129,8 +129,9 @@ _Q_TRIGGER = 5               # … and λ/10 fires only above this
 #: inner (Levenberg-Marquardt) iterations per outer iteration before giving up.
 #: A failure sets λ ← 10·max(λ, 0.1), so from λ = 0 the 18th trial runs at
 #: λ = 1e16, far into steepest-descent territory; if nothing downhill exists
-#: there, none exists.  On nine acceptance configurations no iteration took more
-#: than 6 trials (WP-2002, tests/test_budget_and_tolerance_invariance.py).
+#: there, none exists.  On nine acceptance configurations an iteration that took
+#: a step tried at most 6 trials, and a stage's last iteration up to 9 (WP-2002,
+#: tests/test_budget_and_tolerance_invariance.py).
 _INNER_MAX = 18
 #: consecutive outer iterations below ``ftol`` that count as converged.  One
 #: small step is a small step; three running is convergence (Coelho's rule).

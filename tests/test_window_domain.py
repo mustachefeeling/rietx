@@ -328,7 +328,7 @@ def _fixed_point(family, start, consts):
     was = compiled.set_enabled(True)
     mp = _patched(consts)
     try:
-        prev = None
+        prev, settled = None, False
         for _ in range(5):
             ref = rx.Refinement(st.model_copy(deep=True), ins.model_copy(deep=True),
                                 history=False)
@@ -338,8 +338,12 @@ def _fixed_point(family, start, consts):
             st, ins = ref.fitted_structure, ref.fitted_instrument
             if prev is not None and max(_shift(cur, prev, background=False)[0],
                                         _shift(cur, prev, background=True)[0]) < FIXED_POINT_ESD:
+                settled = True
                 break
             prev = cur
+        assert settled, (f"{family}: the polish under {consts or 'the shipped constants'} "
+                         f"still moved a row by {FIXED_POINT_ESD} esd after five rounds, so "
+                         f"the comparison is not between fixed points")
         tag = ("_".join(f"{k}{v}" for k, v in consts) or "shipped") + "_from_" + (
             "_".join(f"{k}{v}" for k, v in start) or "shipped")
         OUT.mkdir(exist_ok=True)
@@ -437,7 +441,9 @@ def test_frozen_windows_hold_the_area_bound_through_each_stage(family):
     ``WINDOW_AREA_TOL`` of its area within the window frozen at its stage's
     start.  Fails where a stage widens the peaks, which no constant claims
     to cover; every final stage holds it (at most 1.96 %)."""
-    stages = _family(family)["stages"]
+    # cold passed positionally, as the movement test does: lru_cache keys
+    # _family(f) and _family(f, False) apart, which would refit the protocol
+    stages = _family(family, False)["stages"]
     stage, _, (lost, where) = max(stages, key=lambda s: s[2][0])
     assert lost <= fwd.WINDOW_AREA_TOL, (
         f"{family}: {lost:.4f} of the area of {where} lost in {stage!r}")

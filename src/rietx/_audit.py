@@ -1560,8 +1560,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.identifiability.TOP_CORRELATIONS_K", "constant", value=5),
     Row("rietx.optimize.least_squares.FD_STEP", "constant", tier=3, value=1e-06,
         evidence=("finite-difference step (WP-2002, 2026-10-21, tests/test_cross_backend.py): every FD "
-                  "column of the 23 configurations within 2.3e-4 of a Richardson oracle against a 1e-3 "
-                  "bar, and at the FAP and NAC answers an answer shift of 3.3e-5 esd; fails where a "
+                  "column of the 23 configurations within 2.5e-4 of a Richardson oracle (5.0e-4 with "
+                  "the oracle's own error, SRM 660c's extinction) against a 1e-3 bar, and at the FAP and NAC answers an answer shift of 3.3e-5 esd; fails where a "
                   "reflection sits on the Gaussian-variance floor (LaB6 and cpd-1a answers, u column "
                   "2.2e-2 off), a face of the clamp rather than of the step: 1e-8 does not cure it"),
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
@@ -1636,8 +1636,9 @@ ROWS: tuple[Row, ...] = (
         evidence=("numerical floor: eps*m, the rounding error of one inner product over m terms "
                   "(Higham 2002 §3.1; docstring)")),
     Row("rietx.optimize.lm._INNER_MAX", "constant", tier="invariant", value=18,
-        evidence=("answer-invariant: the worst iteration on nine acceptance configurations "
-                  "took 6 damped trials (3.0x, cpd-1a's lines_axial stage); tests/test_budget_and_tolerance_invariance.py "
+        evidence=("answer-invariant: on nine acceptance configurations an iteration that took "
+                  "a step tried at most 6 damped trials and a stage's last iteration up to 9 "
+                  "(2.0x); tests/test_budget_and_tolerance_invariance.py "
                   "asserts that margin and a bit-identical answer at 9; at 4 the answer "
                   "changes (WP-2002, 2026-10-21)"),
         grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "

@@ -26,17 +26,18 @@ budget                                LM: largest use (margin)    TRF: largest u
 evaluations, 400 a stage              49 (8.2x), corundum         47 (8.5x), corundum
 iterations against max_iter = 100     48 (2.1x), corundum         46 (2.2x), corundum
 evaluations per iteration, 4          1.39 (2.9x), cpd-1a+zircon  1.79 (2.2x), cpd-1a
-LM trials in one iteration, 18        6 (3.0x), cpd-1a            (no such loop)
+LM trials in one iteration, 18        9 (2.0x), see below         (no such loop)
 ====================================  ==========================  ==========================
 
 The per-iteration rate is the stage's evaluations after the first, over its
 iterations, for stages of five iterations or more.  A stage of two to four
 iterations that ends at its minimum spends several rejected trials in its last
 one and reads up to 3.5 a stage, at under 30 evaluations.  The LM trial count
-is the largest number of damped trials one outer iteration tried, the last
-iteration included.  No stage ever ran its trials out: every LM stage ended on
-three small steps (``ftol_runs``) or on a predicted decrease below the fp64
-floor (``exhausted_fp64``), the most trials in a final iteration being 9.
+is the largest number of damped trials one outer iteration tried.  An
+iteration that took a step tried at most 6 (3.0x).  A stage's last iteration,
+which finds no step, tried up to 9 (2.0x), so 2x is the margin.  No stage ever
+ran its trials out: every LM stage ended on three small steps (``ftol_runs``)
+or on a predicted decrease below the fp64 floor (``exhausted_fp64``).
 
 The iteration row is not asserted.  Neither driver counts iterations, so a
 stage that runs past ``max_iter`` iterations at one evaluation each is not
@@ -60,11 +61,12 @@ The test fits cpd-1a under its QPA protocol, which exercises every budget at
 or near its worst: a 45-iteration ridge walk in the cell stage, LM trials up
 to 6 in ``lines_axial``, and TRF's highest rejection rate in ``biso``.  On
 cpd-1a the margins are 8.7x (LM) and 9.1x (TRF) on evaluations, 3.3x and 2.2x
-on the rate, and 3.0x on LM trials.  The asserted margins are 4x on
-evaluations, about half the measured one, so a platform's few extra
-iterations cannot fail it and a doubling of the ridge walk does; 2x on the
-rate, which TRF meets with 12 % to spare (1.79 against 2); and 2x on LM
-trials.  The invariance tests refit with each budget cut to its asserted
+on the rate, and 3.0x on LM trials in a stepping iteration.  The asserted
+margins are 4x on evaluations, about half the measured one, so a platform's
+few extra iterations cannot fail it and a doubling of the ridge walk does;
+1.5x on the rate, since TRF's measured 2.2x was taken on darwin/arm64 alone and
+2x would leave it 12 % to spare (1.79 against 2) for another platform's
+rejected trials; and 2x on LM trials.  The invariance tests refit with each budget cut to its asserted
 margin and require the same answer to the last bit.
 
 The tolerance half of this file's name has no test.  WP-2002's B7 asked for
@@ -120,9 +122,9 @@ OUT = Path(__file__).parent / "output"
 #: the shipped ``StageSpec.max_iter``, and the evaluation budget it makes
 MAX_ITER = rx.Stage("x", []).max_iter
 #: how far inside each budget the fit must stay (measured margins in the
-#: module docstring: 8.7x, 2.2x, 3.0x on cpd-1a)
+#: module docstring: 8.7x, 2.2x, 2.0x on cpd-1a)
 EVALUATION_MARGIN = 4
-RATE_MARGIN = 2
+RATE_MARGIN = 1.5
 TRIAL_MARGIN = 2
 #: a stage shorter than this spends its last iteration's rejected trials
 #: over too few accepted ones for a rate to mean anything

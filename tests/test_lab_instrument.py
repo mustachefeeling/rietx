@@ -523,8 +523,10 @@ def _fcj_tt_at_ratio(target, fwhm, sl, hl, above_90):
     """The 2θ on one side of 90° where extent/FWHM falls just under ``target``.
 
     The extent falls monotonically to zero at 90° from either side, so this
-    bisects between 90° and the far end."""
-    near, far = (90.0, 175.0) if above_90 else (90.0, 5.0)
+    bisects between 90° and that side's end of the claimed domain
+    (``_FCJ_TT``).  Where the ratio stays under ``target`` all the way, it
+    returns the domain's end, a point the grid already holds."""
+    near, far = (90.0, _FCJ_TT[-1]) if above_90 else (90.0, _FCJ_TT[0])
     for _ in range(60):
         mid = 0.5 * (near + far)
         if _fcj_ratio(mid, fwhm, sl, hl) < target:

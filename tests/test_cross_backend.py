@@ -1542,12 +1542,13 @@ def _fd_taken(model, table, theta, monkeypatch):
                  if not np.array_equal(jac[:, c], doubled[:, c])]
 
 
-def _richardson(config, model, table, theta, scale=1.0):
+def _richardson(config, model, table, theta):
     """Central differences at h/2 and h, combined to O(h⁴): (4·D(h/2) − D(h))/3,
-    one-sided at a bound as :func:`_central_fd_jacobian` is."""
-    half = _central_fd_jacobian(config, model, table, scale=0.5 * scale)(theta)
-    full = _central_fd_jacobian(config, model, table, scale=scale)(theta)
-    return (4.0 * half - full) / 3.0
+    one-sided at a bound as :func:`_central_fd_jacobian` is.  Returns it with
+    the same combination at h and 2h, the oracle's own error; D(h) serves both."""
+    d = {s: _central_fd_jacobian(config, model, table, scale=s)(theta)
+         for s in (0.5, 1.0, 2.0)}
+    return (4.0 * d[0.5] - d[1.0]) / 3.0, (4.0 * d[1.0] - d[2.0]) / 3.0
 
 
 def _column_errors(jac, ref, ref_2h, fd, labels):
@@ -1593,8 +1594,7 @@ def test_every_fd_column_meets_a_converged_oracle(config, monkeypatch):
     theta = _theta(model, table)
     jac, fd = _fd_taken(model, table, theta, monkeypatch)
     assert fd, f"{config}: no column takes a finite difference"
-    ref = _richardson(config, model, table, theta)
-    ref_2h = _richardson(config, model, table, theta, 2.0)
+    ref, ref_2h = _richardson(config, model, table, theta)
     bound, own, label = _column_errors(jac, ref, ref_2h, fd, _labels(model, table))
     assert label is not None, f"{config}: every FD column was dead"
     assert bound <= FD_COLUMN_BAR, (
@@ -1633,9 +1633,11 @@ def _protocol(family):
     return _PROTOCOLS[family]
 
 
-def _forward_richardson(model, table, theta, scale=1.0):
+def _forward_richardson(model, table, theta):
     """The right derivative, the side the package differences on: one-sided
-    second-order quotients at h/2 and h, combined to O(h³)."""
+    second-order quotients at h/2 and h, combined to O(h³).  Returns it with
+    the same combination at h and 2h, the oracle's own error; the quotient at
+    h serves both."""
     from rietx.optimize.least_squares import _fd_typicals as typicals_of
 
     residual = _make_residual(model, table)
@@ -1648,11 +1650,13 @@ def _forward_richardson(model, table, theta, scale=1.0):
         t2[c] += 2.0 * h
         return (-3.0 * r0 + 4.0 * residual(t1) - residual(t2)) / (2.0 * h)
 
-    cols = []
+    cols, cols_2h = [], []
     for c in range(len(theta)):
-        h = scale * fd_step(theta[c], typ[c])
-        cols.append((4.0 * one_sided(c, 0.5 * h) - one_sided(c, h)) / 3.0)
-    return np.column_stack(cols)
+        h = fd_step(theta[c], typ[c])
+        q = {s: one_sided(c, s * h) for s in (0.5, 1.0, 2.0)}
+        cols.append((4.0 * q[0.5] - q[1.0]) / 3.0)
+        cols_2h.append((4.0 * q[1.0] - q[2.0]) / 3.0)
+    return np.column_stack(cols), np.column_stack(cols_2h)
 
 
 #: measured where the protocol answer fails, 2026-10-21 (macOS arm64, [dev])
@@ -1707,8 +1711,7 @@ def test_fd_columns_hold_at_every_protocol_answer(family, monkeypatch):
     _result, table, theta, _se, _corr = ref._answer_covariance
     theta = np.asarray(theta, dtype=np.float64)
     jac, fd = _fd_taken(model, table, theta, monkeypatch)
-    oracle = _forward_richardson(model, table, theta)
-    oracle_2h = _forward_richardson(model, table, theta, 2.0)
+    oracle, oracle_2h = _forward_richardson(model, table, theta)
     bound, own, label = _column_errors(jac, oracle, oracle_2h, fd,
                                        list(table.free_paths))
     r = _make_residual(model, table)(theta)
