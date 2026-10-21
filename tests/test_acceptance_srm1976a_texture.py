@@ -60,7 +60,16 @@ departure is stated.
   Declaring TOPAS's refined 1/x as a fixed curve moves C2,0 by 0.0012 and
   C4,0 by 0.0005, a twentieth of their esds.
 
-The fit runs in about a second, so the suite is not marked slow.
+Start dependence (``starts=4`` on the three texture rows).  The textured fit
+was run from four starting coefficient sets, (c2_0, c4_0, c4_3) = (0.5, 0.1, 0),
+(0, 0, 0), (3, -1, 0.2) and (1, 0.5, -0.1).  All four converge to the same
+Rwp (0.114621) and to the same coefficients, c2_0 2.07943, c4_0 0.86517 and
+c4_3 -0.00197, identical to the five decimals printed: the spread is below
+1e-5 against esds of 0.02-0.03.  The sweep is recorded here, not asserted.
+
+The fit itself takes about a second; the module runs in a few seconds serial
+(2-7 s measured on two machines), so it is not marked slow.  A CI leg runs
+3-4x slower than a laptop; the suite asserts no wall time.
 """
 
 from __future__ import annotations

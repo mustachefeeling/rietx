@@ -2560,14 +2560,16 @@ CLAIMS: tuple[Claim, ...] = (
     # ---- SRM 1976a plate: the spherical-harmonics texture against TOPAS --
     Claim(
         "test_acceptance_srm1976a_texture", "test_the_protocol_matches_before_any_number_is_compared",
-        "srm1976a_plate", ("identity", "ceiling"),
+        "srm1976a_plate", ("cross_code", "ceiling"),
         "Rexp reproduces TOPAS's, so both codes fitted the same channels under "
         "the same weights before any coefficient is compared",
         reference="Rexp depends on the data, the weights and the free-parameter "
                   "count only; TOPAS records r_exp 5.24587644 % over start_X 20 "
                   "with 33 refined parameters",
         measured="Rexp 0.0524721 against 0.0524588, 2.5e-4 relative; 11793 "
-                 "channels, 27 free parameters",
+                 "channels, 27 free parameters.  The gap is the parameter "
+                 "count and nothing else: Rexp goes as sqrt(N - P), and "
+                 "(11793 - 27)/(11793 - 33) puts the ratio at 1 + 2.55e-4",
     ),
     Claim(
         "test_acceptance_srm1976a_texture", "test_c20_and_c40_agree_with_topas_with_no_conversion",
