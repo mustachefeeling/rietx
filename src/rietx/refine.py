@@ -4979,6 +4979,11 @@ class Refinement:
         moment_released: tuple | None = None
         #: (stage name, origin restraint) per stage (WP-1912)
         origins: list[tuple[str, CompiledOrigin | None]] = []
+        #: every other per-stage finding, keyed by what it is about: a later
+        #: stage re-measuring the same paths replaces an earlier one's, which
+        #: the closing stage does for every finding the last declared stage
+        #: made (WP-2002).  Each stage's own list stays on its report and node.
+        restated: dict[tuple, Diagnostic] = {}
         for k, (stage, ftol, window_tol) in enumerate(
                 zip(stages, ftols, window_tols, strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -5027,7 +5032,9 @@ class Refinement:
                 elif d.code in _REVISABLE_CODES:
                     continue          # re-taken on the converged vector below
                 else:
-                    diagnostics.append(d)
+                    key = (d.code, tuple(d.where) or (d.message,))
+                    restated.pop(key, None)
+                    restated[key] = d
             runaway_diag = _cell_runaway_diagnostic(hold.cell_runaway, hold.cell_runaway_unresolved)
             # the last stage's alone survives the loop: an earlier stage's
             # reset is re-measured by every later one (staging is cumulative)
@@ -5082,6 +5089,7 @@ class Refinement:
                     phase_support_sigma=phase_support_sigma,
                     correlation_guard=plan.correlation_guard,
                 ), model, table, outcome, stage_diagnostics)
+        diagnostics.extend(restated.values())
         # the converged vector's own findings, and nothing earlier: the same
         # ``guard`` object ``_build_result`` projects ``at_bound`` from
         if guard is not None:

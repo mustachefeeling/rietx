@@ -267,10 +267,7 @@ def _negative_density_case(solver):
     return fit.fit(data, plan=rx.RefinementPlan(stages=[
         rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
         rx.Stage("texture", ["phases.*.scale", "instrument.background.c*",
-                             "phases.*.texture.*"])],
-        # the declared stages' positivity guard; the closing stage is
-        # tests/test_closing_stage.py's
-        closing_window_tol=None))
+                             "phases.*.texture.*"])]))
 
 
 def test_the_default_driver_holds_p_at_the_reflections():
@@ -284,6 +281,9 @@ def test_trf_goes_negative_and_the_guard_says_so():
     result = _negative_density_case("trf")
     (row,) = result.texture
     assert row.min_p_reflections < -0.1
+    # the texture stage and the closing stage both fire it, on one path, and
+    # the result keeps the later, the answer's (WP-2002)
+    assert [s.name for s in result.stages][-1] == "closing"
     (diag,) = [d for d in result.diagnostics if d.code == "TEXTURE_NOT_POSITIVE"]
     assert diag.where == ["phases.0.texture"]
     assert diag.value == pytest.approx(row.min_p_sphere)
