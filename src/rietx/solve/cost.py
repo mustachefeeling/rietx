@@ -482,6 +482,9 @@ class SolveCost:
                 "the package calls it unusable (RefinementResult.usable): it is "
                 "not a fit of this pattern")
         structure = blind_structure(refinement.fitted_structure, phase, nuisance)
+        # at the declared stages' windows, never a closing stage's (WP-2002):
+        # those keep M0 banded, and at 1e-3 NAC's grew a third denser, so the
+        # floor is this model's and can sit above the extraction's own χ²
         model = compile_model(structure, instrument, data, mode="rietveld",
                               two_theta_limits=refinement._two_theta_limits)
         if len(model.tt) != result.statistics.n_points:

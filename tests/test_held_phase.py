@@ -448,7 +448,10 @@ def _collapsed_plan():
 
     return rx.RefinementPlan(stages=[rx.Stage(
         "all", ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
-                "instrument.profile.w", "instrument.profile.x"])])
+                "instrument.profile.w", "instrument.profile.x"])],
+        # the declared stage's hold, release and collapse; the closing stage
+        # is tests/test_closing_stage.py's
+        closing_window_tol=None)
 
 
 @pytest.fixture(scope="module")
@@ -605,8 +608,9 @@ def test_a_held_stage_streams_the_hold_without_a_release():
         synthesize(), plan="mccusker_default", events=seen.append)
     starts = [e["data"] for e in seen if e["kind"] == "stage_start"]
     ends = [e["data"] for e in seen if e["kind"] == "stage_end"]
-    assert len(starts) == len(ends) == 5
-    assert [d["held"] for d in ends[2:]] == [["phases.1.cell.a"]] * 3
+    n = len(rx.PLAN_PRESETS["mccusker_default"]().run_stages())
+    assert len(starts) == len(ends) == n
+    assert [d["held"] for d in ends[2:]] == [["phases.1.cell.a"]] * (n - 2)
     assert all(d["released"] == [] for d in ends)
 
 
@@ -852,7 +856,7 @@ def test_the_joint_path_holds_a_phase_no_histogram_can_see():
     assert result.stages[-1].held == ["phases.1.cell.a"]
     assert ref.mtable.structures[0].phases[1].cell.a.value == 5.2
     fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
-    assert len(fired) == 1 and "was held for stage cell" in fired[0].message
+    assert len(fired) == 1 and "was held for stages cell, closing" in fired[0].message
 
 
 def _held_columns(sharing=None) -> tuple[list[str], list[str]]:
@@ -997,10 +1001,11 @@ def test_a_later_stage_re_decides_the_hold_rather_than_inheriting_it():
     data = _ramp_patterns([700.0])[0]
     ref = rx.Refinement(_ramp_start(caf2_a=5.40, bounds=None),
                         _ramp_instrument(), history=False)
+    # the declared stages' lift; the closing stage is tests/test_closing_stage.py's
     result = ref.fit(data, plan=rx.RefinementPlan(stages=[
         rx.Stage("cell_bkg", ["phases.*.cell.*", "instrument.background.*"]),
         rx.Stage("scale", ["phases.*.scale"]),
-    ]))
+    ], closing_window_tol=None))
 
     first, second = result.stages
     assert first.held == ["phases.1.cell.a"], "stage 1 could not see the phase"

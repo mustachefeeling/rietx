@@ -166,7 +166,13 @@ def test_a_pawley_fit_sits_on_or_above_its_own_floor(nac):
     restraint rows and the ridge the floor does not."""
     data, st, ins = nac
     ref = rx.Refinement(st, ins, history=False)
-    result = ref.fit(data, mode="pawley", two_theta_limits=(2.0, 12.0), telemetry=False)
+    plan = rx.PLAN_PRESETS["pawley_default"]()
+    # the declared stages alone (WP-2002): the cost compiles at their windows,
+    # and a fit closed at 1e-3 is a different model from it (floor 1.0029 of the
+    # fit's χ² there)
+    plan.closing_window_tol = None
+    result = ref.fit(data, mode="pawley", plan=plan, two_theta_limits=(2.0, 12.0),
+                     telemetry=False)
     cost = SolveCost.from_pawley(ref, data)
     assert cost.records["extraction"]["mode"] == "pawley"
     r = (np.asarray(result.y_obs) - np.asarray(result.y_calc)) / np.asarray(result.sigma)

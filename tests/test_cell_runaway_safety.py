@@ -460,8 +460,9 @@ def _fit_with_injected_escape(stages, *, mode, escape_at, restore_at,
         mp.setattr(refine_module, "run_least_squares", solve)
         mp.setattr(refine_module, "_unsupported_phase_paths", lambda *a, **k: [])
         ref = Refinement(_cubic_pair(), ins, history=False)
+        # the declared stages' reset; the closing stage is tests/test_closing_stage.py's
         result = ref.fit(_cubic_pair_pattern(), mode=mode,
-                         plan=RefinementPlan(stages=list(stages)))
+                         plan=RefinementPlan(stages=list(stages), closing_window_tol=None))
     assert escape_at in found, "the injection never ran"
     return result
 

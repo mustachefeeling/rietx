@@ -554,8 +554,9 @@ def test_a_joint_fit_says_once_which_atom_holds_the_origin(zincite_data):
               if d.code == "ORIGIN_FIXED_ON_POLAR_AXIS"]
     assert len(origin) == 1 and origin[0].where == ["phases.0.atoms.0.dof.0"]
     assert "(Zn)" in origin[0].message
-    assert [sr.blocked_by_hold for sr in result.stages] == [
-        [], ["phases.0.atoms.0.dof.0"]]
+    # every stage that frees the DOFs, the closing one included, is blocked
+    assert [sr.blocked_by_hold for sr in result.stages] == [[]] + [
+        ["phases.0.atoms.0.dof.0"]] * (len(PLAN.run_stages()) - 1)
     codes = {d.code for d in result.diagnostics}
     assert not codes & {"HOLD_BLOCKED_PLAN", "ORIGIN_NOT_FIXED"}
     for h in result.histograms:

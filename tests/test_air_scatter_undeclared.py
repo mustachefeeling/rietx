@@ -66,7 +66,11 @@ def _fit(data: rx.PatternData, background=None):
     ins = _instrument()
     ins.background = background if background is not None else rx.auto_background(data).background
     ref = rx.Refinement(_structure(), ins, history=False)
-    return ins.background, ref.fit(data)
+    plan = rx.PLAN_PRESETS["mccusker_default"]()
+    # drawn and fitted at the declared stages' windows; the closing stage is
+    # tests/test_closing_stage.py's
+    plan.closing_window_tol = None
+    return ins.background, ref.fit(data, plan=plan)
 
 
 def _found(result):
