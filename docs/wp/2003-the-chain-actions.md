@@ -154,6 +154,9 @@ summary).
 
 ## Handover log
 
+- **2026-10-21** — the repair itself: WP-2019's session, started under this
+  WP's `repair first` flag, wrote the reconstructed entry below (f036bf9, on
+  #1095's branch). No work on this WP's tasks, and Next is unchanged.
 - **2026-10-20** (reconstructed post hoc, 2026-10-21, from 5c88100 / #1084) — a
   process edit, not work on this WP's tasks: the brief this WP sends the maintainer now
   opens with a stakes line, and a measured-consequence column was weighed and declined.
