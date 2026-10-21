@@ -1339,7 +1339,7 @@ def test_solve_magnetic_on_the_first_pattern_gives_the_model_the_series_refines(
 # patterns of S. Maier, M. W. Gaultois, N. Matsubara, W. Surta, F. Damay,
 # S. Hebert, V. Hardy, D. Berthebaud and F. Gascoin, Phys. Rev. B 103, 054115
 # (2021), doi:10.1103/PhysRevB.103.054115 (arXiv:2102.06484), vendored with the
-# authors' permission (``tests/data/README.md``).  The paper reports
+# authors' permission (``tests/data/README.md``, which carries the terms).  The paper reports
 # T_N = 58 K from chi(T) and c_p(T), k = (1/2, 0, 1/2), the Shubnikov group
 # P_a 2_1/m (BNS 11.55, irreps Gamma4/Gamma8) with the moment along b, and
 # m_y = 4.13(4) mu_B per Fe at 1.5 K with the two Fe moments constrained equal
@@ -1423,6 +1423,19 @@ def _ba_pattern(t: float):
 @pytest.fixture(scope="module")
 def ba2fesbse5_ramp():
     """The nuclear fit at 1.5 K, the magnetic statement, and the ramp both ways."""
+    # the fixture's numbers declare their kernel path rather than inheriting
+    # whatever an earlier test on this worker, or RIETX_COMPILED, left behind
+    # (tests/CLAUDE.md § Quoting numbers); numpy is the tier's own oracle
+    from rietx.model import compiled
+
+    was = compiled.set_enabled(False)
+    try:
+        return _ba2fesbse5_ramp_fits()
+    finally:
+        compiled.set_enabled(was)
+
+
+def _ba2fesbse5_ramp_fits():
     from rietx.crystallography.magnetic.isotropy import candidates
     from rietx.crystallography.magnetic.supercell import (
         anti_translation_ties,
@@ -1534,9 +1547,10 @@ def test_ba2fesbse5_ramp_the_moment_grows_below_the_onset_both_ways(
     """
     series = ba2fesbse5_ramp["series"]
     assert ba2fesbse5_ramp["nuclear"].status == "converged"
-    # the fits the verdicts rest on converged, in both chains; the flat
-    # paramagnetic valley is allowed to stop on its budget (one forward
-    # pattern, 100 K, does) because a held moment is not a fit result
+    # the fits the verdicts rest on converged, in both chains (all 24 do under
+    # this protocol); the assertion covers the ordered side and 55 K, because a
+    # moment held in the paramagnetic valley is not a fit result and its fit
+    # may stop on its budget without moving a verdict
     for chain in (series, series.backward):
         assert [e.status for e, t in zip(chain.entries, BA_TEMPS, strict=True)
                 if t <= 55.0] == ["converged"] * 8
