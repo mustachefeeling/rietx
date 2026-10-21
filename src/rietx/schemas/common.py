@@ -574,6 +574,12 @@ from .._nearmiss import did_you_mean
 #: cannot be rebuilt as every step, so a document's ``discontinuities`` key is
 #: dropped at read (``SeriesResult``'s ``mode="before"`` validator) and its
 #: ``steps`` reads ``None``, "not recorded".
+#: Also in 0.60 (WP-1419 C3a): ``Phase.distortion_modes``, a child stated as
+#: its parent plus absolute mode amplitudes (``DistortionModes``: the parent
+#: group, the transform, the reference metric, one base position per atom and
+#: a ``DistortionMode`` per mode with ``amplitude: Parameter``).  Additive and
+#: defaulted to ``None``, exactly off, the 0.25 → 0.26 rule; written by
+#: ``displacive_statement``.  An older build refuses a phase carrying it.
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
