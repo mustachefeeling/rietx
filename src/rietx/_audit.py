@@ -3,8 +3,9 @@
 The rule lives in ``docs/milestones/generality.md`` § The rule and is not
 restated here beyond what a row needs.  Each part of a heuristic is tiered on
 its own: (1) physics or arithmetic; (2) established practice, a citation that
-validated it or the same action taken *by default* in GSAS-II, FullProf or
-TOPAS; (3) rietx's own, kept only on the record's two grounds with the
+validated it or the same action taken *by default* in an established Rietveld
+program (the seven rietx-bench runs: GSAS-II, FullProf, TOPAS, RIETAN-FP,
+BGMN, MAUD, EasyDiffraction); (3) rietx's own, kept only on the record's two grounds with the
 maintainer's dated approval.  ``invariant`` is the record's answer-invariant
 class; ``caller`` is an action only the caller turns on (an opt-in flag, or a
 pick verb no default path calls), since DESIGN.md § Rules, 1 governs what the

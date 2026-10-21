@@ -54,7 +54,11 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    on what a report lists, once a test shows the report is complete inside the cap and
    its notes count what lies outside it (ruled 2026-10-21, WP-2002's fifth round).
 2. **Established practice.** A citation that validated it, or the same action taken *by
-   default* in GSAS-II, FullProf or TOPAS. Computing a statistic is not acting on it: every
+   default* in an established Rietveld program. The programs are the seven rietx-bench
+   runs: GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction (widened
+   from the first three on 2026-10-21). A row resting on a program default names the
+   programs it checked and what each does by default. A program that does otherwise by
+   default is a dissenter; one without the feature is neither. Computing a statistic is not acting on it: every
    code reports R_Bragg and WP-1069 rejects it as evidence; GSAS-II concatenates multi-range
    scans and rietx refuses to. A statistic or threshold here is kept, and the registry
    entry names the source. An action here still faces the judgement ground under tier 3.
@@ -98,7 +102,7 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    seeding its successors, and Rule 1 names it as a protection of expensive work; the
    earlier visibility wording had marked it contested.
 
-   **Tier 2 will rarely cover an action.** GSAS-II, FullProf and TOPAS take almost no
+   **Tier 2 will rarely cover an action.** The established programs take almost no
    automatic actions; the person at the GUI decides. So nearly every action in 2002 and
    2003 is tier 3. The judgement ground decides every action whatever its tier, and its
    wording carries the audit. A tier-2 *statistic* under a tier-3 *action* is the common
