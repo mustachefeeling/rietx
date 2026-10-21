@@ -739,9 +739,38 @@ def test_dichotomy_only_reports_cells_inside_the_domain_it_searched():
 # ----------------------------------------------------------------------
 # Dichotomy: recovery
 # ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def recovered():
+    """``(engine, system) -> (result, true cell)``, each search run once.
+
+    The recovery rows and the agreement row ask different questions of the same
+    search (one engine, ``synthetic_peaks(system)``, ``spec_for(system)``), so
+    they read one result rather than each running it.  The agreement row's
+    reruns were ~10 s, nearly all of it trial_error's orthorhombic search
+    (WP-2019).  The spec is the recovery rows' own, so each search keeps its
+    runaway-guard budget and its ``search_complete`` assertion.  Every reader
+    carries ``xdist_group("indexing-engine-recovery")``; unmarked, a second
+    worker would run the searches again.
+    """
+    from rietx.indexing.trial_error import search_trial_error
+
+    search = {"dichotomy": search_dichotomy, "trial_error": search_trial_error}
+    done: dict[tuple[str, str], tuple] = {}
+
+    def run(engine: str, system: str) -> tuple:
+        if (engine, system) not in done:
+            peaks, cell = synthetic_peaks(system)
+            done[engine, system] = (
+                search[engine](peaks, spec=spec_for(system)), cell)
+        return done[engine, system]
+
+    return run
+
+
+@pytest.mark.xdist_group("indexing-engine-recovery")
 @pytest.mark.parametrize("system", ["cubic", "tetragonal", "hexagonal",
                                     "trigonal", "orthorhombic"])
-def test_dichotomy_recovers_a_known_cell(system):
+def test_dichotomy_recovers_a_known_cell(system, recovered):
     """Rank 1 must be the truth, not merely present in the list.
 
     Ranking is the FoM panel's Borda count (``engines.rank_candidates``), and the
@@ -749,8 +778,7 @@ def test_dichotomy_recovers_a_known_cell(system):
     every observed line *exactly* and lose only on ``predicted_seen_fraction``.
     That is a geometrical ambiguity for WP-1024 to report, not a failure here.
     """
-    peaks, cell = synthetic_peaks(system)
-    result = search_dichotomy(peaks, spec=spec_for(system))
+    result, cell = recovered("dichotomy", system)
     assert result.candidates, f"{system}: no candidate at all"
     assert result.search_complete[system], f"{system}: budget expired"
     assert_same_lattice(result.candidates[0].cell, cell)
@@ -1058,14 +1086,12 @@ def test_the_base_pool_must_reach_a_line_with_a_cross_term():
     assert BASE_POOL_MIN >= 8
 
 
+@pytest.mark.xdist_group("indexing-engine-recovery")
 @pytest.mark.parametrize("system", ["cubic", "tetragonal", "hexagonal",
                                     "trigonal", "orthorhombic"])
-def test_trial_error_recovers_a_known_cell(system):
+def test_trial_error_recovers_a_known_cell(system, recovered):
     """The exact n×n solve, ranked on the same panel dichotomy is ranked on."""
-    from rietx.indexing.trial_error import search_trial_error
-
-    peaks, cell = synthetic_peaks(system)
-    result = search_trial_error(peaks, spec=spec_for(system))
+    result, cell = recovered("trial_error", system)
     assert result.candidates, f"{system}: no candidate at all"
     assert result.search_complete[system]
     assert_same_lattice(result.candidates[0].cell, cell)
@@ -1563,7 +1589,8 @@ def test_a_dominant_row_is_raised_from_the_engines_own_experience():
     assert DOMINANT_ZONE_PROBE_LADDER[0] > BASE_INDEX_MAX
 
 
-def test_the_two_engines_agree_on_the_same_list():
+@pytest.mark.xdist_group("indexing-engine-recovery")
+def test_the_two_engines_agree_on_the_same_list(recovered):
     """**Agreement between independent searches is the confidence** (WP-1024
     turns this into a gate; here it is checked to exist at all).
 
@@ -1571,13 +1598,11 @@ def test_the_two_engines_agree_on_the_same_list():
     dichotomy bounds Q over a box of metrics and never assumes an index, trial and
     error assumes indices and never bounds anything.  Landing on the same lattice
     is therefore evidence, which is the entire premise of the three-engine design.
+    The searches are the recovery rows' own, read through ``recovered``.
     """
-    from rietx.indexing.trial_error import search_trial_error
-
     for system in ("hexagonal", "orthorhombic"):
-        peaks, cell = synthetic_peaks(system)
-        a = search_dichotomy(peaks, spec=spec_for(system))
-        b = search_trial_error(peaks, spec=spec_for(system))
+        a, cell = recovered("dichotomy", system)
+        b, _cell = recovered("trial_error", system)
         assert a.candidates and b.candidates, system
         assert_same_lattice(a.candidates[0].cell, cell)
         assert_same_lattice(b.candidates[0].cell, cell)

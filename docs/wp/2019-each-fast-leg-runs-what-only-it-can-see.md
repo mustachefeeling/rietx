@@ -211,10 +211,15 @@ cutting it.
       `full`. *Marked `slow` (2026-10-21): the reset of this cell and the reset
       inside `fit` are asserted per push by other rows. The nightly pass is
       still owed (Acceptance).*
-- [ ] **Measure and cut the repeats in E.** Measure each one first. Share a
+- [x] **Measure and cut the repeats in E.** Measure each one first. Share a
       repeat through a module fixture carrying its `xdist_group` where the
       measurement says it pays. Put a wiring-only indexing assertion on one
       engine or a stub. The ranking claims stay on full searches.
+      *Done 2026-10-21: three of four cut, 285.6 → 164.2 worker-s over the
+      four files. `test_background_auto`'s repeats measured under 0.2 s each
+      and were left (E had paired the wrong fits). The indexing wiring tests
+      cost the ambiguity sweep, not the search, so the lever was
+      `max_candidates`, with one engine only alongside it.*
 - [ ] **Re-measure.** Run the fast tier on the final tree locally (venv and
       platform quoted) and read ten main runs (Acceptance).
 - [ ] **Skill:** none. This changes how the repo is tested, not how rietx is
