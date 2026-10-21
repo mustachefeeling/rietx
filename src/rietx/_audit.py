@@ -1221,6 +1221,14 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.magnetic.supercell.CHILD_SITE_TOL", "constant", value=0.0001),
     Row("rietx.crystallography.neutron.NEUTRON_LAMBDA_EV_ANGSTROM", "constant", value=0.286014),
     Row("rietx.crystallography.neutron.SIGMA_ABS_REFERENCE_WAVELENGTH", "constant", value=1.798),
+    Row("rietx.crystallography.representation.distortion.DISTORTION_SEED", "constant",
+        tier="invariant", value=0.01,
+        evidence=("answer-invariant by measured margin (WP-1419): the act is physics (chi2 is even "
+                  "in the amplitude vector, so every non-identity column is exactly zero at A = 0, "
+                  "#286 2026-09-16, Perez-Mato 2010 sec. 7); the magnitude 0.003/0.01/0.03 A gives "
+                  "converged amplitudes within 0.01 esd of each other on synthetic NaTaO3 P4/mbm "
+                  "and LaMnO3 Pnma, two perovskites, untested beyond them; tests/"
+                  "test_displacive_statement.py::test_the_seed_magnitude_does_not_move_the_answer")),
     Row("rietx.crystallography.representation.distortion._POSITION_TOL", "constant", value=1e-06),
     Row("rietx.crystallography.representation.distortion._PROBE_AMPLITUDE", "constant", value=0.05),
     Row("rietx.crystallography.representation.distortion._PROBE_SYMPREC", "constant", value=0.001),
