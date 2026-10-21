@@ -1352,20 +1352,39 @@ def test_solve_magnetic_on_the_first_pattern_gives_the_model_the_series_refines(
 # model is the one ``solve_magnetic`` selects on the 1.5 K pattern from the
 # nuclear fit alone (class 11.55 S2(a,b); run 2026-10-20, recorded in the PR),
 # built here directly so the test does not repeat that ten-minute search.  The
-# ties are the statement's own (``anti_translation_ties``) plus the paper's
-# equal-moment tie.  The starting nuclear model is the published 293 K
-# single-crystal Pnma structure of Wang, Greenfield and Kovnir, J. Solid State
-# Chem. 242, 22 (2016), refined here against the 1.5 K pattern.
+# ties are the statement's own (``anti_translation_ties``), the paper's
+# equal-moment tie, and one Biso per parent site.  The starting nuclear model is
+# the published 293 K single-crystal Pnma structure of Wang, Greenfield and
+# Kovnir, J. Solid State Chem. 242, 22 (2016), refined here against the 1.5 K
+# pattern.
+#
+# **Protocol** (revised 2026-10-21, measured on these patterns): the fit starts
+# at 5.2 deg, above the direct-beam tail; the background is the P-spline
+# ``auto_background`` sizes to the fitted range (it replaced a 4-term Chebyshev
+# that bent the wrong way under the lowest magnetic line); the 28 child Biso are
+# tied to their 7 parent sites (freed one by one, the Fe children alone ran to
+# -8..+24 A^2).  Asymmetry stays at 0: one tied axial-divergence parameter
+# fitted on the 100 K pattern lowers chi^2 but draws a low-angle tail the data
+# do not have.  The unmodelled low-angle centroid shift that remains (about
+# -50 mdeg at the 9.35 deg magnetic line, cot 2theta-shaped) is a named
+# systematic worth +0.03 to +0.06 mu_B on the 1.5 K moment.  No magnetic width:
+# with the Biso tied it costs BIC (-5.8 to -9) at every temperature measured.
+# The parent Biso are not determined by these data (esds 2.6-5.8 A^2 in the
+# nuclear fit; Ba1 comes out at -1.2(3.8) A^2 there and its child at
+# -0.3(1.2) A^2 at 1.5 K, so BISO_NEGATIVE stays on); one overall B, free or
+# held at 0.8 A^2, moves the 1.5 K moment by -0.04 and +0.004 mu_B, inside
+# 0.3 esd, so per-site B is kept.
 #
 # **Tier: characterisation, never validation.**  The published 4.13(4) mu_B is a
-# same-pattern result under another code and another protocol (FullProf, axial
-# divergence and a magnetic width free, Gamma4/Gamma8), so it bounds the answer
-# and verifies nothing about the physics.  The onset has an independent
-# reference (T_N from bulk probes), but a powder verdict can only see an order
-# parameter once it is above its own esd, so the bracket is asserted to lie at
-# or below T_N, within one grid step of it, and never above.  The assertions
-# below were written after the first run, which is stated here and in the PR;
-# none was widened afterwards.
+# same-pattern result under another code and another protocol (FullProf,
+# Gamma4/Gamma8; its profile, background and form-factor settings are not
+# published), so it bounds the answer and verifies nothing about the physics.
+# The onset has an independent reference (T_N from bulk probes), but a powder
+# verdict can only see an order parameter once it is above its own esd, so the
+# bracket is asserted to lie at or below T_N, within one grid step of it, and
+# never above.  The assertions below were written after the first run, which is
+# stated here and in the PR; none was widened afterwards, and the 2026-10-21
+# protocol revision left every one of them unchanged.
 
 BA_DATA = Path(__file__).resolve().parent / "data"
 BA_TEMPS = [1.5, 10.0, 20.0, 30.0, 40.0, 45.0, 50.0, 55.0, 65.0, 100.0,
@@ -1390,11 +1409,15 @@ def _ba_tag(t: float) -> str:
     return "001p5" if t == 1.5 else f"{int(t):03d}"
 
 
+#: below 5.2 deg 2theta is the direct-beam tail of the corrected patterns: the
+#: fit starts above it rather than asking the background to follow it
+BA_LOW = 5.2
+
+
 def _ba_pattern(t: float):
-    # 2theta < 4 deg is the direct-beam tail of the corrected patterns
     return rx.read_pattern(
         BA_DATA / f"llb_g41_ba2fesbse5_{_ba_tag(t)}K.xy"
-    ).model_copy(update={"excluded_regions": [(0.0, 4.0)]})
+    ).model_copy(update={"excluded_regions": [(0.0, BA_LOW)]})
 
 
 @pytest.fixture(scope="module")
@@ -1421,11 +1444,17 @@ def ba2fesbse5_ramp():
         atoms=[rx.Atom(label=lab, species=sp, x=par(x), y=par(y), z=par(z),
                        occ=par(1.0), biso=par(u * 8.0 * np.pi ** 2, unit="A^2"))
                for lab, sp, x, y, z, u in BA_ATOMS])
+    first = _ba_pattern(1.5)
     inst = rx.Instrument.constant_wavelength_neutron(BA_LAMBDA)
     inst.profile.w.value = 0.0025
     inst.profile.x.value = 0.0
+    # the background rietx sizes to the data over the fitted range (a P-spline,
+    # 3 deg knots), seeded; asymmetry stays at its default 0 (see the PR)
+    inst.background = rx.auto_background(
+        first, two_theta_limits=(BA_LOW, float(first.two_theta[-1])),
+        wavelength=BA_LAMBDA, seed=True).background
 
-    bkg = ["phases.0.scale"] + [f"instrument.background.c{i}" for i in range(4)]
+    bkg = ["phases.0.scale", "instrument.background.c*"]
     width = [f"instrument.profile.{k}" for k in "uvwx"]
     cell = ["instrument.zero_shift", "phases.0.cell.*"]
     stages = [("scale_bkg", bkg), ("zero", bkg + cell[:1]), ("cell", bkg + cell),
@@ -1437,7 +1466,7 @@ def ba2fesbse5_ramp():
         stages=[rx.Stage(n, list(p), max_iter=200) for n, p in stages],
         intermediate_ftol=1e-6)
     ref = rx.Refinement(rx.Structure(phases=[parent]), inst, history=False)
-    nuclear = ref.fit(_ba_pattern(1.5), plan=nuclear_plan)
+    nuclear = ref.fit(first, plan=nuclear_plan)
 
     fitted = ref.fitted_structure.phases[0]
     fe = next(a for a in fitted.atoms if a.label == "Fe1")
@@ -1450,6 +1479,14 @@ def ba2fesbse5_ramp():
     child = rx.Structure(phases=[statement.phase])
     moment_atoms = [j for j, a in enumerate(statement.phase.atoms)
                     if a.moment is not None]
+    first_child: dict[int, int] = {}
+    biso_ties = []
+    for j, (parent_atom, _coset) in enumerate(statement.site_map):
+        if parent_atom in first_child:
+            biso_ties.append((f"phases.0.atoms.{j}.biso",
+                              f"phases.0.atoms.{first_child[parent_atom]}.biso"))
+        else:
+            first_child[parent_atom] = j
 
     def constrain(_i, r):
         # the statement's own ties, then the paper's equal-moment tie
@@ -1462,6 +1499,11 @@ def ba2fesbse5_ramp():
         for j in free[1:]:
             r.tie(f"phases.0.atoms.{j}.moment.dof0",
                   f"phases.0.atoms.{free[0]}.moment.dof0", scale=1.0)
+        # one Biso per parent site: every child of a parent atom follows the
+        # first (``site_map``), as tie_to_parent does; freed one by one, the 28
+        # child Biso ran to -8..+24 A^2 on the Fe children alone
+        for target, source in biso_ties:
+            r.tie(target, source, scale=1.0)
 
     plan = rx.RefinementPlan(stages=[
         rx.Stage(n, list(p)) for n, p in zip(SOLVE_STAGE_NAMES,
