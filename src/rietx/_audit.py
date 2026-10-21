@@ -1330,15 +1330,15 @@ ROWS: tuple[Row, ...] = (
                   "against a bar of 0.1 sigma a point (tests/test_window_domain.py); 5 deg is "
                   "bit-identical to 20 deg on both, and the margin needed grows with the window: "
                   "at the closing stage's 1e-3 windows 0.186 and 0.124 sigma at the last "
-                  "points, the answers moving 0.026 and 0.043 esd (WP-2002, 2026-10-21); a compile "
-                  "at the closing windows generates out to the widest edge window instead, and the "
-                  "closing answer then meets 0.1 sigma (0.027 FAP, 0.022 cpd-1a) at 1.3x the FAP "
-                  "fit's time"),
+                  "points, the answers moving 0.026 and 0.043 esd (WP-2002, 2026-10-21); generating "
+                  "out to the widest edge window met 0.1 sigma (0.027 FAP, 0.022 cpd-1a) at 1.3x "
+                  "FAP's closing stage, but its tail-only reflections lifted the scale-B separation "
+                  "over its floor on cpd-1a and the closing stage freed a ridge (corundum 72.5 to "
+                  "50.8 wt%, weighed 72.7), so it was reverted"),
         grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
                  "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh "
-                 "round's Q2): it stays for the declared stages, which only steer, and a compile at "
-                 "CLOSING_WINDOW_TOL or tighter generates reflections out to the widest window at "
-                 "either edge, with this as its floor."),
+                 "round's Q2): an edge rule at CLOSING_WINDOW_TOL was built and reverted (evidence), "
+                 "so this margin serves every compile; keeping it is owed to the maintainer."),
         approved="2026-10-21"),
     Row("rietx.model.forward.WINDOW_AREA_TOL", "constant", tier=3, value=0.02,
         evidence=("window area tolerance; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC against 5e-5 (converged): fails on all four, "

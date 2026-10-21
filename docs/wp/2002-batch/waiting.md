@@ -122,13 +122,13 @@ Eight more, measured 2026-10-21 (each row's evidence has the numbers):
 **Built 2026-10-21 under the seventh round's Q2** (`rulings.md` § Seventh round), each by its kind:
 
 - The FCJ rule: the closing rule (`CLOSING_NODES_PER_FWHM` 12, `CLOSING_MIN_NODES` 10, `CLOSING_MAX_NODES` 1024, `CLOSING_SKIP_EXTENT_FWHM_RATIO` 3e-4) for every compile at `CLOSING_WINDOW_TOL` or tighter, tier 1 on `test_the_closing_node_rule_meets_the_bar`; the four declared-stage constants stay tier 3.
-- `REFLECTION_MARGIN_DEG`: a Rietveld compile at the closing windows generates out to the widest edge window. The closing answer then meets 0.1σ (0.027 FAP, 0.022 cpd-1a). Le Bail and Pawley keep 0.5°, a reflection centred past the edge having its intensity fitted to its tail alone. The constant stays tier 3 for the declared stages.
+- `REFLECTION_MARGIN_DEG`: built, then reverted (`90b4bc770`). Generating out to the widest edge window at the closing windows met 0.1σ (0.027 FAP, 0.022 cpd-1a) at 1.3× FAP's closing stage, but reflections centred past the edge, reaching the scan only by their tails, lifted the scale-B separation over its floor on cpd-1a's narrow scan, and the closing stage freed a ridge the declared stages held: corundum 72.5 → 50.8 wt% against a weighed 72.7. The margin is 0.5° on every compile again, tier 3, leaving 0.186σ and 0.124σ at the last points of FAP and cpd-1a (answers 0.026 and 0.043 esd); whether to keep it is owed to the maintainer.
 - `A5_CLIP` 1e-4, tier 1 (0.14 %).
 - `TEXTURE_SPHERE_SAMPLES` with a local polish (`sphere_minimum`, `TEXTURE_POLISH_STARTS` 5, `TEXTURE_POLISH_LEVELS` 6), all three tier 1 (at most 1.7e-9 at orders 2-8).
 - `MAGNETIC_SIZING_FLOOR`: invariant behind the closing stage (0.000 plain esd on MnF2, one family).
 - `AXIAL_SIZING_FLOOR`: behind the closing stage 0.007 and 0.002 plain esd on LaB6 and FAP, 0.138 on cpd-1a's corundum `c` (strict xfail, `tests/test_staged_start_invariance.py`); stays tier 3, owed to the maintainer. The separate refine-from-zero floor above is the untried option.
 
-Cost of the closing stage after these builds (FAP, the dearest): 2.8-2.9× the fit without it, against 1.9-2.0× before, the edge margin about 1.3× of that and the FCJ rule about 1.15×; measured while another session's suite ran, interleaved.
+Cost of the closing stage after these builds, against the fit without it, on a quiet machine, interleaved: LaB6 1.42-1.44×, FAP 2.20-2.33×, cpd-1a 1.60-1.62×, NAC 1.2×, against 1.16-1.19×, 2.04-2.18×, 1.37-1.39× and 1.2× before them. The FCJ closing rule is most of the difference.
 
 Domain tests still owed at tier 3: the interval settings (`PARAMETER_INTERVAL_*`) and the width-grid settings (`FRACTION_PROFILE_*`). The other B10 rows sit at tier 3 with their domain tests still owed (grep `_audit.py` for "claimed domain is owed").
 

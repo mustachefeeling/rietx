@@ -311,8 +311,8 @@ Measured on SRM 660c LaB6, the fluorapatite, cpd-1a and 11-BM NAC, each under it
 
 | | Fluorapatite | cpd-1a | NAC | LaB6 |
 |---|---|---|---|---|
-| Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 0.751 → 0.064 | 0.008 → 0.000 | 9.0 → 9.4 |
-| Fit time with the closing stage | 2.03-2.05× | 1.37-1.38× | 1.12-1.26× | 1.05-1.19× |
+| Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 0.751 → 0.070 | 0.008 → 0.000 | 9.0 → 9.1 |
+| Fit time with the closing stage | 2.20-2.33× | 1.60-1.62× | 1.2× | 1.42-1.44× |
 
 LaB6's two starts reach two mirrored axial-divergence minima whatever the windows, so no window setting can make them agree.
 `tests/test_window_domain.py` holds the closing answer within 0.1 plain esd of the answer with converged tails on the fluorapatite, cpd-1a and NAC (0.008 to 0.019 esd).
@@ -323,7 +323,7 @@ BGMN ends its refinements the same way, with every parameter free and restarted 
 RIETAN-FP's automatic mode ends with everything refining together, and moves its windows at every evaluation.
 1e-3 drops less of a Lorentzian peak than TOPAS (2.0 %), MAUD (2.1 %), RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and EasyDiffraction, which compute the whole peak.
 
-Set `closing_window_tol` to `None` to run the declared stages alone:
+Set `closing_window_tol` to `None` to run the declared stages alone, for speed:
 
 ```python
 import rietx as rx
@@ -334,7 +334,9 @@ assert plan.run_stages() == plan.stages
 ```
 
 The answer is then that of every fit before the setting, to the bit.
-A long series is the case for it: each pattern pays the closing stage's cost.
+On the four patterns above it lands 0.15 to 0.96 plain esd from the closing stage's answer.
+In physical units, cpd-1a's phase fractions move by up to 0.12 wt%, the fluorapatite's Lorentzian size by 2.5 % and its strain by 3 %, LaB6's widths by 1-2 %, and NAC's values by under 0.4 %.
+A long series or a large batch is the case for it: each pattern pays the closing stage's cost.
 `PlanSpec.closing_window_tol` carries the setting into a project file, and the GUI's text document writes it as the `closing` line.
 `Refinement.run_stage` runs no closing stage, so its `window_area_tol` defaults to the closing stage's fraction; pass `rietx.model.forward.WINDOW_AREA_TOL` for the declared stages' faster windows.
 

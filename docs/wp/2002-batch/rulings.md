@@ -416,6 +416,43 @@ Both errors last only until the next recompile. The closing stage recompiles at 
 
 **Recommendation.** Option 2. Each fix has already been measured to pass, and only the FCJ change has a cost worth weighing. The strongest case against: it makes six changes that move every converged fit, for errors mostly under 0.1 esd in the answer, and WP-2017 will measure these settings on three families anyway. If you prefer a split, I can make the three cheap fixes now (margin, clip, texture) and leave FCJ and the two floors to WP-2017.
 
+## Eighth round: is the closing stage the best trade? (2026-10-21)
+
+The maintainer asked why the closing stage exists, whether its errors are real in physical
+units, what programs that move their windows at every evaluation do, and whether the closing
+stage is the best trade. The 6th session measured five variants on the four acceptance
+protocols, two interleaved rounds, with another session's suite running (so the ratios
+compare and the seconds read high). Time is against the fit with no closing stage. "Away" is
+the largest shift from the shipped answer in plain esd, non-background rows.
+
+| Variant | LaB6 | FAP | cpd-1a | NAC | cpd-1a start gap |
+|---|---|---|---|---|---|
+| no closing stage | 1.0×, 0.255 away | 1.0×, 0.905 | 1.0×, 0.960 | 1.0×, 0.154 | 0.75 (6th round) |
+| closing stage, shipped | 1.39-1.40× | 2.31-2.35× | 1.58-1.62× | 1.21-1.29× | 0.070 |
+| shipped, `intermediate_ftol` 1e-4 | 1.29-1.30×, 0.000 | 2.23-2.28×, 0.000 | 1.28-1.29×, 0.112 | 1.18-1.21×, 0.000 | 0.123, fails |
+| shipped, declared stages at 5 % windows | 1.38-1.40×, 0.002 | 2.25-2.36×, 0.001 | 1.40-1.45×, 0.114 | 1.24-1.25×, 0.000 | not run |
+| 1e-3 windows on every stage, no closing | 1.88-2.09×, 0.007 | 4.51-4.61×, 0.001 | 2.62-2.65×, 0.156 | 1.15-1.21×, 0.002 | not run |
+
+The start gap is `tests/test_staged_start_invariance.py`'s measure (every Biso started at 0.5
+and at 1.5 Å², bar 0.1 esd). The closing stage itself took 12, 9, 15 and 7 iterations (0.18,
+0.80, 0.66 and 0.13 s). In physical units, switching it off moves cpd-1a's fractions by at
+most 0.12 wt% (two toward the weighed values, one away), the fluorapatite's Lorentzian size
+by 2.5 % and its strain by 3 %, LaB6's widths by 1-2 % and NAC by under 0.4 %.
+
+**Answer.** "keep closing as built, and cascade that decision down. set closing as default
+but give the option to turn it off for speed." The closing stage stays on by default at
+1e-3. `closing_window_tol=None` is the speed switch, and it already reached every surface:
+`RefinementPlan` and `PlanSpec`, a project file, and the GUI text document's `closing none`
+line. What the round added is the record of the trade where a user and an agent choose:
+`reference/refinement.md` § The closing stage carries this round's cost and what switching
+it off moves, and the skill's `batch-operating.md` row 9c.34 when to switch it off
+(`surprises.md` § 8, where a single-fit rule would go, has 46 B left under its budget).
+The tree had moved on from three records by then: `waiting.md` § B10 and WP-2017's
+inherited line still described the edge margin as built, and the theory page's
+reflection-generation sentence too; all three now say it was reverted. Re-measured on the
+tree: the closing stage's bar 2 is 0.008, 0.011 and 0.019 esd (FAP, cpd-1a, NAC), and
+LaB6's two starts are 9.1 esd apart behind it (the mirrored axial minima).
+
 ## The sixth round's briefs, kept whole
 
 ### The three briefs as sent (2026-10-21)

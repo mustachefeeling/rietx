@@ -544,8 +544,9 @@ def test_the_closing_stage_meets_the_bar(family):
     the closing answer, one solve, with the reference fixed point.
 
     Measured on 2026-10-21 (macOS arm64, ``[dev]``): bar 1 0.026, 0.022 and
-    0.091σ and bar 2 0.008, 0.018 and 0.019 esd on the fluorapatite, cpd-1a
-    and NAC (``lor_strain``, ``axial_sl``, ``profile.x``), the background
+    0.091σ and bar 2 0.008, 0.011 and 0.019 esd on the fluorapatite, cpd-1a
+    and NAC (``lor_strain``, zincite's ``scale``, ``profile.x``; re-measured
+    after the closing FCJ rule, cpd-1a was 0.018 on ``axial_sl``), the background
     0.23-0.95 esd.  LaB6 meets bar 1 at 0.058σ and misses bar 2 by 0.908 esd
     on ``profile.u``.  That is no window: its answer puts the highest-angle
     reflections' Gaussian variance U·tan²θ + V·tanθ + W under the clamp
