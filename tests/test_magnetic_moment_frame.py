@@ -114,10 +114,14 @@ def cw_declared():
     return instrument, data, scale
 
 
-def _fit(cw, beta0, plan, *, a0=5.0):
+def _fit(cw, beta0, plan, *, a0=5.0, intervals=False):
+    """``intervals=True`` keeps the fit's automatic profile interval of each
+    angle it leaves out (WP-2002).  Off by default, because only the row that
+    reads it should pay for it (WP-2019)."""
     instrument, data, scale = cw
     ref = rx.Refinement(rx.Structure(phases=[_phase(beta0, a=a0, scale=scale)]),
                         instrument)
+    ref._auto_intervals = intervals
     return ref, ref.fit(data, plan=plan)
 
 
@@ -347,7 +351,7 @@ def test_an_angle_the_data_cannot_see_stops_its_interval_at_half_a_turn(cw):
     refit budget, 120 refits an angle (0.08 s of fit, 15.9 s of interval).
     An angle repeats every 2π, so a side still under the threshold half a
     turn away has no end, and says so."""
-    _ref, result = _fit(cw, 103.0, PLAN_2)
+    _ref, result = _fit(cw, 103.0, PLAN_2, intervals=True)
     intervals = [p.interval for p in result.parameters if p.interval is not None]
     assert intervals, "the stationary test left no angle out on this fit"
     for interval in intervals:

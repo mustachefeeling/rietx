@@ -1,4 +1,4 @@
-# WP-2019 — Opt-in sets of bounds and defaults for a scenario, tested on the datasets they name
+# WP-2020 — Opt-in sets of bounds and defaults for a scenario, tested on the datasets they name
 
 Milestone: generality · Status: ⬜
 Track: The registry and the guard

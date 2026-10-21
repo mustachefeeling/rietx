@@ -174,7 +174,11 @@ def test_a_validation_stopped_mid_loop_caps_and_never_refutes(
         cubic_peaks, tiny_pattern, monkeypatch):
     """The loop half of trap 1: the token fires after the first validation, the
     run still returns, and the unreached candidates read ``not_validated``
-    (capping) — ``validation_failed`` (refuting) appears nowhere."""
+    (capping) — ``validation_failed`` (refuting) appears nowhere.
+
+    A claim about the validation loop, so one engine reporting two candidates
+    carries it: one validated, one the token stops.  The ambiguity sweep over a
+    full report, which nothing here reads, was most of this test (WP-2019)."""
     import rietx.indexing.workflow as workflow
 
     peaks, _cell = cubic_peaks
@@ -193,7 +197,9 @@ def test_a_validation_stopped_mid_loop_caps_and_never_refutes(
 
     monkeypatch.setattr(workflow, "validate_by_lebail", cancel_after_first)
     res = index_pattern(peaks, data=data, instrument=instrument,
-                        spec=SearchSpec(systems=("cubic",)), cancel=token)
+                        spec=SearchSpec(systems=("cubic",), max_candidates=2),
+                        engines=("dichotomy",), cancel=token)
+    assert len(calls) == 1 and len(res.candidates) == 2
     assert res.validated
     caveats = {c for cand in res.candidates for c in cand.confidence_caveats}
     assert "validation_failed" not in caveats
@@ -276,15 +282,21 @@ def test_a_binding_ceiling_returns_a_complete_and_consistent_result(
 def test_full_means_no_ceiling_and_quick_is_what_default_means(cubic_peaks):
     """Since WP-1042 the default **is** a ceiling (`quick`), so the no-ceiling
     state is a declaration: `preset="full"` writes no `total_budget_seconds`
-    note — the absence is the record — while a default run writes quick's."""
+    note — the absence is the record — while a default run writes quick's.
+
+    A claim about the record, so one engine reporting one candidate carries
+    it.  Each run's cost was the ambiguity sweep over the reported list (~19 s
+    a run over twelve candidates, which one engine alone makes larger, since
+    each of its candidates is then "found by every engine" and checked), and
+    nothing here reads it (WP-2019)."""
     peaks, _cell = cubic_peaks
-    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)),
-                        preset="full")
+    spec = SearchSpec(systems=("cubic",), max_candidates=1)
+    res = index_pattern(peaks, spec=spec, preset="full", engines=("dichotomy",))
     assert res.preset == "full"
     assert "total_budget_seconds" not in res.provenance.notes
     assert "INDEX_BUDGET_EXHAUSTED" not in {d.code for d in res.diagnostics}
 
-    quick = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)))
+    quick = index_pattern(peaks, spec=spec, engines=("dichotomy",))
     assert quick.preset == "quick"
     assert "total_budget_seconds" in quick.provenance.notes
 
@@ -298,12 +310,17 @@ def test_progress_is_one_flat_ladder_on_the_existing_kinds(cubic_peaks):
     progress bar jump), and — asserted, per the WP — no
     ``EVENT_SCHEMA_VERSION`` bump: the ladder adds fields and revises
     ``n_stages``, neither of which is a new kind.  The constant is "3" since
-    WP-1322's run header, a record and not a kind; the ladder never moved it."""
+    WP-1322's run header, a record and not a kind; the ladder never moved it.
+
+    Every engine runs, because the claim is that every engine feeds the ladder.
+    One candidate is reported: the ambiguity sweep over a full report runs after
+    the ladder, emits nothing on it, and was ~12 s of this test (WP-2019)."""
     assert EVENT_SCHEMA_VERSION == "3"
 
     peaks, _cell = cubic_peaks
     events = []
-    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic", "tetragonal")),
+    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic", "tetragonal"),
+                                               max_candidates=1),
                         events=events.append)
     assert res.systems_searched == ["cubic", "tetragonal"]
 

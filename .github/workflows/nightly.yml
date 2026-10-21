@@ -106,7 +106,7 @@ jobs:
         # what ci.yml's py3.12 and py3.13 legs ran until WP-1547, unsharded:
         # the nightly has no one waiting on it
         env:
-          RIETX_TUTORIALS: skip
+          RIETX_DOCS: skip
         run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 
   windows:

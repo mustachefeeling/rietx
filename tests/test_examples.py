@@ -15,17 +15,22 @@ from a temporary cwd would not redirect anything.  This runner therefore accepts
 write; those names are gitignored.  Its own data paths are `__file__`-relative
 too, so the scripts are run in place.
 
-**Why these are not marked `slow`.**  The cost model that put them here
-assumed a chapter running a real fit would turn the docs guard into an
-acceptance suite.  Measured on this tree ([dev] venv, darwin/arm64), it does
-not: 3.5 s for `nac_11bm.py` and 3.3 s for `srm660c_lab.py`, against a fast
-selection that runs 1–3 minutes.  Per-push execution is the whole value of
-the guard — a broken walkthrough should fail on the push that broke it, not
-in the weekly full job — so they run in the fast suite, and the `slow` mark
-is one line away if either grows.  These are cheap because their protocols
-are short, not because they are toys; they refine the same real data as the
-acceptance suites, which is where the *numbers* are pinned (this test asserts
-that the script ran, never what it found — one authority per fact).
+**Why these are not marked `slow`.**  Per-push execution is the whole value
+of the guard — a broken walkthrough should fail on the push that broke it, not
+in the nightly — so they run in the fast suite.  They refine the same real data
+as the acceptance suites, which is where the *numbers* are pinned (this test
+asserts that the script ran, never what it found — one authority per fact).
+
+**What they cost, and where they run.**  Measured 2026-10-21 (WP-2019; `[dev]`,
+Linux x86-64, Python 3.12, this file alone at `-n 4`): the 23 guide scripts
+sum to 614 s, median 13.8 s, the slowest `interval` 104 s, `hold` 85 s and
+`qpa` 84 s.  The rest of the file sums to about 113 s: `switching.py` 36 s,
+`skill_worked_default.py` 35 s, `nac_11bm.py` and `srm660c_lab.py` 11 s each,
+the three structure pictures 20 s.  WP-1067's 3.5 s and 3.3 s, on darwin/arm64
+before the guides existed, were the two walkthroughs alone.  So the guides
+execute on CI's newest per-push leg only, with the tutorials and the manual
+builds (`tests/documentation.py` says what that trades), and the walkthroughs
+on every leg.
 """
 
 from __future__ import annotations
@@ -37,6 +42,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+from tests import documentation
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = REPO_ROOT / "examples"
@@ -154,6 +161,7 @@ def fetched_state(tmp_path_factory):
     return {STATE_DIR_ENV: str(state)}
 
 
+@documentation.elsewhere
 @pytest.mark.parametrize("script", GUIDE_SCRIPTS, ids=lambda path: path.stem)
 def test_every_guide_script_prints_what_its_page_quotes(script, fetched_state):
     """One script per Guides page (WP-1986), named after the page.

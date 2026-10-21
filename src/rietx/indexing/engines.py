@@ -42,6 +42,7 @@ import numpy as np
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
     METRIC_DOF,
+    PEAK_UNDRIVEN_FLAGS,
     TRUSTED_SHIFT_SOURCES,
     CellCandidate,
     PeakList,
@@ -219,6 +220,12 @@ INLIER_DOF_MARGIN = 4
 #: anchor is also a sound prune for the exhaustive engine — a box none of whose
 #: reflections can reach an anchor line has no sub-box that can.
 ANCHOR_LINES = 5
+#: Fewest lines a search is driven by before a line carrying one of
+#: :data:`~rietx.schemas.indexing.PEAK_UNDRIVEN_FLAGS` is taken back, strongest
+#: first (:func:`search_line_order`): six is the triclinic metric's parameter
+#: count, so a shorter driven set cannot determine every lattice a search may be
+#: asked for.  A floor, not an optimum; below it a flagged line is still a line.
+DRIVEN_MIN_LINES = 6
 #: Systematic 2θ allowance (degrees) added in quadrature to every line's fitted σ
 #: when **no shift has been measured** — which is the normal state at index time,
 #: because a shift is only identifiable against a reference and there is no cell
@@ -1152,15 +1159,37 @@ def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
     existed.  An assumed intensity may no more reorder a search than an assumed σ
     may refuse one.
 
+    **A line flagged** :data:`~rietx.schemas.indexing.PEAK_UNDRIVEN_FLAGS`
+    **is scored and never driven** (#934 (c)): it stays in ``usable()``, so the
+    panel still counts it and a cell may still explain it, but it is drawn into
+    neither the pool nor the N, because an accepted cell must index the driven
+    lines and a noise line there charges the truth for missing it.  Measured on
+    #916's flat synthetic silicon (11 lines, 6-7 ``weak_line`` components) the
+    driven set falls from 17-18 to 11: a cubic search with a declared count of
+    2 goes from no cell to the truth first, and an all-systems search from the
+    truth sixth, or absent, to fourth or fifth.  Below :data:`DRIVEN_MIN_LINES` unflagged lines the
+    strongest flagged ones come back, so a list of weak lines still searches.
+
     **Do not propagate this rule into** ``fom.py``.  M₂₀'s "first twenty" is de
     Wolff's *definition* — the figure is N_poss counted up to the twentieth
     observed line in Q order — so re-ranking there would not tune a figure of
     merit, it would compute a different one under the same name.
     """
     q = peaks.q()
-    n = min(spec.n_search_lines, len(q))
-    pool = np.argsort(q)[:min(SEARCH_POOL_MULTIPLE * n, len(q))]
-    order = pool[np.lexsort((q[pool], -peaks.intensity()[pool]))[:n]]
+    inten = peaks.intensity()
+    eligible = np.flatnonzero([not set(p.flags) & PEAK_UNDRIVEN_FLAGS
+                               for p in peaks.usable()]).astype(np.int64)
+    floor = min(DRIVEN_MIN_LINES, len(q))
+    if len(eligible) < floor:
+        # too few lines left to determine a metric: the strongest flagged lines
+        # come back, in the order the ranking below would take them
+        rest = np.setdiff1d(np.arange(len(q)), eligible)
+        rest = rest[np.lexsort((q[rest], -inten[rest]))][:floor - len(eligible)]
+        eligible = np.sort(np.concatenate([eligible, rest]))
+    n = min(spec.n_search_lines, len(eligible))
+    pool = eligible[np.argsort(q[eligible], kind="stable")][
+        :min(SEARCH_POOL_MULTIPLE * n, len(eligible))]
+    order = pool[np.lexsort((q[pool], -inten[pool]))[:n]]
     return order[np.argsort(q[order])]
 
 
@@ -2485,7 +2514,8 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_MAX_D_AXIS", "DEFAULT_MIN_D_AXIS", "DEFAULT_MIN_VOLUME",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
-           "ANCHOR_LINES", "INLIERS", "INLIER_DOF_MARGIN", "INLIER_FRACTION",
+           "ANCHOR_LINES", "DRIVEN_MIN_LINES", "INLIERS", "INLIER_DOF_MARGIN",
+           "INLIER_FRACTION",
            "SEARCH_POOL_MULTIPLE",
            "MAX_PREDICTED_REFLECTIONS", "MEASURED_TYPICAL_SECONDS",
            "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES",

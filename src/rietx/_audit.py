@@ -1145,6 +1145,12 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.DEFAULT_SEARCH_LINES", "constant", value=20),
     Row("rietx.indexing.engines.DEFAULT_UNKNOWN_SHIFT_DEG", "constant", value=0.05),
     Row("rietx.indexing.engines.DEFAULT_VOLUME_CEILING", "constant", value=8000.0),
+    Row("rietx.indexing.engines.DRIVEN_MIN_LINES", "constant", tier=1,
+        evidence="Arithmetic: the triclinic reciprocal metric Q(hkl) has six independent "
+                 "components, so fewer than six driven lines cannot determine every "
+                 "lattice a search may be asked for; a floor below which flagged lines are "
+                 "taken back, not a tuned optimum.",
+        value=6),
     Row("rietx.indexing.engines.ENGINE_POOL_MULTIPLE", "constant", value=5),
     Row("rietx.indexing.engines.INLIER_DOF_MARGIN", "constant", value=4),
     Row("rietx.indexing.engines.INLIER_FRACTION", "constant", value=0.6),

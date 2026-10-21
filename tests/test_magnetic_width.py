@@ -850,6 +850,62 @@ def test_the_diagnostic_fires_on_a_planted_width_and_not_without_one():
                 if d.code == "MAGNETIC_WIDTH_UNMODELLED"]
 
 
+def test_the_width_noise_is_the_nuclear_only_scatter(monkeypatch):
+    """The statistic's noise is the weighted residual's s.d. over the
+    nuclear-only channels read, so a misfit on the magnetic channels cannot
+    inflate it (#943: pooled over every channel read it was 2.57 against
+    0.99, and z sat at 2.99 with the moment 25 % low).
+
+    Pinned on a planted residual, with σ = 1 so r is what is planted: unit
+    noise everywhere, plus A times a centre-negative, tails-positive shape on
+    the magnetic-only channels alone.  z is then (split_m − split_n) over the
+    nuclear-only s.d. times √(Σ 1/n), written out below from the package's
+    own split, and it is **linear in A** with the noise unchanged.  Under the
+    pooled scatter it was neither: the shape entered the denominator too.
+    """
+    import rietx.report.magnetic as rm
+    from rietx.report.schemas import MAGNETIC_WIDTH_TAIL_FWHM, VALIDITY_RADIUS_FWHM
+
+    monkeypatch.setattr(rm, "MAGNETIC_WIDTH_SIGMA", -np.inf)   # read every z
+    model, _t, v = _state(_mnf2(), moving=None)
+    tt = np.asarray(model.tt, dtype=np.float64)
+    y0 = np.asarray(model.evaluate(v), dtype=np.float64)
+    (_ip, mag, nuc, pos, fwhm), = _classified_reflections(model, v)
+    *_, used_m = rm._sign_split(np.zeros_like(tt), tt, mag, pos, fwhm, pos[nuc])
+    *_, used_n = rm._sign_split(np.zeros_like(tt), tt, nuc, pos, fwhm, pos[mag])
+    assert len(used_m) >= 2 and used_n
+    nuc_chan = np.zeros(len(tt), dtype=bool)
+    for k in used_n:
+        nuc_chan |= np.abs(tt - pos[k]) <= MAGNETIC_WIDTH_TAIL_FWHM * fwhm[k]
+    shape = np.zeros(len(tt))
+    for k in used_m:
+        off = np.abs(tt - pos[k])
+        shape[off <= MAGNETIC_WIDTH_TAIL_FWHM * fwhm[k]] = 1.0
+        shape[off <= VALIDITY_RADIUS_FWHM * fwhm[k]] = -1.0
+    shape[nuc_chan] = 0.0
+    noise = np.random.default_rng(943).normal(0.0, 1.0, len(tt))
+    model.sigma[:] = 1.0
+
+    def z_at(a):
+        model.y_obs[:] = y0 + noise + a * shape
+        r = np.asarray(model.y_obs, dtype=np.float64) - y0   # as rounded there
+        hit, = [d for d in magnetic_width_findings(model, v)
+                if d.code == "MAGNETIC_WIDTH_UNMODELLED"]
+        c_m, t_m, n_cm, n_tm, _ = rm._sign_split(r, tt, mag, pos, fwhm, pos[nuc])
+        c_n, t_n, n_cn, n_tn, _ = rm._sign_split(r, tt, nuc, pos, fwhm, pos[mag])
+        expected = ((t_m / n_tm - c_m / n_cm) - (t_n / n_tn - c_n / n_cn)) / (
+            np.std(r[nuc_chan], ddof=1)
+            * np.sqrt(1 / n_tm + 1 / n_cm + 1 / n_tn + 1 / n_cn))
+        assert hit.value == pytest.approx(expected, rel=1e-12)
+        return hit.value
+
+    z0, z1, z2 = z_at(0.0), z_at(1.0), z_at(2.0)
+    print(f"z at A = 0, 1, 2: {z0:.3f}, {z1:.3f}, {z2:.3f}")
+    assert abs(z0) < MAGNETIC_WIDTH_SIGMA        # unit noise alone: silent
+    assert z1 > MAGNETIC_WIDTH_SIGMA
+    assert z2 - z0 == pytest.approx(2.0 * (z1 - z0), rel=1e-9)
+
+
 def test_an_unmeasured_width_is_named_rather_than_quoted():
     """``MAGNETIC_WIDTH_UNMEASURED`` on the same ratio WP-1327 uses for a
     moment — no threshold of its own, so the report cannot call a width

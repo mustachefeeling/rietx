@@ -153,6 +153,24 @@ edits, and a missed one drops that platform's answer silently. A YAML anchor
 or one script every leg calls would fix it. It is low stakes, and in scope
 only if the last task moves Python versions into the nightly.
 
+### Inherited
+
+- **From [2019](2019-each-fast-leg-runs-what-only-it-can-see.md)
+  (2026-10-21).** The ten-run acceptance reads a tier that has grown since this
+  WP's cut. Main run 39589774138 (3437d52) had job walls of py3.14 13.9 / 14.6
+  min against 10.7 / 11.1 in 38093251416, and jax 19.6 / 16.9 against
+  15.1 / 16.7. Its slowest job, 19.6 min, sits at the 20-minute bar. The growth
+  came after this WP's tasks: the guide scripts (WP-1986, 10-17), the automatic
+  profile interval (WP-2002), and 64 files the shard record lacks. 2019 owns
+  the next cut. This WP's acceptance reads as written.
+- **From [2019](2019-each-fast-leg-runs-what-only-it-can-see.md)'s first
+  session (2026-10-21, PR #1095).** When #1095 merges, the per-push matrix
+  changes shape. The jax job becomes one unsharded job of the cases that reach
+  jax. The documentation (tutorials, guide scripts, manual builds) executes on
+  the newest leg alone, under `RIETX_DOCS`, which replaces this WP's
+  `RIETX_TUTORIALS`. A ten-run window that spans that merge mixes two shapes.
+  Read this WP's window from runs before it, or say which shape each run had.
+
 ## Non-goals
 
 - Why `isotropy.analyse` is slow: WP-1418.
