@@ -34,7 +34,7 @@ Five things live here, in the order they have to happen:
    ``-m``'s own deselection, so the split is of the tier being run.
 
 Shared expensive results (``sample1_results``, ``srm660c_baseline``,
-``cr2wo6_nuclear``) are
+``cr2wo6_nuclear``, ``lamno3_nuclear``) are
 session-scoped: they exist because several acceptance modules were re-deriving
 the *identical* fit.  A consumer must carry the matching
 ``@pytest.mark.xdist_group`` or a second xdist worker silently recomputes the
@@ -298,6 +298,37 @@ def cr2wo6_nuclear():
                       ref150.instrument.model_copy(deep=True), d4, NUCLEAR_STAGES)
     return {"d4": d4, "d150": d150, "ref150": ref150, "nuc150": nuc150,
             "ref4": ref4, "nuc4": nuc4}
+
+
+@pytest.fixture(scope="session")
+def lamno3_nuclear():
+    """The LaMnO₃ 50 K nuclear-only fit, fitted once.
+
+    WP-1327's moment acceptance (``test_acceptance_magnetic_lamno3``) seeds
+    its two moment fits from it, and WP-1418's ``solve_magnetic`` acceptance
+    (``test_magnetic_solve_acceptance``) solves it.  ``data`` carries the
+    contaminant exclusion the fit was made with.
+
+    ``ref`` is live (``report()`` works); do not ``fit()`` it again, and copy
+    a model before editing it.
+
+    **Consumers must carry** ``@pytest.mark.xdist_group("magnetic-lamno3")``.
+    """
+    import rietx as rx
+    from rietx.crystallography.cif import structure_from_cif
+    from tests.test_acceptance_magnetic_lamno3 import (
+        CONTAMINANT,
+        DATA,
+        NUCLEAR_STAGES,
+        _fit,
+        _instrument,
+    )
+
+    data = rx.read_pattern(DATA / "gsas2_bt1_lamno3_50K.gsas")
+    data = data.model_copy(update={"excluded_regions": [CONTAMINANT]})
+    ref, nuc = _fit(structure_from_cif(DATA / "gsas2_bt1_lamno3.cif"),
+                    _instrument(), data, NUCLEAR_STAGES)
+    return {"data": data, "ref": ref, "nuc": nuc}
 
 
 @pytest.fixture(scope="session")
