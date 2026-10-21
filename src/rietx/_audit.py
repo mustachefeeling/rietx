@@ -1425,15 +1425,25 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.preferred_orientation.TEXTURE_POSITIVITY_TOL", "constant", tier=1, value=1e-09,
         evidence=("numerical floor: roundoff of a quantity of order 1; lm stopped at min P -2.2e-16"
                   " on the face, trf at -0.45 (WP-1960 D4)")),
-    Row("rietx.model.preferred_orientation.TEXTURE_SPHERE_SAMPLES", "constant", tier=3, value=2000,
-        evidence=("sphere samples for the texture minimum (WP-2002, 2026-10-21, tests/test_texture.py): "
-                  "sampling can miss a dip but never invent one, so a pole density as negative as "
-                  "2.0e-3 to 7.9e-3 at orders 2-8 goes unreported by TEXTURE_NOT_POSITIVE, against "
-                  "a 1e-3 bar (the digit it prints); the error falls as 1/N and 32 000 "
-                  "samples pass at about 10x the cost, or a local polish passes at any order"),
-        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
-        approved="2026-10-19"),
+    Row("rietx.model.preferred_orientation.TEXTURE_POLISH_LEVELS", "constant", tier=1, value=6,
+        evidence=("numerical setting with a domain test (tests/test_texture.py, "
+                  "test_the_sampled_sphere_minimum_meets_the_true_one): the polish's last patch "
+                  "steps about 1e-5 rad, and the polished minimum sits at most 1.7e-9 above the "
+                  "true one at orders 2-8 (9.4e-9 at 16) against a 1e-3 bar (WP-2002, the seventh "
+                  "round's Q2, 2026-10-21)")),
+    Row("rietx.model.preferred_orientation.TEXTURE_POLISH_STARTS", "constant", tier=1, value=5,
+        evidence=("numerical setting with a domain test (tests/test_texture.py, "
+                  "test_the_sampled_sphere_minimum_meets_the_true_one): polished from the five "
+                  "lowest of the 2000 samples, the minimum sits at most 1.7e-9 above the true one "
+                  "at orders 2-8 against a 1e-3 bar; at 0 starts it sat 2.0e-3 to 7.9e-3 above; "
+                  "9-15 ms a call at order 8 in P -1 (WP-2002, the seventh round's Q2, "
+                  "2026-10-21)")),
+    Row("rietx.model.preferred_orientation.TEXTURE_SPHERE_SAMPLES", "constant", tier=1, value=2000,
+        evidence=("numerical setting with a domain test (tests/test_texture.py, "
+                  "test_the_sampled_sphere_minimum_meets_the_true_one): the samples find the dips "
+                  "and sphere_minimum polishes the lowest, leaving at most 1.7e-9 at orders 2-8 "
+                  "against a 1e-3 bar; sampled alone they left 2.0e-3 to 7.9e-3, falling as 1/N "
+                  "(WP-2002, the seventh round's Q2, 2026-10-21)")),
     Row("rietx.model.profiles.caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED", "constant", tier=1, value=5.545177444479562,
         evidence=("arithmetic: FWHM = 2 sqrt(2 ln2) sigma; pinned against GSAS-II's drawn LaB6 "
                   "peaks, tests/test_gsas2_instprm.py")),

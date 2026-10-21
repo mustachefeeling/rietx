@@ -430,17 +430,9 @@ def _sphere_minimum_error(order):
     return worst
 
 
-@pytest.mark.parametrize("order", [
-    pytest.param(order, marks=pytest.mark.xfail(strict=True, reason=reason))
-    for order, reason in (
-        (2, "the 2000-point minimum sits 2.1e-3 above the true one (measured "
-            "2026-10-21; 2.4e-3 over eleven Laue classes in a probe)"),
-        (4, "2.0e-3 above (7.1e-3 over eleven classes)"),
-        (6, "7.9e-3 above (9.0e-3 over eleven classes)"),
-        (8, "5.6e-3 above (1.4e-2 over eleven classes; 1.8e-2 at order 10, "
-            "3.4e-2 at 12 and 4.4e-2 at 16)"))])
+@pytest.mark.parametrize("order", [2, 4, 6, 8])
 def test_the_sampled_sphere_minimum_meets_the_true_one(order):
-    """``TEXTURE_SPHERE_SAMPLES`` = 2000 over the orders its comment claims.
+    """``TEXTURE_SPHERE_SAMPLES`` = 2000, polished, over the orders its comment claims.
 
     B10 (ruled 2026-10-19): tier 1 once a test bounds the error over the
     domain.  The comment claims l to 8 or so.  The quantity is the lowest
@@ -457,17 +449,18 @@ def test_the_sampled_sphere_minimum_meets_the_true_one(order):
     σ/peak on lab FAP.XRA (7.2e-4), which is what a reflection sitting in
     the dip would see.
 
-    Every order fails.  The error falls as 1/N with the sample count and
-    grows with the order.  Over eleven Laue classes at order 8 (a probe,
-    four draws each), 2000 points leave 1.4e-2, 8000 leave 3.6e-3 and
-    32 000 leave 8.5e-4, against 2.2e-3 at order 16.  One ``basis.evaluate``
-    costs 0.8 ms at 2000 points and 8.6 ms at 32 000 for order 8, and 3.3
-    and 36 ms for order 16.  A local polish from the lowest few samples, as
-    the reference here does, would meet the bar at any order.
+    The samples alone failed every order (WP-2002, measured 2026-10-21):
+    2.1e-3, 2.0e-3, 7.9e-3 and 5.6e-3 above the true minimum at orders 2-8,
+    and 1.4e-2 to 4.4e-2 over eleven Laue classes at orders 8-16 in a probe.
+    The error falls as 1/N with the sample count, so 32 000 would have cost
+    about ten times the evaluation.  Since the seventh round's Q2 the minimum
+    is polished from the five lowest samples
+    (``preferred_orientation.sphere_minimum``), and leaves at most 2.6e-10,
+    1.1e-9, 9.7e-10 and 1.7e-9 at orders 2-8 (6.7e-9 at 12, 9.4e-9 at 16), at
+    9-15 ms a call at order 8 in P -1.
 
-    Made to fail on 2026-10-21: ``rietx.model.forward.TEXTURE_SPHERE_SAMPLES``
-    patched to 32 000 left 7.2e-5, 3.2e-4, 3.2e-4 and 8.1e-4 and turned all
-    four rows XPASS(strict).
+    Made to fail on 2026-10-21: ``TEXTURE_POLISH_STARTS`` set to 0 in the
+    source, the sampled minimum alone, failed all four at the numbers above.
     """
     error, case = _sphere_minimum_error(order)
     assert error <= SPHERE_MIN_BAR, (
