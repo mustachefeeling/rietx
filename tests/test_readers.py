@@ -884,12 +884,93 @@ def test_a_bank_stating_no_type_flag_is_still_read_as_std(tmp_path, coeffs):
     ``gsas-0``.
     """
     p = write_gsas(tmp_path / "noflag.gsa", bintype="CONST", flag=None,
-                   body="  10 20 30 40\n", nchan=4, coeffs=coeffs)
+                   body="      10      20      30      40\n", nchan=4,
+                   coeffs=coeffs)
     d = rx.read_pattern(p)
     assert d.intensity == [10.0, 20.0, 30.0, 40.0]
     assert d.two_theta == [pytest.approx(10.0 + 0.2 * i) for i in range(4)]
     assert d.sigma is None                       # counts only, Poisson fallback
     assert d.metadata["format"] == "gsas-std"
+
+
+# -------------------------------------------------- gsas STD: (I2, F6.0) fields
+
+def gsas_std_rows(pairs):
+    """(counter number, value) pairs as STD records, packed **literally**.
+
+    Larson & Von Dreele (2004), LAUR 86-748, "GSAS raw powder file", p. 217:
+    ``(10(I2,F6.0))`` as ``(NCTR(I), YO(I))``, ten 8-character fields to a
+    record.  ``None`` as a counter number writes the field blank.  Nothing is
+    imported from ``rietx.io.formats.gsas``.
+    """
+    fields = [("  " if n is None else f"{n:2d}") + f"{v:6.0f}" for n, v in pairs]
+    assert all(len(f) == 8 for f in fields)
+    return "".join("".join(fields[i:i + 10]) + "\n"
+                   for i in range(0, len(fields), 10))
+
+
+#: Counts that do not track the counter numbers: the counter number steps
+#: 3 → 20 → 1 partway through while the counts run on smoothly, which is the
+#: shape of the GSAS-II tutorial pattern the misread was found on (#1061).
+_STD_COUNTS = [29.0, 24.0, 27.0, 21.0, 22.0, 32.0, 29.0, 24.0, 22.0, 25.0,
+               31.0, 28.0, 1684.0, 999999.0, 30.0]
+_STD_COUNTERS = [3] * 6 + [20] * 6 + [1] * 3
+
+
+def test_an_std_bank_that_writes_its_counter_numbers_reads_the_counts(tmp_path):
+    """The counter number is a field of its own and never enters the intensity.
+
+    Split on whitespace, these 15 fields came back as 30 numbers, the counter
+    numbers alternating with the counts and cut at the channel count, so the
+    first half of the counts lay on the whole axis.  999 999 fills its six
+    characters, as the manual allows.
+    """
+    p = write_gsas(tmp_path / "counters.gda", bintype="CONST", flag=None,
+                   body=gsas_std_rows(zip(_STD_COUNTERS, _STD_COUNTS)),
+                   nchan=len(_STD_COUNTS), nrec=2, coeffs=(600, 5, 0, 0))
+    notes: list = []
+    d = rx.read_pattern(p, diagnostics=notes)
+    assert d.intensity == _STD_COUNTS
+    assert len(d.two_theta) == len(_STD_COUNTS)
+    assert d.two_theta[0] == pytest.approx(6.0)
+    assert d.two_theta[-1] == pytest.approx(6.0 + 0.05 * 14)
+    # the esd stays the Poisson fallback on the value as written: the manual
+    # states σ = √I only, and not how it follows for NCTR > 1 (#1061)
+    assert d.sigma is None
+    assert d.metadata["format"] == "gsas-std"
+    # ... and the report says so: file, code and the NCTR range found
+    scaled = [n for n in notes if n.code == "PATTERN_INTENSITY_SCALED"]
+    assert len(scaled) == 1
+    assert "counters.gda" in scaled[0].message
+    assert "run 1 to 20" in scaled[0].message
+    assert scaled[0].where == ["sigma"]
+
+
+@pytest.mark.parametrize("counter", [None, 0, 1])
+def test_a_blank_zero_or_unit_counter_number_reads_the_same(tmp_path, counter):
+    """"If NCTR is zero or missing it is taken as one" — and the counts are equal."""
+    p = write_gsas(tmp_path / "unit.gda", bintype="CONST", flag="STD",
+                   body=gsas_std_rows((counter, v) for v in _STD_COUNTS),
+                   nchan=len(_STD_COUNTS), nrec=2, coeffs=(600, 5, 0, 0))
+    notes: list = []
+    assert rx.read_pattern(p, diagnostics=notes).intensity == _STD_COUNTS
+    assert not [n for n in notes if n.code == "PATTERN_INTENSITY_SCALED"]
+
+
+@pytest.mark.parametrize("bad, where", [
+    (" x    29", "first two characters"),        # a counter number that is not one
+    (" 3  ab12", "last six characters"),          # a value that is not a number
+    (" 3      ", "last six characters"),          # a counter number and no value
+])
+def test_an_std_field_out_of_layout_is_refused_by_name(tmp_path, bad, where):
+    body = gsas_std_rows([(1, 10.0)]).rstrip("\n") + bad[:8] + "\n"
+    p = write_gsas(tmp_path / "bad.gda", bintype="CONST", flag="STD",
+                   body=body, nchan=2, coeffs=(600, 5, 0, 0))
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    msg = str(e.value)
+    assert p.name in msg and "STD" in msg and where in msg
+    assert "characters 9-16 of data record 1" in msg
 
 
 def _gsas_behind_long_time_map(path, *, table_rows, data_rows=40):
