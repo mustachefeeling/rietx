@@ -1,6 +1,6 @@
 # WP-2019 — each fast leg runs what only it can see, and the tail is cut again
 
-Milestone: unscheduled · Status: 🔄 2026-10-21 — five of seven tasks landed (PR #1095); the shard refresh is blocked on the artifact host, the ten-run acceptance reads main after the merge
+Milestone: unscheduled · Status: 🔄 2026-10-21 — six of seven tasks landed (PR #1095, the shard record after it); the ten-run acceptance reads main after the record merges
 Track: The repo's own process
 Depends on: —
 Priority: P3 2026-10-21 — cost-only: the slowest per-push job is 19.6 min, at 1547's 20-min bar, but the py3.14 shards grew 30 % in ten days, so the bar will not hold
@@ -168,11 +168,12 @@ cutting it.
 
 ## Tasks
 
-- [ ] **Refresh the shard record.** Rewrite `tests/shard_times.json` from the
+- [x] **Refresh the shard record.** Rewrite `tests/shard_times.json` from the
       latest green main run's junit artifacts, both profiles. The commit names
       the run. *Superseded in part 2026-10-21: one profile, `numpy`, since the
-      jax job no longer shards (next item). Blocked here: the session's network
-      policy refuses the artifact host (`*.blob.core.windows.net`).*
+      jax job no longer shards (next item). Done 2026-10-21 from main run
+      39687915804 (ed299ba3d), the first after #1095: 269 files, 2784 s. The
+      py3.14 shards there were 9.6 and 14.9 min.*
 - [x] **Select the jax leg's cases.**
   - Derive the selection from what each case imports or skips on, and run the
     leg as one job.
