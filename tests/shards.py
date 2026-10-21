@@ -20,8 +20,13 @@ rewrites the record from one CI run's junit files, fetched with ``gh run
 download RUN -p 'junit-*' -D DIR``.  Each subdirectory is one job, named
 ``junit-<leg>`` or ``junit-<leg>-<shard>``, and a leg's shards sum together.  A
 file's seconds sum its cases, leaving out skipped ones.  The record holds one
-profile, ``numpy``: each file's median share of a Python leg times the median
-Python leg, since one run's legs differ by up to 1.6× on the same tree.  The jax
+profile, ``numpy``: each file's median seconds over the Python legs that ran it,
+each leg's put on the median leg's clock, since one run's legs differ by up to
+1.6× on the same tree.  A leg's clock is what it spent on the files every leg
+ran.  Over the legs that *ran* the file, because one may run on a leg alone:
+the documentation executes on the newest (``tests/documentation.py``), and a
+share of every leg would weigh it at half there, on the leg that already runs
+the most (WP-2019).  The jax
 job is read past.  It held a second profile while it ran the whole tier in
 shards, its costs differing file by file (``test_cross_backend.py`` ~390 s there
 against ~15 s on numpy), and since WP-2019 it runs ``--jax-cases`` as one job,
@@ -153,12 +158,16 @@ def record(directory: Path, source: str) -> dict:
     python = {name: files for name, files in legs.items() if name.startswith("py")}
     if not python:
         raise SystemExit(f"no junit-py* leg under {directory}")
-    totals = {name: math.fsum(files.values()) for name, files in python.items()}
-    scale = statistics.median(totals.values())
-    numpy = {
-        f: round(statistics.median(files.get(f, 0.0) / totals[name]
-                                   for name, files in python.items()) * scale, 1)
-        for f in set().union(*python.values())}
+    every = set().union(*python.values())
+    common = {f for f in every if all(files.get(f, 0.0) > 0.0 for files in python.values())}
+    speed = {name: math.fsum(files[f] for f in sorted(common)) for name, files in python.items()}
+    median = statistics.median(speed.values())
+    factor = {name: (s / median if s and median else 1.0) for name, s in speed.items()}
+    numpy = {}
+    for f in every:
+        ran = [files[f] / factor[name] for name, files in python.items()
+               if files.get(f, 0.0) > 0.0]
+        numpy[f] = round(statistics.median(ran), 1) if ran else 0.0
     return {"source": source, "numpy": numpy}
 
 

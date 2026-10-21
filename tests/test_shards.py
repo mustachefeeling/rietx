@@ -138,6 +138,21 @@ def test_the_record_reads_shares_of_python_legs_and_reads_past_the_jax_job(tmp_p
                    "numpy": {"tests/test_a.py": 4.5, "tests/test_b.py": 1.5}}
 
 
+def test_a_file_one_leg_skips_weighs_what_the_leg_running_it_spent(tmp_path):
+    """The documentation executes on the newest leg alone (WP-2019), so its
+    file weighs its share there: a median over two legs would halve it."""
+    for job, docs in (("junit-py3.11", True), ("junit-py3.14", False)):
+        (tmp_path / job).mkdir()
+        (tmp_path / job / "junit.xml").write_text(
+            '<testsuites><testsuite><testcase classname="tests.test_a" name="t" time="6"/>'
+            '<testcase classname="tests.test_docs" name="t" time="4">'
+            + ('<skipped message="RIETX_DOCS=skip"/>' if docs else "")
+            + "</testcase></testsuite></testsuites>", encoding="utf-8")
+    out = shards.record(tmp_path, "run 1")
+    # both legs ran test_a in 6 s, so they share a clock and docs keeps its 4 s
+    assert out["numpy"] == {"tests/test_a.py": 6.0, "tests/test_docs.py": 4.0}
+
+
 def test_a_leg_missing_a_shard_another_leg_has_is_refused(tmp_path):
     """A timed-out shard uploads nothing, and its files would weigh zero."""
     for job in ("junit-py3.11-1", "junit-py3.11-2", "junit-py3.14-1"):
