@@ -1469,15 +1469,13 @@ ROWS: tuple[Row, ...] = (
         evidence="arithmetic: sqrt(2), the Voigt argument z = (x + i gamma)/(sigma sqrt 2)"),
     Row("rietx.model.profiles.voigt._SQRT2PI", "constant", tier=1, value=2.5066282746310002,
         evidence="arithmetic: sqrt(2 pi)"),
-    Row("rietx.model.restraints.MIN_IMAGE_SHELL", "constant", tier=3, value=1,
-        evidence=("restraint image-shell depth (WP-2002, 2026-10-21, tests/test_restraints.py): exact "
-                  "on Niggli-reduced, hexagonal and rhombohedral cells (400 000 pairs), but misses 72 of "
-                  "2518 pairs within 4 A in unreduced monoclinic cells at beta 135-150 deg, a shell of 2 "
-                  "still 10 of 14 105, so a restraint can bind the wrong image; sizing the shell by "
-                  "geometry._shell(g, d) is the fix (a code change)"),
-        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
-                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
-        approved="2026-10-19"),
+    Row("rietx.model.restraints.MIN_IMAGE_SHELL", "constant", tier=1, value=1,
+        evidence=("numerical setting (tier 1's domain clause): the first pass of the minimum-image "
+                  "search, which only bounds the second, sized per cell by geometry._shell; "
+                  "exact on 50 000 pairs over reduced triclinic, reduced monoclinic, hexagonal, "
+                  "rhombohedral and unreduced monoclinic (beta 135-150 deg) cells, where one "
+                  "shell alone missed 72 of 2518 pairs within 4 A, tests/test_restraints.py "
+                  "(WP-2002, 2026-10-21)")),
     Row("rietx.model.restraints._COINCIDENT_D2", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: any value between roundoff and the shortest real interatomic "
                   "d^2 gives the same image")),

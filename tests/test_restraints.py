@@ -382,13 +382,16 @@ def _image_misses(cells, rng, pairs_per_cell):
     """``(misses at any distance, misses within _PAIR_MAX_ANG, pairs within it)``.
 
     The reference is the shell :func:`rietx.model.geometry._shell` sizes to
-    reach the distance the search found.  It spans ceil(d·√G*ₖₖ) + 1 cells
-    along each axis, so by the plane-spacing bound it holds every image
-    closer than that distance, in any cell.  That is the geometry table's
-    neighbour search, whose completeness ``tests/test_geometry_table.py``
-    proves by orbit counting.  Orbit counting cannot do it here: in P 1 the
-    search from i and the search from j share their rounded centre up to a
-    sign, so a miss from one end is the same miss from the other.
+    reach the centred image's distance, which no nearest image exceeds.  It
+    spans ceil(d·√G*ₖₖ) + 1 cells along each axis, so by the plane-spacing
+    bound it holds every image closer than that distance, in any cell.  It is
+    sized from the pair alone, never from what the search found, so the
+    search's first pass is checked rather than repeated.  That is the
+    geometry table's neighbour search, whose completeness
+    ``tests/test_geometry_table.py`` proves against a plain enumeration.
+    Orbit counting cannot do it here: in P 1 the search from i and the search
+    from j share their rounded centre up to a sign, so a miss from one end is
+    the same miss from the other.
     """
     from types import SimpleNamespace
 
@@ -405,7 +408,11 @@ def _image_misses(cells, rng, pairs_per_cell):
             dx = x + n - ref
             found = float(np.sqrt(dx @ g @ dx))
             f = x - ref
-            cand = (f + np.round(-f))[None, :] + _shell(g, found + 1e-9)
+            centred = f + np.round(-f)
+            reach = float(np.sqrt(centred @ g @ centred))
+            if reach < 1e-3:   # coincident: the nearest is a lattice vector away
+                reach = float(np.sqrt(np.diag(g).min()))
+            cand = centred[None, :] + _shell(g, reach + 1e-9)
             d2 = np.einsum("sa,ab,sb->s", cand, g, cand)
             best = float(np.sqrt(d2[d2 > 1e-6].min()))
             short += best <= _PAIR_MAX_ANG
@@ -417,34 +424,29 @@ def _image_misses(cells, rng, pairs_per_cell):
 
 @pytest.mark.parametrize("kind", [
     "reduced_triclinic", "reduced_monoclinic", "hexagonal", "rhombohedral",
-    pytest.param("monoclinic_beta_135_150", marks=pytest.mark.xfail(strict=True, reason=(
-        "a cell stored with beta 135-150 deg is not reduced, and the {-1,0,1}^3 shell "
-        "misses the nearest image of 72 of 2518 pairs within 4 A here (595 of 10000 "
-        "at any distance; measured 2026-10-21); short pairs are first missed near "
-        "beta 129 deg, 3 A pairs near 136 deg, by up to 1.87 A at beta 149, and a "
-        "shell of 2 still misses 10 of 14105 at beta 140-150")))])
+    "monoclinic_beta_135_150"])
 # slow: a domain sweep, 7.2 s for its four passing cells in the fast tier locally
 # (WP-2002 handover), which would join the fast tier's tail on CI
 @pytest.mark.slow
 def test_one_image_shell_finds_the_nearest_image_over_its_domain(kind):
-    """``MIN_IMAGE_SHELL`` = 1 against a complete search (B10, ruled 2026-10-19).
+    """The minimum-image search against a complete one, in any cell (B10,
+    ruled 2026-10-19).  The bar is exactness, since a missed image restrains
+    the wrong pair.
 
-    The constant's comment claims one shell for near-orthogonal cells.  The
-    measured domain is wider and sharper: every **Niggli-reduced** cell, at
-    any pair distance.  Reduced cells have every angle in 60-120° and the
-    shortest edges, and on 400 000 random pairs over 1000 of them (lengths
-    2.4-30 Å) the search missed none.  Hexagonal cells and rhombohedral axes
-    from α = 30° to 115° are exact too.  The bar is exactness, since a missed
-    image restrains the wrong pair.
+    ``MIN_IMAGE_SHELL`` = 1 alone was exact on every **Niggli-reduced** cell
+    (400 000 random pairs over 1000 of them, lengths 2.4-30 Å), on hexagonal
+    cells and on rhombohedral axes from α = 30° to 115°.  A cell stored
+    unreduced was outside it: monoclinic β past about 110° missed images
+    beyond the restraint range, past 129° within 4 Å, past 136° within 3 Å,
+    and at β 135-150° 72 of 2518 pairs within 4 Å (595 of 10 000 at any
+    distance; a shell of 2 still missed 10 of 14 105).  The search now sizes
+    a second pass from the first pass's distance, as ``geometry._shell``
+    sizes the neighbour search, so the stored setting no longer matters.
 
-    A cell stored unreduced is outside the domain.  Monoclinic β past about
-    110° misses images beyond the restraint range, past 129° within 4 Å, and
-    past 136° within 3 Å.  A shell sized by the found distance, as
-    ``geometry._shell`` sizes the neighbour search, would be complete in any
-    cell; ``op_index`` is the caller's way round it today.
-
-    Made to fail on 2026-10-21 with the module constant patched to 0: the
-    four passing rows missed 1742, 766, 1651 and 2031 of their 10 000 pairs.
+    Made to fail on 2026-10-21 with the module constant patched to 0 and no
+    second pass: the four reduced rows missed 1742, 766, 1651 and 2031 of
+    their 10 000 pairs.  With the second pass removed, the monoclinic row
+    misses again.
     """
     rng = np.random.default_rng({"reduced_triclinic": 1, "reduced_monoclinic": 2,
                                  "hexagonal": 3, "rhombohedral": 4,
@@ -452,11 +454,9 @@ def test_one_image_shell_finds_the_nearest_image_over_its_domain(kind):
     cells = _domain_cells(kind, rng, 100)
     missed, missed_short, short = _image_misses(cells, rng, 100)
     assert short > 500, f"{kind}: only {short} pairs within {_PAIR_MAX_ANG} A"
-    if kind.startswith("monoclinic"):
-        assert missed_short == 0, (
-            f"{kind}: {missed_short} of {short} pairs within {_PAIR_MAX_ANG} A missed")
-    else:
-        assert missed == 0, f"{kind}: {missed} of 10000 pairs missed their nearest image"
+    assert missed == missed_short == 0, (
+        f"{kind}: {missed} of 10000 pairs missed their nearest image, "
+        f"{missed_short} of {short} within {_PAIR_MAX_ANG} A")
 
 
 # ------------------------------------------------- (e) the c_w schedule (1074)
