@@ -283,10 +283,11 @@ AXIAL_SIZING_FLOOR = 0.02
 #: values still has only this margin for what it moves during the stage.
 #:
 #: Since WP-2002 (the seventh round's Q2) it is the declared stages' margin and
-#: a floor for the rest.  A compile at the closing stage's windows generates
-#: each phase's reflections out to the widest window a reflection at either
-#: edge of the range carries, which reaches tens of degrees on a lab
-#: Lorentzian.  At this fixed margin the tail of a reflection just past the end
+#: a floor for the rest.  A Rietveld compile at the closing stage's windows
+#: generates each phase's reflections out to the widest window a reflection at
+#: either edge of the range carries, which reaches tens of degrees on a lab
+#: Lorentzian.  Le Bail and Pawley keep this margin: a reflection centred past
+#: the edge would have its intensity fitted to its tail alone.  At this fixed margin the tail of a reflection just past the end
 #: left 0.124-0.186σ at the last points of FAP and cpd-1a against a bar of 0.1σ
 #: (``tests/test_window_domain.py``).
 REFLECTION_MARGIN_DEG = 0.5
@@ -3682,9 +3683,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     from its record passes :func:`recorded_window_tol` of the recorded value.
     At ``CLOSING_WINDOW_TOL`` or tighter the compile takes the closing stage's
     precision throughout: the axial-divergence quadrature takes the closing
-    node rule (``profiles.fcj.CLOSING_NODES_PER_FWHM``), and each phase's
-    reflections are generated out to the widest window a reflection at either
-    edge of the range carries, never less than ``REFLECTION_MARGIN_DEG``.  So
+    node rule (``profiles.fcj.CLOSING_NODES_PER_FWHM``), and in Rietveld mode
+    each phase's reflections are generated out to the widest window a
+    reflection at either edge of the range carries, never less than
+    ``REFLECTION_MARGIN_DEG``.  Le Bail and Pawley keep that margin, since a
+    reflection centred past the edge would have its intensity fitted to its
+    tail alone.  So
     the recorded window fraction also says which rules a stage ran, and a
     declared stage compiles as it did before.
 
@@ -3862,13 +3866,16 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # reflection outside the range whose tail reaches in belongs to the
         # pattern its window would draw (WP-2002, the seventh round's Q2).  A
         # Stephens block widens the windows by its own Λ(hkl), so its largest on
-        # the first list widens the range once more.
+        # the first list widens the range once more.  Rietveld only: in Le Bail
+        # and Pawley each reflection's intensity is a parameter, and one centred
+        # past the edge would be fitted to its tail alone.
+        edge_margin = closing_precision and mode == "rietveld"
         margins = (np.maximum(_edge_half(phase, ip), REFLECTION_MARGIN_DEG)
-                   if closing_precision else np.full(2, REFLECTION_MARGIN_DEG))
+                   if edge_margin else np.full(2, REFLECTION_MARGIN_DEG))
         gen_min, hi_eff = _generation_range(*margins)
         refl = generate_reflections(group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
-        if closing_precision and phase.microstrain is not None and len(refl.index):
+        if edge_margin and phase.microstrain is not None and len(refl.index):
             lam_max = float(np.max(strain_width_deg(
                 monomial_matrix(refl.index), np.array(phase.microstrain.values()),
                 d_spacings(refl.index, *cell))))
