@@ -133,9 +133,12 @@ def check_phase_support_sigma(value: Any) -> float | None:
 #: once more with every glob the plan freed.  Measured on 2026-10-21 against
 #: the whole protocol run at 1e-3 (macOS arm64, ``[dev]``): within 0.002,
 #: 0.052 and 0.002 esd on the fluorapatite, cpd-1a and 11-BM NAC, and the two
-#: Biso starts within 0.000, 0.064 and 0.000 esd, at 1.36-2.26× today's fit
-#: time.  SRM 660c LaB6 lands in its mirrored axial minimum from either start
-#: under every setting (WP-2012).
+#: Biso starts within 0.000, 0.064 and 0.000 esd.  Through the shipped code
+#: the whole fit takes 1.05-1.19× (LaB6), 2.03-2.05× (FAP), 1.37-1.38×
+#: (cpd-1a) and 1.12-1.26× (NAC) its time without the closing stage, the last
+#: declared stage now stopping at ``intermediate_ftol``.  SRM 660c LaB6 lands
+#: in its mirrored axial minimum from either start under every setting
+#: (WP-2012).
 #:
 #: **Practice.**  BGMN ends every refinement ladder with a closing run, all
 #: free and restarted from the previous answer (Doebelin & Kleeberg 2015,
@@ -279,7 +282,7 @@ class PlanSpec(Base):
             "answer with peak windows dropping this fraction of each peak's "
             "area and solves with every glob the plan freed.  Earlier stages "
             "drop 2 %, which moves lab answers by up to an esd; 1e-3 meets "
-            "0.1 esd on four families at 1.4-2.3x the fit time.  null = no "
+            "0.1 esd on three of four families at 1.1-2.1x the fit time.  null = no "
             "closing stage, today's answers bit for bit (WP-2002)"))
 
     @field_validator("phase_support_sigma")

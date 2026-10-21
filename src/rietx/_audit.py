@@ -2112,7 +2112,7 @@ ROWS: tuple[Row, ...] = (
                   "5e-5's at every point on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.022-0.091), "
                   "and the closing answer within 0.1 plain esd of the 5e-5 fixed point on FAP, "
                   "cpd-1a and NAC (0.008-0.019); LaB6 misses that by 0.908 esd on U from the "
-                  "Gaussian-variance clamp, which moves U at any window (WP-1467); 1.4-2.3x the "
+                  "Gaussian-variance clamp, which moves U at any window (WP-1467); 1.05-2.05x the "
                   "fit time (WP-2002, the sixth round's Q1 and Q2)")),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
     Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", tier=3, value=1e-06,

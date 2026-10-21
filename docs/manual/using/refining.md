@@ -933,7 +933,7 @@ against converged ones, and the background by 2 to 5 esd; two Biso starts put
 cpd-1a's sample displacement 0.75 esd apart. After the closing stage the
 answer lies within 0.008-0.019 plain esd of the converged tails' on the
 fluorapatite, cpd-1a and 11-BM NAC, and two Biso starts agree to 0.000, 0.064
-and 0.000 esd, at 1.36-2.26× the fit time (2026-10-21). SRM 660c LaB6 stays
+and 0.000 esd, at 1.05-2.05× the fit time (2026-10-21). SRM 660c LaB6 stays
 0.9 esd away in `u`, its high-angle Gaussian variance on the clamp floor.
 BGMN ends its refinements the same way.
 

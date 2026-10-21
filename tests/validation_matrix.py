@@ -2618,7 +2618,8 @@ INTERMEDIATE_FTOL_DEFAULT = 1e-6
 #:   0.008-0.019 plain esd of them on the fluorapatite, cpd-1a and NAC.  Two
 #:   Biso starts agree to 0.000, 0.064 and 0.000 esd there, against 0.119,
 #:   0.751 and 0.008 without it.
-#: * *What it costs.*  1.36-2.26x the fit time on those three and SRM 660c.
+#: * *What it costs.*  1.05-2.05x the fit time on those three and SRM 660c,
+#:   the fluorapatite the dearest (two runs each, interleaved, 2026-10-21).
 #: * *Where it fails.*  SRM 660c LaB6 stays 0.9 esd from the converged answer
 #:   in U, its Gaussian variance on the clamp floor at high angle (WP-1467),
 #:   and its two Biso starts land in mirrored axial minima (WP-2012).

@@ -310,7 +310,7 @@ Measured on SRM 660c LaB6, the fluorapatite, cpd-1a and 11-BM NAC, each under it
 | | Fluorapatite | cpd-1a | NAC | LaB6 |
 |---|---|---|---|---|
 | Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 0.751 → 0.064 | 0.008 → 0.000 | 9.0 → 9.4 |
-| Fit time with the closing stage | 2.26× | 1.54× | 1.44× | 1.36× |
+| Fit time with the closing stage | 2.03-2.05× | 1.37-1.38× | 1.12-1.26× | 1.05-1.19× |
 
 LaB6's two starts reach two mirrored axial-divergence minima whatever the windows, so no window setting can make them agree.
 `tests/test_window_domain.py` holds the closing answer within 0.1 plain esd of the answer with converged tails on the fluorapatite, cpd-1a and NAC (0.008 to 0.019 esd).
