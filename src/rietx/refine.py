@@ -9720,15 +9720,29 @@ def _roughness_regime_diagnostics(model: CompiledModel,
             ))
 
     if depression < ROUGHNESS_MIN_DEPRESSION:
+        # Suortti's form is the identity at b = 0 and at a = 1, and the esds
+        # the fit quotes depend on which the solver stopped at: b's column is
+        # zero at a = 1, a's at b = 0.  Measured on the CPD round robin, the
+        # scale's and Biso's esds differ ×1.1 to ×4.4 between the two at one
+        # set of values (WP-2002, fifth round's Q4).  Said rather than
+        # canonicalised: the case is rare, and dropping the block, which this
+        # warning already asks for, gives one reading whichever way it ended.
+        off = model.roughness == "suortti" and depression == 0.0
         out.append(Diagnostic(
             level="warning", code="ROUGHNESS_UNCONSTRAINED",
             where=[f"{base}.{n}" for n in ("a", "b", "c", "tau")
                    if f"{base}.{n}" in values],
             message=(f"The refined surface roughness depresses intensity by at "
                      f"most {depression:.2%} at any modelled reflection "
-                     f"(lowest at {drawn(tt_min):.2f}° 2θ)."),
-            suggestion="Drop the roughness block, or extend the measurement "
-                       "to lower 2θ.",
+                     f"(lowest at {drawn(tt_min):.2f}° 2θ)."
+                     + (" It ended switched off, at one of the Suortti form's "
+                        "two off states (b = 0, or a = 1), and the esds of "
+                        "the scale and Biso depend on which one."
+                        if off else "")),
+            suggestion=("Drop the roughness block, or extend the measurement "
+                        "to lower 2θ."
+                        + (" Without the block the esds no longer depend on "
+                           "where the correction switched off." if off else "")),
         ))
     return out
 

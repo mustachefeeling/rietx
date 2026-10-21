@@ -189,6 +189,26 @@ transcript and the PR (#1085); the measurements behind each are in `waiting.md`,
   rule has none, so they stay tier 3. Beside it, a defect: the 3.5 Å contact radius also
   bounds the bond search, so a bond past it (Cs–Cl near 3.57 Å) is never found, unnoted.
 
+## Fifth round's answers (2026-10-21)
+
+The maintainer answered on 2026-10-21, with a note beside the six: **widen tier 2's program
+comparison to the programs rietx-bench runs** (GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN,
+MAUD, EasyDiffraction).
+
+- **Q1**: asked back. The brief's opening sentence did not parse, and the maintainer asked
+  what the other programs do and why rietx does what it does. Re-briefed below.
+- **Q2**: asked back: how do RIETAN-FP and BGMN, which also refine in stages, handle it?
+- **Q3**: asked back: check the other programs' starting values.
+- **Q4**: delegated ("whichever you consider reasonable, this is rare"). The lead's pick
+  is (b): a correction that ends switched off has its esds evaluated at b = 0, the
+  marginal reading WP-1929's rule gives a row on its bound.
+- **Q5**: (a), remove the five ceilings, "confirm with other codes too and let me know".
+- **Q6**: "doesn't appear to be a question", read as agreement with the recommendation.
+  Tier 1 gains a cap clause (`generality.md` § The rule): a cap on what a report lists is
+  kept once a test shows the report complete inside the cap and its notes counting what
+  lies outside. The bond-search defect is fixed in the same change, and the three
+  geometry caps move to tier 1.
+
 ## Still open (first round's list, kept for the record)
 
 1. B4: keep f, and report the textbook esd beside it?
