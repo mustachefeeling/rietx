@@ -1377,19 +1377,28 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     not a refinable parameter and not per-reflection — and consumes the *same*
     U,V,W,X,Y widths, so switching shapes never touches the parameter table.
 
-    **Every width has a floor and none has a ceiling, and which floors depends
-    on how the instrument was built.**  The X-ray presets take
-    :data:`TCHZ_BOUNDS` (U ≥ −0.05, V ≥ −0.5);
-    :meth:`Instrument.constant_wavelength_neutron` takes
-    :data:`TCHZ_BOUNDS_COARSE` through :meth:`coarse` (U ≥ −0.5, V ≥ −4); an
-    explicit ``Parameter(value, min, max)`` carries the caller's own.  X and Y
-    have a floor of zero in both boxes, because Γ_L is a width.  The ceilings
-    went on 2026-10-21 (WP-2002, the fifth round's Q5): a chosen limit on a
-    quantity that stays physical, X ≤ 1° capping the Lorentzian size near
-    8 nm at Cu Kα, where none of GSAS-II, FullProf, TOPAS, RIETAN-FP, MAUD or
-    EasyDiffraction bounds these coefficients by default (BGMN has none to
-    bound).  A solution read from another program can still sit under a
-    floor: one with W < 0 starts from W's floor rather than from its value.
+    **Every width has a floor, and which floors depends on how the
+    instrument was built.**  The X-ray presets take :data:`TCHZ_BOUNDS`
+    (U ≥ −0.05, V ≥ −0.5); :meth:`Instrument.constant_wavelength_neutron`
+    takes :data:`TCHZ_BOUNDS_COARSE` through :meth:`coarse` (U ≥ −0.5,
+    V ≥ −4); an explicit ``Parameter(value, min, max)`` carries the caller's
+    own.  X and Y have a floor of zero in both boxes, because Γ_L is a width.
+    A solution read from another program can still sit under a floor: one
+    with W < 0 starts from W's floor rather than from its value.
+
+    **The ceiling is the width of the 2θ axis** (:data:`TCHZ_CEILING_DEG`),
+    which no peak can reach.  The chosen ceilings (1 for U, W, X and Y, 0.5
+    for V) went on 2026-10-21 (WP-2002, the fifth round's Q5): X ≤ 1° capped
+    the Lorentzian size near 8 nm at Cu Kα, and none of GSAS-II, FullProf,
+    TOPAS, RIETAN-FP, MAUD or EasyDiffraction bounds these coefficients by
+    default (BGMN has none to bound).  A finite ceiling stays because
+    ``solver="trf"`` scales each step by the distance to a finite bound and
+    by 1 for an infinite one, so an infinite ceiling changes TRF's path where
+    no width comes near it.  Without one, TRF stopped the CPD brucite
+    Stephens fit at Rwp 0.17891 with one S_HKL esd collapsing to 66 (t = −203).
+    With these ceilings it stops at 0.17878 with the pre-removal t values, as
+    it did with every ceiling at 10 or at 1000 (the sixth round's Q7).  LM,
+    the default driver, gives the same answer either way.
 
     **W's floor is the Γ_G² clamp, not zero** (WP-1938 D7).
     :func:`~rietx.model.profiles.caglioti.gaussian_fwhm` takes
@@ -1501,23 +1510,35 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
 TCHZ_DEFAULTS: dict[str, float] = {"u": 0.0, "v": 0.0, "w": 1e-3, "x": 1e-3,
                                    "y": 0.0}
 
-#: The default refinement box per width coefficient: floors only, sized for a
-#: lab or synchrotron X-ray line.  Every X-ray preset builds these.  W's floor
-#: is the Γ_G² clamp since WP-1938 (:class:`ProfileTCHZ`), 0 before it.  The
-#: ceilings (1 for U, W, X and Y, 0.5 for V) were removed on 2026-10-21
-#: (WP-2002, the fifth round's Q5).
+#: The ceiling on every TCHZ width: the whole 2θ axis, 180° for X and Y and
+#: 180² deg² for U, V and W.  It bounds nothing a peak can reach and gives
+#: ``solver="trf"`` a finite bound to scale its steps by (:class:`ProfileTCHZ`
+#: says why; WP-2002, the sixth round's Q7).
+TCHZ_CEILING_DEG = 180.0
+_TCHZ_CEILING = {"u": TCHZ_CEILING_DEG ** 2, "v": TCHZ_CEILING_DEG ** 2,
+                 "w": TCHZ_CEILING_DEG ** 2, "x": TCHZ_CEILING_DEG,
+                 "y": TCHZ_CEILING_DEG}
+
+#: The default refinement box per width coefficient, sized for a lab or
+#: synchrotron X-ray line: chosen floors, and :data:`TCHZ_CEILING_DEG` above.
+#: Every X-ray preset builds these.  W's floor is the Γ_G² clamp since WP-1938
+#: (:class:`ProfileTCHZ`), 0 before it.  The chosen ceilings (1 for U, W, X
+#: and Y, 0.5 for V) were removed on 2026-10-21 (WP-2002, the fifth round's Q5).
 TCHZ_BOUNDS: dict[str, tuple[float, float]] = {
-    "u": (-0.05, math.inf), "v": (-0.5, math.inf), "w": (_MIN_GAMMA_G2, math.inf),
-    "x": (0.0, math.inf), "y": (0.0, math.inf)}
+    "u": (-0.05, _TCHZ_CEILING["u"]), "v": (-0.5, _TCHZ_CEILING["v"]),
+    "w": (_MIN_GAMMA_G2, _TCHZ_CEILING["w"]), "x": (0.0, _TCHZ_CEILING["x"]),
+    "y": (0.0, _TCHZ_CEILING["y"])}
 
 #: The coarse-instrument box: the floors a constant-wavelength neutron line
 #: needs.  Measured on the public APDW Co3O4 set (ILL D1B, λ = 2.52 Å; issue
 #: #276): its FullProf model has U = 1.576, V = -0.501, W = 0.475, with V under
 #: the default floor, and in this box it converges to U = 1.654 ± 0.051,
-#: within 5 % of that model.  Its ceilings of 8 went with the default box's.
+#: within 5 % of that model.  Its chosen ceilings of 8 went with the default
+#: box's, and it shares that box's :data:`TCHZ_CEILING_DEG`.
 TCHZ_BOUNDS_COARSE: dict[str, tuple[float, float]] = {
-    "u": (-0.5, math.inf), "v": (-4.0, math.inf), "w": (_MIN_GAMMA_G2, math.inf),
-    "x": (0.0, math.inf), "y": (0.0, math.inf)}
+    "u": (-0.5, _TCHZ_CEILING["u"]), "v": (-4.0, _TCHZ_CEILING["v"]),
+    "w": (_MIN_GAMMA_G2, _TCHZ_CEILING["w"]), "x": (0.0, _TCHZ_CEILING["x"]),
+    "y": (0.0, _TCHZ_CEILING["y"])}
 
 _TCHZ_UNITS = {"u": "deg^2", "v": "deg^2", "w": "deg^2", "x": "deg", "y": "deg"}
 
@@ -2373,8 +2394,8 @@ class Instrument(_InheritsDeclaredDefaults):
         (:meth:`ProfileTCHZ.coarse`, :data:`TCHZ_BOUNDS_COARSE`), whose U and
         V floors sit under the default box's: a long-wavelength CW neutron
         model can need them (issue #276: V = −0.501 on D1B at λ = 2.52 Å).
-        No width has a ceiling (WP-2002, the fifth round's Q5), so any
-        ``fwhm_deg`` seeds ``w`` at its square.  A *bare* width still
+        Every width's ceiling is the 2θ axis (:data:`TCHZ_CEILING_DEG`), so
+        any ``fwhm_deg`` up to 180° seeds ``w`` at its square.  A *bare* width still
         refuses: ``ProfileTCHZ(u=1.576)`` raises, naming
         ``ProfileTCHZ.coarse`` and an explicit ``Parameter`` as the ways out.
 

@@ -218,7 +218,7 @@ A neutron instrument's lines are typically 0.2-0.5° wide, against about 0.03° 
 The evaluation windows of each stage are sized from the starting width, so a 0.3° line started from the default is not found.
 
 The width floors differ from an X-ray instrument's.
-No width has a ceiling.
+No width has a chosen ceiling. Each stops at the width of the 2θ axis, 180° for `x` and `y` and 180² deg² for `u`, `v` and `w`, which no peak reaches.
 A long-wavelength neutron line's model can sit under the default floors: on the ILL D1B Co₃O₄ set at λ = 2.52 Å the published model has V = −0.501, under the default floor of −0.5 on `v`.
 The neutron constructor therefore builds its profile with `ProfileTCHZ.coarse`, whose box `TCHZ_BOUNDS_COARSE` puts `u` at −0.5 or more and `v` at −4 or more.
 
@@ -232,7 +232,7 @@ except ValueError as refusal:
 else:
     raise AssertionError("a bare width is refused")
 d1b = ProfileTCHZ.coarse(u=1.576, v=-0.501, w=0.475)
-assert d1b.v.min == -4.0 and d1b.w.max == float("inf")
+assert d1b.v.min == -4.0 and d1b.w.max == 180.0 ** 2
 ```
 
 `Geometry.surface_roughness` is refused on a neutron source, because neither roughness model has a regime where the beam penetrates centimetres.

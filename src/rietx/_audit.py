@@ -2014,6 +2014,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN", "constant", value=0.005),
     Row("rietx.schemas.instrument.HARMONIC_WEIGHT_SEED", "constant", value=0.01),
     Row("rietx.schemas.instrument.HUMP_FWHM_MIN", "constant", value=0.1),
+    Row("rietx.schemas.instrument.TCHZ_CEILING_DEG", "constant", tier=1, value=180.0,
+        evidence=("arithmetic: the width of the 2theta axis (180 deg for X and Y, its square for "
+                  "U, V and W), four orders over any measured line, so it bounds no fit LM runs; "
+                  "kept finite because TRF scales a step by a finite bound's distance and by 1 "
+                  "for an infinite one: CPD brucite Stephens under TRF stopped at Rwp 0.17891, "
+                  "one S_HKL t = -203, without it and at 0.17878 with the pre-removal t values "
+                  "with it (WP-2002, the sixth round's Q7, ruled (a) 2026-10-21)")),
     Row("rietx.schemas.instrument._DIFC_MIN", "constant", tier=1, value=1.0,
         evidence=("physics: DIFC = (m_N/h)(L1+L2)2 sin(theta) is strictly positive; 1 us/A is three"
                   " orders under the smallest real bank (GEM bank 1, ~740)")),

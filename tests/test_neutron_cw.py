@@ -27,6 +27,7 @@ from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
 from rietx.schemas.instrument import (
     TCHZ_BOUNDS,
     TCHZ_BOUNDS_COARSE,
+    TCHZ_CEILING_DEG,
     NeutronSource,
     ProfileTCHZ,
 )
@@ -102,14 +103,14 @@ def test_profile_seed_sets_the_gaussian_constant_term_only():
     assert inst.profile.x.value == default.profile.x.value
 
 
-def test_a_wide_fwhm_deg_builds_with_no_ceiling():
+def test_a_wide_fwhm_deg_builds_under_the_axis_ceiling():
     """The 2026-09-11 fence refused a `fwhm_deg` seeding `w` past its upper
-    bound, 8 deg² in the coarse box.  The width ceilings went on 2026-10-21
+    bound, 8 deg² in the coarse box.  The chosen ceilings went on 2026-10-21
     (WP-2002, the fifth round's Q5), and the fence with them: 3.0° seeds
-    w = 9.0 exactly."""
+    w = 9.0 exactly.  The ceiling left is the 2θ axis (the sixth round's Q7)."""
     inst = rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=3.0)
     assert inst.profile.w.value == pytest.approx(3.0 ** 2)
-    assert inst.profile.w.max == math.inf
+    assert inst.profile.w.max == TCHZ_CEILING_DEG ** 2
 
 
 def test_a_long_wavelength_line_wider_than_one_degree_builds():
@@ -155,7 +156,7 @@ def test_a_published_d1b_caglioti_model_constructs_through_coarse():
     again = ProfileTCHZ.model_validate_json(profile.model_dump_json())
     assert again == profile
     # under the coarse box's floor it still refuses, by the Parameter's own
-    # message; above it there is no ceiling (WP-2002, the fifth round's Q5)
+    # message; its chosen ceilings went (WP-2002, the fifth round's Q5)
     with pytest.raises(ValueError, match="outside bounds"):
         ProfileTCHZ.coarse(u=-0.6)
     assert ProfileTCHZ.coarse(u=9.0).u.value == 9.0
@@ -182,16 +183,18 @@ def test_a_bare_width_inside_the_default_box_refuses_by_name():
 def test_the_x_ray_profile_box_is_unchanged(build):
     """The coarse box is the neutron preset's alone: every X-ray instrument
     still builds the profile it always has, literal for literal.  W's floor is
-    the Γ_G² clamp since WP-1938 (D7), on both presets, and no width has a
-    ceiling since 2026-10-21 (WP-2002, the fifth round's Q5)."""
+    the Γ_G² clamp since WP-1938 (D7), on both presets.  The chosen ceilings
+    went on 2026-10-21 (WP-2002, the fifth round's Q5); the ceiling left is the
+    2θ axis, 180° and 180² deg² (the sixth round's Q7)."""
+    sq, deg = 180.0 ** 2, 180.0
     expected = {
-        "u": dict(value=0.0, min=-0.05, max=math.inf, unit="deg^2"),
-        "v": dict(value=0.0, min=-0.5, max=math.inf, unit="deg^2"),
-        "w": dict(value=1e-3, min=_MIN_GAMMA_G2, max=math.inf, unit="deg^2",
+        "u": dict(value=0.0, min=-0.05, max=sq, unit="deg^2"),
+        "v": dict(value=0.0, min=-0.5, max=sq, unit="deg^2"),
+        "w": dict(value=1e-3, min=_MIN_GAMMA_G2, max=sq, unit="deg^2",
                   transform="softplus"),
-        "x": dict(value=1e-3, min=0.0, max=math.inf, unit="deg",
+        "x": dict(value=1e-3, min=0.0, max=deg, unit="deg",
                   transform="softplus"),
-        "y": dict(value=0.0, min=0.0, max=math.inf, unit="deg",
+        "y": dict(value=0.0, min=0.0, max=deg, unit="deg",
                   transform="softplus"),
     }
     profile = build().profile

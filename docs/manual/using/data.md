@@ -651,7 +651,8 @@ a 0.3° line started from the default is not found at all. The width function
 needs no neutron-specific code. The Caglioti law U·tan²θ + V·tanθ + W is the
 neutron resolution function, and the X-ray path is the borrower.
 
-The width *floors* do differ. No width has a ceiling. `ProfileTCHZ`'s default
+The width *floors* do differ. No width has a chosen ceiling, only the 2θ
+axis (180°, or 180² deg² for u, v and w). `ProfileTCHZ`'s default
 box is sized for an X-ray line, and a long-wavelength neutron model can sit
 under its floors: on the ILL D1B Co₃O₄ tutorial set at λ = 2.52 Å the published
 model has V = −0.501, under the default floor of −0.5 on `v`. The neutron
@@ -671,7 +672,7 @@ except ValueError as refusal:
 else:
     raise AssertionError("a bare wide width is refused")
 d1b = ProfileTCHZ.coarse(u=1.576, v=-0.501, w=0.475)
-assert d1b.v.min == -4.0 and d1b.w.max == float("inf")
+assert d1b.v.min == -4.0 and d1b.w.max == 180.0 ** 2
 ```
 
 Two corrections are refused rather than ignored. `surface_roughness` is an
