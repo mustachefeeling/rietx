@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from rietx._about import DOCS_URL
+from tests import documentation
 
 pytest.importorskip("sphinx")
 
@@ -108,14 +109,17 @@ def built_manual(tmp_path_factory):
     without it a second worker rebuilds the whole tree and the sharing costs
     more than it saved (tests/CLAUDE.md).  Returns the output directory and the
     completed process, so the build's own failure is reported by the test named
-    for it rather than as a fixture error.
+    for it rather than as a fixture error.  It skips where
+    `tests/documentation.py` says the documentation does not execute.
     """
+    documentation.skip_here()
     return _build(MANUAL_DIR, tmp_path_factory.mktemp("manual") / "html")
 
 
 @pytest.fixture(scope="session")
 def built_docs_tree(tmp_path_factory):
     """The new tree's `-W` build, on the old tree's worker: a few seconds."""
+    documentation.skip_here()
     return _build(DOCS_TREE, tmp_path_factory.mktemp("docs-tree") / "html")
 
 

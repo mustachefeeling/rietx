@@ -163,6 +163,13 @@ only if the last task moves Python versions into the nightly.
   came after this WP's tasks: the guide scripts (WP-1986, 10-17), the automatic
   profile interval (WP-2002), and 64 files the shard record lacks. 2019 owns
   the next cut. This WP's acceptance reads as written.
+- **From [2019](2019-each-fast-leg-runs-what-only-it-can-see.md)'s first
+  session (2026-10-21, PR #1095).** When #1095 merges, the per-push matrix
+  changes shape. The jax job becomes one unsharded job of the cases that reach
+  jax. The documentation (tutorials, guide scripts, manual builds) executes on
+  the newest leg alone, under `RIETX_DOCS`, which replaces this WP's
+  `RIETX_TUTORIALS`. A ten-run window that spans that merge mixes two shapes.
+  Read this WP's window from runs before it, or say which shape each run had.
 
 ## Non-goals
 

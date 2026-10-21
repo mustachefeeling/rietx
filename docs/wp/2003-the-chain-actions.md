@@ -154,6 +154,23 @@ summary).
 
 ## Handover log
 
+- **2026-10-21** — the repair itself: WP-2019's session, started under this
+  WP's `repair first` flag, wrote the reconstructed entry below (f036bf9, on
+  #1095's branch). No work on this WP's tasks, and Next is unchanged.
+- **2026-10-20** (reconstructed post hoc, 2026-10-21, from 5c88100 / #1084) — a
+  process edit, not work on this WP's tasks: the brief this WP sends the maintainer now
+  opens with a stakes line, and a measured-consequence column was weighed and declined.
+  - **What the commit shows.** `docs/milestones/generality.md` § The rule gains the
+    paragraph "A brief opens with its stakes": the reported quantity the action can move,
+    the case on disk and its distance from reference, the dissenter or `none found`;
+    context, never a filter. A kept guard no ordinary fit reaches is kept on an injected
+    case its row names (`test_cell_runaway_safety`'s escape for the cell clamp). § Decisions
+    gains the declined consequence axis with its three reasons. This file's and 2004's
+    batch task each carry the stakes line.
+  - **What it does not show.** The session's branch carried this one commit and no
+    handover entry; the record names a planning session and the maintainer's note of
+    that date as the source. No checklist item moved, and no test or count.
+  - **Next** is unchanged: the inventory, after 2002's holds settle.
 - **2026-10-18** — created, from the milestone's opening session. 1317 (the series
   scrubber) and 1325 (parametric series) are open and adjacent; neither owns the fences,
   and this WP changes no view.
