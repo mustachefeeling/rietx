@@ -345,7 +345,9 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
     Where the twins are closer than :data:`TWIN_DISTANCE` — at any
     occupancy, since no split site is that tight, and a co-occupant of a
     doubled site is doubled with it — the site is taken at the special
-    position its orbit collapses to, and ``CIF_SITE_TWINS_MERGED`` says so.
+    position its orbit collapses to, and ``CIF_SITE_TWINS_MERGED`` says so,
+    with the site's atoms per cell before and after (the occupancy is kept,
+    so a part-occupied split pair stated that tight loses content, #1088).
     A split site, whose images stay apart, is untouched.
 
     The rule is :func:`.symmetry.site_twin_merge`'s, which
@@ -358,6 +360,7 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
     of Grosse-Kunstleve & Adams (2002), Acta Cryst. A58, 60.
     """
     from .symmetry import site_twin_merge
+    from .twins import _content_change
 
     out = []
     for atom in atoms:
@@ -372,17 +375,20 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
             n: getattr(atom, n).model_copy(update={"value": v})
             for n, v in zip("xyz", snapped)}))
         if diagnostics is not None:
+            content, keep = _content_change(atom.occ.value, merge)
             diagnostics.append(Diagnostic(
                 level="warning", code="CIF_SITE_TWINS_MERGED",
                 where=[atom.label], value=gap,
                 message=(
                     f"{path}: site {atom.label!r} at "
                     f"{[round(float(v), 6) for v in xyz]} puts {merge.before} "
-                    f"atoms in the cell in pairs {gap:.2g} Å apart. It was read "
-                    f"on the special position "
+                    f"positions in the cell in pairs {gap:.2g} Å apart. It was "
+                    f"read on the special position "
                     f"{[round(v, 6) for v in snapped]} "
-                    f"({merge.after} atoms)."),
-                suggestion="Check the coordinates against the source."))
+                    f"({merge.after} positions), with its occupancy unchanged. "
+                    f"{content}"),
+                suggestion=("Check the coordinates against the source."
+                            + (f" {keep}" if keep else ""))))
     return out
 
 

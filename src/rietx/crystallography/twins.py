@@ -18,7 +18,42 @@ import numpy as np
 
 from ..schemas.common import Diagnostic
 from ..schemas.structure import Structure
-from .symmetry import resolve_group, site_twin_merge
+from .symmetry import TwinMerge, resolve_group, site_twin_merge
+
+
+def _num(v: float) -> str:
+    return f"{v:.4g}"
+
+
+def _content_change(occ: float, merge: TwinMerge) -> tuple[str, str]:
+    """The merge's atoms per cell both ways, and how to keep a split pair's content.
+
+    Returns ``(observation, keep)``: two sentences for the message and one for
+    the suggestion.  The merge keeps the stated occupancy (#765's reading: the
+    occupancy is the special position's), so the site's content goes from
+    ``before × occ`` to ``after × occ`` atoms per cell.  That is right for a
+    special position stated off by rounding.  For a split pair of
+    part-atoms that a fit or a file left within 0.02 Å of its own image it
+    divides the content by ``before/after`` (#1088), so where that reading is
+    possible (occupancy below 1, and the pair's summed occupancy ``occ ×
+    before/after`` not above 1) the message says so, and ``keep`` gives the
+    occupancy that restores it.  Otherwise ``keep`` is empty.
+    """
+    ratio = merge.before / merge.after
+    sentences = (f"Atoms per cell (multiplicity × occupancy): {merge.before} × {_num(occ)} = "
+                 f"{_num(merge.before * occ)} → {merge.after} × {_num(occ)} = "
+                 f"{_num(merge.after * occ)}.")
+    restated = occ * ratio
+    if not (occ < 1.0 and round(restated, 6) <= 1.0):
+        return sentences, ""
+    how = "halved" if merge.before == 2 * merge.after else f"divided by {_num(ratio)}"
+    sentences += (f" If the site was a split pair of part-atoms rather than "
+                  f"one atom stated off its position, the merge {how} its "
+                  f"content.")
+    keep = (f"To keep a split pair's content, restate the site on the "
+            f"special position at occupancy {_num(restated)}, or state it at "
+            f"least 0.02 Å from its own images.")
+    return sentences, keep
 
 
 def merge_site_twins(structure: Structure, *,
@@ -64,6 +99,7 @@ def merge_site_twins(structure: Structure, *,
                 for n, v in zip("xyz", position, strict=True)})
             moved_any = True
             if diagnostics is not None:
+                content, keep = _content_change(atom.occ.value, merge)
                 diagnostics.append(Diagnostic(
                     level="warning", code="SITE_TWINS_MERGED",
                     where=[f"phases.{i}.atoms.{j}"], value=merge.gap,
@@ -71,16 +107,17 @@ def merge_site_twins(structure: Structure, *,
                         f"{source + ': ' if source else ''}site "
                         f"{atom.label!r} of phase {phase.name!r} was given at "
                         f"{[round(float(v), 6) for v in xyz]}, where it puts "
-                        f"{merge.before} atoms in the cell in pairs "
+                        f"{merge.before} positions in the cell in pairs "
                         f"{merge.gap:.2g} Å apart; it was moved onto the "
                         f"special position {[round(v, 6) for v in position]}, "
-                        f"{merge.after} atoms"),
+                        f"{merge.after} positions, with its occupancy unchanged. "
+                        f"{content}"),
                     suggestion=(
                         "check the coordinate against its source: a special "
                         "position stated a few 1e-5 off (a hand edit, a "
-                        "rounded project file) is the usual cause. To keep a "
-                        "genuinely displaced atom, state it at least 0.02 Å "
-                        "from its own images")))
+                        "rounded project file) is the usual cause. "
+                        + (keep or "To keep a genuinely displaced atom, state "
+                           "it at least 0.02 Å from its own images."))))
         if moved_any:
             # model_copy skips validation on purpose: the move is the repair,
             # and an assignment would re-run every validator of the phase

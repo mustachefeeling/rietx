@@ -1848,7 +1848,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "tight pairs and would scatter as twice the atoms. The reader moved the site "
             "onto the special position. The usual cause is a relation such as (x, 2x, z) "
             "printed with one coordinate rounded. Check the coordinates against the "
-            "source."
+            "source. The occupancy is kept, so the site's atoms per cell change with its "
+            "multiplicity, and the message gives both counts. A part-occupied split pair "
+            "stated that tight loses content in the merge. To keep it, restate the site "
+            "on the special position at the occupancy that the suggestion gives."
         ),
     ),
     "CIF_SPECIES_NORMALISED": HelpEntry(
@@ -3830,10 +3833,16 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "the history or a model edit moved the site onto "
             "the special position its orbit collapses to. This changes the multiplicity, "
             "so it changes the density and every weight fraction. A CIF read says the "
-            "same thing as `CIF_SITE_TWINS_MERGED`, and the two never both fire. Check "
-            "the coordinate against its source, since a special position stated a few "
-            "1e-5 off is the usual cause. To keep a genuinely displaced atom, state it "
-            "at least 0.02 Å from its own images."
+            "same thing as `CIF_SITE_TWINS_MERGED`, and the two never both fire. The "
+            "occupancy is kept, so the site's atoms per cell change with its "
+            "multiplicity, and the message gives both counts. That is right for one atom "
+            "stated off its position. A part-occupied split pair that a fit or a file "
+            "left within 0.02 Å of its own image loses content in the merge, and the "
+            "message says so. Check the coordinate against its source, since a special "
+            "position stated a few 1e-5 off is the usual cause. To keep a genuinely "
+            "displaced atom, state it at least 0.02 Å from its own images. To keep a "
+            "split pair's content, restate the site on the special position at the "
+            "occupancy that the suggestion gives."
         ),
     ),
     "SIZE_NORMALISED_ACROSS_WAVELENGTHS": HelpEntry(

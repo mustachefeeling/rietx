@@ -113,7 +113,10 @@ def test_the_merge_puts_the_site_on_the_mirror_and_says_so(pbso4, dy):
     # the two images are 2·dy·b apart, which is what ``value`` says
     assert d.value == pytest.approx(2 * dy * pbso4.cell.b.value, rel=1e-6)
     assert d.where == [f"phases.0.atoms.{[a.label for a in pbso4.atoms].index('S2')}"]
-    assert "puts 8 atoms" in d.message and d.message.endswith("4 atoms")
+    assert "puts 8 positions" in d.message and "4 positions" in d.message
+    # fully occupied: the content line, and no split-pair reading (#1088)
+    assert "8 × 1 = 8 → 4 × 1 = 4." in d.message
+    assert "split pair" not in d.message + d.suggestion
 
 
 def test_phase_validation_is_strict_and_moves_nothing(pbso4):
@@ -167,7 +170,7 @@ def test_a_site_near_an_axis_or_a_centre_lands_on_its_wyckoff_position(
     d = np.array([a.x.value, a.y.value, a.z.value]) - np.array(special)
     assert np.max(np.abs(d - np.round(d))) < 1e-12
     assert _multiplicity(merged.phases[0], "X") == mult
-    assert len(found) == 1 and f"{general} atoms" in found[0].message
+    assert len(found) == 1 and f"{general} positions" in found[0].message
 
 
 def test_a_split_site_is_left_split():
@@ -177,6 +180,75 @@ def test_a_split_site_is_left_split():
         "P n m a", (7.0, 8.0, 6.0, 90, 90, 90), (0.1, 0.25 + dy, 0.3), occ=0.5)])
     merged, found = _merge(structure)
     assert merged is structure and not found
+
+
+# Pnma, b = 8 Å: a general site 1e-4 off the mirror at y = ¼ (images 0.0016 Å
+# apart, 8c in ITA vol. A) collapses onto 4c.  The merge keeps the occupancy, so
+# at occupancy ½ the site goes from 8 × ½ = 4 to 4 × ½ = 2 atoms per cell: the
+# split-pair reading of #1088, which the message must name (C2 of the split-site
+# scoping, 2026-10-20).
+_PNMA = ("P n m a", (7.0, 8.0, 6.0, 90, 90, 90))
+_OFF, _ON = (0.1, 0.25 + 1e-4, 0.3), (0.1, 0.25, 0.3)
+
+
+def _atoms_per_cell(xyz, occ: float) -> float:
+    """Multiplicity from ``site_orbit`` (ITA vol. A) × occupancy, no merge applied."""
+    return site_orbit(resolve_group(_PNMA[0], None), np.array(xyz)).multiplicity * occ
+
+
+def test_a_half_occupied_site_says_its_content_was_halved():
+    """The positive arm: 8 × ½ = 4 → 4 × ½ = 2, said in the message, and the
+    suggestion's occupancy restores the content the site was stated with."""
+    assert (_atoms_per_cell(_OFF, 0.5), _atoms_per_cell(_ON, 0.5)) == (4.0, 2.0)
+    merged, found = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
+    assert _counts(merged.phases[0])["Fe"] == 2                # what the merge left
+    (d,) = found
+    assert d.code == "SITE_TWINS_MERGED" and d.value < TWIN_DISTANCE
+    assert ("Atoms per cell (multiplicity × occupancy): "
+            "8 × 0.5 = 4 → 4 × 0.5 = 2.") in d.message
+    assert "split pair" in d.message and "halved its content" in d.message
+    assert "at occupancy 1," in d.suggestion
+    # the suggestion's route is the right one: on 4c at occupancy 1 the site
+    # holds the 4 atoms per cell it was stated with
+    restated = _phase(*_PNMA, _ON, occ=1.0)
+    assert _counts(restated)["Fe"] == _atoms_per_cell(_OFF, 0.5) == 4
+
+
+def test_the_cif_route_states_the_same_content(tmp_path):
+    """``CIF_SITE_TWINS_MERGED`` carries the same numbers on the reader's channel."""
+    path = tmp_path / "half.cif"
+    path.write_text(
+        "data_half\n_cell_length_a 7.0\n_cell_length_b 8.0\n_cell_length_c 6.0\n"
+        "_cell_angle_alpha 90\n_cell_angle_beta 90\n_cell_angle_gamma 90\n"
+        "_symmetry_space_group_name_H-M 'P n m a'\nloop_\n_atom_site_label\n"
+        "_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n"
+        "_atom_site_fract_z\n_atom_site_occupancy\nFe1 Fe 0.1 0.2501 0.3 0.5\n",
+        encoding="utf-8")
+    found: list = []
+    structure_from_cif(path, diagnostics=found)
+    (d,) = [d for d in found if d.code == "CIF_SITE_TWINS_MERGED"]
+    assert "8 × 0.5 = 4 → 4 × 0.5 = 2." in d.message
+    assert "halved its content" in d.message and "at occupancy 1," in d.suggestion
+
+
+def test_a_fully_occupied_site_names_no_split_pair():
+    """The negative arm: at occupancy 1 the content line is there and the
+    split-pair sentence is not — a pair of whole atoms 0.0016 Å apart is not a
+    reading anyone holds."""
+    _, found = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=1.0)]))
+    (d,) = found
+    assert "8 × 1 = 8 → 4 × 1 = 4." in d.message
+    assert "split pair" not in d.message + d.suggestion
+    assert "state it at least 0.02 Å from its own images" in d.suggestion
+
+
+def test_a_site_too_full_to_be_a_split_pair_names_none():
+    """At occupancy 0.6 a pair 0.0016 Å apart would put 1.2 atoms in one place,
+    so the content line is given and the split-pair sentence is not."""
+    _, found = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.6)]))
+    (d,) = found
+    assert "8 × 0.6 = 4.8 → 4 × 0.6 = 2.4." in d.message
+    assert "split pair" not in d.message + d.suggestion
 
 
 def test_the_distance_decides_not_the_fractional_reach():

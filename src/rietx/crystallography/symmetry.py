@@ -1058,8 +1058,11 @@ def site_twin_merge(sg, cell, xyz, *, tol: float = SITE_TOL,
     the images of a site are closer than ``distance`` (Å) — at any occupancy,
     since no split site is that tight — the site belongs on the special
     position its orbit collapses to at the looser fractional reach
-    ``distance``/min(a, b, c).  A split site, whose images stay apart, gives
-    ``None``, as does every site already on its position or far from one.
+    ``distance``/min(a, b, c).  The occupancy is kept, so a part-occupied
+    split pair that a fit leaves this tight loses content; the merge's
+    message states the atoms per cell both ways (#1088).  A split site,
+    whose images stay apart, gives ``None``, as does every site already on its
+    position or far from one.
 
     ``cell`` is a ``gemmi.UnitCell`` or (a, b, c, α, β, γ).  The orbit and its
     collapse are those of :func:`site_orbit`: International Tables for
