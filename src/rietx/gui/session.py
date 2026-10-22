@@ -257,12 +257,15 @@ class GuiSession:
 
         ``docs_url`` rides beside the arms rather than inside one because it is
         not a name anything is looking up: an entry's ``anchor`` is a manual
-        page and heading (``corrections.html#surface-roughness``), so the one
-        thing a client needs to turn it into a link is where the manual lives —
-        and a frontend that spelled that out would be the second authority on
-        it (root CLAUDE.md's ``_about`` rule).
+        page and heading (``theory/corrections.html#surface-roughness``), so
+        the one thing a client needs to turn it into a link is where the manual
+        lives — and a frontend that spelled that out would be the second
+        authority on it (root CLAUDE.md's ``_about`` rule).  It is the manual
+        of *this* build, ``<DOCS_URL>/docs/<version>`` (WP-1986): ``dev`` for a
+        ``.dev0`` build, ``X.Y`` for a release, so a popover explains the
+        version that is running.
         """
-        return {**_help_registry(), "docs_url": _about.DOCS_URL}
+        return {**_help_registry(), "docs_url": _about.docs_base(_VERSION)}
 
     def spacegroup(self, symbol: str) -> dict:
         """What one space-group symbol *is*, and what it costs the cell.
