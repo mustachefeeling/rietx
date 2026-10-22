@@ -161,7 +161,8 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       settings tiered (`A5_CLIP`, the texture polish and the closing FCJ rule tier 1, the
       magnetic floor invariant behind the closing stage, the margin and the axial floor
       tier 3); `GTOL`/`XTOL` tier 3 under the caller-tier ruling and
-      `DEFAULT_HARMONIC_ORDER`'s row gone with the constant.*
+      `DEFAULT_HARMONIC_ORDER`'s row gone with the constant. 7th session: the
+      LAPACK fallback's row, `StageResult.n_lapack_fallbacks`, tier 1.*
 - [x] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
       found, none measured: `2002-batch/clashes.md`. Moved to
@@ -228,6 +229,12 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       margin kept at 0.5° and the axial floor at tier 3; the caller-tier ruling recorded
       (`_audit.py`, the record's § The rule), `GTOL`/`XTOL` to tier 3 and
       `Harmonic.order` required.
+- [x] The ninth round (`2002-batch/rulings.md` § Ninth round): the brucite TRF
+      error fixed by a LAPACK driver fallback on every fit-path decomposition
+      (`optimize/lapack.py`, `StageResult.n_lapack_fallbacks`); `solve_magnetic`'s
+      winner ended in a closing stage; the three design questions inferred (the
+      closing-off report kept as measured, the closing node rule for every compile
+      finer than 2 %, `build_report` refusing a bare `model=`).
 - [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
