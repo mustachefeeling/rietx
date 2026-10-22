@@ -3243,7 +3243,7 @@
    "n_numbers": 2,
    "walked_by_audit": true,
    "role": "sniff bound",
-   "decides": "A ``TIME_MAP`` step table is written *before* the bank it feeds, and a long one pushes the first ``BANK`` record past the 4 kB ``head`` window the sniff reads — a real HIPD@LANSCE file (``vnb5053.dat`` from the GSAS distribution's own examples) carries a 71-ro"
+   "decides": "A ``TIME_MAP`` step table is written *before* the bank it feeds, and a long one pushes the first ``BANK`` record past the 4 kB ``head`` window the sniff reads — a real HIPD@LANSCE file (``vnb5053.dat`` from the GSAS distribution's own examples) carries a 71-row ``(10I8)`` table and its first bank sits at byte 6068, so the sniff missed it and the file fell to the ``xy`` catch-all and was refused for the wrong cause; ``TIME_MAP`` in the first 4 kB now triggers one more read up to this bound, and a larger table stays unsniffed."
   },
   {
    "name": "rietx.io.formats.gsas.TIME_MAP_FIELD_CHARS",
@@ -4739,7 +4739,7 @@
    "n_numbers": 6,
    "walked_by_audit": false,
    "role": "tabulated data (cited)",
-   "decides": "Energy (eV) of the **lowest positive-energy resonance** of each nuclide that makes it a resonant absorber, from the resolved-resonance parameters of ENDF/B-VIII.0 (Brown et al."
+   "decides": "Energy (eV) of the **lowest positive-energy resonance** of each nuclide that makes it a resonant absorber, from the resolved-resonance parameters of ENDF/B-VIII.0 (Brown et al. 2018, *Nucl. Data Sheets* **148**, 1); the lowest one sets how far a thermal wavelength sits from the resonance; bound (negative-energy) levels are left out."
   },
   {
    "name": "rietx.crystallography.neutron.NEUTRON_LAMBDA_EV_ANGSTROM",
@@ -5080,7 +5080,7 @@
    "n_numbers": 9,
    "walked_by_audit": false,
    "role": "tabulated data (cited)",
-   "decides": "Ions *International Tables* Vol."
+   "decides": "Ions *International Tables* Vol. C carries and ``f0_WaasKirf.dat`` does not: the nine fit numbers of ITC eq. 6.1.1.15 for Y³⁺ (Maslen, Fox & O'Keefe 2004, Table 6.1.1.4), valid for 0 < s < 2.0 Å⁻¹, from which ``f0`` hands over to the neutral atom where the curves meet."
   },
   {
    "name": "rietx.crystallography.species._HYDROGEN_NUCLIDE_MASS_NUMBER",
@@ -5091,7 +5091,7 @@
    "n_numbers": 2,
    "walked_by_audit": false,
    "role": "vocabulary / lookup",
-   "decides": "The two hydrogen nuclides with symbols of their own;"
+   "decides": "The two hydrogen nuclides with symbols of their own, D (mass number 2) and T (3); every other nuclide is written mass-number-first."
   },
   {
    "name": "rietx.crystallography.spherical_harmonics._TOL",
@@ -5146,7 +5146,7 @@
    "n_numbers": 1,
    "walked_by_audit": true,
    "role": "count (classification fact)",
-   "decides": "(3+1)D superspace-group types (Yamamoto et al."
+   "decides": "(3+1)D superspace-group types (Yamamoto et al. 1985 p. 529; Stokes 2011 p. 47; Stokes & Campbell 2022 Table 6, type-1 row): 775."
   },
   {
    "name": "rietx.crystallography.superspace.generation.N_BRAVAIS_CLASSES_D1",
@@ -5157,7 +5157,7 @@
    "n_numbers": 1,
    "walked_by_audit": true,
    "role": "count (classification fact)",
-   "decides": "(3+1)D Bravais classes (de Wolff et al."
+   "decides": "(3+1)D Bravais classes (de Wolff et al. 1981 § 4; Stokes 2011 p. 49): 24."
   },
   {
    "name": "rietx.crystallography.superspace.generation._E",
@@ -5418,21 +5418,21 @@
    "name": "io.formats.dif._MIN_ROWS",
    "where": "src/rietx/io/formats/dif.py:43",
    "decides": "Three hkl rows or more make a file a peak list; fewer is refused as a coincidence.",
-   "walked_by_audit": false,
+   "walked_by_audit": true,
    "also_covered": "module constant, listed in constants"
   },
   {
    "name": "io.formats.peaklist._MIN_ROWS",
    "where": "src/rietx/io/formats/peaklist.py:62",
    "decides": "Eight rows or more before a head is read as a profile rather than a peak list.",
-   "walked_by_audit": false,
+   "walked_by_audit": true,
    "also_covered": "module constant, listed in constants"
   },
   {
    "name": "io.formats.gsas._GSAS_TIME_MAP_SCAN_BYTES",
-   "where": "src/rietx/io/formats/gsas.py:243",
+   "where": "src/rietx/io/formats/gsas.py:251",
    "decides": "The sniff reads 64 kB, not 4 kB, so a long TIME_MAP table before the first BANK record is still recognised; a larger table falls to the xy reader, refused for the wrong cause.",
-   "walked_by_audit": false,
+   "walked_by_audit": true,
    "also_covered": "module constant, listed in constants"
   },
   {
@@ -5452,7 +5452,7 @@
   {
    "name": "pdcif weight column",
    "where": "src/rietx/io/formats/pdcif.py:80-82",
-   "decides": "_pd_proc_ls_weight becomes sigma = 1/sqrt(w) only if every weight is positive; one zero weight drops the whole column and the Poisson fallback applies, with no diagnostic. xy.py:183 and chi.py:90 adopt a third column as sigma when any value is positive. #1006 changes the pdCIF side (weight 0 = not used) and enters PATTERN_ZERO_WEIGHT_EXCLUDED unaudited.",
+   "decides": "_pd_proc_ls_weight becomes sigma = 1/sqrt(w) only if every weight is positive; one zero weight drops the whole column and the Poisson fallback applies, with no diagnostic. xy.py:183 and chi.py:90 adopt a third column as sigma when any value is positive.",
    "walked_by_audit": false,
    "also_covered": "behaviour, no constant"
   }
