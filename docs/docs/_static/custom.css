@@ -47,3 +47,10 @@ div.math:has(> span.eqno) > mjx-container {
   overflow-x: auto;
   overflow-y: hidden;
 }
+
+/* The brand mark (prototype). */
+html { --rietx-ink: #6d4aff; }
+html[data-theme="dark"] { --rietx-ink: #a48cff; }
+.rietx-brand { display: inline-flex; align-items: center; gap: 0.55rem; }
+.rietx-brand .rietx-mark { width: 1.6rem; height: 1.6rem; fill: var(--rietx-ink); flex: none; }
+.rietx-brand .logo__title { font-weight: 600; }

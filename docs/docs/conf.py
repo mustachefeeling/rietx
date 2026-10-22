@@ -83,7 +83,10 @@ html_css_files = ["custom.css"]
 # A release's pages name stable/ as their canonical copy, so a search engine
 # sends a reader to the newest release rather than to an old one.
 html_baseurl = f"{DOCS_URL}/docs/{'dev' if _shared.DOCS_VERSION == 'dev' else 'stable'}/"
+templates_path = ["_templates"]
+html_context = {"rietx_home": DOCS_URL, "rietx_name": DIST_NAME}
 html_theme_options = {
+    "navbar_start": ["rietx-brand"],
     # Six tabs, so none folds into a "More" dropdown.
     "header_links_before_dropdown": 6,
     "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
