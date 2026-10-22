@@ -1,6 +1,6 @@
 # WP-2021 — The manual and the landing page are one site
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-22 — decisions A and B taken; the build is under way
 Track: The repo's own process
 Depends on: 1986 soft (its last two guides land in the same tree; either order works)
 Priority: P3 2026-10-22 — the public face of the docs, asked for by the maintainer; nothing in it changes a number or a decision, so not P2
@@ -144,8 +144,12 @@ Taken by the maintainer on 2026-10-22, in the session that filed this WP:
 2. The footer credit goes.
 3. The collapsed rail is too big.
 4. The title prefixes and the breadcrumb are to be looked at.
+5. **A: the manual takes the landing page's warm palette** (the maintainer, 2026-10-22).
+6. **B: as recommended** (left to the session by the maintainer, 2026-10-22): "About" goes
+   from the Concepts titles, and each Guides entry carries a short nav label while its H1
+   keeps "How to".
 
-Open, settled at the start of the first session with the maintainer:
+The two as they were put:
 - **A. Which way the palette moves.** Recommended: the manual takes the landing page's warm
   grounds and orange accent, because the landing page is the designed one and the manual's
   teal is pydata's default primary at 0.23. The cost is to re-choose the semantic colours
