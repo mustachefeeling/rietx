@@ -261,6 +261,59 @@ def test_every_export_has_one_tier_in_the_api_reference():
     assert not set(third) & {n for _, s, _ in tiers[:-1] for _, ns in s for n in ns}
 
 
+#: A Python-domain directive's opening line: its kind, then its argument.
+_PY_DIRECTIVE = re.compile(r"^`{3,}\{py:(\w+)\} (\S+?)(\(.*)?$", re.M)
+#: A `py:fields` body (docs/py_fields.py): one `name: annotation = default` a line.
+_PY_FIELDS = re.compile(r"^```\{py:fields\}\n(.*?)\n```$", re.M | re.S)
+_FIELD = re.compile(r"^(\w+): (.*?)(?: = (.*))?$")
+
+
+def _api_bodies() -> str:
+    return "\n".join(f() for f in (reference_pages.api_everyday, reference_pages.api_techniques,
+                                   reference_pages.api_everything_else))
+
+
+def test_every_api_name_is_a_python_object_with_the_skills_signature():
+    """Each name is a `py:` directive (WP-2022), and its signature is the
+    one `docs/skill/make_api_index.py` prints for it: the manual and the
+    skill's index read one builder, so they cannot disagree."""
+    index = reference_pages._api_index()
+    found = {m[2]: (m[1], m[3] or "") for m in _PY_DIRECTIVE.finditer(_api_bodies())}
+    names = {n for _, sections, _ in reference_pages.api_tiers() for _, ns in sections for n in ns}
+    assert set(found) == names, sorted(set(found) ^ names)
+    bullet = re.compile(r"^- `([^`]+)`")
+    for name, (kind, signature) in found.items():
+        if kind in ("function", "method") or (kind == "class" and signature):
+            assert f"{name}{signature}" == bullet.match(index._entry(name))[1], name
+
+
+@pytest.mark.parametrize("name", ["rx.Parameter", "rx.Phase", "rx.Stage"])
+def test_a_models_fields_are_its_attributes(name):
+    """The fields `make_api_index` lists for a model or a dataclass are the
+    lines of the `py:fields` the page nests under it, with the same annotation
+    and default, and a technique's fields left to the technique's tier."""
+    index = reference_pages._api_index()
+    body = _PY_FIELDS.search(reference_pages._api_entry(index, name))[1]
+    fields = [_FIELD.match(line).groups() for line in body.splitlines()]
+    obj = index._resolve(name)
+    parts = (index.model_field_parts(obj, index.TECHNIQUE_FIELDS.get(name, frozenset()))
+             if hasattr(obj, "model_fields") else index.dataclass_field_parts(obj))
+    assert fields == parts
+    assert len(fields) > 1
+
+
+def test_a_name_described_twice_is_indexed_once(monkeypatch):
+    """A second description of one object fails a `-W` build, so a name an
+    earlier tier already described renders with `:no-index:`."""
+    tiers = [("Everyday calls", [("Reading data", ["rx.read_pattern"])], None),
+             ("A technique", [("Its calls", ["rx.read_pattern", "rx.diagnose"])], None),
+             ("Everything else in rx", [("", ["rx.capabilities"])], None)]
+    monkeypatch.setattr(reference_pages, "api_tiers", lambda: tiers)
+    assert ":no-index:" not in reference_pages.api_everyday()
+    blocks = [b for b in reference_pages.api_techniques().split("\n\n") if "{py:" in b]
+    assert [":no-index:" in b for b in blocks] == [True, False]
+
+
 # ----------------------------------------------------------------------
 # The foreign-name map: hand-written, and checked against the code that reads
 # and writes each format

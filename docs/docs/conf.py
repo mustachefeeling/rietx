@@ -41,6 +41,8 @@ extensions = [
     "sphinxcontrib.mermaid",
     # A markdown twin beside every page, and llms.txt (docs/markdown_twin.py).
     "markdown_twin",
+    # A model's fields in the API reference, one line each (docs/py_fields.py).
+    "py_fields",
 ]
 nb_execution_mode = "off"
 
@@ -75,6 +77,13 @@ math_numfig = True
 exclude_patterns = ["_build", "_generated"]
 
 _reference.write_bodies()
+
+# The API reference's objects (WP-2022).  A signature longer than this puts
+# one parameter a line; a `Literal` reads as its values joined by `|`; a
+# contents entry is the bare name, the `rx.` being in every one.
+python_maximum_signature_line_length = 72
+python_display_short_literal_types = True
+toc_object_entries_show_parents = "hide"
 
 html_theme = "pydata_sphinx_theme"
 html_title = DIST_NAME

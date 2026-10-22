@@ -32,8 +32,18 @@ stay exactly what the skill's `api.md` prints.
 - `-W` constraints: a name described twice is "duplicate object description", so a repeat
   carries `:no-index:`; nitpicky is off, so an annotation naming a type the domain does not
   describe stays plain text, while one it does describe becomes a link.
-- The markdown twin (`docs/markdown_twin.py`, WP-1980) translates the same doctree, and
-  sphinx-markdown-builder already knows the `desc` nodes.
+- **A model's fields are one `py:fields` directive, never a `py:attribute` each**
+  (`docs/py_fields.py`). One attribute per field cost ~60 characters of fence and options and
+  took `api-types.md` (102 models, 826 fields) from 38 163 to 79 932 characters, over the page
+  contract's 50 000 cap (`tests/test_manual.py` `PAGE_CHAR_CAP`, which reads a generated body in
+  place). `py:fields` reads one `name: annotation = default` a body line, MyST handing a
+  directive only its first line as an argument, and renders them as one object's signatures:
+  stacked, each anchored, the annotation linked, indexed as an `attribute` so `{py:attr}`
+  resolves, and kept out of the page contents.
+- The markdown twin (`docs/markdown_twin.py`, WP-1980) translates the same doctree.
+  sphinx-markdown-builder knows the `desc` nodes, but not the `abbreviation` Sphinx wraps a
+  bare `*` in (an unknown node, so `-W` fails), and it writes every signature as a heading,
+  so `_normalise` writes the `*` as text and a `py:fields` block as a list of code spans.
 - Tier: no rule, threshold or automatic action is added; presentation only.
 
 ## Non-goals
@@ -44,18 +54,19 @@ stay exactly what the skill's `api.md` prints.
 
 ## Tasks
 
-- [ ] Generator emits Python-domain directives; signature and field text from
+- [x] Generator emits Python-domain directives; signature and field text from
   `make_api_index`'s own builders; repeats `:no-index:`; conf sets the signature line length
-- [ ] Tests: the generated body parses as directives and every signature equals the skill's;
+- [x] Tests: the generated body parses as directives and every signature equals the skill's;
   the manual builds `-W`; the twin reads cleanly
 - [ ] Skill: none — the skill's `api.md` is unchanged byte for byte, and no agent-facing rule moves
 
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_reference_pages.py tests/test_manual.py -n auto --dist loadgroup
+.venv/bin/python -m pytest -n auto --dist loadgroup tests/test_reference_pages.py tests/test_manual.py tests/test_skill.py
 .venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html
-.venv/bin/python -m ruff check src tests examples docs
+.venv/bin/python docs/skill/make_api_index.py --check   # the skill's index unchanged
+.venv/bin/python -m ruff check src tests examples
 ```
 
 ## References

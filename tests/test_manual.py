@@ -1489,6 +1489,19 @@ Equation {eq}`eq-one` cites {cite}`%(key)s`.
 
 Get {download}`the notes <notes.txt>` to read later.
 
+```{py:function} rx.call(a: int, *, b: str = 'x') -> int
+An API entry, whose bare `*` the HTML marks with a tooltip.
+```
+
+````{py:class} rx.Model
+A model, whose {py:attr}`rx.Model.size` is a field.
+
+```{py:fields}
+name: str
+size: float = 1.0
+```
+````
+
 ::::{tab-set}
 :::{tab-item} First tab
 First tab text.
@@ -1519,8 +1532,10 @@ flowchart LR
 def test_the_twin_writes_every_node_type_the_old_tree_uses(tmp_path):
     """A note and a titled admonition as labelled quotes, the math, the light
     half of a figure pair (a notebook's inline one written out as a file),
-    a download, every tab, the dropdown, an escaped table cell, a mermaid
-    fence and the bibliography, with `-W` holding no node unknown."""
+    a download, an API signature and a model's fields as a list (the HTML's
+    field anchored and found by `{py:attr}`), every tab, the dropdown, an
+    escaped table cell, a mermaid fence and the bibliography, with `-W`
+    holding no node unknown."""
     import base64
 
     src = tmp_path / "src"
@@ -1538,7 +1553,7 @@ def test_the_twin_writes_every_node_type_the_old_tree_uses(tmp_path):
         "import sys\n"
         f"sys.path.insert(0, {str(DOCS_TREE.parent)!r})\n"
         "extensions = ['myst_parser', 'sphinx_design', 'sphinxcontrib.bibtex',\n"
-        "              'sphinxcontrib.mermaid', 'markdown_twin']\n"
+        "              'sphinxcontrib.mermaid', 'markdown_twin', 'py_fields']\n"
         "myst_enable_extensions = ['colon_fence', 'dollarmath', 'amsmath']\n"
         f"bibtex_bibfiles = [{str(BIBFILE)!r}]\n"
         "project = 'coverage'\n",
@@ -1552,6 +1567,8 @@ def test_the_twin_writes_every_node_type_the_old_tree_uses(tmp_path):
                      "> **A Title as Written**\n> \n> A titled admonition.",
                      "$$", "y = x^2",
                      "![the light figure](_images/pic-light.png)",
+                     "rx.call(a: int, \\*, b: str = 'x') → int",
+                     "* `name: str`\n* `size: float = 1.0`",
                      "**First tab**", "Second tab text.",
                      "**The folded part**\n\nFolded text.",
                      "| x \\| y | z |",
@@ -1559,6 +1576,8 @@ def test_the_twin_writes_every_node_type_the_old_tree_uses(tmp_path):
         assert fragment in twin, fragment
     assert "dark figure" not in twin
     assert _myst_residue(twin) == []
+    html = (out / "index.html").read_text(encoding="utf-8")
+    assert 'id="rx.Model.size"' in html and 'href="#rx.Model.size"' in html
     # The inline pair's light half is a file the twin links; the base64, the
     # dark half and its stylesheet are the browser's.
     inline = re.search(r"!\[the inline figure\]\((_images/twin-[0-9a-f]+\.png)\)", twin)
