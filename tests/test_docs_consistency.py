@@ -1184,7 +1184,7 @@ def test_current_focus_stays_a_focus_not_a_diary():
 
 SKILL_TREE = ROOT / "docs" / "skill" / "rietx"
 SRC = ROOT / "src" / "rietx"
-REFERENCES_BIB = ROOT / "docs" / "manual" / "references.bib"
+REFERENCES_BIB = ROOT / "docs" / "docs" / "references.bib"
 
 #: Diagnostic codes the AST walk below cannot see statically, each mapped to a
 #: comment naming its emitter.  Empty today: every engine code is a
@@ -1318,6 +1318,6 @@ def test_every_wp_and_citation_the_protocol_names_resolves():
         if not (in_bib or inline):
             unresolved.append(f"{chain}, {year}")
     assert not unresolved, (
-        "author-year citations resolving neither in docs/manual/references.bib "
+        "author-year citations resolving neither in docs/docs/references.bib "
         f"nor inline: {sorted(set(unresolved))}"
     )

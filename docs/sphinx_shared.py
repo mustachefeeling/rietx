@@ -1,8 +1,9 @@
-# What both manual trees configure the same way: the old one in docs/manual/
-# and the new one in docs/docs/ (WP-1978).  Each conf.py imports this module
-# rather than copying it, so one change reaches both trees.  It is not a
-# conf.py itself, because importing docs/manual/conf.py would also write the
-# glossary, copy the tutorials and set that tree's whole Sphinx config.
+# The manual's build settings that the tests read too (WP-1978): the fenced
+# constants, the citation style, the diagram theme, the tutorial copy and the
+# `{source}` role.  `docs/docs/conf.py` imports this module.  It is not a
+# conf.py itself, because importing a conf.py would also write the Reference
+# bodies, copy the tutorials and set the tree's whole Sphinx config.  (It
+# served two trees until WP-1986 retired the old one in docs/manual/.)
 #
 # Anti-divergence rule (WP-0604): a threshold or fenced constant is never
 # typed into a chapter.  It is imported here from the live package and exposed
@@ -88,8 +89,8 @@ from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
 #: The repository root, which is what a blob URL's path is relative to.
 REPO_ROOT = _Path(__file__).resolve().parents[1]
 
-#: The one bibliography both trees cite from.
-BIBFILE = REPO_ROOT / "docs" / "manual" / "references.bib"
+#: The bibliography the manual cites from.
+BIBFILE = REPO_ROOT / "docs" / "docs" / "references.bib"
 
 MYST_EXTENSIONS = ["dollarmath", "amsmath", "substitution", "colon_fence", "deflist"]
 
@@ -167,7 +168,7 @@ _bibtex_plugin.register_plugin(
 # ----------------------------------------------------------------------
 # The fenced constants, as MyST substitutions
 #
-# Each tree adds its own `release` and `N_TUTORIALS` (the count
+# The conf.py adds `release` and `N_TUTORIALS` (the count
 # `copy_tutorials` below returns), since those are facts about the build
 # rather than about the package.
 # ----------------------------------------------------------------------
@@ -274,15 +275,14 @@ MYST_SUBSTITUTIONS = {
 
 
 # ----------------------------------------------------------------------
-# The tutorial notebooks (WP-1916, shared by WP-1986)
+# The tutorial notebooks (WP-1916, WP-1986)
 #
 # The notebooks live in `examples/tutorials/`, beside the scripts they are
-# built from, and Sphinx reads only its own source tree.  So each build copies
-# them into a gitignored directory of its own: `using/tutorials/` in the old
-# tree, `start/tutorials/` in the new one.  The set is `build.py`'s own glob,
-# so a new tutorial needs no edit here, and a copy whose source is gone is
-# deleted.  The page-globbing tests read `*.md` only, so the copies do not make
-# the suite depend on whether a build has run.
+# built from, and Sphinx reads only its own source tree.  So the build copies
+# them into the gitignored `start/tutorials/`.  The set is `build.py`'s own
+# glob, so a new tutorial needs no edit here, and a copy whose source is gone
+# is deleted.  The page-globbing tests read `*.md` only, so the copies do not
+# make the suite depend on whether a build has run.
 # ----------------------------------------------------------------------
 
 #: Where the tutorial scripts and their committed notebooks live.

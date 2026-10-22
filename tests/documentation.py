@@ -2,8 +2,9 @@
 
 Three things execute the documentation, as distinct from checking its text: the
 tutorial notebooks (``test_tutorials.py``), the guide scripts behind each Guides
-page (``test_examples.py``), and the two ``-W`` manual builds every built-HTML
-guard reads (``test_manual.py``'s ``built_manual`` and ``built_docs_tree``).
+page (``test_examples.py``), and the ``-W`` manual build every built-HTML guard
+reads (``test_manual.py``'s ``built_docs_tree``; a second, the old tree's, went
+with that tree in WP-1986).
 Together they were about a fifth of a fast leg (WP-2019's Context B), and each
 ran on every leg.
 

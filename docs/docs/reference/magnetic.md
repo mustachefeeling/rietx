@@ -374,6 +374,8 @@ The nuclear model it starts from is the one in the refinement you hand it, fitte
 
 ### The solution
 
+`solve_magnetic` returns a `MagneticSolution`, whose fields are these.
+
 | Field | Is | Reads as |
 |---|---|---|
 | `MagneticSolution.verdict` | `"solved"`, `"abstained"` or `"nothing to solve"` | the third is an answer about the specimen |

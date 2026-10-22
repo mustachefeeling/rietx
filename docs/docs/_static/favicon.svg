@@ -1,10 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img"
      aria-label="rietx">
-  <!-- The old manual's mark (`docs/manual/_static/favicon.svg`, whose comment
-       says why it is drawn this way) in this manual's teal, so the tab and the
-       header agree.  These two hexes are `--rietx-ink` in `custom.css`; a
-       standalone SVG loaded as an icon reads no CSS variable, so they are
-       literal here, and `tests/test_manual.py` holds the two copies equal. -->
+  <!-- A Kalpha doublet on a baseline: the sharp line and its shoulder, which
+       is the shape this package spends most of its code on.  Drawn as a filled
+       profile rather than sticks because at 16 px sticks read as a bar chart.
+       Authored as SVG rather than .ico so it is text (reviewable in a diff)
+       and so it can answer the browser's theme; a browser without SVG-favicon
+       support falls back to the light fill, the declared one.  This file is
+       the mark's authority: the header templates copy its shapes inline, and
+       `tests/test_manual.py` holds them equal.  The two hexes are
+       `--rietx-ink` in `custom.css`; a standalone SVG loaded as an icon reads
+       no CSS variable, so they are literal here, and the same test holds the
+       two copies equal. -->
   <style>
     .ink { fill: #0a7d91 }
     @media (prefers-color-scheme: dark) { .ink { fill: #3fb1c5 } }

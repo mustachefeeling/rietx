@@ -315,8 +315,8 @@ def hump() -> None:
     estimate would be claiming a truth it does not have.  Second, that fit is
     four minutes over 47 999 channels, and this script's own bargain (see the
     module docstring) is that regenerating a figure stays cheap.  The real
-    measurement is a **table**, in ``docs/manual/using/data.md``, where a number can carry
-    its own provenance.
+    measurement is a **table**, in ``docs/docs/concepts/parameters.md`` § Humps, where a
+    number can carry its own provenance.
 
     esd notation follows the decision on issue #166: ``rx.format_su``'s
     last-place digits below su = 1, decimal-in-parentheses at or above, where

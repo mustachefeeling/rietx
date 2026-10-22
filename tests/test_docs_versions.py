@@ -147,33 +147,45 @@ def test_assemble_runs_twice_over_one_site(tmp_path):
     assert (site / "docs" / "stable" / "index.html").read_text(encoding="utf-8") == "1.11.1"
 
 
-def _old_tree_pages():
-    manual = ROOT / "docs" / "manual"
-    pages = {path.relative_to(manual).with_suffix("").as_posix()
-             for path in manual.rglob("*.md")
-             if not {"_build", "_generated"} & set(path.relative_to(manual).parts)}
-    # conf.py copies the tutorial notebooks in from examples/ at build time.
-    pages |= {f"using/tutorials/{path.stem}"
-              for path in (ROOT / "examples" / "tutorials").glob("*.ipynb")}
-    return pages
+def test_every_page_the_old_tree_published_has_a_stub():
+    """The old tree (`docs/manual/`) is retired (WP-1986), so a stub is the
+    only thing left serving each of its URLs."""
+    assert not (ROOT / "docs" / "manual").exists()
+    lost = [page for page in versions.OLD_PAGES if page not in versions.RETIRED]
+    assert not lost, f"no RETIRED entry, so their URLs 404: {lost}"
 
 
-def test_every_page_the_old_tree_published_is_still_built_or_stubbed():
-    built = _old_tree_pages()
-    lost = [page for page in versions.OLD_PAGES
-            if page not in built and page not in versions.RETIRED]
-    assert not lost, f"retired without a RETIRED entry, so their URLs 404: {lost}"
-
-
-def test_a_stub_never_replaces_a_built_page_and_targets_a_new_tree_page():
-    built = _old_tree_pages()
+def _new_tree_page_exists(page):
     new_tree = ROOT / "docs" / "docs"
+    if any((new_tree / f"{page}{suffix}").is_file() for suffix in (".md", ".ipynb")):
+        return True
+    # The tutorial notebooks are copied into start/tutorials/ at build time
+    # (`sphinx_shared.copy_tutorials`), from their committed home.
+    folder, _, stem = page.rpartition("/")
+    return folder == "start/tutorials" and (ROOT / "examples" / "tutorials" / f"{stem}.ipynb").is_file()
+
+
+def test_a_stub_targets_a_new_tree_page():
     for old, new in versions.RETIRED.items():
         assert old in versions.OLD_PAGES, f"{old} was never published"
-        assert old not in built, f"{old} is still built by the old tree"
         page = new.partition("#")[0]
-        assert any((new_tree / f"{page}{suffix}").is_file() for suffix in (".md", ".ipynb")), \
-            f"{old} -> {new}, which docs/docs/ has no page for"
+        assert _new_tree_page_exists(page), f"{old} -> {new}, which docs/docs/ has no page for"
+
+
+def test_a_stub_never_overwrites_a_landing_page_file():
+    """pages.yml copies the landing page into the site root before the stubs
+    are written, so a stub at a landing page's path would replace it.  The
+    pages are `build.py`'s own table; its other files sit in folders no old
+    page used."""
+    spec = importlib.util.spec_from_file_location(
+        "_landing_build", ROOT / "docs" / "landing" / "build.py")
+    landing = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(landing)
+    stubs = {f"{old}.html" for old in versions.RETIRED}
+    clashes = sorted(stubs & (set(landing.PAGES) | {"favicon.svg"}))
+    assert not clashes, f"a stub would overwrite the landing page's {clashes}"
+    folders = {Path(stub).parts[0] for stub in stubs if "/" in stub}
+    assert not folders & {"img", "data", "notebooks"}, folders
 
 
 def test_the_workflows_agree_with_the_script():
