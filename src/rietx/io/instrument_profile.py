@@ -43,6 +43,8 @@ from .._about import PROFILE_FORMAT_KEY
 from ..model.profiles.caglioti import _MIN_GAMMA_G2, GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
 from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.instrument import (
+    DEBYE_SCHERRER_POLARIZATION,
+    PACKING_FRACTION,
     TCHZ_BOUNDS,
     BackgroundChebyshev,
     EmissionLine,
@@ -692,7 +694,7 @@ def read_gsas_prm(path: str | Path, *, profile_set: int | None = None,
             "Instrument.constant_wavelength_neutron builds it."
             if neutron else
             "HTYPE PXCR spans Bragg-Brentano and Debye-Scherrer, so "
-            "debye_scherrer was chosen (packing_fraction=0.6, a capillary "
+            f"debye_scherrer was chosen (packing_fraction={PACKING_FRACTION:g}, a capillary "
             "offset pair).")
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS_PRM_GEOMETRY_ASSUMED",
@@ -851,7 +853,7 @@ def _read_icons(records: list[tuple[str, str]], p: Path, *,
             f"{p.name}: bank 1's ICONS record states no polarization (POLA, "
             f"columns 52-62) — the field is blank.  Every "
             f"real file in the corpus states it, and falling back on "
-            f"Instrument.debye_scherrer's 0.99 would put this package's "
+            f"Instrument.debye_scherrer's {DEBYE_SCHERRER_POLARIZATION:g} would put this package's "
             f"number into an instrument the caller will read as the file's")
     if icons.zero:
         raise ValueError(
@@ -1487,7 +1489,8 @@ def _instprm_instrument(items: dict[str, str], p: Path,
             source = Source(
                 lines=lines,
                 polarization=Parameter(
-                    value=0.99 if polarization is None else polarization,
+                    value=(DEBYE_SCHERRER_POLARIZATION if polarization is None
+                           else polarization),
                     min=0.0, max=1.0))
 
         profile = ProfileTCHZ()
