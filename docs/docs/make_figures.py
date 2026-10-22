@@ -29,6 +29,7 @@ with the test that proves the claim, and nobody would find out.
 
 from __future__ import annotations
 
+import functools
 import re
 import sys
 from pathlib import Path
@@ -73,10 +74,14 @@ def _rc(style: str):
                              + [rc])
 
 
+@functools.cache
 def light_ground() -> str:
-    """The light page's colour, `--bg` in the token file's first (light) block."""
-    light = TOKENS.read_text(encoding="utf-8").split("@media", 1)[0]
-    return re.search(r"--bg:\s*(#[0-9a-fA-F]{6})", light).group(1)
+    """The light page's colour, `--bg` in the token file's first (light) block.
+
+    Comments go first, as `tests/test_landing.site_tokens` reads the file, so a
+    word in the header cannot move where the light block ends."""
+    text = re.sub(r"/\*.*?\*/", "", TOKENS.read_text(encoding="utf-8"), flags=re.S)
+    return re.search(r"--bg:\s*(#[0-9a-fA-F]{6})", text.split("@media", 1)[0]).group(1)
 
 
 def _save(fig, stem: str, style: str) -> None:

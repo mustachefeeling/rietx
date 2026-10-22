@@ -5,7 +5,8 @@
 //                       together (WP-2021): the landing page whole, and the manual's
 //                       front page, a Concepts page and a Theory page as a reader first
 //                       sees them, since the chrome the two share is what is judged.
-//                       Serve `site/` with the manual built into `site/docs/dev/`.
+//                       Serve `site/` with the manual built into `site/docs/dev/`
+//                       (MANUAL=<path> names another tree under the site).
 //
 // PWC is the path to playwright-core, OUT the directory to write to, and CHROMIUM a
 // browser binary where the cached macOS one below is not the one to use.
