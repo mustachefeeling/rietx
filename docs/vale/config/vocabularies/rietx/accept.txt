@@ -353,4 +353,5 @@ Wertheim
 [wW]hitespace
 Whittaker
 Wyckoff
+Yue
 [zZ]incite

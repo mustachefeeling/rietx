@@ -397,6 +397,9 @@ Lanes (`session_usage.py lanes`): two, both `opus-5-5`, none redone.
 Saved +$3.17, 15 % of the session; estimates ran 2.67× short. Baseline's selective policy for
 sessions peaking under 300K: +3 % (one session).
 
+*CI* (PR #1109's first lint run): Vale failed on the maintainer's given name in
+`start/this-manual.md`; added to `docs/vale/terms.txt` under a new people section.
+
 *Gotchas.* `test_docs_consistency`'s CLAUDE.md line cap has no slack: the review's one added
 line failed it. The worktree guard refuses a compound `git` command holding a `$(…)`; split it.
 
