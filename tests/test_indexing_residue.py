@@ -111,12 +111,21 @@ def test_the_second_phase_is_indexed_from_what_the_first_cell_leaves():
     """Positive arm: MgO at 0.3 of the Si scale.  The first pass ranks Si's
     cell first (graded down by the MgO lines, which is why the default first
     cell is rank 1 at any grade); its residue gives MgO's cell back first."""
+    from tests.test_acceptance_indexing import _skip_unless_finished
+
     first, second = _passes(0.3)
+    _skip_unless_finished(first, second)       # the rank below reads the order
     assert _is(first.candidates[0], SI_A), first.candidates[0].cell
     assert second.diagnostics[0].code == "INDEX_RESIDUE_PASS"
     assert second.candidates, [d.code for d in second.diagnostics]
-    assert _is(second.candidates[0], MGO_A), second.candidates[0].cell
+    # the misfit lines are flagged, not dropped (they are scored, so they sit
+    # in M20's first twenty lines and the √2·a₀ cI sibling can rank above the
+    # truth): the truth is in the top two, and no candidate is the Si cell
+    assert any(_is(c, MGO_A) for c in second.candidates[:2]), \
+        [c.cell[0] for c in second.candidates]
     assert not any(_is(c, SI_A) for c in second.candidates)
+    note = second.diagnostics[0]
+    assert note.where and "flagged residue_misfit" in note.message
 
 
 @pytest.mark.slow
@@ -174,3 +183,57 @@ def test_a_cell_that_does_not_fit_the_pattern_leaves_no_residue():
     note = second.diagnostics[0]
     assert note.code == "INDEX_RESIDUE_PASS"
     assert note.message.startswith("No residue was picked"), note.message
+
+
+def _structure_and_peaks():
+    ins, data = _pattern(None)
+    from rietx.indexing.pick import pick_peaks
+    return ins, data, pick_peaks(data, ins, two_theta_range=LIMITS)
+
+
+def test_a_setup_error_raises_where_a_fit_error_is_a_refuted_candidate(monkeypatch):
+    """The setup is outside the guard: a bug in it raises (as on main), and only
+    the fit's own failure becomes ``INDEX_VALIDATION_FAILED``."""
+    from rietx.indexing import validate_by_lebail, workflow
+
+    ins, data, peaks = _structure_and_peaks()
+    cell = (SI_A,) * 3 + (90.0,) * 3
+    from rietx.schemas.indexing import CellCandidate
+    cand = CellCandidate(system="cubic", centring="F", cell=cell,
+                         af=list(af_from_cell(cell)), cell_esd=(0.0,) * 6,
+                         volume=SI_A ** 3, volume_esd=0.0)
+
+    def boom(*a, **k):
+        raise RuntimeError("setup bug")
+
+    monkeypatch.setattr(workflow, "validation_plan", boom)
+    with pytest.raises(RuntimeError, match="setup bug"):
+        validate_by_lebail(cand, data, ins, peaks=peaks)
+    monkeypatch.undo()
+    monkeypatch.setattr(workflow, "_lebail_fit", boom)
+    out = validate_by_lebail(cand, data, ins, peaks=peaks)
+    assert out.status == "failed"
+    assert out.diagnostics[0].code == "INDEX_VALIDATION_FAILED"
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-residue")
+def test_assumed_widths_neither_seed_nor_refuse_the_pass():
+    """A ``from_positions`` list carries one assumed 0.1° width on every line;
+    against synchrotron lines near 0.01° the width-ratio test refused Si's own,
+    correct cell.  Skipped, and said so."""
+    from rietx.schemas.indexing import PeakList
+
+    ins, data, peaks = _structure_and_peaks()
+    spec = SearchSpec(systems=("cubic",), budget_seconds=60.0)
+    first = index_pattern(peaks, data=data, instrument=ins,
+                          two_theta_limits=LIMITS, spec=spec, preset="full")
+    handed = PeakList.from_positions(
+        np.array([p.two_theta for p in peaks.usable()]), LAM)
+    assert handed.source == "positions"
+    second = index_residue(first, data, ins, peaks=handed,
+                           two_theta_limits=LIMITS, spec=spec, preset="full")
+    note = second.diagnostics[0]
+    assert note.code == "INDEX_RESIDUE_PASS"
+    assert not note.message.startswith("No residue was picked"), note.message
+    assert "assumed" in note.message

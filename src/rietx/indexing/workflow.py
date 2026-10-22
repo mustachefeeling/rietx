@@ -78,7 +78,12 @@ from dataclasses import replace
 import numpy as np
 
 from ..schemas.common import Diagnostic
-from ..schemas.indexing import CellCandidate, LeBailValidation, PeakList
+from ..schemas.indexing import (
+    PEAK_UNUSABLE_FLAGS,
+    CellCandidate,
+    LeBailValidation,
+    PeakList,
+)
 from ..schemas.instrument import Instrument
 from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.structure import DUMMY_SPECIES, Structure, lebail_scaffold
@@ -333,18 +338,18 @@ def seed_widths(instrument: Instrument, peaks: PeakList) -> tuple[Instrument, bo
     return out, True
 
 
-def _lebail_fit(candidate: CellCandidate, data: PatternData,
-                instrument: Instrument, *, peaks: PeakList | None = None,
-                space_group: str | None = None,
-                two_theta_limits: tuple[float, float] | None = None,
-                cancel=None):
-    """The validation protocol's Le Bail fit, ``(refinement, result)``.
+def _lebail_setup(candidate: CellCandidate, data: PatternData,
+                  instrument: Instrument, *, peaks: PeakList | None = None,
+                  space_group: str | None = None,
+                  two_theta_limits: tuple[float, float] | None = None):
+    """The validation protocol's prepared Le Bail fit, ``(refinement, plan)``.
 
     One body for :func:`validate_by_lebail` and :func:`index_residue`, so the
     residue a second pass picks is the residue of the very fit that graded the
     first cell: widths seeded from the list, the cell held, one peak-position
-    parameter from the candidate's own shift template.  Raises what the fit
-    raises; the callers decide what a failure means.
+    parameter from the candidate's own shift template.  **Nothing here is
+    guarded**: a failure in the setup is a bug and raises, and only the
+    ``fit`` the callers run on what this returns is evidence about the cell.
     """
     from ..refine import Refinement
 
@@ -356,13 +361,18 @@ def _lebail_fit(candidate: CellCandidate, data: PatternData,
     if two_theta_limits is not None:
         tt_max = min(tt_max, float(two_theta_limits[1]))
     plan = validation_plan(candidate, ins, two_theta_max=tt_max)
-    ref = Refinement(structure, ins, history=False)
-    result = ref.fit(data, mode="lebail", plan=plan,
-                     two_theta_limits=two_theta_limits, cancel=cancel,
-                     # one validation fit per candidate: a run directory
-                     # each would bury the search that asked for them
-                     telemetry=False)
-    return ref, result
+    return Refinement(structure, ins, history=False), plan
+
+
+def _lebail_fit(ref, plan, data: PatternData, *,
+                two_theta_limits: tuple[float, float] | None = None,
+                cancel=None):
+    """Run the prepared fit of :func:`_lebail_setup`; raises what it raises."""
+    return ref.fit(data, mode="lebail", plan=plan,
+                   two_theta_limits=two_theta_limits, cancel=cancel,
+                   # one validation fit per candidate: a run directory
+                   # each would bury the search that asked for them
+                   telemetry=False)
 
 
 def validate_by_lebail(candidate: CellCandidate, data: PatternData,
@@ -450,13 +460,13 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     from ..report.layer0 import build_layer0
     from .peaks import predicted_fwhm
 
-    structure = structure_from_candidate(candidate, space_group=space_group)
-    symbol = structure.phases[0].space_group
+    ref, plan = _lebail_setup(candidate, data, instrument, peaks=peaks,
+                              space_group=space_group,
+                              two_theta_limits=two_theta_limits)
+    symbol = ref.structure.phases[0].space_group
     try:
-        ref, result = _lebail_fit(candidate, data, instrument, peaks=peaks,
-                                  space_group=space_group,
-                                  two_theta_limits=two_theta_limits,
-                                  cancel=cancel)
+        result = _lebail_fit(ref, plan, data,
+                             two_theta_limits=two_theta_limits, cancel=cancel)
     except RefinementCancelled:
         raise                       # before the generic handler — see docstring
     except Exception as exc:                        # noqa: BLE001
@@ -1079,6 +1089,12 @@ def index_pattern(peaks: PeakList | None = None, *,
 #: phase's line under a stronger first-phase line cannot be told from that
 #: misfit, and Le Bail gives its intensity to the first phase's reflection
 #: anyway.
+#:
+#: Measured on two synthetic pairs only, Si with MgO (scales 0.05-0.3) and Si
+#: with NaCl (0.1), and untested beyond them: MgO's own lines stood on at most
+#: 0.54 of their height of Si profile at 0.1 and 0.17 at 0.3, but one at 1.22
+#: at 0.05, so that line is flagged at that scale; picks that are neither a
+#: second-phase line nor on Si's profile are not separated by this ratio at all.
 RESIDUE_MISFIT_RATIO = 1.0
 
 
@@ -1103,10 +1119,12 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     law**, so the second phase's lines are fitted with the widths the pattern
     has rather than re-estimated from a list the first phase dominated.  A
     pick standing on more than :data:`RESIDUE_MISFIT_RATIO` times its own
-    height of the subtracted profile is dropped as that fit's misfit.  The rest is indexed by
+    height of the subtracted profile is **flagged** ``residue_misfit`` as that
+    fit's misfit: it stays a usable line, so the second result is charged for
+    it, and never drives the search.  The list is indexed by
     :func:`index_pattern` with ``spec`` and ``preset``, validated against the
     residue, and returned as a new result whose first diagnostic,
-    ``INDEX_RESIDUE_PASS``, names the cell subtracted and the lines dropped.
+    ``INDEX_RESIDUE_PASS``, names the cell subtracted and the lines flagged.
 
     **A cell whose fit does not describe the pattern has no residue.**  When
     the fit's width law at the list's usable lines is outside
@@ -1136,13 +1154,19 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
         candidate = first.candidates[0]
     if peaks is None:
         peaks = pick_peaks(data, instrument, two_theta_range=two_theta_limits)
-    ref, fit = _lebail_fit(candidate, data, instrument, peaks=peaks,
-                           two_theta_limits=two_theta_limits, cancel=cancel)
+    # a list handed in as positions carries an assumed width on every line:
+    # neither seed the fit from it nor refuse a cell against it
+    measured = peaks.source == "fitted"
+    ref, plan = _lebail_setup(candidate, data, instrument,
+                              peaks=peaks if measured else None,
+                              two_theta_limits=two_theta_limits)
+    fit = _lebail_fit(ref, plan, data, two_theta_limits=two_theta_limits,
+                      cancel=cancel)
     width_law = ref.fitted_instrument
     a = ", ".join(f"{v:.4f}" for v in candidate.cell)
     subtracted = (f"the {candidate.system} {candidate.centring} cell ({a}; "
                   f"{candidate.confidence} confidence in the first result)")
-    usable = peaks.usable()
+    usable = peaks.usable() if measured else []
     if usable:
         at = np.array([p.two_theta for p in usable], dtype=np.float64)
         ratio = (float(np.median(predicted_fwhm(at, width_law)))
@@ -1157,11 +1181,9 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
                          f"{subtracted} ends with widths {ratio:.3g} times "
                          "the list's measured ones, so the cell does not "
                          "describe the pattern and what it leaves is not a "
-                         "second phase."),
-                where=[f"fit Rwp {fit.statistics.rwp:.3f}"],
-                suggestion=("Subtract a cell that fits the pattern: name one "
-                            "with candidate=, or index the first phase "
-                            "again."))
+                         "second phase.  Name the cell to subtract with "
+                         "candidate=, or index the first phase again."),
+                where=[f"fit Rwp {fit.statistics.rwp:.3f}"])
             return second.model_copy(update={
                 "diagnostics": [note] + list(second.diagnostics)})
     tt = np.asarray(fit.two_theta, dtype=np.float64)
@@ -1174,14 +1196,23 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     picked = pick_peaks(residue, width_law, two_theta_range=two_theta_limits)
     above = (np.asarray(residue.intensity, dtype=np.float64)
              - np.asarray(fit.y_background, dtype=np.float64))
-    kept, dropped = [], []
+    flagged, lines = [], []
     for p in picked.peaks:
         height = float(np.interp(p.two_theta, tt, above))
         under = float(np.interp(p.two_theta, tt, phase))
-        (dropped if under > RESIDUE_MISFIT_RATIO * max(height, 0.0)
-         else kept).append(p)
-    left = picked.model_copy(update={"peaks": kept})
-    second = index_pattern(left, data=residue, instrument=width_law,
+        if under > RESIDUE_MISFIT_RATIO * max(height, 0.0):
+            p = p.model_copy(update={"flags": [*p.flags, "residue_misfit"]})
+            flagged.append(p)
+        lines.append(p)
+    left = picked.model_copy(update={"peaks": lines})
+    n_flagged = sum(1 for p in flagged
+                    if not set(p.flags) & PEAK_UNUSABLE_FLAGS)
+    # a residue of nothing but misfit has no line to drive a search: the
+    # engines need one, so it is searched as the empty list it amounts to
+    # (``INDEX_DATA_INSUFFICIENT``) and the flagged lines are named below
+    searched = (left if n_flagged < len(left.usable())
+                else left.model_copy(update={"peaks": []}))
+    second = index_pattern(searched, data=residue, instrument=width_law,
                            spec=spec, preset=preset, engines=engines,
                            two_theta_limits=two_theta_limits,
                            events=events, cancel=cancel)
@@ -1189,10 +1220,15 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
         level="info", code="INDEX_RESIDUE_PASS",
         message=(f"This result indexes the residue of {subtracted}: its Le "
                  "Bail peaks were subtracted and the remainder picked at its "
-                 f"fitted widths, {len(left.usable())} usable line(s) after "
-                 f"{len(dropped)} standing on its subtracted profile were "
-                 "dropped as its misfit."),
-        where=[f"{p.two_theta:.4f}°" for p in dropped],
+                 f"fitted widths, {len(left.usable())} usable line(s), of which "
+                 f"{n_flagged} "
+                 "stand on its subtracted profile and are "
+                 "flagged residue_misfit: scored, never driving the search."
+                 + ("" if measured else
+                    " The list's widths were assumed, not measured, so the "
+                    "width-ratio test was skipped and the fit was not "
+                    "seeded from them.")),
+        where=[f"{p.two_theta:.4f}°" for p in flagged],
         suggestion=("Read a candidate here as a second phase only with a "
                     "grade of its own; then refine both phases together "
                     "against the pattern, since each was validated alone."))

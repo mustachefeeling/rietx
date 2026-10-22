@@ -1461,6 +1461,17 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "placed by hand is never tested."
         ),
     ),
+    "residue_misfit": HelpEntry(
+        title="Standing on the subtracted phase",
+        label="misfit",
+        description=(
+            "Written only by `index_residue`. This pick in the residue stands on more of "
+            "the subtracted first phase's profile than its own height, so it is as likely "
+            "the first cell's misfit as a line of a second phase. It stays usable, so the "
+            "second result counts it as a line no candidate explains and grades "
+            "accordingly, but it never drives the search. The height rule was measured on two synthetic pairs, Si with MgO and Si with NaCl, and is untested beyond them."
+        ),
+    ),
     "unresolved_split": HelpEntry(
         title="Split the data cannot resolve",
         label="split",
