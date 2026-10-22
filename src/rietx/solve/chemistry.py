@@ -95,6 +95,15 @@ _CELL = ("a", "b", "c", "alpha", "beta", "gamma")
 # ----------------------------------------------------------------------
 # composition: the gate
 # ----------------------------------------------------------------------
+def _rounding(occ: float) -> float:
+    """Half the last decimal the occupancy carries: 0.5·10⁻ᵈ for the fewest d
+    reproducing it to 1e-12, and 0 for a value with no short decimal form."""
+    for d in range(1, 12):
+        if abs(round(occ, d) - occ) < 1e-12:
+            return 0.5 * 10.0 ** -d
+    return 0.0
+
+
 @dataclass(frozen=True)
 class CompositionCheck:
     """What a phase's sites hold against a :class:`Composition`.
@@ -105,9 +114,12 @@ class CompositionCheck:
     ``volume_ratio`` is V/(Z·V_fu), and ``in_volume_window`` whether it lies in
     Hofmann's (2002) 0.8-1.25 (:data:`~rietx.crystallography.atomic_volume.VOLUME_RATIO_BOUNDS`).
     ``tolerance`` is atoms per cell by element, under which found matches
-    expected: an occupancy printed to three decimals is off by up to 0.0005 per
-    atom of its site's multiplicity, so it is 0.0005 × the summed multiplicity
-    of that element's part-occupied sites (0 where every site is full).
+    expected: an occupancy is read as printed to d decimals, d being the
+    fewest that reproduce it (the smallest d with |round(occ, d) − occ| < 1e-12),
+    so it is off by up to 0.5·10⁻ᵈ per atom of its site's multiplicity, and the
+    tolerance sums that over the element's part-occupied sites.  0.33 (d = 2)
+    forgives 0.005 per atom, 0.3333 forgives 0.00005, and a value carrying all
+    its digits (⅓ itself) or a full site forgives nothing.
     """
 
     formula: str
@@ -209,9 +221,6 @@ class Composition:
         expected = {el: n * z for el, n in self.counts.items() if el not in omitted}
         found: dict[str, float] = {}
         tolerance: dict[str, float] = {}
-        # half the last printed decimal of an occupancy (⅓ as 0.333), per atom
-        # of the site's multiplicity: a convention of the files read, not a fit
-        rounding = 0.0005
         sg = resolve_group(phase.space_group, phase.symmetry_operations)
         for atom in phase.atoms:
             el = element_symbol(atom.species)
@@ -222,7 +231,7 @@ class Composition:
             occ = float(atom.occ.value)
             found[el] = found.get(el, 0.0) + len(rot) * occ
             if occ < 1.0:
-                tolerance[el] = tolerance.get(el, 0.0) + rounding * len(rot)
+                tolerance[el] = tolerance.get(el, 0.0) + _rounding(occ) * len(rot)
         ratio = volume / (z * v_fu)
         lo, hi = VOLUME_RATIO_BOUNDS
         return CompositionCheck(
