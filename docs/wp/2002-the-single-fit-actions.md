@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-22 — seventh and eighth rounds built (evaluation at the closing windows, the closing FCJ rule, the report's two-precision reading, the caller tier); the Stephens TRF error and five design questions wait on the maintainer; B14's lifts and two domain tests remain
+Milestone: generality · Status: 🔄 2026-10-22 — ninth round built (a second LAPACK driver on the fit path, solve_magnetic's winner closed, three design questions inferred); B14's lifts and two domain tests remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -308,6 +308,159 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-22 (7th session) — the ninth round built: a second LAPACK driver on the fit path, the magnetic winner closed, three design questions settled
+
+A fit no longer fails because the system's linear-algebra library gives up on a matrix another build handles. The brucite fit under the TRF solver that errored on macOS now completes at Rwp 0.1787: every eigensolve, SVD and least-squares solve a fit and its report make now repeats a failure with LAPACK's slower QR-iteration driver, which computes the same decomposition. The magnetic structure solver now reports its winner's moments from a final fit on peaks with their full tails, so on synthetic data their esds are no longer 1.6 times too large. The three narrower questions were settled on evidence. The report of a fit run without its closing stage reads the same either way on three patterns, so it is kept. A loosened closing stage no longer silently coarsens its axial-divergence sampling. And building a report from a compiled model without the structure and instrument it came from is now refused, where it used to misread silently.
+
+*Done.*
+- The ninth round (`2002-batch/rulings.md` § Ninth round): the maintainer's "1. Fix the TRF issue 2. End with closing stage 3. Infer what I would do".
+- Item 1: `optimize/lapack.py` (`eigh`, `eigvalsh`, `svd`, `pinv`, `lstsq`, `cond`: numpy unchanged, then `syev`/`gesvd`/`gelss` on `LinAlgError`; a non-finite input keeps numpy's error). SciPy's TRF step SVD is reached through `scipy.optimize._lsq.trf.svd`, retrying only on a thread inside the package's solve. 41 fit-path calls routed (`optimize/`, `model/`, `params/`, `report/`, `background/`, `solve/`, `refine.py`); `tests/test_lapack_fallback.py` refuses a bare one there and injects failures. `StageResult.n_lapack_fallbacks` (schema 0.59's entry), tier 1. `test_covariance_scaling`'s #225 test now fails both drivers.
+- `refine.py`'s collapse-restore merge now sums both solves' `n_degenerate_cell_probes`, as `multi.py`'s did (a sibling found while adding the new count).
+- Item 2: `strategy.magnetic._close`. When the package chose the plan and the verdict is solved, the winner runs its plan's closing stage through `run_stage` from its own refinement. Its Rwp, GoF, R_mag, moments, held list, drift and status are that fit's; its ΔBIC the ranking's; caveats say so, and say when the close raised or did not converge. `test_pair_diagnostic_class` draws by `predict` again; the moment guide, its page and the magnetic reference follow.
+- Item 3: the closing node rule's line moved to `window_area_tol < WINDOW_AREA_TOL` (test made to fail on the old line); `build_report` refuses a non-Pawley `model=` without `structure=` and `instrument=`; the closing-off report kept and recorded.
+- Merged main (`b2fa5b0aa`, through #1109): WP-1986 retired `docs/manual/`. This branch's 109 lines there all had homes in the new tree (checked by phrase); the deletions stand. The GUI dist and the seven notebooks rebuilt from the merged sources. The landing panel's GoF corrected to the builder's 1.60 (the tutorial's fit is bit-identical to the session's start, GoF 1.60489).
+- Forward references: WP-1418's Inherited (the closed winner, the moved numbers), WP-2004's (the refused bare model, the closing-off reading).
+
+*Measured* (macOS arm64, worktree venv `[dev]`, compiled tier on).
+- The failing matrix: 7279 × 28, condition 7.9e10; Accelerate `gesdd` 20 of 20 failures; OpenBLAS `gesdd` (SciPy 1.18.1's macOS 12 wheel, scratch venv) decomposed it, singular values equal to `gesvd`'s (max relative difference 0.0). Brucite TRF: `gesvd` retry Rwp 0.17872, 19 of 43 σ² negative; `tr_solver="lsmr"` 0.17873, 20 of 43, S_HKL 0.04 esd from it; a plain restart passed only because two columns came out 5e-4 different.
+- Two-site Pnma: moduli esds 0.00242, 0.00179 → 0.00151, 0.00111 μ_B; solve 16.5 → 17.1 s, one run each. Cr₂WO₆ at 4 K: blind 2.0353 ± 0.0459 → 2.0383 ± 0.0467 μ_B; the alternate model 2.1255 ± 0.0450 → 2.1240 ± 0.0440, Rwp 0.1047 → 0.1052, scale shift 0.47 → 0.41 esd; the reference solve unchanged (2.0868 ± 0.0337).
+- Closing-off reports: FAP and cpd-1a, read at the closing precision and at 2 %: same printed report, the same regions passing (2 and 1) with the same leading shape, no action either way; shares within 0.04 but one cpd-1a region (0.43 against 0.57). The displaced specimen (−0.10 mm), closing on and off, read both ways: cos θ first in all four, R² 0.539-0.555.
+- Fast selection on the merged tree (`7bac0fe82`, main through #1109): 3 failed, 11 141 passed, 191 skipped, 27 xfailed, 5:13, nothing else running. The three (one page over the manual's 50 000-character cap, source and built twin; the landing panel's GoF) were fixed in `2ac49c2f6` and pass alone. The last session's final tree read 11 081 passed and 191 skipped; the merge brings main's tests, so this session's own delta (17 cases: 13 in `test_lapack_fallback.py`, 3 refusal cases, 1 node-rule line) is not separable in the total.
+- Added tests in the fast tier: `test_lapack_fallback.py` 0.79 s, the refusal 0.08 s, the node-rule line 0.06 s, from that run's junit.
+- Full selection, once, on the merged tree (`2ac49c2f6`): 1 failed, 11 541 passed, 202 skipped, 42 xfailed, 50:51, nothing else running at its start. The failure, `test_the_closing_stage_meets_the_bar[cpd1a]` at 0.107 esd, was this session's node-rule line meeting a test that lowers `WINDOW_AREA_TOL` for its reference; fixed in `b0160d2e0` (0.011 esd again), and the eight files that patch the constant pass with their slow cases (450 passed, 35 xfailed; another session's pytest was running, so no time is quoted). The Stephens brucite TRF pair, which errored in the last full selection, passed.
+
+*Review.* `/code-review high --fix d5e906593..0b2215ec3` found eight; fixed in `ed0fba102`: (1) a NaN input turned numpy's `LinAlgError` into SciPy's `ValueError`, past every #225 handler, so `_note` re-raises it; (2) an exception in the winner's close kept nothing, so it now keeps the ranked winner with a caveat; (3) a close that stops short says so; (4) the winner's anti-translation drift is measured on its closed moments; (5) the trials drop their refinements after the close; (6) `np.linalg.cond` (layer1, strain) routed and guarded; (8) `eigvalsh` handles a stack. Declined: (7) SciPy's BVLS calls numpy's `lstsq` inside the default LM driver's bounded step. That matrix is square, at most 128 columns (`BVLS_MAX_COLUMNS`) and cut at the eigen threshold, so its condition stays near 1e6 against the failing 8e10, and reaching it means patching a second private SciPy module.
+
+*Gotchas.*
+- SciPy's and numpy's wheels on this Mac link Accelerate, whose `gesdd`/`gelsd` fail on finite matrices OpenBLAS decomposes; `uv pip install --python-platform aarch64-apple-darwin` gets the OpenBLAS wheel for a Linux-like check.
+- `solve_magnetic`'s printed table now mixes precisions in one column on a solved verdict: the winner's Rwp, GoF and R_mag are the closing stage's, the other rows' and the reference's the declared windows'. The caveat says so; ΔBIC is at one precision throughout.
+- A `docs/docs` page over 50 000 characters, source or built twin, fails `test_manual.py`; `reference/refinement.md` sits at 49 388.
+
+*For the maintainer.*
+- Three inferences under "infer what I would do" (`rulings.md` § Ninth round 3): the closing-off report kept as is, the closing node rule for every compile under 2 %, `build_report` refusing a bare `model=`. Each is one commit to reverse.
+- Item 1's mechanism replaces one name in SciPy's private `trf` module, gated to the package's own solves, because SciPy offers no driver setting; the supported alternative, `tr_solver="lsmr"`, changes the subproblem solver and was measured 0.04 esd away. A SciPy release renaming that import makes `tests/test_lapack_fallback.py` fail rather than the fallback go quiet.
+
+*Generality.* The judge's report on this session's seven items follows unedited. The author's answer sits under each `weak`, `partial` and `cannot tell`.
+
+## 1. `rietx.schemas.results.StageResult.n_lapack_fallbacks` (new action row, tier 1, ambiguity 1)
+
+**Verdict: holds.** The case for acting is much stronger. Tier 1 is right. The record field is narrower than the fallback it reports.
+
+Background: LAPACK is the linear-algebra library numpy and SciPy call. Its "divide-and-conquer" routines (`gesdd` for the SVD, `syevd` for symmetric eigenproblems, `gelsd` for least squares) are fast but can stop without converging. Each has a slower "QR-iteration" twin (`gesvd`, `syev`, `gelss`) that computes the same decomposition by another algorithm.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "a decomposition the divide-and-conquer LAPACK driver did not converge on is repeated with its QR-iteration twin" (`_audit.py` row evidence) | Verified in `/Users/yue/Code/rietx/.claude/worktrees/wp2001-rule-table-guard/src/rietx/optimize/lapack.py`. numpy is called first, unchanged. Only on `LinAlgError` does it call SciPy with `driver="ev"`, `gesvd` or `gelss`. The fallback cut-offs equal numpy's: `pinv` keeps singular values above rcond × the largest, and `lstsq` with `rcond=None` cuts at eps × max(M, N). For TRF, SciPy's trust-region solver: `scipy/optimize/_lsq/trf.py` line 98 does `from scipy.linalg import svd`, so replacing that one name does reach its step. The retry happens only on a thread inside `lapack.scipy_trf()`. What the caller did not ask for: an answer where there used to be a raise. | clear |
+| 2. Ambiguity kind | `ambiguity=1` | Agree. It is the same mathematical object computed by another algorithm. | agree |
+| 3. Case against | none given. rulings.md § Ninth round 1 rules out two alternatives: a restart ("luck") and `tr_solver="lsmr"` (changes the subproblem). | I tried one dissenter: a refiner who reads a failed SVD on a matrix of condition 7.9e10 as a sign that the step problem is ill-posed, and wants the fit stopped. It does not survive. On Linux, OpenBLAS's `gesdd` decomposed the same matrix, so the raise came from the platform's library, not the data. The brucite TRF fit's ill-posedness is reported elsewhere: 19-20 of 43 σ² negative (rulings), and TRF "collapses CPD brucite's S_HKL" (`PlanSpec:closing_window_tol` row). | none found |
+| 4. Case for | "macOS Accelerate's gesdd failed 20 of 20 on a 7279 x 28 step matrix … OpenBLAS's gesdd decomposed with singular values equal to gesvd's to the last bit" (row evidence) | Without the fallback, the fit raises on one platform and answers on another for the same input. The skill's `references/series.md` lines 249-255 records what an unguarded `LinAlgError` costs: 216 and 103 already-fitted patterns lost. I cannot tell whether those two failures were this kind of non-convergence. | strong |
+| 5. Tier and source | Tier 1, arithmetic. "Anderson et al. 1999, LAPACK Users' Guide … TenPy's svd_robust … MATLAB and Octave call gesvd by default" | Checked in this worktree's venv: `scipy/linalg/_decomp_svd.py` line 68, "MATLAB and Octave use the 'gesvd' approach". TenPy and the LAPACK guide were not checked. Tests: `tests/test_lapack_fallback.py::test_a_converging_decomposition_is_numpys_own` (bit-identical), `::test_each_fallback_returns_the_twins_answer_and_is_counted` (rtol 1e-12, on small well-conditioned random matrices only), `::test_a_trf_stage_records_its_fallbacks` (Rwp equal to rel 1e-9 under an injected failure), `::test_the_fit_path_decomposes_only_through_the_fallbacks`. The brucite bit-equality was measured once and has no fixture ("No small matrix makes Accelerate fail on demand", test module docstring). | holds |
+| 6. Dataset families | Brucite only, in the row. The `lapack.py` docstring adds a 22 003 × 102 strain-screen design (Accelerate `gelsd`) and issue #225 (`eigh` at the covariance). | This is not a threshold, so the three-family ground does not apply. The accuracy check is against the twin driver and OpenBLAS. That is verification (code computes the model correctly), which is what an arithmetic tier-1 row needs. | n/a |
+| 7. Record | `StageResult.n_lapack_fallbacks` | Only `run_least_squares` and `run_multi_least_squares` read the count (`least_squares.py` 2398/2527 and 2679/2774 are the only readers of `lapack.retries()`). Fallbacks elsewhere are counted on the thread but never recorded: `refine._hold_scale_b_ridges` runs before and between solves (`refine.py` 4109, 4319) and decides `StageResult.scale_b_held` through an `lstsq` and an `svd`; `ParameterTable` builds; the report's `layer1.attribute_region` and `strain`; background selection; `SolveCost`. So the `lapack.py` docstring line "Every fallback is counted … so a stage records how many it took" overstates. No diagnostic code sums the field, unlike `n_degenerate_cell_probes` and `CELL_DEGENERATE_PROBE`. | partial |
+
+Would change: a fallback answer measured off its twin by more than rounding on an ill-conditioned matrix would weaken tier 1. For the field: taking the count over the whole stage, or narrowing the docstring to "the solve and its esds", would close item 7.
+
+> Author: narrowed (`7bac0fe82`): the docstring now says the field holds the fallbacks of the solve and its esds, and that one taken elsewhere on the fit path is recorded nowhere, its answer being the twin's.
+
+## 2. `rietx.model.forward.MAGNETIC_SIZING_FLOOR` and `rietx.model.forward.WINDOW_AREA_TOL` (changed text)
+
+**Verdict: weak.** The new text is right that the magnetic solve's winner now runs a closing stage (one extra solve on 1e-3 windows, the answer-computing stage after the declared stages). But it states that unconditionally. WINDOW_AREA_TOL's list of numbers still computed at 2 % windows also leaves some out.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | Values unchanged. The text records that "its winner runs one since 2026-10-22" (floor evidence) and "the moments of the magnetic default solve's trials other than its winner, which runs a closing stage" (WINDOW_AREA_TOL grounds). | `_close` runs only when `package_plan and verdict == "solved" and ordered` (`strategy/magnetic.py` 2615). When the solve abstains, no row runs one. Neither text says so. | inaccurate |
+| 2. Ambiguity | not stated (constant rows) | n/a | n/a |
+| 3. Case against (2 % windows still reaching numbers a caller reads) | the list in WINDOW_AREA_TOL's grounds | Also at 2 % and not listed: every trial's ΔBIC, the winner's included; the other trials' Rwp, GoF and R_mag (R-factor over the magnetic channels); and the nuclear reference's Rwp and R_mag. All are printed in `MagneticSolution.__str__` (`magnetic.py` 651-681). ΔBIC at 2 % is deliberate, like the report's shapes that the grounds already call "on purpose". It should be named the same way. | incomplete |
+| 4. Case for (the new closing stage removes it) | moduli esds 0.00242 and 0.00179 → 0.00151 and 0.00111 μB (rulings.md § Ninth round 2) | That is true for the winner. For the floor specifically: the default solve frees no magnetic width (`SOLVE_STAGE_PATHS`, `magnetic.py` 233-241). So the case the floor's evidence measures, a width freed from zero, does not arise in those trials. Listing the default solve as a path without a closing stage is true, but it does not show that the floor's error reaches it. | partial |
+| 5. Tier | 3 for both, unchanged | Bookkeeping: WINDOW_AREA_TOL keeps `approved="2026-10-21"` while its grounds now cite two 2026-10-22 rulings. The WP's earlier review (WP file line 485) caught the same mismatch on another row. | mismatch |
+| 6. Families | unchanged | not re-judged | n/a |
+| 7. Record | the closing stage's `StageResult.window_area_tol` | The winner's closing `StageResult` sits in the private `_result` (see item 4). | n/a |
+
+Would change: text that says "when the verdict is solved" and names ΔBIC and the other rows' statistics among the numbers still computed at 2 % windows.
+
+> Author: fixed (`7bac0fe82`): both rows say the winner closes on a solved verdict; the floor's says the default solve frees no magnetic width; WINDOW_AREA_TOL's grounds name the magnetic ranking (every ΔBIC, the other trials' and the reference's statistics) as at 2 % on purpose, and its `approved` is 2026-10-22.
+
+## 3. `rietx.model.profiles.fcj.CLOSING_NODES_PER_FWHM / CLOSING_MIN_NODES / CLOSING_MAX_NODES / CLOSING_SKIP_EXTENT_FWHM_RATIO` (changed evidence)
+
+**Verdict: holds.** Moving the line needs no new evidence for the accuracy bar, because the domain test never reads the window fraction (the share of a peak's area its window may drop). The FCJ node rule sets how finely the axial-divergence asymmetry is sampled.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "taken by a compile finer than WINDOW_AREA_TOL … the line moved from CLOSING_WINDOW_TOL on 2026-10-22" (row evidence) | Verified: `compile_model` now uses `window_area_tol < WINDOW_AREA_TOL`. Any compile at 1e-3 < tol < 0.02 now takes the closing rule. | clear |
+| 2. Ambiguity | n/a (constant) | n/a | n/a |
+| 3. Case against (widening the rule's reach) | none given | The cost is more nodes on a fit whose windows were loosened for speed, so the speed switch is a little less fast. That cost is not measured. A `closing_window_tol` in [0.02, 1) is legal (`check_closing_window_tol`) and still takes the declared rule. The evidence says "below it", which is precise. | none given |
+| 4. Case for | "a caller loosening the windows asks for coarser windows, not for an asymmetry error 7.8× the lab bar" (rulings.md § Ninth round 3, second bullet) | The author inferred this under the maintainer's "infer what I would do". The maintainer did not rule it directly. | reasonable |
+| 5. Tier and test | tier 1, `test_the_closing_node_rule_meets_the_bar` | `_fcj_domain_cases` (`tests/test_lab_instrument.py` 567-591) scores each case on its own grid (the asymmetric extent plus 6 FWHM each side) against a max(512, 4n)-node reference. The node count depends only on 2θ, FWHM, the two aperture ratios and the closing flag. So the bar belongs to the rule, not to any window. New `test_the_closing_node_rule_serves_every_compile_finer_than_the_declared_stages` asserts that 5e-3 and 0.0199 give the same node counts as 1e-3, and that 2 % keeps the declared rule. The report's shapes copy is compiled at exactly `WINDOW_AREA_TOL` (`report/__init__.py` 261-262), so it keeps the declared rule. The eighth round's near-90° Gram-gate failure therefore does not come back through this move. "No compile the package makes sits between the two": my grep of `window_area_tol=` and `closing_window_tol=` in `src/` found only the two constants, `None`, recorded values and values a caller passes. | holds |
+| 6. Families | lab (FAP.XRA bar) and synchrotron (11BM_NAC bar), 8 500 synthetic cases | unchanged by the move | unchanged |
+| 7. Record | the recorded window fraction says which rule ran (`compile_model` docstring) | `StageResult.window_area_tol` | holds |
+
+Would change: a measured case where the node rule's error depends on the window, which the test's construction rules out.
+
+## 4. `solve_magnetic`'s winner ends in a closing stage (heuristic the table cannot see)
+
+**Verdict: cannot tell whether it needs a row of its own.** The action is well supported and inherits the closing stage's tier-2 default. Its record is a caveat string, and the printed table mixes two precisions in one column. ΔBIC is the Bayesian information criterion difference that ranks the candidate magnetic models.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the winner then runs its plan's closing stage … Its Rwp, GoF, R_mag and moments are that fit's, its ΔBIC the ranking's" (rulings.md § Ninth round 2) | Verified (`magnetic.py` 1392-1418, 2615-2622). It runs only when the package chose the plan and the verdict is "solved". It also replaces `held`, `fit_status`, `_structure` and `_result`, so `write_magcifs` writes the closed fit. The subgroup descent audit (`_descend`) runs before the closing stage, on the unclosed winner. | clear |
+| 2. Ambiguity | none stated (no row) | Kind 1, the same as the closing stage it reuses (`PlanSpec:closing_window_tol`, ambiguity 1). | kind 1 |
+| 3. Case against | none given | (a) In the printed table, the winner's Rwp, GoF and R_mag sit in the same columns as the other trials' and above the nuclear reference's Rwp, all at 2 %. Reading Rwp down the column compares two precisions. Only a "!" caveat at the foot says so. (b) On Cr₂WO₆ (real HB-2A data), the blind moment's esd rose 0.0459 → 0.0467 and its magnitude moved 0.07 esd; only the alternate arm's esd shrank (0.0450 → 0.0440). (c) The synthetic esd gain (0.00242 → 0.00151) was measured after `tests/test_pair_diagnostic_class.py` was changed to draw its data at the closing windows. Data and closing fit then share one precision, which favours the closing fit. A dissenting program: none found. I did not check what GSAS-II or FullProf do after choosing a magnetic model. | modest |
+| 4. Case for | moduli esds above; solve time 16.5 → 17.1 s, "one run each" | The winner's moments are the answer. A caller cannot easily close the fit themselves, because the winner's `Refinement` is private (`_refinement`, `repr=False`), so they would refit from the magCIF. The closing stage's own grounds apply here unchanged. | strong |
+| 5. Tier | none proposed | It would inherit `PlanSpec:closing_window_tol`'s tier 2 (BGMN's closing run by default, cited in that row; I did not check it). Splitting the precisions (ΔBIC at 2 %, values at 1e-3) is rietx's own design. No program precedent is given. | tier 2 for the action; split none given |
+| 6. Families | synthetic two-site Pnma; Cr₂WO₆ at 4 K | One synthetic case and one real one. No independent reference: the 2.09 ± 0.03 μB is another rietx fit. Magnetism is a rare feature, so the judgement ground alone applies. | one real family |
+| 7. Record | a caveat | The caveat is free text in `MagneticSolution.caveats`. The closing `StageResult` (name `closing`, `window_area_tol` 1e-3) lives only in the private `_result`. No public field says which rows were closed, so no action row can be keyed on one. | weak |
+
+Would change: either `PlanSpec:closing_window_tol`'s evidence naming this second site, which settles it as covered, or a public per-trial field giving the window fraction each row was measured at, which would let it take its own row. A test showing the ranking unchanged if every trial were closed would remove case (a)'s worry about ΔBIC.
+
+> Author: the first option (`7bac0fe82`): `PlanSpec:closing_window_tol`'s evidence names this second site. On (c): the synthetic data were drawn by `predict`, as every synthetic pattern on this branch now is and as a measured pattern's full tails are; the 2 % draw was last session's workaround for a solve that did not close. No per-trial field and no every-trial-closed ranking test were built.
+
+## 5. `build_report` refuses a non-Pawley `model=` without `structure=` and `instrument=` (heuristic the table cannot see)
+
+**Verdict: holds.** The case for refusing is stronger. Reading one model silently gave a misattribution the eighth round measured, and the fix costs the caller one argument.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "since one model alone brings back both misreadings the eighth round measured" (rulings.md § Ninth round 3, third bullet) | It removes a silent choice: Layer 1 (the report's region-by-region misfit attribution) reading its misfit and its shapes from one model. The caller must now pass both arguments. The model's own precision decides nothing now. Side effect: a model recording no window fraction is refused too, although `_reading_models` would read it as it is. That branch is now unreachable, so its docstring is stale. `compile_model` always sets the fraction (`forward.py` 4196), so this is close to moot. | clear |
+| 2. Ambiguity | not stated | A raise on bad input is an API shape (DESIGN.md § Rules, 4, "a raise on failure"). It is not a kind-1/2/3 decision, so no row is needed. | n/a |
+| 3. Case against (for the old silent read) | none given | It breaks a script that passed `model=` alone. In the repository, none does. Verified at `refine.py` 5241 and 5567 and `multi.py` 1226, and the test helper now passes both. Plain `build_report(result)` (Layer 0 only) is unaffected. | weak |
+| 4. Case for | eighth round item 1: a declared-precision misfit ranked axial asymmetry first on a displaced specimen; closing-precision shapes failed the Gram gate near 90°; reading two models ranked the displacement first at 0.995 (rulings.md 473-483) | A wrong attribution with no warning versus one clear `TypeError` that names the missing arguments and `Refinement.report()`. | strong |
+| 5. Tier | n/a | n/a | n/a |
+| 6. Families | one synthetic displaced specimen | Thin for a threshold, but enough for a refusal, which cannot move an answer. | adequate |
+| 7. Record | the `TypeError` | `tests/test_fitreport_layers.py::test_a_model_without_what_it_was_compiled_from_is_refused`, three cases. `docs/docs/reference/report.md` is updated. | holds |
+
+Would change: a supported caller that holds a compiled model but not the inputs it was compiled from.
+
+## 6. A fit run with `closing_window_tol=None` still has its FitReport misfit read at the closing precision (rulings.md § Ninth round 3, first bullet)
+
+**Verdict: weak.** The measurement shows the two readings agree on the two patterns where they were most likely to differ, so keeping one rule did no harm there. It cannot show which reading is right, because neither pattern has a known misfit.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the report printed the same text, passed the same regions (2 and 1) with the same leading shape, and suggested no action either way" (rulings.md § Ninth round 3) | When the fit ran without a closing stage, the report still computes its misfit at the 1e-3 windows and the closing node rule. | clear |
+| 2. Ambiguity | not stated | Kind 1, if one rule is right for every fit. | n/a |
+| 3. Case against | none given | The parameters of a fit without a closing stage minimised the residual at 2 % windows and the declared node rule. Read at the closing precision, the misfit also contains the gap between the two optima (0.905 and 0.96 esd on these two patterns, per the eighth round's table, which I verified) and peak tails the fit never saw. The report could attribute that to a peak shape and suggest freeing a parameter that is already free. That was not seen here, but the test has little power. Only 2 and 1 regions passed the gates, and one cpd-1a share moved 0.43 → 0.57. | plausible, unobserved |
+| 4. Case for | the eighth round's rule ("misfit from the accurate model stands") | The eighth round's mechanism applies to these fits too. Real data have the exact asymmetry, which the declared node rule misses by up to 5.6e-3 of a peak's maximum (7.8× the lab bar). And one rule is simpler for a reader. | moderate |
+| 5. Tier / test | none given | No test pins it. The evidence is one measurement, recorded in rulings.md and `docs/docs/reference/refinement.md`. | none given |
+| 6. Families | the fluorapatite and cpd-1a | Two families, both lab Cu Bragg-Brentano. No synchrotron (NAC), no LaB6, no known truth. Choosing the two patterns that move most is sound. | thin |
+| 7. Record | none given | I found nothing in the change that tells the reader of such a report which precision its misfit was read at. | none given |
+
+Would change: a known-truth case read both ways. For example, the eighth round's displaced specimen, or an injected misfit, fitted with `closing_window_tol=None`.
+
+> Author: measured (`rulings.md` § Ninth round 3): the displaced specimen, fitted with the closing stage on and off and read both ways, ranks the displacement's cos θ shape first in all four (R² 0.539-0.555), and no reading suggests an action. No test pins it, and no field names the precision a report read at; both are WP-2004's if wanted.
+
+## 7. Skill
+
+**Verdict: no row owed.**
+
+- **Item 4:** the package's own output carries the caveat, which is the cheapest place for it (WP-1338). `references/magnetic.md` has no row that compares the trials' Rwp, so nothing there is contradicted. If the winner's precision gets a public field, its row would go there.
+- **Item 5:** the skill calls only `build_report(result)` (`references/series.md` 247), which is unaffected. The generated `api.md` signature is unchanged.
+- **Item 1:** the generated `api.md` already lists the field.
+- **Worth a recheck, not owed:** `references/series.md` 249-255 cites "SVD did not converge" and "Eigenvalues did not converge" destroying patterns. Those may no longer occur on the fit path. Its advice (set `on_result=` first) still holds for cell runaways and for failures of both drivers. I cannot tell from the files which routine those two cases failed in.
+
+Would change: a skill row that tells an agent to compare Rwp across a `MagneticSolution`'s rows, or to call `build_report(model=...)` alone. I found neither.
+
+Next: B14's lifts (the ~50-guard list to the judge) and the two owed domain tests (the interval and width-grid settings), which keep the tiering and demotion items open; whether this WP closes with them or hands them to WP-2017 is the maintainer's call. Before that, the three inferences of the ninth round's item 3 stand until the maintainer reverses one.
 
 ### 2026-10-22 (6th session) — the seventh and eighth rounds built: the closing stage stays on, the report reads two precisions, and a harmonic's order is the caller's
 
