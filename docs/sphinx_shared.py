@@ -109,7 +109,13 @@ MYST_EXTENSIONS = ["dollarmath", "amsmath", "substitution", "colon_fence", "defl
 # spellings and the diagrams followed every one.  mermaid.js itself comes from a CDN when the page
 # is *viewed*; set `mermaid_use_local` if a built copy of the manual has to
 # render diagrams offline.
-MERMAID_LIGHT_THEME = "default"
+#
+# The colours are the site's tokens, set by the manual's `custom.css` over
+# whatever mermaid draws (WP-2021): mermaid's `base` theme takes its variables
+# as literal colours, one set for both themes, which cannot follow a toggle.
+# `neutral` is the light theme so a part the stylesheet misses is grey rather
+# than the stock theme's lilac.
+MERMAID_LIGHT_THEME = "neutral"
 MERMAID_DARK_THEME = "dark"
 # Without the title margin, a subgraph label is drawn on the cluster border and
 # collides with the first node inside it.

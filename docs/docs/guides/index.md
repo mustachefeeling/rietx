@@ -1,6 +1,6 @@
 # Guides
 
-Each guide does one task from start to finish, and its title names the task as "How to …".
+Each guide does one task from start to finish. Its title names the task as "How to …", and the menu names the task alone, since the tab already says it is a guide.
 
 Each guide's fits are a script in `examples/guides/`, run by the test suite, and the output a guide shows is what its script printed.
 
@@ -61,28 +61,28 @@ Each guide's fits are a script in `examples/guides/`, run by the test suite, and
 ```{toctree}
 :hidden:
 
-check
-range
-calibrate
-blank
-hump
-holder
-hold
-tie
-restrain
-plan
-stage
-next
-branch
-watch
-qpa
-cell
-interval
-export
-foreign
-series
-path
-equation
-joint
-moment
+Check a pattern before fitting <check>
+Limit the fit range or leave out a region <range>
+Calibrate an instrument on a standard and reuse it <calibrate>
+Use a measured blank as the background <blank>
+Add a hump to the background <hump>
+Fit a peak from the sample holder <holder>
+Keep a parameter fixed whatever the plan frees <hold>
+Tie parameters together <tie>
+Restrain a bond length or an angle <restrain>
+Add a stage to a refinement plan <plan>
+Run a plan one stage at a time <stage>
+Choose the next parameter to free <next>
+Branch a refinement, compare the branches and roll back <branch>
+Watch or stop a running fit <watch>
+Find the weight fraction of each phase in a mixture <qpa>
+Quote lattice parameters with their esds <cell>
+Quote a parameter that ended on its bound <interval>
+Export the refined structure as a CIF and the reflection list as a table <export>
+Open a GSAS, TOPAS or FullProf refinement and write one back <foreign>
+Fit a temperature series <series>
+Check a series for path dependence <path>
+Refine a cell edge as a function of temperature <equation>
+Fit an X-ray and a neutron pattern together <joint>
+Refit the nuclear model with the moment present <moment>
 ```
