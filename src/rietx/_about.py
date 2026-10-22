@@ -158,6 +158,7 @@ def docs_base(version: str) -> str:
     """
     return f"{DOCS_URL}/docs/{docs_version(version)}"
 
+
 #: Root of the source repository, no trailing slash.  A brand token like
 #: :data:`DOCS_URL`, and the base the theory manual builds a per-equation
 #: source link on (WP-1408): each *Source:* line resolves its dotted name
