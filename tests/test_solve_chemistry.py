@@ -537,6 +537,15 @@ def test_the_inventory_tolerance_scales_with_the_part_occupied_multiplicity():
     assert check.tolerance["Cu"] == pytest.approx(0.0005 * 192)
     with pytest.raises(ch.CompositionMismatch):                    # a real shortfall
         comp.require(cu(0.32))
+    # the value says its own precision: ⅓ printed as 0.33 is 0.64 short of 64,
+    # inside 0.005 × 192 = 0.96; 0.34 is 1.28 over, outside it
+    two = comp.require(cu(0.33))
+    assert two.tolerance["Cu"] == pytest.approx(0.005 * 192)
+    with pytest.raises(ch.CompositionMismatch):
+        comp.require(cu(0.34))
+    # 0.3333 carries four decimals, so only 0.00005 per atom; ⅓ itself none
+    assert comp.check(cu(0.3333)).tolerance["Cu"] == pytest.approx(0.00005 * 192)
+    assert comp.check(cu(1 / 3)).tolerance["Cu"] < 1e-9
     # a full site has no rounding to forgive: one atom short is still short
     full = _cdoh2(H_TRUE).phases[0]
     full.atoms = full.atoms[:2]
