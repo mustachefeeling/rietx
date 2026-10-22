@@ -1344,19 +1344,14 @@ def _notebook_twins() -> set[str]:
     return {f"{copied_to}/{nb.stem}.html.md" for nb in _tutorial_notebooks()}
 
 
-#: The one rule a notebook's twin is excused.  Every tutorial opens on the
-#: authorship note public material carries ("Written by Claude Code, …"), set
-#: in italics, so the paragraph under its title is that note and the answer
-#: sentence is the paragraph after it.  The fix moves the note in the
-#: tutorial scripts (WP-1545's) and rebuilds the notebooks.  Measured
-#: 2026-10-19: all seven break this rule and no other.
-NOTEBOOK_WAIVED = "no answer sentence under the title"
-
-
 @pytest.mark.xdist_group("manual-build")
 def test_every_page_has_a_twin_that_keeps_the_contract(built_docs_tree):
     """One twin per page and per tutorial notebook, with no MyST left in it,
-    its title and answer sentence, and under the 50 000-character cap."""
+    its title and answer sentence, and under the 50 000-character cap.
+
+    A notebook is held to the same contract as a page: each tutorial's
+    authorship note sits below its opening paragraph, so the paragraph under
+    the title answers (the waiver that excused this went in WP-1986)."""
     out, result = built_docs_tree
     assert result.returncode == 0, "the new tree did not build"
     twins = _twins(out)
@@ -1366,14 +1361,8 @@ def test_every_page_has_a_twin_that_keeps_the_contract(built_docs_tree):
     assert set(twins) == pages, set(twins) ^ pages
     breaches = [f"{path}: {message}" for path, twin in twins.items()
                 for message in _contract_breaches(twin)
-                + [f"MyST left in it: {r!r}" for r in _myst_residue(twin)]
-                if not (path in notebooks and NOTEBOOK_WAIVED in message)]
+                + [f"MyST left in it: {r!r}" for r in _myst_residue(twin)]]
     assert not breaches, "twins that break the page contract:\n" + "\n".join(breaches)
-    # A waiver that excuses nothing is a rule nobody is held to.
-    kept = {path for path in notebooks
-            if not any(NOTEBOOK_WAIVED in m for m in _contract_breaches(twins[path]))}
-    assert not kept, (f"{sorted(kept)} now keep the answer-sentence rule, so the "
-                      "NOTEBOOK_WAIVED exemption should no longer cover them")
 
 
 @pytest.mark.parametrize("twin, expected", [

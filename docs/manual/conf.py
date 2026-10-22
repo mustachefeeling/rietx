@@ -71,7 +71,8 @@ exclude_patterns = ["_build", "_generated"]
 # root document by name — no `:doc:`, no toctree entry — so the rename cost two
 # lines; the reader-visible change is that the manual's front page is
 # `rietx.org/manual.html`.  `_about.DOCS_URL` is the *site* root and is
-# unaffected, as are `help.py`'s `page.html#id` anchors.
+# unaffected.  `help.py`'s `page.html#id` anchors name the new tree's pages
+# under `_about.docs_base` since WP-1986, and this tree never links them.
 root_doc = "manual"
 
 # ...and the landing page itself, copied in verbatim beside the built manual.
@@ -119,8 +120,10 @@ html_favicon = "_static/favicon.svg"
 # vocabulary member therefore reaches the page without anyone editing it.
 #
 # `anchor` is deliberately not rendered as a link.  It names the page and
-# heading the GUI's popover links to (WP-1203), and `tests/test_help.py` checks
-# every one against the built HTML; a glossary that also linked them would need
+# heading the GUI's popover links to (WP-1203), in the new tree since WP-1986,
+# and `tests/test_help.py` checks every one against that tree's built HTML; a
+# relative link from here would now name a page this tree does not have, and
+# a glossary that linked them at all would need
 # heading-anchor slugs turned on globally for no reader-visible gain here — the
 # reader is already on the page the link would take them to a section of.
 # ----------------------------------------------------------------------

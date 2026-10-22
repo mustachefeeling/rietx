@@ -1,11 +1,11 @@
 # %% [markdown]
 # # A simple Rietveld refinement
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # We refine the fluorapatite structure against the pattern notebook 01 fitted with Le Bail.
 # This time the peak intensities come from the atoms, so the fit can move them.
 # Along the way we read the plan's stages, the parameter table and the bond lengths, draw the refined structure, and save the work as a project.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 01 introduces the pattern and how to read a fit's summary.

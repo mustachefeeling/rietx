@@ -33,7 +33,10 @@ import urllib.request as _request
 from html import escape as _escape
 from pathlib import Path as _Path
 
-from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
+# `docs_version`, the version -> directory mapping, is the package's (WP-1986),
+# because the GUI builds the manual's address from it too; `sphinx_shared` and
+# the tests read it through here.
+from rietx._about import DIST_NAME, DOCS_URL, REPO_URL, docs_version  # noqa: F401
 
 #: How many minor releases stay reachable beside dev (WP-1979).
 KEEP_MINORS = 6
@@ -64,16 +67,6 @@ RETIRED: dict[str, str] = {}
 _TAG = _re.compile(r"v(\d+)\.(\d+)\.(\d+)")
 #: The start of a markdown link target that is relative to its file.
 _RELATIVE_LINK = _re.compile(r"\]\((?![a-z][a-z0-9+.-]*:|/|#)")
-
-
-def docs_version(version: str) -> str:
-    """The directory under docs/ holding a version's manual.
-
-    A release's manual is kept per minor, so `1.10.2` reads `1.10`.  Anything
-    else, a `.dev0` build included, reads `dev`, the tree built from `main`.
-    """
-    match = _TAG.fullmatch(f"v{version}")
-    return f"{match[1]}.{match[2]}" if match else "dev"
 
 
 def asset_name(version: str) -> str:

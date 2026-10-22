@@ -94,7 +94,9 @@ Each entry is a `HelpEntry` with seven fields.
   nothing in the package reads it.
 
 `HelpEntry.anchor`
-: The manual heading that carries the equation, checked against the built HTML.
+: The page and heading of the new manual that carry the explanation, relative
+  to the running version's manual (`rietx._about.docs_base`), and checked
+  against that manual's built HTML.
 
 `HelpEntry.label`
 : The short form a chip carries where the name would not read: `at bound` for

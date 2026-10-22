@@ -1,11 +1,11 @@
 # %% [markdown]
 # # A Rietveld refinement on your own data
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # A template: change the cells marked ✏️ and run the notebook top to bottom.
 # As shipped it runs on the fluorapatite example from notebooks 01 and 02, so you can see every output before you change anything.
 # Those two notebooks explain each step on the same data.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **In Colab**, upload your files with the folder icon in the left sidebar.
 # Right-click a file and choose *Copy path* to get its path, which starts `/content/`.
