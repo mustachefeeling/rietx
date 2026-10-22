@@ -35,6 +35,17 @@ stage-boundary recompiles get their own tests below.  Le Bail and Pawley are
 single-histogram only — WP-0308 shipped multi-histogram as Rietveld-only,
 because per-pattern intensity extractions are not a shared quantity.
 
+**Every compile declares its windows** (WP-2002), as ``test_backend_shim``'s
+do.  ``compile_model``'s default is the closing stage's ``CLOSING_WINDOW_TOL``,
+which also takes the closing FCJ node rule, and the matrix was sized and
+measured at ``WINDOW_AREA_TOL``.  Inherited, the closing windows made
+``satellites`` 14.6x the window points (5 870 to 85 704), and its jax row
+held 17 GB and ran 273 s on an M-series Mac, past the CI runner's memory.  They
+also took the one-sided ``axial_hl`` column at H/L = 0 from 4.7e-2 to 7.1e-5,
+because the profile's first-order response to H/L there is the coarser
+quadrature's and vanishes as the nodes converge, so the WP-1953 test below
+compared two columns of noise.  Both rules run the same derivative code.
+
 Tolerances
 ----------
 The fp32 bars are **imported** from ``backend.linalg64`` (WP-0403 owns them);
@@ -82,7 +93,7 @@ from rietx.backend.linalg64 import (
     FP32_JACOBIAN,
     precision_policy,
 )
-from rietx.model.forward import compile_model
+from rietx.model.forward import WINDOW_AREA_TOL, compile_model
 from rietx.optimize.least_squares import (
     _fd_typicals,
     _jacobian_for,
@@ -143,7 +154,8 @@ def _families_state(*, shape: str = "tchz_pv", axial_hl: float | None = None):
     for path in ANALYTIC_FAMILIES:
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     assert model.shape == shape
     return model, table, {}
 
@@ -193,7 +205,8 @@ def _state_sharp_widths():
                  "instrument.zero_shift", "instrument.profile.*"):
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -227,7 +240,8 @@ def _state_families_tied():
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -254,7 +268,8 @@ def _state_toy_body():
     table.commit(theta)
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, _toy_pattern(), mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     assert model.restraints is not None
     return model, table, {}
 
@@ -303,7 +318,8 @@ def _state_families_variable():
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -334,7 +350,8 @@ def _state_centroid_origin():
                  "phases.0.atoms.*.dof.*", "phases.0.atoms.*.biso"):
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     model.origin = compile_origin(model, table)
     assert model.origin is not None and model.origin.n_rows == 1
     return model, table, {}
@@ -375,7 +392,8 @@ def _state_capillary_offsets():
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0())) + 20.0
     pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
@@ -385,7 +403,8 @@ def _state_capillary_offsets():
                   "instrument.geometry.capillary_offset_along_beam",
                   "instrument.geometry.capillary_offset_across_beam"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -434,7 +453,8 @@ def _state_extra_components():
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
@@ -446,7 +466,8 @@ def _state_extra_components():
                   "instrument.extra_components.0.height",
                   "instrument.extra_components.0.fwhm"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -499,7 +520,8 @@ def _state_extra_peak():
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
@@ -511,7 +533,8 @@ def _state_extra_peak():
                   "instrument.extra_components.0.fwhm",
                   "instrument.extra_components.0.eta"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -551,7 +574,8 @@ def _state_magnetic():
     grid = np.arange(8.0, 140.0, 0.05)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     # off the expansion point, so no column is dead by construction
@@ -564,7 +588,8 @@ def _state_magnetic():
                   "phases.0.atoms.1.dof.*", "phases.0.atoms.1.biso",
                   "instrument.background.c0", "instrument.zero_shift"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -606,7 +631,8 @@ def _state_magnetic_width():
     grid = np.arange(8.0, 140.0, 0.05)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     # off the expansion point, so no column is dead by construction
@@ -620,7 +646,8 @@ def _state_magnetic_width():
                   "instrument.background.c0", "instrument.zero_shift",
                   "instrument.geometry.axial_sl", "instrument.geometry.axial_hl"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -667,7 +694,8 @@ def _state_satellites():
     grid = np.arange(8.0, 140.0, 0.05)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     assert sim.phases[0].reflections.is_satellite.any()
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
@@ -680,7 +708,8 @@ def _state_satellites():
                   "phases.0.atoms.0.biso", "phases.0.atoms.1.adp.*",
                   "instrument.background.c0", "instrument.zero_shift"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     assert model.structural_grad_supported(0)
     return model, table, {}
 
@@ -759,7 +788,8 @@ def _state_bodies():
         table.entries[table._paths[f"phases.0.rigid_bodies.0.torsions.{t}.twist"]].value = v
     table.refresh_ties()
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -803,7 +833,8 @@ def _state_texture():
                  "phases.0.atoms.1.dof.0", "phases.0.texture.*"):
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -1199,7 +1230,8 @@ def _multi_state():
         assert mtable.set_vary(MULTI_GLOBS, True)
         mtable.apply_to_models()
         models = [compile_model(s, ins, d, mode="rietveld",
-                                moving_paths=set(t.moving_paths))
+                                moving_paths=set(t.moving_paths),
+                                window_area_tol=WINDOW_AREA_TOL)
                   for s, ins, d, t in zip(mtable.structures, mtable.instruments,
                                           data, mtable.tables, strict=True)]
         _MULTI_CACHE["state"] = (models, mtable)
@@ -1347,7 +1379,8 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld",
                     table.set_vary([path], False)
         table.apply_to_models(structure, instrument)
         fresh = compile_model(structure, instrument, data, mode=mode,
-                              moving_paths=set(table.moving_paths))
+                              moving_paths=set(table.moving_paths),
+                              window_area_tol=WINDOW_AREA_TOL)
         carried = False
         if model is not None and mode in ("lebail", "pawley"):
             _carry_lebail(model, fresh)
