@@ -149,8 +149,8 @@ Taken by the maintainer on 2026-10-22, in the session that filed this WP:
    Concepts and Guides toctree entry is its page's H1 less "About" or "How to"; the H1,
    `<title>`, prev/next, search and every link keep the full title.  Dropping "About" from
    the H1s too was measured against the 66 places a concept title is quoted in prose, and
-   there the word does work: "[About the report](…) describes its three layers" names a
-   page, where "[The report](…) describes its three layers" reads as the `FitReport`
+   there the word does work: a link reading "About the report" followed by "describes its
+   three layers" names a page, where one reading "The report" reads as the `FitReport`
    describing itself.  The menu is where the tab already says the type, which was the
    maintainer's point.
 
@@ -300,14 +300,103 @@ refused direct fetches; re-read each before quoting it in the manual.
 
 ## Handover log
 
-- **2026-10-22** — filed from the maintainer's review of the manual's look. No open WP owns
-  it: WP-1986 is the guides and the old tree's retirement; WP-1443 is prose read by a
-  newcomer; WP-1812 is the manual for rigid bodies. The measurements above are from that
-  session's screenshots of `main` 2330afc. The breadcrumb, title, sidebar, logo and banner
-  tasks follow the sources under References, which disagree on two points, both recorded:
-  whether a breadcrumb ends at the page or its parent, and whether a task title says "How
-  to". Next: settle decisions A and B with the maintainer, then start at the house-style
-  task, since every later task cites it.
+### 2026-10-22 (3rd session) — the guards, the house style and the review; closed
+
+The manual and the landing page now share one set of colours, faces, header and footer,
+and the sharing is guarded rather than remembered. A test fails if the manual spells a
+colour of its own. Another fails if any text colour falls below WCAG AA on a ground it is
+set on, if the two headers' marks drift from the favicon, if a breadcrumb names its own
+page, or if a Concepts or Guides menu label stops being its title less the prefix. The
+house style, which colour does which job, is written in the landing page's README for the
+next change to follow. The review found that the OS could undo a theme a reader had
+pinned, which is fixed and checked in a browser. Nothing in the package changed, so no
+measured number moved.
+
+*Done*, on top of the second session's work:
+- **Tests.** `tests/test_landing.py` § The site's colours: the two dark blocks are one set
+  of values, every text colour clears AA on each ground `LEGIBLE` lists, the contrast
+  measure itself is checked against WCAG's fixed points, and every landing page inlines
+  the token file. `tests/test_manual.py` replaces the two brand tests that pinned the
+  retired mark with nine checks:
+  - the favicon is the mark for both headers, and its fills are `--accent`;
+  - the brand goes to the site's home;
+  - the breadcrumb starts at "Manual" and stops at the parent;
+  - no page credits its tools or carries the collapse control;
+  - the manual spells no colour;
+  - the theme button is the landing page's;
+  - each menu label is its title less the prefix, once per tab;
+  - each page links its markdown twin.
+
+  Each new guard was made to fail once on purpose, with the message expected.
+- **Two contrast fixes the test turned up.** The landing page's `$` prompt was `--faint`
+  on `--surface-2` (4.25:1) and takes `--muted`. Sphinx's "Hide search matches" link is
+  drawn into an empty `#searchbox` above every article and was white on the light accent
+  (4.22:1); it is now a plain link, so no page sets words on the accent.
+- **One small label**: .75rem, weight 600, .05em, uppercase, on both pages. It was four
+  sizes. The animation rig keeps its own smaller scale.
+- `docs/landing/README.md` § House style, and its rows for `tokens.css` and the favicon.
+  `ATTRIBUTION.md` § Fonts the manual serves. `page_shots.js` takes `SITE=` and shoots the
+  landing page with three manual pages at three widths. `default_mode: "auto"`, in
+  `html_context`, where pydata reads it.
+- `est-cov` (8.5) set on two rows (below).
+- WP-1986's `### Inherited` now carries the Guides label rule for its two remaining guides.
+
+*Measured* (Linux x86-64, the worktree's `.venv`, `[dev]`):
+- Contrast, light / dark, the tightest pairs: `--faint` on `--bg` 4.59 / 4.99, `--ok` on
+  `--surface-2` 4.59 / 8.52, `--accent` on `--surface-2` 3.75 / 7.84 (bar 3).
+- `check_equations.py`'s measurement, its own probe, viewports and thresholds driven from
+  node, because this sandbox refuses jsdelivr and so MathJax 4.1.3 and its font were
+  served from npm. On the branch, est-cov overran its cell by 4-8 px at both widths, and
+  after the reflow all 156 numbered equations fit. The base, 2330afc, fails four here,
+  est-cov by 47 px. That is likely in part a fallback face, since Google Fonts is out of
+  reach in this sandbox too, so the branch's figure is the one in the face readers get.
+- Acceptance: the four suites, 140 passed. `sphinx -W -E`, clean.
+- Fast suite (`-m "not slow"`, the machine otherwise idle but for one collect-only pass): 11071 passed, 203 skipped, 3 xfailed, 1 failed, in 20:18. The failure was
+  `test_every_relative_link_resolves`, reading Decision 6's quoted `(…)` as a link. That
+  quote was written in the second session; it is reworded, and the file passes. The branch
+  adds 13 cases by collection: `test_landing.py` 33 → 39 and `test_manual.py` 50 → 57,
+  the latter net of the two brand tests removed. No new skip.
+- The added tests in this run's junit: 0.22 s over 12 names (15 cases). The slowest,
+  0.08 s, walks the 123 built pages for the breadcrumb. None joins the slow tail, since
+  all of them share the one manual build the suite already makes.
+- The full suite was not run. No package code changed, so no measured number can move
+  (`tests/CLAUDE.md` § Running, rung 3).
+
+*Review* (`/code-review high --fix`). It made five fixes, all landed:
+- a pinned theme snapped back when the system scheme changed, because pydata's `auto`
+  listener outlived our pin;
+- the version menu kept the old theme's dropdown class;
+- the landing page never read its old `rietx-theme` key once the manual had stored `auto`;
+- the theme script's header claimed a first visit stores nothing;
+- `make_figures.light_ground` split the token file before stripping comments.
+
+The theme fixes were driven in chromium across both pages: a pin survives the system
+turning dark and back, the menus follow, a choice on either page holds on the other, the
+old key carries over once, and an unpinned page follows the system. *Declined*: moving
+`site_tokens` out of `test_landing.py` into a shared module. The suite already imports
+across test modules (`test_absent_phase.py`, `test_acceptance_srm676a.py`), so a helper
+module would be new structure that fixes no bug.
+
+*Generality*: not owed. `_audit.py` is untouched, and the WP adds no diagnostic,
+threshold, default or automatic action (§ The tier of each rule this WP adds). The AA bar
+is WCAG's, quoted.
+
+*Gotchas*:
+- pydata capitalises "Previous"/"Next" with a four-class selector, so the old label rule
+  never reached them. Probe the computed style; a selector that reads right is not
+  evidence.
+- `default_mode` is a context key. As a theme option it is unsupported, and `-W` fails
+  the build.
+- `#searchbox` exists, empty, on every page.
+- `ps aux | grep -c '[p]ython -m pytest'` counts its own command line when it shares one
+  with a pytest launch.
+
+*Not done, deliberately*: the landing page still loads its faces from Google Fonts. It is
+one unversioned page, and the manual's copies sit under a per-version path.
+
+Next: the maintainer reviews the PR, judging the page shots beside the landing page. On
+merge nothing follows from this WP. WP-1986's two guides inherit the label rule.
+
 - **2026-10-22** (second session, paused for a context compaction) — A and B settled (Decisions
   5 and 6). Landed and pushed, checked by eye in headless Chromium at 1440, 900 and 390 px
   in both themes against a local copy of the site:
@@ -343,3 +432,11 @@ refused direct fetches; re-read each before quoting it in the manual.
   `/wp-handover`. Scratch tooling for the look (`shots.mjs`, `probe.mjs`, `assemble.sh`,
   `rebuild.sh`, a local mermaid 11.12.1 routed in place of the CDN) is in the session
   scratchpad, not the repo.
+- **2026-10-22** — filed from the maintainer's review of the manual's look. No open WP owns
+  it: WP-1986 is the guides and the old tree's retirement; WP-1443 is prose read by a
+  newcomer; WP-1812 is the manual for rigid bodies. The measurements above are from that
+  session's screenshots of `main` 2330afc. The breadcrumb, title, sidebar, logo and banner
+  tasks follow the sources under References, which disagree on two points, both recorded:
+  whether a breadcrumb ends at the page or its parent, and whether a task title says "How
+  to". Next: settle decisions A and B with the maintainer, then start at the house-style
+  task, since every later task cites it.

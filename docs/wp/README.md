@@ -55,7 +55,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-16 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2002](2002-the-single-fit-actions.md) | The single-fit actions: what one stage decides for the caller | 2026-10-20 | P2 | [generality](#generality-the-audits) |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 2026-10-21 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [2021](2021-the-manual-and-the-landing-page-are-one-site.md) | The manual and the landing page are one site | 2026-10-22 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -719,7 +718,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1996](1996-the-switching-tab-says-only-what-its-tests-show.md) | The Switching tab says only what its tests show | ✅ 2026-10-17 | — | [1984](1984-the-switching-tab.md) |
 | [2013](2013-stale-text-in-the-code-the-manual-move-found.md) | Stale text in the code that the manual move found | ⬜ | P3 | — |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 🔄 2026-10-21 | P3 | — |
-| [2021](2021-the-manual-and-the-landing-page-are-one-site.md) | The manual and the landing page are one site | 🔄 2026-10-22 | P3 | — ([1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) soft) |
+| [2021](2021-the-manual-and-the-landing-page-are-one-site.md) | The manual and the landing page are one site | ✅ 2026-10-22 | — | — ([1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) soft) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
