@@ -1,6 +1,6 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-21 — sixth round built (a closing stage on every plan, width ceilings at the 2θ axis, tier 2 restated); two questions wait (the evaluation windows, the six settings); B14's lifts and two domain tests remain
+Milestone: generality · Status: 🔄 2026-10-22 — seventh and eighth rounds built (evaluation at the closing windows, the closing FCJ rule, the report's two-precision reading, the caller tier); the Stephens TRF error and five design questions wait on the maintainer; B14's lifts and two domain tests remain
 Track: The audits
 Depends on: 2001
 Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
@@ -301,6 +301,275 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-22 (6th session) — the seventh and eighth rounds built: the closing stage stays on, the report reads two precisions, and a harmonic's order is the caller's
+
+Everything rietx computes outside a fit now matches what a fit returns: `predict`, a simulated pattern and a stage run by hand use the closing stage's windows and its finer axial-divergence sampling, so synthetic test data carry the tails a measured pattern has. The maintainer weighed the closing stage's cost (1.2-2.3× a fit) against four measured alternatives and kept it on by default, with `closing_window_tol=None` documented as the switch for speed. Its two side effects on the FitReport were traced to causes and fixed: the report now measures the misfit on the accurate model and attributes it with the declared stages' local shapes. A zero shift and a sample displacement can be told apart again, and an impurity line no longer reads as texture. The wider reflection margin the maintainer approved was built and reverted, because it let the closing stage free a scale–Biso ridge (corundum 72.5 → 50.8 wt% against 72.7 on a synthetic scan). A neutron harmonic's order now has to be stated, because which orders a monochromator passes depends on its crystal.
+
+*Done.*
+- The seventh round (`2002-batch/rulings.md` § Seventh round), Q1 option 2: `compile_model`, `predict` and `run_stage` default to `CLOSING_WINDOW_TOL`; a recorded `None` keeps meaning the declared 2 % (`forward.recorded_window_tol`), so old histories replay unchanged; `NodeAction.api_call` renders the fraction a node ran at. Q2 option 2, by kind: `A5_CLIP` 1e-4 (tier 1); the texture minimum polished locally (`sphere_minimum`, tier 1); the closing FCJ rule (12 / 10 / 1024 / 3e-4, tier 1) for any compile at the closing windows or tighter; the magnetic floor passes behind the closing stage; the axial floor misses on cpd-1a (strict xfail); the edge margin built, then reverted (`90b4bc770`).
+- About 40 test files sorted for the new defaults by four Opus lanes and the lead, nothing loosened; the goldens declare their capture windows and stay bit-identical; every guide re-measured.
+- The eighth round (`rulings.md` § Eighth round): the closing stage kept as built; its cost and what switching it off moves recorded in `reference/refinement.md` § The closing stage and the skill's `batch-operating.md` 9c.34. Item 1, option 1: `report._reading_models` (misfit at the closing precision, shapes at the declared one), `build_report(instrument=)`, every package caller passing it; the 11 failing report tests pass. Item 2: margin kept at 0.5°. Item 3: axial floor tier 3 for WP-2017. Item 4: the caller-tier ruling recorded (`_audit.py` docstring, `generality.md` § The rule), `GTOL`/`XTOL` tier 3, `Harmonic.order` required, `harmonics=True` refused naming the crystals.
+- Merged main twice (`775f06cf0`, `6c1709a5c`). This branch's WP-2019 is now WP-2020 (main has held 2019 since #1094). Main's new moment guide (#458) re-measured behind the closing stage; #934 (c)'s flat-silicon control drawn at the 2 % windows it was measured on (forwarded to 1968). WP-2019's two notes answered in this file's Inherited.
+- Records the margin revert left stale corrected (`waiting.md` § B10, WP-2017's line, the theory page, the audit row), and one label of this session's own: the ridge regression was on `tests/test_scale_b_ridge.py`'s synthetic scan, not cpd-1a.
+- Two B10 domain tests marked `slow` (the origin clip's 15 s, the texture minimum's 10.5 s), like the FCJ and window ones.
+- From the full selection: the FitReport's strain screen no longer takes a fit down when its least-squares solve does not converge (#225's rule); two slow synthetic tests re-read (above).
+
+*Measured* (macOS arm64, worktree venv `[dev]`, compiled tier on unless said).
+- The closing stage's trade, five variants interleaved, another session's suite running (ratios compare; `rulings.md` § Eighth round has the table): shipped 1.39-1.40×, 2.31-2.35×, 1.58-1.62×, 1.21-1.29× on LaB6, FAP, cpd-1a, NAC; 1e-3 windows on every stage 1.88-2.09×, 4.51-4.61×, 2.62-2.65×, 1.15-1.21×; `intermediate_ftol` 1e-4 saves up to a fifth and fails cpd-1a's start test (0.123 against 0.1). Quiet-machine cost of the closing stage after the seventh round: 1.42-1.44×, 2.20-2.33×, 1.60-1.62×, 1.2× (1.16-1.19×, 2.04-2.18×, 1.37-1.39×, 1.2× before it).
+- Off against on, in physical units: cpd-1a's fractions up to 0.12 wt% (two toward weighed, one away), FAP's `lor_size` 2.5 % and strain 3 %, LaB6's widths 1-2 %, NAC under 0.4 %.
+- Behind the closing stage, re-measured on the final tree: answer 0.008, 0.011, 0.019 plain esd from the converged fixed point (FAP, cpd-1a, NAC); Biso starts 0.000/0.070/0.000, LaB6 9.14 (and 0.050 with `intermediate_ftol` 1e-4, forwarded to 2012).
+- The report's displaced-specimen misranking: only with the closing rule's 3e-4 skip ratio and the closing windows together (each alone ranks the displacement first; ratio 0.02 alone recovers 0.99); at 0.02 the skipped asymmetry leaves 9.5e-3 of a peak's maximum, 13× the lab bar and 54× the synchrotron one; the declared rule's 5.6e-3 (7.8×) misread it the other way; the two-precision reading ranks the displacement first at 0.995. A compile costs 4-19 ms against a report's 0.24-1.57 s.
+- `predict` at the closing windows: 8, 27, 29 ms on LaB6, FAP, cpd-1a and 138 ms on NAC's 59 498 points (the seventh round's reversal condition was about a second). The numpy path (compiled tier off) at the closing windows: worst (chunk, nodes, window) plane 29 and 56 MB on FAP and cpd-1a, evaluate 76-97 ms and bases 215-270 ms against 6-18 ms at 2 %, peak RSS 1.65 GB with three fits in the process.
+- The moment guide behind the closing stage: blind 2.0353 ± 0.0459, reference 2.0868 ± 0.0337, moment present 2.1255 ± 0.0450 μB; a 1e-14 start nudge moves the blind moment 1e-4 and the rounds under 1e-5.
+- Fast selection, final tree (main through #1098 merged, `6c1709a5c`): 11 086 passed, 191 skipped, 26 xfailed, 5:16, nothing else running; `397268391` then moved five cases (1 + 4 orders) to `slow`. On the final tree (`638503830`): 11 081 passed, 191 skipped, 26 xfailed, 6:03, nothing else running. The previous merged run: 3 failed, 11 083 passed, the same total. Before the report fix: 11 failed, 11 009 passed, 191 skipped, 27 xfailed, 7:07. The merges bring main's tests, so the session's own delta is not separable; this session replaced one harmonic test with one.
+- Added tests in the fast tier (the branch against main): 33.45 s over 29, of which 25.4 s were the two domain tests now `slow`; `test_cross_backend.py`'s added row 5.74 s over 21 cases, the rest under 1 s each.
+- Full selection, once, on the final tree before its last fixes (main through #1098 merged, `397268391`): 2 failed, 4 errors, 11 471 passed, 202 skipped, 41 xfailed, 54:58, nothing else running (the 5th session's took 29:55; the rise is not investigated). Bisected by running today's tests over each commit's `src`: the two failures arrived with `fef4a7c46` (synthetic data drawn at the closing windows), the four errors with `90b4bc770` (the margin revert changed `predict`'s draw, and so the starts). Fixed in `638503830`, and those files then passed alone with their slow tests (228 passed): the strain screen's solve guarded by #225's rule (macOS's system LAPACK `gelsd` did not converge on a finite, rank-deficient 22 003 × 102 design that SciPy's `gelsd`, `gelss` and `gelsy` all solved), the two-site moment test drawn at 2 %, the parametric ramp's slope bar at two esds (five seed sets: −1.04, +0.15, −0.44, +0.32, −0.14 esd). Still erroring: the Stephens brucite TRF pair (*For the maintainer*).
+- Lanes: four `general-purpose` Opus agents sorted the test files, not dispatched under `/wp-start` 6c, so `session_usage.py lanes` sees none. Main context peaked at 623 K over 514 requests.
+
+*For the maintainer.*
+- **The Stephens brucite TRF fixture errors on this Mac.** Mid-solve in the last stage, SciPy's `gesdd` SVD does not converge on the near-singular Jacobian of the opt-in TRF solver; with a `gesvd` retry the fit completes at Rwp 0.1787 (the test expects 0.1790 ± 0.01). It is reached since the test seeds its scales with `compile_model` at the closing windows. A fix is either a retry inside `run_least_squares` (a new automatic action, needing its row) or accepting it on macOS; Linux is untested. Two errors in the full selection.
+- **`solve_magnetic`'s answer carries the declared windows' misfit.** Its stages run at 2 % with no closing stage (the 5th session's choice for package-built trials), so on data with full tails its moduli esds come out 1.61× larger on the two-site Pnma set (0.00242 against 0.00151 μ_B). Ending its winner in a closing stage would remove it at the closing stage's cost.
+- The code review's findings 3 and 5 and the judge's item 12 are design questions this round's rulings did not reach: a fit run with `closing_window_tol=None` still has its report read at the 0.1 % precision; a closing stage loosened past 1e-3 drops to the declared FCJ rule; `build_report` without `instrument=` silently reads one model (forwarded to 2004).
+- The magnetic floor moved from invariant to tier 3 on the judge's reading (a class with no conditional form), approved under the seventh round's Q2; reverse it if the condition should stay a label.
+- The automatic moment-angle interval's switch stays private (`_auto_intervals`); a public one is a rename at three sites.
+
+*Review.* `/code-review high --fix 8023d18a8..663c2c992` found nine. Fixed in `abc9ac925`: after a fit with `closing_window_tol=None`, `_plan_settings` stored a recorded `None` that `run_stage` now reads as the closing windows, so every trial refit (intervals, profiles, verify, rivals) compared a 0.1 % χ² against a 2 % one; `_model_ticks` compiled at the 1e-3 default only to read positions; `_reading_models`' docstring misdescribed the texture screen. Declined: (2) storing resolved floats in every record instead of `None` (moves every golden and record; the trap is named in Gotchas); (3) and (5), the maintainer's (above); (4) the numpy path's chunk size at 1024 nodes, measured above at 29-56 MB a plane on lab data, a retune needing its own row; (8) the report twin's `moving_paths=None`, which is the safe "no claim" against a partial set; (9) the polish's grid literals (11×11, 0.3, 0.9) without rows, left for WP-2017's walk with the rest of the inline literals.
+
+*Gotchas.*
+- `None` means 2 % in a record (`StageResult`, `NodeAction`, `_plan_settings`) and 1e-3 to `compile_model` and `run_stage`; a new consumer forwarding a recorded value goes through `forward.recorded_window_tol` or compiles at the wrong precision silently.
+- A test that draws a synthetic pattern with `predict` now draws at the closing windows; a control measured on a 2 % draw (#934 (c)'s) can stop showing what it was written for.
+- The worktree guard refuses a heredoc followed by a `cd`, even in a subshell; write the script to the scratchpad.
+- On this Mac, numpy's `lstsq` and SciPy's `gesdd` (system LAPACK) can fail to converge on a finite, rank-deficient matrix that another driver solves; a path change can reach one, so a solve inside a report or a guard follows #225's rule.
+
+*Generality.* The judge's report follows unedited. The author's answer sits under each `weak`, `against` and `fails`.
+
+Terms used throughout. The *closing stage* is the final solve with everything free that every plan now ends on. It runs at windows dropping 1e-3 of each peak (`CLOSING_WINDOW_TOL`). The *declared stages* run before it, at 2 % (`WINDOW_AREA_TOL`). *FCJ* is the axial-divergence asymmetry: rietx computes it as a sum of shifted copies of the symmetric peak (nodes), so the FCJ rows set how many copies each peak gets. *B10* is the 2026-10-19 ruling: a numerical setting is tier 1 once a test bounds its error over the domain it claims. *Plain esd* is the esd before the Bérar–Lelann inflation.
+
+**1. rietx.model.origin.A5_CLIP (tier 3 → 1, 1e-3 → 1e-4)**
+
+**holds.** The test bounds the error with a 7× margin, and I found no case for keeping 1e-3.
+
+| Q | Author (where) | Found | Verdict |
+|---|---|---|---|
+| 1 | "moves only the origin convention" (row) | It clips the weight of the dominant site in a polar-group origin fix (A5 is the condition under which the paper's weights exist). It moves only the light sites' z esds. | ok |
+| 2 | numerical setting | Arithmetic. Not a kind-1/2/3 decision. | ok |
+| 3 | 1e-3 left 1.40 % against a 1 % bar | none found | — |
+| 4 | 0.14 % over 1200 matrices; "about 1 ms more per solve" | `test_the_clipped_centroid_stays_within_an_esds_own_error_of_the_hold` asserts ≤ 1 %. It was made to fail at 1e-3. The domain is random matrices of 3–8 sites plus PbTiO₃. A polar structure with more than 8 sites is untested. | ok |
+| 5 | tier 1 | B10, with the test named | ok |
+| 6 | synthetic matrices, PbTiO₃ | A numerical domain, not dataset families | n/a |
+| 7 | — | `ORIGIN_FIXED_ON_POLAR_AXIS` (refine.py:6590 reads `.clipped`) | ok |
+
+Would change: a failure above 8 sites.
+
+**2. TEXTURE_SPHERE_SAMPLES (3 → 1), TEXTURE_POLISH_STARTS, TEXTURE_POLISH_LEVELS (new, 1)**
+
+**holds.** The local polish leaves at most 1.7e-9 against a 1e-3 bar. The reference it is checked against is independent of it.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | where `TEXTURE_NOT_POSITIVE` (the warning that the pole density goes negative somewhere) looks for the lowest density | Same | ok |
+| 2 | numerical | Arithmetic | ok |
+| 3 | 0 starts left 2.0e-3–7.9e-3 | none found | — |
+| 4 | 9–15 ms a call | `test_the_sampled_sphere_minimum_meets_the_true_one`, orders 2–8. The reference is a 20 000-point grid with Nelder-Mead from its 5 lowest points. It also asserts the shipped minimum is never below the true one. It covers 4 of the 11 Laue classes; cubic is not among them. | ok |
+| 5 | tier 1 | B10 | ok |
+| 6 | — | n/a | n/a |
+| 7 | — | `PhaseTexture.min_p_sphere`, `TEXTURE_NOT_POSITIVE` | ok |
+
+Would change: a cubic or multi-dip case above 1e-3.
+
+**3. fcj.CLOSING_NODES_PER_FWHM / CLOSING_MIN_NODES / CLOSING_MAX_NODES / CLOSING_SKIP_EXTENT_FWHM_RATIO (new, tier 1)**
+
+**holds.** The test exists, has no expected failures, and passes over the claimed domain. The synchrotron margin is thin.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | the FCJ node rule at the closing precision | Same | ok |
+| 2 | numerical | Arithmetic | ok |
+| 3 | "the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95" | The bar is a tenth of σ/peak at the strongest peak of FAP (lab) and NAC (synchrotron). The synchrotron worst is 0.81 of its bar, so a pattern counting about 1.5× NAC's peak would exceed it. The cap test probably never binds in the domain (`_assert_fcj_bar` returns early when no case reaches it), which I could not confirm without running it. This rule's 3e-4 skip ratio also broke the FitReport's test for telling zero shift from displacement (item 12). | weak point |
+| 4 | worst 1.6e-4 lab, 9.9e-5 synchrotron over 8 500 cases | `test_the_closing_node_rule_meets_the_bar`, marked slow, 24 cells × 4 regions. It was made to fail at 6 nodes per FWHM. | ok |
+| 5 | tier 1 | B10 | ok |
+| 6 | lab and synchrotron apertures and widths | Domain, not families | n/a |
+| 7 | — | `StageResult.window_area_tol` implies the rule | ok |
+
+Would change: a higher-count synchrotron pattern measured against the bar.
+
+> Author: recorded; a synchrotron pattern counting more than NAC is WP-2017's to measure against the bar.
+
+**4. rietx.model.forward.MAGNETIC_SIZING_FLOOR (tier 3 → invariant)**
+
+**weak.** The answer is invariant only behind the closing stage, and three reachable paths have none.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | the window size for a magnetic width freed from zero | Same | ok |
+| 2 | — | Numerical | ok |
+| 3 | "the package's magnetic default solve runs no closing stage" (row) | The default solve, `closing_window_tol=None` (which 9c.34 now recommends for screening) and a stage run by hand all have no closing stage. The test file's own header says "a plan that ends on the stage freeing the width keeps the clipping: 0.07, 0.17 and 0.57 esd on the moment". | against |
+| 4 | 0.000 plain esd behind the closing stage | `test_the_preset_answer_does_not_depend_on_the_magnetic_floor` asserts ≤ 0.1, so the margin is asserted. | for |
+| 5 | invariant | The record's answer-invariant class has no conditional form. | fails as worded |
+| 6 | "synthetic MnF2, one family" | One synthetic family | — |
+| 7 | none given | — | gap |
+
+Would change: invariance measured with the closing stage off and on the default magnetic solve, or tier 3 with the condition stated.
+
+> Author: tier 3 now, with the three paths and the 0.07-0.57 esd stated, approved under the seventh round's Q2 (the value left alone); flagged for the maintainer.
+
+**5. rietx.refine.Refinement.run_stage:window_area_tol (tier 3 → 1)**
+
+**holds.** A stage run by hand is the answer, and every surveyed program computes its answer at its one window setting.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | None now resolves to 1e-3, and with it the closing FCJ rule | Same | ok |
+| 2 | 1 | Agrees. I found no program with two window settings (rulings, seventh round Q1). | ok |
+| 3 | "A caller wanting the fast stage passes WINDOW_AREA_TOL" | A GUI user stepping through stages pays the time. The magnetic and axial sizing floors still act on a stage run by hand, with no closing stage after it. | minor |
+| 4 | "at 2 % that answer carried up to 0.97 esd on lab data" | The cost (1.2–3.5× the stage) is "inferred" in the brief; none given measured. | ok |
+| 5 | tier 1, inherited from `CLOSING_WINDOW_TOL` | Whose own row records LaB6 missing its answer bar by 0.908 esd (the U clamp) | ok |
+| 6 | four protocols | via that row | ok |
+| 7 | "the stage records the fraction it ran at" | `StageResult.window_area_tol` | ok |
+
+Would change: a measured time cost large enough to matter in the GUI.
+
+**6. rietx.optimize.least_squares.GTOL, XTOL (caller → tier 3)**
+
+**holds.** This applies the 2026-10-21 caller-tier ruling: a number the package defaults inside the opt-in TRF solver is tiered on its own.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1–2 | the TRF stopping tolerances | Numerical | ok |
+| 3 | "four orders under SciPy's own 1e-8" | SciPy is a library, not a refiner | — |
+| 4 | at 1e-8 corundum's strain anisotropy failed its bar (3.64 against < 2.0) | WP-1109, one family (CPD) | ok |
+| 5 | tier 3, "domain test owed (B10)" | Honest | ok |
+| 6 | CPD only | One family | stated |
+| 7 | — | n/a for a tolerance | — |
+
+Would change: the owed domain test.
+
+**7. rietx.schemas.instrument.DEFAULT_HARMONIC_ORDER (deleted; `harmonics=True` refused)**
+
+**holds.** The evidence for removal is stronger: which orders pass is a fact about the crystal.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | the caller must name the orders | One argument per call | ok |
+| 2 | — | Kind 3: the monochromator is outside the pattern | ok |
+| 3 (for keeping) | old docstring: the second order "normally" carries the intensity | Recalled, not checked here: Si(111) and Ge(311/511/115/335) pass no λ/2 (diamond-structure extinction), and many high-resolution neutron instruments use Ge. | weak for keeping |
+| 4 | the refusal names Cu(311), PG, Si(111), Ge(311) | Breaks `harmonics=True` and a bare `Harmonic()`. I found no `exclude_defaults`, so saved files carry the order. | ok |
+| 5–7 | — | n/a | — |
+
+Would change: a survey showing λ/2 dominant on nearly all CW instruments.
+
+**8. rietx.model.forward.AXIAL_SIZING_FLOOR (tier 3, re-evidenced)**
+
+**holds** as a record of tier 3 deferred to WP-2017 (the planned second pass over tier-3 settings). cpd-1a's 0.138 esd behind the closing stage is stated and is a strict expected failure.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 3 | 0.229–0.516 esd without the closing stage | Still reaches `closing_window_tol=None` | stated |
+| 4 | 0.05 costs 1.25–1.8× | — | ok |
+| 5 | tier 3, approved 2026-10-22 | Matches eighth round item 3 | ok |
+| 7 | — | none | gap (as before) |
+
+Housekeeping: the comment in test_lab_instrument.py:710 still quotes the old "0.16 esd". Would change: WP-2017's measurement.
+
+> Author: the comment is kept: it quotes the two floors' fixed points (the 5th session's measurement), a different quantity from the start test's 0.138.
+
+**9. rietx.model.forward.REFLECTION_MARGIN_DEG (tier 3, re-evidenced)**
+
+**holds** as a record. The reverted edge rule and the ridge it freed are recorded.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 3 | fails on FAP and cpd-1a, 0.026–0.043 esd behind the closing stage | Stated | ok |
+| 4 | the wider margin freed a scale-B ridge (corundum 72.5 → 50.8 wt%, true 72.7) | On a synthetic scan | ok |
+| 5 | grounds cite "the eighth round (ruled 2026-10-22)" | But `approved="2026-10-21"` | inconsistent |
+
+Housekeeping: the forward.py comment still says "owed to the maintainer". Would change: WP-2017.
+
+> Author: both fixed (`approved="2026-10-22"`, and the comment now says the eighth round kept 0.5°).
+
+**10a. rietx.model.forward.WINDOW_AREA_TOL (grounds updated)**
+
+**weak.** The list of places this 2 % still reaches omits a new deliberate consumer.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | reaches `closing_window_tol=None`, the magnetic trial moments, `SolveCost.from_pawley` | `report._reading_models` now compiles the report's shape model at this value, so it decides the region attribution ranking (Layer 1) and the texture screen. | missing |
+
+Would change: grounds naming the report.
+
+> Author: the grounds now name the report's shapes.
+
+**10b. fcj.NODES_PER_FWHM / MIN_NODES / MAX_NODES / SKIP_EXTENT_FWHM_RATIO (grounds updated)**
+
+**weak.** The grounds say "the declared stages, which only steer". Two places where the declared FCJ rule decides more are not named.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 3 | "which only steer" | Under `closing_window_tol=None` this rule computes the answer, with up to 5.6e-3 of the peak maximum, 8× the bar. The report's shape model also uses it. | missing |
+
+Would change: grounds naming both.
+
+> Author: the four rows' grounds now name a closing-off answer (5.6e-3) and the report's shapes.
+
+**10c. rietx.model.origin.A6_MAX_ITER (invariant, re-evidenced)**
+
+**weak.** The cap is now reached in 41 % of cases. Invariance rests on the sum solve taking over, and no test varies the cap.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 4 | "reached by 498 of the 1200 … every one met by the sum solve" | The test asserts `converged`, not invariance to the cap. A larger cap could keep the iteration's own result, within A6_RTOL (1e-3), instead of the sum solve's. | partial |
+| 5 | "tests/test_floating_origin.py:694" | Stale. The test is `test_eq_21_is_met_where_a5_holds_by_a_hair` at line 840. | fix |
+
+Would change: a test at caps of 2000 and 20 000 that asserts the margin.
+
+> Author: the reference now names the test. The test across caps is not added; it is owed with the other B10 domain tests.
+
+**11. FCJ rule chosen by window fraction; compile_model and predict default to CLOSING_WINDOW_TOL (not in the table)**
+
+**weak.** It follows the seventh round's Q1 ruling. The brief's own condition for changing its mind was never measured.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | `closing_precision = window_area_tol <= CLOSING_WINDOW_TOL` | One number switches two settings at a step. The caller cannot choose the FCJ rule separately. | — |
+| 3 | — | `None` means 1e-3 to `compile_model` and 2 % to `recorded_window_tol`, so a caller passing a recorded `None` straight through rebuilds the wrong stage (documented in docstrings only). The brief said it would reverse "if one predict call took more than about a second on a large lab pattern with Lorentzian peaks"; none given measured. The 1024-node cap adds to that. | against |
+| 4 | the 0.8σ predict/y_calc gap; synthetic tests now exercise the shipped path | Measured | for |
+| 7 | `CompiledModel.window_area_tol` | Not a record schema; the stage's field covers fits | partial |
+
+Would change: a timed `predict` on a large lab Lorentzian pattern.
+
+> Author: timed: 8-29 ms on LaB6, FAP and cpd-1a, 138 ms on NAC's 59 498 points (*Measured*). The two meanings of `None` are under *Gotchas*; storing resolved floats instead (the review's finding 2) moves every record and golden, so it is declined here.
+
+**12. FitReport's two-precision reading (report._reading_models)**
+
+**weak.** The default path is measured both ways. The fallback silently reproduces the measured misreading.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 1 | misfit at the closing precision, shapes at the declared one | Ruled, eighth round item 1 | ok |
+| 3 | — | `instrument=` defaults to `None` with no warning, and Pawley always reads one model. Either way a default fit's closing-precision model supplies the shapes. That brings back the near-collinear zero-shift and displacement shapes (\|cos\| 0.9986) and the 0.35 false texture reading. The declared rule skips asymmetry under extent/FWHM 0.02, so a real axial misfit near 90° has no shape to be attributed to. That last point is my inference, not measured. | against |
+| 4 | the displaced specimen ranks displacement first at 0.995; 4–19 ms a compile | Synthetic cases only | for |
+| 6 | — | No real-data family named | none given |
+
+Would change: the fallback warning or refusing, and a real-data case.
+
+> Author: declined here. A warning or a refusal on the fallback is a change of behaviour the maintainer has not ruled on; it goes to *For the maintainer* and to WP-2004 with the mechanism.
+
+**13. Skill row batch-operating.md 9c.34**
+
+**weak.** It passes Rule 4 by naming a field, but its evidence is four of rietx's own fits (Rule 3), and it says nothing about units the screen rejects.
+
+| Q | Author | Found | Verdict |
+|---|---|---|---|
+| 3 | "Refit the units a screen keeps with it on" | Off, answers sit 0.15–0.96 esd away. A unit rejected on that error is never refit. | gap |
+| 4 | "1.2-2.3×", one fit each on four patterns | The eighth-round table gives 1.21–2.35× (rounding). The maintainer asked for this record. | ok |
+| 6 | four acceptance patterns, "no batch has timed it" | rietx's own runs | Rule 3 |
+
+Would change: a timed batch, or a source outside rietx for the practice.
+
+> Author: the row now asks for the units near the cut as well. A timed batch is owed; the row says none has timed it.
+
+Next: first the two items that keep a measured result wrong or red, under *For the maintainer*: the Stephens brucite TRF error (it keeps the full selection red on macOS) and `solve_magnetic` ending in no closing stage (its esds 1.61× on realistic data). Then the three design questions the review and the judge raised, since one of them (the report of a closing-off fit) changes what a speed-mode user is told. Then B14's lifts (the ~50-guard list to the judge) and the two owed domain tests (the interval and width-grid settings), which keep the tiering and demotion items open; whether this WP closes with them or hands them to WP-2017 is the maintainer's call.
 
 ### 2026-10-21 (5th session) — the sixth round built: every plan ends in a closing stage, and the width ceilings sit at the 2θ axis
 
