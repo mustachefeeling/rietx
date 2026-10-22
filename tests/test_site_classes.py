@@ -206,6 +206,33 @@ def test_an_operator_list_with_a_special_position_off_the_grid_is_refused():
         site_classes(OperatorGroup(label="P-1 [1/24]", xyz=("x,y,z", "-x+1/24,-y,-z")))
 
 
+_P3 = ("x,y,z", "-y{t},x-y,z", "-x+y{t},-x{t},z")
+
+
+def _p3(t: str) -> OperatorGroup:
+    shifted = tuple(op.format(t=t) for op in _P3)
+    return OperatorGroup(label=f"P3 [t={t or 0}]", xyz=shifted)
+
+
+@pytest.mark.parametrize("t", ["+1/24", "+1/12", "+1/3"])
+def test_a_three_fold_axis_off_the_grid_is_refused_whatever_the_translation(t):
+    """-y+t, x-y, z fixes (2t/3, t/3): the denominator of a special position is
+    set by the rotation as well as the translation, so every translation here is
+    on the 1/24 grid and the axis is on neither grid (review round 3)."""
+    with pytest.raises(ValueError, match="SITE_CLASSES_GRID"):
+        site_classes(_p3(t))
+
+
+def test_plain_p3_and_a_shifted_p3_with_its_axis_on_the_grid_give_four_classes():
+    """The positive arm: t = 0 is P3, and t = (I - R)s for a grid origin s is the
+    same group moved, with 1a, 1b, 1c and the general position."""
+    plain = site_classes(_p3(""))
+    assert sorted(c.multiplicity for c in plain) == [1, 1, 1, 3]
+    moved = OperatorGroup(label="P3 [origin 1/24]", xyz=(
+        "x,y,z", "-y+1/24,x-y-1/24,z", "-x+y+1/12,-x+1/24,z"))
+    assert sorted(c.multiplicity for c in site_classes(moved)) == [1, 1, 1, 3]
+
+
 def test_the_same_inversion_on_the_grid_gives_all_nine_classes():
     """The positive arm: -x+1/12 puts every centre on the 1/24 grid."""
     classes = site_classes(OperatorGroup(label="P-1 [1/12]", xyz=("x,y,z", "-x+1/12,-y,-z")))

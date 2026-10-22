@@ -21,12 +21,17 @@ Crystallography Vol. A, Hahn ed., 2005, sect. 8.3.2).  Three steps:
    gemmi's own ``Op.DEN``, so every translation gemmi can represent lies on it.
    An off-grid translation is still refused by name (``SITE_CLASSES_GRID``)
    rather than rounded.  Translations on the grid do not put every special
-   position on it: ``-x+1/24`` fixes x = 1/48.  A tabulated setting is
-   certified (all 564 gemmi settings are checked against spglib), so an
-   :class:`~.symmetry.OperatorGroup`, whose operations no table vouches for, is
-   also scanned on the 1/48 grid and refused by the same name when that finds
-   a stabiliser the 1/24 grid missed.  The guarantee is the 1/48 grid, not
-   every rational point.
+   position on it: ``-x+1/24`` fixes x = 1/48, and a 3-fold ``-y+t, x-y, z``
+   fixes (2t/3, t/3), off both the 1/24 and the 1/48 grid for t = 1/24, 1/12
+   or 1/3.  A tabulated setting is certified (all 564 gemmi settings are
+   checked against spglib).  An :class:`~.symmetry.OperatorGroup`, whose
+   operations no table vouches for, is checked two ways, and refused by the
+   same name: **(a)** every operation that has fixed points at all (decided
+   exactly, over the integers, by :func:`_has_fixed_point`) must fix a point
+   of the 1/24 grid; **(b)** a scan of the 1/48 grid must find no stabiliser
+   the 1/24 grid missed, which catches a common fixed point of several
+   operations that none of them has alone.  (a) is exact per operation; (b)
+   is a grid, not every rational point.
 2. **One fixed subspace per stabiliser.** The points one stabiliser S fixes form
    an affine subspace p + span(B), with B = :func:`~.wyckoff.coordinate_basis`
    of S's rotations — the free-parameter basis the rest of the package already
@@ -79,10 +84,10 @@ from .wyckoff import coordinate_basis, site_constraints
 #: The grid the stabilisers are measured on, in fractions of each cell edge.
 GRID = 24
 
-#: Default cap on :func:`site_assignments`, by name.  The spike raced up to
-#: 4 000 assignments per case; five times that is still a
-#: list a search can hold, and anything larger means the composition, the
-#: space group or the cell is wrong for a site-class search.
+#: Default cap on :func:`site_assignments`, by name.  rietx's own choice: five
+#: times the largest case seen on one family (4 000 on our solve kits).  A
+#: correct large cell can exceed it; the refusal carries the exact count and
+#: ``max_assignments=`` overrides.
 MAX_SITE_ASSIGNMENTS = 20_000
 
 #: Grid points per chunk of the stabiliser scan, so a 192-operation group keeps
@@ -190,6 +195,39 @@ def _stabiliser_keys(r: np.ndarray, t: np.ndarray, n: int) -> set[bytes]:
     return out
 
 
+def _has_fixed_point(r: np.ndarray, t24: np.ndarray) -> bool:
+    """Whether the operation (R, t) fixes any point of space, grid or not.
+
+    R·p + t = p + n has a rational solution p, with n an integer vector, exactly
+    when yᵀt is an integer for every integer y with yᵀ(R − I) = 0 (the Smith
+    argument: with U(R − I)V = D, only the zero rows of D constrain t).  The
+    rows of U that U·(R − I) sends to zero are a basis of that integer left
+    kernel, so one row-reduction of R − I over Z, tracking U, decides it.
+    ``t24`` is 24·t, an integer vector.
+    """
+    a = [[int(v) for v in row] for row in (r - np.eye(3, dtype=np.int64))]
+    u = [[int(i == j) for j in range(3)] for i in range(3)]
+    top = 0
+    for col in range(3):
+        while True:  # Euclid down the column, below the pivot row
+            rows = [i for i in range(top, 3) if a[i][col] != 0]
+            if len(rows) <= 1:
+                break
+            piv = min(rows, key=lambda i: abs(a[i][col]))
+            for i in rows:
+                if i != piv:
+                    q = a[i][col] // a[piv][col]
+                    a[i] = [x - q * y for x, y in zip(a[i], a[piv])]
+                    u[i] = [x - q * y for x, y in zip(u[i], u[piv])]
+        rows = [i for i in range(top, 3) if a[i][col] != 0]
+        if rows:
+            a[top], a[rows[0]] = a[rows[0]], a[top]
+            u[top], u[rows[0]] = u[rows[0]], u[top]
+            top += 1
+    return all(sum(u[i][j] * int(t24[j]) for j in range(3)) % GRID == 0
+               for i in range(3) if not any(a[i]))
+
+
 def _saturated(basis: np.ndarray) -> bool:
     """Whether ``basis`` spans span(B) ∩ Z³: the gcd of its maximal minors is 1."""
     if basis.shape[0] in (0, 3):
@@ -257,6 +295,7 @@ def _derive(sg) -> tuple[SiteClass, ...]:
     axis = np.arange(GRID, dtype=np.int64)
     grid = np.array(list(itertools.product(axis, axis, axis)), dtype=np.int64)
     n_pts = len(grid)
+    on_grid = np.zeros(order, dtype=bool)
 
     # 1. the exact affine stabiliser of every grid point, as a hashable key:
     #    which operations fix it, and with which lattice translation
@@ -269,6 +308,7 @@ def _derive(sg) -> tuple[SiteClass, ...]:
         pts = grid[lo:lo + _CHUNK]
         diff = np.einsum("oij,pj->poi", r, pts) + t[None] - pts[:, None, :]
         fixes = np.all(diff % GRID == 0, axis=2)
+        on_grid |= fixes.any(axis=0)
         count[lo:lo + len(pts)] = fixes.sum(axis=1)
         for i in np.flatnonzero(count[lo:lo + len(pts)] > 1):
             ops = np.flatnonzero(fixes[i])
@@ -280,13 +320,27 @@ def _derive(sg) -> tuple[SiteClass, ...]:
             members[kid].append(lo + i)
             key_of[lo + i] = kid
 
+    # an operation with fixed points, none of them on the grid, has its special
+    # positions where no scan looks: -x+t fixes x = t/2, and a 3-fold -y+t, x-y, z
+    # fixes (2t/3, t/3), whatever the translations' own denominator
+    off = [i for i in np.flatnonzero(~on_grid) if _has_fixed_point(r[i], t[i])]
+    if off:
+        raise ValueError(
+            f"SITE_CLASSES_GRID: {sg.xhm()!r} has special positions off the "
+            f"1/{GRID} grid: {len(off)} operation(s) (first: operation {off[0]}, "
+            f"rotation {r[off[0]].tolist()}, translation {(t[off[0]] / GRID).tolist()}) "
+            "fix points of space but none on it.  Every operation's fixed points "
+            f"must include a multiple of 1/{GRID}, as they do when the list is a "
+            "tabulated setting with its origin moved by a grid vector; use "
+            "such an origin, or transform to a tabulated setting")
     if fine is not None and fine != set(keys):
         raise ValueError(
             f"SITE_CLASSES_GRID: {sg.xhm()!r} has special positions off the "
             f"1/{GRID} grid: its operations put {len(fine) - len(keys)} "
             f"stabiliser(s) on the 1/{2 * GRID} grid and none on the 1/{GRID} one "
-            "(an inversion -x+t fixes x = t/2); use translations that are "
-            f"multiples of 1/{GRID // 2}, or transform to a tabulated setting")
+            "(each operation has a fixed point on the grid, but a common one "
+            "does not); use an origin on the grid, or transform to a "
+            "tabulated setting")
 
     # 2–3. walk the stabiliser keys; each unassigned one opens a class, and its
     #      subspace's images claim every key of the same Wyckoff position

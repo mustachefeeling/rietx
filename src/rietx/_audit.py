@@ -798,10 +798,13 @@ ROWS: tuple[Row, ...] = (
                  "multiple of 1/Op.DEN = 1/24, so the affine stabilisers are exact on the "
                  "1/24 grid, and an off-grid translation is refused by name "
                  "(SITE_CLASSES_GRID). Special positions can still fall off it (-x+1/24 "
-                 "fixes x = 1/48): a tabulated setting is certified by the completeness check below, and "
-                 "an operator list is also scanned on the 1/48 grid and refused by the same "
-                 "name when that finds a stabiliser the 1/24 grid missed "
-                 "(test_an_operator_list_with_a_special_position_off_the_grid_is_refused). "
+                 "fixes x = 1/48; a 3-fold -y+t,x-y,z fixes (2t/3,t/3)), so an operator "
+                 "list is refused by the same name when (a) an operation that has fixed "
+                 "points, decided exactly over the integers, fixes none on the 1/24 grid "
+                 "(test_an_operator_list_with_a_special_position_off_the_grid_is_refused, "
+                 "test_a_three_fold_axis_off_the_grid_is_refused_whatever_the_translation), "
+                 "or (b) a 1/48 scan finds a stabiliser the 1/24 grid missed. (a) is exact per "
+                 "operation; (b) is a grid, kept for a point only several operations share. "
                  "Completeness is checked on all 564 gemmi settings "
                  "against spglib's Wyckoff letters (test_every_setting_matches_spglib).",
         value=24),
@@ -809,10 +812,10 @@ ROWS: tuple[Row, ...] = (
         evidence="refuses with the exact count and never truncates "
                  "(SITE_ASSIGNMENTS_EXCEED_CAP); max_assignments= overrides; largest case "
                  "seen 4 000 on our own solve kits",
-        grounds="Above the cap the composition, the space group or the cell is wrong "
-                "for a site-class search, so refusing with the count is the package's "
-                "act: a list that large is one no search can hold or race, and the "
-                "caller who wants it passes max_assignments=.",
+        grounds="The cap is rietx's own choice: five times the largest case seen on "
+                "one family. A correct large cell can exceed it (a 315-atom one-species "
+                "cell in R -3 m does); the refusal carries the exact count, nothing is "
+                "truncated, and the caller who wants the list passes max_assignments=.",
         approved="2026-10-21",
         value=20000),
     Row("rietx.crystallography.site_classes._CACHE_SIZE", "constant", tier="invariant",
