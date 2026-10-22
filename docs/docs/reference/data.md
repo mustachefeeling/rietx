@@ -343,9 +343,9 @@ The phase's `parent_cell` field holds a `ParentCell`, and `None`, the default, l
 | `ParentCell.space_group` | `str` | the parent's space group, whose constraints the parent's cell refines under |
 | `ParentCell.transform` | `str` | the parent → child transform (P, p) |
 | `ParentCell.cell` | `Cell` | the parent's cell, the refined lengths and angles |
-| `ParentCell.strain` | list of `Parameter` | one dimensionless amplitude per Γ lattice strain the child's group allows and the parent's does not |
+| `ParentCell.strain` | list of `Parameter` | one dimensionless amplitude per lattice strain the child's group allows and the parent's does not |
 
-The child's metric is G′ = Pᵀ·(G_parent + 2·L·E·L)·P, with L the parent's edge lengths on the diagonal and E the Green–Lagrange strain the amplitudes build in the parent's axes (Campbell et al., 2006).
+The child's metric is $G' = P^\mathsf{T}(G_\mathrm{p} + 2LEL)P$, with $G_\mathrm{p}$ the parent's, $L$ the parent's edge lengths on the diagonal and $E$ the Green–Lagrange strain the amplitudes build in the parent's axes (Campbell et al., 2006).
 The child's own six cell parameters are then derived and locked: a stored child cell that disagrees with the one its parent and strains give is refused, and the way to change it is to edit the parent's cell or a strain.
 `phases.*.cell.*` frees the parent's edges and never a strain, so a strain is freed only by naming its own path under the phase's `parent_cell`.
 `rietx.crystallography.magnetic.supercell.magnetic_supercell` writes this field where the child needs it, or for every child with `parent_cell=True`.
