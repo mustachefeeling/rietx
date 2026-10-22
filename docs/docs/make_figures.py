@@ -29,6 +29,7 @@ with the test that proves the claim, and nobody would find out.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -40,6 +41,8 @@ import matplotlib.pyplot as plt  # noqa: E402  (after the backend is fixed)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FIGURES = Path(__file__).resolve().parent / "figures"
+#: The site's colours (WP-2021), read for the light twin's ground.
+TOKENS = REPO_ROOT / "docs" / "landing" / "src" / "tokens.css"
 sys.path.insert(0, str(REPO_ROOT))
 
 import rietx as rx  # noqa: E402  (needs the repo on sys.path)
@@ -70,6 +73,12 @@ def _rc(style: str):
                              + [rc])
 
 
+def light_ground() -> str:
+    """The light page's colour, `--bg` in the token file's first (light) block."""
+    light = TOKENS.read_text(encoding="utf-8").split("@media", 1)[0]
+    return re.search(r"--bg:\s*(#[0-9a-fA-F]{6})", light).group(1)
+
+
 def _save(fig, stem: str, style: str) -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
     path = FIGURES / f"{stem}-{style}.png"
@@ -77,8 +86,18 @@ def _save(fig, stem: str, style: str) -> None:
     # fringe on any retina display, which is where the manual is read.
     # The dark twin is saved on a transparent ground: the theme's dark page is
     # not black, so an opaque figure sits on the page as a rectangle.
-    # The light twin keeps its white ground, because its type is dark and a
-    # transparent PNG opened anywhere dark would be unreadable.
+    # The light twin stays opaque, because its type is dark and a transparent
+    # PNG opened anywhere dark would be unreadable.  Its ground is the light
+    # page's own colour rather than white (WP-2021), so on the page it shows no
+    # edge: every white patch, the figure's, each panel's and each legend's,
+    # takes it, which reaches `plot_result`'s figures without touching them.
+    if style == "light":
+        ground = light_ground()
+        legends = [ax.get_legend() for ax in fig.axes] + list(fig.legends)
+        for patch in [fig.patch, *(ax.patch for ax in fig.axes),
+                      *(legend.get_frame() for legend in legends if legend)]:
+            if tuple(patch.get_facecolor()[:3]) == (1.0, 1.0, 1.0):
+                patch.set_facecolor(ground)
     fig.savefig(path, dpi=200, bbox_inches="tight", transparent=style == "dark")
     plt.close(fig)
     print(f"  {path.relative_to(REPO_ROOT)}")
