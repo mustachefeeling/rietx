@@ -372,7 +372,7 @@ assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
 ```
 
 The order has no default, because which orders pass depends on the monochromator's crystal.
-Cu(311) and pyrolytic graphite pass λ/2.
+Cu(311) and graphite pass λ/2.
 In the diamond structure of Si and Ge, a reflection on all-odd indices has its second order extinct, so Si(111), Ge(311) and Ge(733) pass λ/3 and no λ/2.
 `harmonics=True` is refused with that message.
 

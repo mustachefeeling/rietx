@@ -143,7 +143,7 @@ below {{ WINDOW_AREA_TOL }} (`rietx.model.forward.window_fwhm_mult`). That is
 a declared stage's fraction. A plan's closing stage, a stage run by hand and
 any model evaluated outside a fit use {{ CLOSING_WINDOW_TOL }}. Each phase's
 reflections are generated 0.5° past either edge of the range
-(`rietx.model.forward.REFLECTION_MARGIN_DEG`), so a peak centred just outside
+(`rietx.model.forward.REFLECTION_MARGIN_DEG`), so a peak centred outside
 the range still adds its tail.
 
 Node positions and weights follow the parameters, smoothly. Freezing everything

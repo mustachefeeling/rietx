@@ -371,7 +371,7 @@ Without a `plan`, the trials and the nuclear reference run no closing stage, so 
 The winner then runs one closing stage from its own fit.
 Its moments and their esds, Rwp, GoF and magnetic-only R come from that stage, and a caveat says so.
 Its ΔBIC stays the ranking's.
-On a synthetic two-site Pnma pattern the larger modulus's esd falls from 0.00242 to 0.00151 μ<sub>B</sub>, because the declared windows drop the peak tails.
+On a synthetic two-site orthorhombic pattern the larger modulus's esd falls from 0.00242 to 0.00151 μ<sub>B</sub>, because the declared windows drop the peak tails.
 A `plan` you pass keeps its own `closing_window_tol` for every fit, the winner's included.
 
 `solve_magnetic` refuses a pattern that is not constant-wavelength neutron, a refinement that has not fitted, a phase that already declares a magnetic space group, and a phase that declares a propagation vector.

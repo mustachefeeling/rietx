@@ -66,7 +66,7 @@ info[HOLD_BLOCKED_PLAN]: 1 held parameter was matched by the turn_on glob of sta
 `HOLD_BLOCKED_PLAN` confirms that H/L stayed at the value you set.
 
 The zero shift and the specimen displacement still correlate with the cell held.
-The zero shift refined to 0.01976(61)° against 0.02° in the instrument that made the data, and the displacement to -0.0006(14) mm against zero.
+The zero shift refined to 0.01976(61)° against 0.02° in the instrument that made the data, and the displacement to −0.0006(14) mm against zero.
 The profile keeps the zero shift and drops the displacement, and the sample fit refines a displacement of its own.
 
 Do not save a calibration that reports [`RESOLUTION_NOT_POSITIVE`](../reference/diagnostics-refinement.md#resolution_not_positive).

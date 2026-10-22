@@ -276,7 +276,7 @@ Use it for a number going into a paper, for a number reproduced from an earlier 
 ## The closing stage
 
 Every plan ends with one more stage than it declares.
-The closing stage recompiles the model at the answer, with peak windows that drop `RefinementPlan.closing_window_tol` of each peak's area, and solves once more with every pattern any declared stage freed.
+The closing stage compiles the model again at the answer, with peak windows that drop `RefinementPlan.closing_window_tol` of each peak's area, and solves once more with every pattern any declared stage freed.
 
 ```python
 import rietx as rx
@@ -449,7 +449,7 @@ for stage in result.stages:
 | `StageResult.ftol` | the tolerance it ran at; `None` is the solver default |
 | `StageResult.n_constraint_truncations` | steps the `lm` driver held on a linear inequality |
 | `StageResult.n_degenerate_cell_probes` | trial cells the residual refused as degenerate, with zero or negative volume |
-| `StageResult.n_lapack_fallbacks` | decompositions the solve and its esds repeated with LAPACK's second driver because the first did not converge, the same answer by another route |
+| `StageResult.n_lapack_fallbacks` | LAPACK calls the solve and its esds repeated with the second driver because the first did not converge, the same answer by another route |
 | `StageResult.held` | parameters the plan freed that this stage held because the data cannot determine them |
 | `StageResult.held_reach` | per held parameter, the tied parameters it also stopped |
 | `StageResult.released` | parameters held at the start and freed again within the stage |
