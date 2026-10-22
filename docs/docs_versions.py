@@ -94,7 +94,7 @@ RETIRED: dict[str, str] = {
     "using/exports": "reference/exports",
     "using/files": "reference/pattern-files",
     "using/first-refinement": "start/first-fit",
-    "using/glossary": "reference/settings",
+    "using/glossary": "reference/parameters",
     "using/gui-guide": "reference/gui-guide",
     "using/gui-power": "reference/gui-power",
     "using/gui-quickstart": "start/gui-quickstart",
@@ -170,8 +170,21 @@ def switcher_entries(minors: list[str]) -> list[dict]:
 
 
 def redirect_page(url: str, canonical: str) -> str:
-    """An HTML stub that sends a reader on, for a host with no redirects."""
+    """An HTML stub that sends a reader on, for a host with no redirects.
+
+    A meta refresh drops the `#fragment` the reader arrived with, so where the
+    target names no heading of its own a script carries it over first.  That is
+    what keeps an installed release's help links landing on their section:
+    their anchors are `<theory chapter>.html#<heading>` at the site root, and
+    each Theory chapter kept its heading ids when it moved under /docs/.  The
+    refresh stays as the fallback for a reader without scripts.
+    """
+    forward = ""
+    if "#" not in url:
+        target = _json.dumps(url).replace("<", "\\u003c")
+        forward = f"<script>location.replace({target} + location.hash)</script>\n"
     return ('<!doctype html>\n<meta charset="utf-8">\n'
+            + forward +
             f'<meta http-equiv="refresh" content="0; url={_escape(url)}">\n'
             f'<link rel="canonical" href="{_escape(canonical)}">\n'
             f'<title>Moved</title>\n<p>This page has moved to <a href="{_escape(url)}">'

@@ -30,6 +30,7 @@ them, so a new image or a new leak token is covered by adding it there.
 
 from __future__ import annotations
 
+import functools
 import html as _html
 import importlib.util
 import json
@@ -48,13 +49,13 @@ LANDING = REPO_ROOT / "docs" / "landing"
 # directory (tests/CLAUDE.md — a shared fixture stays on one worker, and this
 # shares a directory rather than a fixture).  The module costs about a second.
 #
-# The group is the *manual build's*, not one of its own, from when the old
-# tree's `conf.py` put `docs/landing/site` on `html_extra_path` and a sphinx
+# The group is the module's own.  It was the manual build's while the old
+# tree's `conf.py` put `docs/landing/site` on `html_extra_path`, so a sphinx
 # build on another worker copied the very directory this module rmtree's.  No
 # build reads that directory since WP-1986 retired the old tree (pages.yml
-# copies it into the site itself), so the shared group now only keeps the
-# module on one worker.
-pytestmark = pytest.mark.xdist_group("manual-build")
+# copies it into the site itself), so sharing the group would only queue this
+# module behind the manual's build.
+pytestmark = pytest.mark.xdist_group("landing-site")
 
 
 def _build_module():
@@ -321,9 +322,10 @@ def _links(page: str) -> list[str]:
     return re.findall(r'(?:href|src)="([^"]+)"', page)
 
 
+@functools.cache
 def _versions():
-    """`docs/docs_versions.py`, imported by path: its `RETIRED` table is where an
-    old-tree address is sent."""
+    """`docs/docs_versions.py`, imported by path once a session: its `RETIRED`
+    table is where an old-tree address is sent."""
     spec = importlib.util.spec_from_file_location(
         "_docs_versions", REPO_ROOT / "docs" / "docs_versions.py")
     module = importlib.util.module_from_spec(spec)
@@ -346,7 +348,8 @@ def test_every_link_into_the_manual_lands_on_a_page(any_page):
     """A chapter link is either a page of the manual under `/docs/<version>/` or an
     old-tree address `docs_versions.RETIRED` stubs, which sends the reader to the
     released tree once one carries the page and to `dev/` until then (WP-1986).  A
-    stub link carries no `#fragment`: the stub is a meta refresh, which drops it."""
+    stub link carries no `#fragment`: the stub carries one over, but a chapter's
+    sections took new heading ids on their new pages."""
     name, page = any_page
     retired = _versions().RETIRED
     tree = REPO_ROOT / "docs" / "docs"
@@ -360,13 +363,18 @@ def test_every_link_into_the_manual_lands_on_a_page(any_page):
         target = target.removesuffix(".html")
         version = re.match(r"docs/[^/]+/", target)
         if version:
-            source = tree / target[version.end():]
-            notebook = REPO_ROOT / "examples" / "tutorials" / f"{source.name}.py"
-            assert source.with_suffix(".md").is_file() or notebook.is_file(), (
+            rel = target[version.end():]
+            source = tree / rel
+            # A notebook page is copied in at build from its committed .ipynb
+            # (`sphinx_shared.copy_tutorials`), and only into start/tutorials/.
+            notebook = (rel.rpartition("/")[0] == "start/tutorials" and (
+                REPO_ROOT / "examples" / "tutorials" / f"{source.name}.ipynb").is_file())
+            assert source.with_suffix(".md").is_file() or notebook, (
                 f"{name}: {link} names no page of docs/docs/")
         else:
             assert target in retired, f"{name}: {link} is neither a manual page nor a stub"
-            assert not fragment, f"{name}: {link} loses its #{fragment} in the stub's redirect"
+            assert not fragment, (
+                f"{name}: {link} carries #{fragment}, which names an old-tree heading")
 
 
 def test_the_landing_page_alone_is_written_at_the_site_root():

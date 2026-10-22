@@ -115,6 +115,19 @@ def test_a_retired_page_gets_a_stub_pointing_into_the_hosted_tree(tmp_path, monk
     stub = (site / "profiles.html").read_text(encoding="utf-8")
     assert 'content="0; url=/docs/dev/theory/profiles.html#tchz"' in stub
     assert 'rel="canonical" href="https://rietx.org/docs/dev/theory/profiles.html#tchz"' in stub
+    # The stub names its own heading, so the reader's fragment is not carried over.
+    assert "location.hash" not in stub
+
+
+def test_a_stub_without_a_heading_carries_the_readers_fragment_over(tmp_path, monkeypatch):
+    """An installed release's help anchors are `<chapter>.html#<heading>` at the
+    site root, and the meta refresh alone would drop the heading."""
+    monkeypatch.setattr(versions, "RETIRED", {"profiles": "theory/profiles"})
+    site = _site(tmp_path)
+    versions.assemble(site, [], lambda version: pytest.fail("nothing to fetch"))
+    stub = (site / "profiles.html").read_text(encoding="utf-8")
+    assert '<script>location.replace("/docs/dev/theory/profiles.html" + location.hash)' in stub
+    assert 'content="0; url=/docs/dev/theory/profiles.html"' in stub
 
 
 def test_a_stub_points_at_stable_only_once_stable_has_the_page(tmp_path, monkeypatch):

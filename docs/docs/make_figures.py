@@ -75,8 +75,8 @@ def _save(fig, stem: str, style: str) -> None:
     path = FIGURES / f"{stem}-{style}.png"
     # 200 rather than the old 110: at 110 the type and the reflection marks
     # fringe on any retina display, which is where the manual is read.
-    # The dark twin is saved on a transparent ground: furo's dark page is
-    # #131416, not black, so an opaque figure sits on the page as a rectangle.
+    # The dark twin is saved on a transparent ground: the theme's dark page is
+    # not black, so an opaque figure sits on the page as a rectangle.
     # The light twin keeps its white ground, because its type is dark and a
     # transparent PNG opened anywhere dark would be unreadable.
     fig.savefig(path, dpi=200, bbox_inches="tight", transparent=style == "dark")

@@ -98,9 +98,9 @@ MYST_EXTENSIONS = ["dollarmath", "amsmath", "substitution", "colon_fence", "defl
 # time).  The extension detects the active theme itself and re-renders on a
 # MutationObserver when the toggle moves, so these two names are the whole
 # light/dark story.  It reads a `dark`/`light` class or `data-theme` on *either*
-# `html` or `body` and falls back to `prefers-color-scheme`, which is wider than
-# furo's own `body[data-theme]`: WP-1412 drove all four of its spellings and the
-# diagrams followed every one.  mermaid.js itself comes from a CDN when the page
+# `html` or `body` and falls back to `prefers-color-scheme`, which covers
+# pydata-sphinx-theme's `html[data-theme]`: WP-1412 drove all four of its
+# spellings and the diagrams followed every one.  mermaid.js itself comes from a CDN when the page
 # is *viewed*; set `mermaid_use_local` if a built copy of the manual has to
 # render diagrams offline.
 MERMAID_LIGHT_THEME = "default"

@@ -875,7 +875,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `docs/docs_versions.py`), so a link meaning "the manual" is `/docs/`, never the site root.
   And `pages.yml` copies the page into the site root itself, so **no sphinx build writes
   outside `site/docs/`**; the old tree's URLs (`/manual.html`, `/using/<x>.html`) are redirect
-  stubs from `docs_versions.RETIRED` (WP-1986), and a stub drops a `#fragment`.
+  stubs from `docs_versions.RETIRED` (WP-1986), carrying a `#fragment` over by script.
 - **A walkthrough has one authority, and it is `examples/`.** The manual `{literalinclude}`s those
   scripts and `tests/test_examples.py` runs them, so a worked example is code that ran. Never write
   a third copy. The tutorial notebooks are a generated projection of `examples/tutorials/NN_*.py`

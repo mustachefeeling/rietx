@@ -1172,10 +1172,20 @@ def test_the_new_trees_marks_are_the_favicons():
     bytes, since the favicon carries a `<style>` with the two literal hexes and
     the templates take their fill from the theme.  Those hexes are the brand's
     `--rietx-ink` in `custom.css`, the only other place they are spelled.
+
+    The landing page's favicon is the same mark in the site's orange.  Until
+    WP-1986 that held through the old tree's favicon, which both copied; with it
+    gone, the landing page's is pinned here directly, or the site's two tabs
+    could draw two marks with nothing red.
     """
     favicon = (DOCS_TREE / "_static" / "favicon.svg").read_text(encoding="utf-8")
     shapes = SVG_SHAPES.findall(favicon)
     assert shapes, "no drawn shape in _static/favicon.svg — has the mark moved?"
+    landing = SVG_SHAPES.findall(
+        (REPO_ROOT / "docs" / "landing" / "src" / "favicon.svg").read_text(encoding="utf-8"))
+    assert landing == shapes, (
+        "docs/landing/src/favicon.svg no longer draws the manual's mark.\n"
+        f"  landing: {landing}\n  manual:  {shapes}")
     for name in ("rietx-brand.html", "rietx-landing.html"):
         inlined = SVG_SHAPES.findall((DOCS_TREE / "_templates" / name).read_text(encoding="utf-8"))
         assert inlined == shapes, (
