@@ -434,7 +434,7 @@ symmetry-adapted modes, not on its coordinates. Each atom a mode moves sits at
 with $\mathbf{b}_j$ the parent-derived base position in child fractions and
 $\mathbf{v}_{\nu j}$ mode $\nu$'s displacement of atom $j$ per Å of amplitude,
 normalised so that $\sum \mathrm{mult}\,|\boldsymbol{\varepsilon}|^2 = 1$ over a
-primitive cell of the child lattice, in the unstrained reference metric
+primitive cell of the child lattice, in the parent's metric before any strain,
 $P^{\mathsf{T}} G_{\text{parent}} P$ {cite}`perezmato2010`. The row is affine,
 so it is a row of the parameter table's constraint block like a site-symmetry
 DOF's, with one difference: its constant is the base, never the stored
