@@ -205,13 +205,13 @@ with counting time. Before 1.6 the package summed every same-sign run with
 weight 1 instead. That is the paper's rejected § III product test at level
 zero, and it reads 1.51 on white residuals.
 
-Two fits shipped with the package, measured on 2026-10-20, with the esd of
+Two fits shipped with the package, measured on 2026-10-21, with the esd of
 the lattice parameter $a$:
 
 | Fit | $f$ | `stderr` of $a$ | `stderr_uncorrected` of $a$ |
 |---|---|---|---|
-| Fluorapatite, lab Cu Kα (`examples/guides/cell.py`) | 2.15 | 8.2×10<sup>−5</sup> Å | 3.8×10<sup>−5</sup> Å |
-| NAC, APS 11-BM synchrotron (`examples/nac_11bm.py`) | 8.07 | 4.0×10<sup>−5</sup> Å | 4.9×10<sup>−6</sup> Å |
+| Fluorapatite, lab Cu Kα (`examples/guides/cell.py`) | 2.17 | 8.3×10<sup>−5</sup> Å | 3.8×10<sup>−5</sup> Å |
+| NAC, APS 11-BM synchrotron (`examples/nac_11bm.py`) | 8.02 | 3.9×10<sup>−5</sup> Å | 4.9×10<sup>−6</sup> Å |
 
 So on a fit with nothing left to model, `stderr` is 13 % above
 `stderr_uncorrected`. On lab data it is about twice as large, and on a

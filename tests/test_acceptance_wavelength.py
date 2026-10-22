@@ -184,6 +184,7 @@ def _plan(free_histogram: int | None) -> rx.RefinementPlan:
     # user's own run does.  ``None`` would converge every stage and move the
     # numbers in the module docstring.
     plan.intermediate_ftol = 1e-6
+    plan.closing_window_tol = 1e-3   # WP-2002: the shipped closing stage, named rather than inherited
     return plan
 
 
@@ -428,16 +429,18 @@ def test_a_width_on_its_floor_leaves_one_esd_at_every_start(solo_neutron):
     by 1e-14.  The column taken in physical space gives 0.0098437 at every
     stopping point, and that is what refining in physical units reports
     (WP-1938).  Measured on macOS arm64, eight nudges spread 4e-8 relative.
+    Behind the closing stage (WP-2002) it is 0.0102720 at four starts, spread
+    1.5e-8, and ``y``'s esd 0.0189972 (2026-10-21).
     """
     fits = [solo_neutron, *(_solo(1, k) for k in (1, -1, 2))]
     rows = [{p.path: p for p in fit.parameters} for fit in fits]
     x = [r["instrument.profile.x"].stderr for r in rows]
-    assert x == [pytest.approx(0.0098437, rel=1e-4)] * len(x)
+    assert x == [pytest.approx(0.0102720, rel=1e-4)] * len(x)
     assert max(x) / min(x) - 1.0 < 1e-6
     for r in rows:
         y = r["instrument.profile.y"]
         assert (y.value, y.at_bound) == (0.0, True)
-        assert y.stderr == pytest.approx(0.018101, rel=1e-4)
+        assert y.stderr == pytest.approx(0.0189972, rel=1e-4)
 
 
 def test_a_width_on_its_floor_has_a_one_sided_profile_interval(

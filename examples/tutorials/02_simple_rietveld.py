@@ -68,6 +68,7 @@ result.plot()
 #
 # The stage lines in the summary above are the plan's stages, in the order they ran.
 # Each stage frees one group of parameters and keeps every group freed before it.
+# The last line, `closing`, is the stage every plan ends with: it refines everything once more, with peak windows that keep more of each peak's tails.
 # [Plan presets](https://rietx.org/docs/stable/reference/plans.html) draws the stages of every plan.
 #
 # `result.stages` holds one record per stage.

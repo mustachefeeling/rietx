@@ -289,17 +289,17 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   (`is_variable_path`, third rule); left in, every tied column fails on its own name. And the
   record takes the **column** while its reach rides beside it (`StageResult.held_reach`), since
   `where` keyed on the reach made one finding about a phase into one per tied cell parameter.
-- **A staged plan does not converge its intermediate stages; the one that does is the last**
-  (WP-1123, flipping what 1113 measured). `RefinementPlan.intermediate_ftol` (1e-6 vs the
-  solver's 1e-9) is the schedule; `stage_ftols()` the one authority applying it, since the plan
-  alone knows which stage is last — no runner reads `Stage.ftol` itself. **Cumulative staging
-  bounds the cost**: an intermediate stage's parameters keep refining in every later stage, so
-  1.2-1.6× fewer evaluations costs ≤ 0.03 esd on every non-degenerate parameter — a bound for
-  **one fit**, not for a *chain*, where the effect is unbounded and not even fixed in sign
-  (measured both ways, 1.12× better and 1.04× worse). A series is measured, never assumed.
-  `intermediate_ftol=None` is the bit-identical way back and what a golden declares; the record
-  says what a stage **ran** at, never what it declared (`StageResult.ftol`, `NodeAction.ftol`),
-  or a cherry-pick replays what never happened.
+- **A staged plan does not converge its intermediate stages; the one that does is the last**,
+  and since WP-2002 the last is the closing stage `run_stages()` appends, recompiled at the answer
+  on windows dropping `closing_window_tol` (1e-3) of each peak. `intermediate_ftol` (1e-6 vs the
+  solver's 1e-9, WP-1123) is the schedule; `stage_ftols()` and `stage_window_tols()`, parallel to
+  `run_stages()`, are the one authority, since the plan alone knows which stage is last — no runner
+  reads `Stage.ftol` or `plan.stages`. **Cumulative staging bounds the cost**: every later stage
+  refines an intermediate stage's parameters again, so 1.2-1.6× fewer evaluations cost ≤ 0.03 esd
+  on **one fit**, and along a *chain* the effect is unbounded and of either sign (1.12× better,
+  1.04× worse): a series is measured, never assumed. `None` for either is the bit-identical way
+  back and what a golden declares; the record says what a stage **ran** at (`StageResult.ftol` and
+  `.window_area_tol`, `NodeAction`'s twins), or a cherry-pick replays what never happened.
 - **An unconstrained linear block is already solved jointly; profiling it out cannot buy an
   evaluation** — VarPro's win is over alternation, never done here (measured 1.00× on 34 of 34
   pure-Gauss-Newton stages, 0.79× overall). What survives: *correctness* (esds marginalised over

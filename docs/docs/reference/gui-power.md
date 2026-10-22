@@ -36,6 +36,7 @@ excluded 129.99 1000
 
 plan custom
 tolerance 1e-06                   # intermediate_ftol
+closing 0.001                     # closing_window_tol
 stage scale_bkg   free phases.*.scale, instrument.background.*
 stage cell        free phases.*.cell.*
 
@@ -86,6 +87,7 @@ Document-level keywords:
 | `tolerance` | the intermediate-stage convergence tolerance, or `none` |
 | `passes` | the Le Bail cap (`lebail_passes`); written only above 1, and absent means one pass |
 | `support` | the absent-phase hold's threshold in esds (`phase_support_sigma`), or `none` for no hold; written only away from 3, and absent means 3 |
+| `closing` | the closing stage's window area fraction (`closing_window_tol`), or `none` for no closing stage; always written, and absent means 1e-3 |
 | `stage` | one stage: its name, then `free` and a comma-separated glob list |
 | `phase` | opens a phase block: its index, then its name quoted |
 | `instrument` | opens the instrument block |

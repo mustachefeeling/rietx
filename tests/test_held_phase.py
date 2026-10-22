@@ -275,15 +275,20 @@ def test_the_zero_line_case_is_the_limit_of_support_not_a_second_test():
     a phase whose scale is at its floor may appear in the next pattern of a
     series, one with no line in the window will not, whatever the specimen
     does.  Read off the frozen windows, so a reflection generated just outside
-    the fitted ends counts as the absence it is.
+    the fitted ends counts as the absence it is.  A declared stage's windows,
+    named: at the closing stage's 1e-3 the 110 at 30.4° reaches the 41 points
+    at 29.1-29.5° and both its lines count (WP-2002).
     """
+    from rietx.model import forward as fwd
     from tests.test_acceptance_srm660c import build_srm_inputs
 
     data, structure, instrument = build_srm_inputs()
     blind = compile_model(structure, instrument, data, mode="rietveld",
-                          two_theta_limits=(22.5, 29.5))
+                          two_theta_limits=(22.5, 29.5),
+                          window_area_tol=fwd.WINDOW_AREA_TOL)
     seeing = compile_model(structure, instrument, data, mode="rietveld",
-                           two_theta_limits=(29.5, 32.0))
+                           two_theta_limits=(29.5, 32.0),
+                           window_area_tol=fwd.WINDOW_AREA_TOL)
     assert int(blind.phase_line_counts()[0]) == 0
     assert int(seeing.phase_line_counts()[0]) > 0
 
@@ -448,7 +453,10 @@ def _collapsed_plan():
 
     return rx.RefinementPlan(stages=[rx.Stage(
         "all", ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
-                "instrument.profile.w", "instrument.profile.x"])])
+                "instrument.profile.w", "instrument.profile.x"])],
+        # the declared stage's hold, release and collapse; the closing stage
+        # is tests/test_closing_stage.py's
+        closing_window_tol=None)
 
 
 @pytest.fixture(scope="module")
@@ -605,8 +613,9 @@ def test_a_held_stage_streams_the_hold_without_a_release():
         synthesize(), plan="mccusker_default", events=seen.append)
     starts = [e["data"] for e in seen if e["kind"] == "stage_start"]
     ends = [e["data"] for e in seen if e["kind"] == "stage_end"]
-    assert len(starts) == len(ends) == 5
-    assert [d["held"] for d in ends[2:]] == [["phases.1.cell.a"]] * 3
+    n = len(rx.PLAN_PRESETS["mccusker_default"]().run_stages())
+    assert len(starts) == len(ends) == n
+    assert [d["held"] for d in ends[2:]] == [["phases.1.cell.a"]] * (n - 2)
     assert all(d["released"] == [] for d in ends)
 
 
@@ -852,7 +861,7 @@ def test_the_joint_path_holds_a_phase_no_histogram_can_see():
     assert result.stages[-1].held == ["phases.1.cell.a"]
     assert ref.mtable.structures[0].phases[1].cell.a.value == 5.2
     fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
-    assert len(fired) == 1 and "was held for stage cell" in fired[0].message
+    assert len(fired) == 1 and "was held for stages cell, closing" in fired[0].message
 
 
 def _held_columns(sharing=None) -> tuple[list[str], list[str]]:
@@ -997,10 +1006,11 @@ def test_a_later_stage_re_decides_the_hold_rather_than_inheriting_it():
     data = _ramp_patterns([700.0])[0]
     ref = rx.Refinement(_ramp_start(caf2_a=5.40, bounds=None),
                         _ramp_instrument(), history=False)
+    # the declared stages' lift; the closing stage is tests/test_closing_stage.py's
     result = ref.fit(data, plan=rx.RefinementPlan(stages=[
         rx.Stage("cell_bkg", ["phases.*.cell.*", "instrument.background.*"]),
         rx.Stage("scale", ["phases.*.scale"]),
-    ]))
+    ], closing_window_tol=None))
 
     first, second = result.stages
     assert first.held == ["phases.1.cell.a"], "stage 1 could not see the phase"
@@ -1256,9 +1266,14 @@ def test_the_hold_reaches_every_pattern_of_a_chain():
     # and the chain says the thing no per-pattern finding can
     persistent = [d for d in series.diagnostics
                   if d.code == "SEQUENTIAL_PERSISTENT_FINDING"]
-    assert len(persistent) == 1
-    assert persistent[0].where == ["vars.caf2_a"]
-    assert "5 of 5" in persistent[0].message
+    held = [d for d in persistent if d.message.startswith("PHASE_UNCONSTRAINED")]
+    assert len(held) == 1
+    assert held[0].where == ["vars.caf2_a"]
+    assert "5 of 5" in held[0].message
+    # the absent phase's scale on its floor, which is its truth: 4 of 5 since
+    # the patterns are drawn at the closing stage's windows (WP-2002)
+    assert all(d.message.startswith("FLOOR_HIT") and d.where == ["phases.1.scale"]
+               for d in persistent if d not in held)
 
 
 def test_a_held_column_is_released_when_its_phase_appears():

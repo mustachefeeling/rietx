@@ -2683,6 +2683,31 @@ START_DEPENDENCE_RULE = 3
 INTERMEDIATE_FTOL_DEFAULT = 1e-6
 
 
+#: **The closing stage every acceptance number is produced with** (WP-2002, the
+#: sixth round's Q1 and Q2, ruled 2026-10-21).
+#:
+#: After the declared stages, a plan recompiles at the answer with peak windows
+#: dropping this fraction of each peak's area, and solves once more with every
+#: glob it freed.  It is a default that moves answers, recorded here for
+#: ``INTERMEDIATE_FTOL_DEFAULT``'s reason:
+#:
+#: * *What it buys.*  The 2 % windows of the declared stages moved lab answers
+#:   by up to 0.97 esd against converged tails; the closing answer lies within
+#:   0.008-0.019 plain esd of them on the fluorapatite, cpd-1a and NAC.  Two
+#:   Biso starts agree to 0.000, 0.064 and 0.000 esd there, against 0.119,
+#:   0.751 and 0.008 without it.
+#: * *What it costs.*  1.05-2.05x the fit time on those three and SRM 660c,
+#:   the fluorapatite the dearest (two runs each, interleaved, 2026-10-21).
+#: * *Where it fails.*  SRM 660c LaB6 stays 0.9 esd from the converged answer
+#:   in U, its Gaussian variance on the clamp floor at high angle (WP-1467),
+#:   and its two Biso starts land in mirrored axial minima (WP-2012).
+#: * *Why the suites here ride it.*  As for the schedule above: they say what
+#:   the shipped package reproduces, and each names the setting.
+#: * *Where it is declined.*  ``closing_window_tol = None`` reproduces every
+#:   fit before it, bit for bit.
+CLOSING_WINDOW_TOL_DEFAULT = 1e-3
+
+
 #: **The one default WP-1001 was chartered to decide, and how it went.**
 #: WP-0504 shipped anomalous scattering opt-in so that landing it did not
 #: invalidate the record, and left a note that turning it on was "the right

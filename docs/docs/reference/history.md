@@ -126,6 +126,7 @@ A stage node also records the two plan settings its stage ran under, so a cherry
 |---|---|---|
 | `NodeAction.phase_support_sigma` | `3.0` | the absent-phase hold's threshold in esds; `None` means the hold was off |
 | `NodeAction.correlation_guard` | `0.98` | the \|ρ\| above which the stage reported a correlated pair |
+| `NodeAction.window_area_tol` | `None` | the fraction of each peak's area the stage's windows dropped; a plan's closing stage records `closing_window_tol`, a stage run by hand the fraction it ran at, and `None` a declared stage's 2 % |
 
 A node written before 1.10 has neither field and reads as the defaults, which are what it ran at unless its plan set them.
 `api_call()` adds either setting to the stage's line only where it differs from the default.
@@ -140,8 +141,13 @@ import rietx as rx
 action = rx.NodeAction(kind="stage", name="cell",
                        turn_on=["phases.*.cell.*"], max_iter=200)
 assert action.api_call() == (
-    "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=200))")
+    "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=200), "
+    "window_area_tol=0.02)")
 ```
+
+A node that records no window fraction is a declared stage, which dropped 2 %
+of each peak. `run_stage` defaults to the closing stage's fraction, so the line
+names the 2 % to repeat the stage that ran.
 
 The line is computed from the fields, so it cannot disagree with them.
 A stage's line always carries `max_iter`.

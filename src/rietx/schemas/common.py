@@ -523,6 +523,14 @@ from .._nearmiss import did_you_mean
 #: package defaulted to before them (a plan's own guard went unrecorded), the
 #: 0.4 → 0.5 rule for ``NodeAction.ftol``; both stage runners write them on
 #: every stage node.
+#: Also in 0.59 (WP-2002, the sixth round's Q1 and Q2):
+#: ``PlanSpec.closing_window_tol``, the closing stage's window area fraction,
+#: defaulting to 1e-3, so a stored plan gains a closing stage on its next run;
+#: ``None`` runs as before.  And ``NodeAction.window_area_tol``, the fraction a
+#: stage ran at, defaulting to ``None`` (the compiler default every earlier
+#: node ran at), the same rule.  And ``StageResult.n_lapack_fallbacks``, the
+#: decompositions a stage repeated with LAPACK's second driver, defaulting to
+#: 0, which every earlier stage took.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

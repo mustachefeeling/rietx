@@ -58,7 +58,7 @@ from ..params.vector import (
     strain_cap,
 )
 from ..schemas.results import MomentAngleTest
-from . import blocked
+from . import blocked, lapack
 from .blocked import BlockJacobian
 from .cancel import RefinementCancelled
 
@@ -259,6 +259,10 @@ class LSQOutcome:
     #: ``StageResult.n_degenerate_cell_probes``, carried by
     #: ``SCHEMA_VERSION`` 0.19 → 0.20 (see ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: decompositions this solve and its esds repeated with LAPACK's
+    #: QR-iteration driver because the divide-and-conquer one did not converge
+    #: (:mod:`.lapack`), copied onto ``StageResult.n_lapack_fallbacks``
+    n_lapack_fallbacks: int = 0
     #: cos of the angle between the residual and each Jacobian **column**,
     #: ``gₖ / (‖J:,ₖ‖·‖r‖)`` with ``g = Jᵀr`` the gradient of ½‖r‖²; signed,
     #: in [−1, 1], **table columns only**, so it indexes like :attr:`theta`.
@@ -722,7 +726,7 @@ def _joint_newton(resid, x: np.ndarray, r_stop: np.ndarray, idx: list[int],
             curvature_stop = m
         # block a of the stacked system is column a's rows: C[:, a] against
         # M[:, a, :], so C.T flattened and M with its first two axes swapped
-        step = -np.linalg.lstsq(m.transpose(1, 0, 2).reshape(k * len(r0), k),
+        step = -lapack.lstsq(m.transpose(1, 0, 2).reshape(k * len(r0), k),
                                 c.T.reshape(-1), rcond=None)[0]
         trial = th.copy()
         trial[idx] += step
@@ -765,7 +769,7 @@ def _refitted_increase(jac_data: np.ndarray, angles: list[int],
     live = np.isfinite(d) & (d > 0.0)
     if live.any():
         j_o = j_o[:, live] / d[live]
-        rhs = rhs - j_o @ np.linalg.lstsq(j_o, rhs, rcond=None)[0]
+        rhs = rhs - j_o @ lapack.lstsq(j_o, rhs, rcond=None)[0]
     return float(rhs[:, 1] @ rhs[:, 1] - rhs[:, 0] @ rhs[:, 0])
 
 
@@ -2391,6 +2395,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     window (:func:`_freeze_cell_windows`); ``None`` windows no cell."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    lapack_start = lapack.retries()
     # A free λ beside a free cell is an exactly flat direction.  Asked here
     # rather than at table build because a cumulative plan can free the two in
     # different stages, and rather than in ``_rebuild`` because a diagnostic
@@ -2472,8 +2477,9 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           track=tracker, table=table)
         n_truncated, truncated_by = res.n_truncated, res.truncated_by
     else:
-        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
+        with lapack.scipy_trf():
+            res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                                ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -2518,6 +2524,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      n_lapack_fallbacks=lapack.retries() - lapack_start,
                       covariance_error=covariance_error,
                       esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests)
@@ -2669,6 +2676,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     """
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    lapack_start = lapack.retries()
     # dense below a size, blocked above it (WP-1325, ``blocked.choose_layout``)
     layout = blocked.choose_layout(_stacked_rows(models)[1], len(mtable.free_paths),
                                    solver)
@@ -2728,8 +2736,9 @@ def run_multi_least_squares(models: list[CompiledModel],
                           ftol=ftol, inequalities=[], events=events, stage=stage,
                           track=tracker, table=mtable)
     else:
-        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
+        with lapack.scipy_trf():
+            res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                                ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -2762,6 +2771,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                           mtable, tracker.step(), stderr, corr),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      n_lapack_fallbacks=lapack.retries() - lapack_start,
                       covariance_error=covariance_error,
                       esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests,

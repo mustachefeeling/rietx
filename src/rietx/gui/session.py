@@ -1062,14 +1062,23 @@ class GuiSession:
                 "n_matched": len(matched), "n_free": len(after),
             })
 
-        for entry, rwp in zip(stages, self._stage_rwp(p, plan), strict=True):
+        rwps = self._stage_rwp(p, plan)
+        for entry, rwp in zip(stages, rwps, strict=False):
             entry["rwp"] = rwp
+        # the stage the plan appends (WP-2002, the sixth round's Q1 and Q2):
+        # every glob again at tight windows, read-only here, and its Rwp is
+        # the answer's, which the last declared rung's is not
+        closing = plan.closing_stage()
+        closing_entry = None if closing is None else {
+            "name": closing.name, "window_area_tol": plan.closing_window_tol,
+            "rwp": rwps[-1]}
         reached = {path for entry in stages for path in entry["frees"]}
         set_aside = [row.path for row in rows.values()
                      if row.vary and row.refinable and row.path not in reached]
         return {"mode": mode, "n_parameters": len(rows),
                 "n_free_final": stages[-1]["n_free"] if stages else 0,
                 "set_aside": set_aside, "stages": stages,
+                "closing": closing_entry,
                 "head": p.refinement._head_id,
                 "live": self._state != "idle"}
 
@@ -1086,23 +1095,37 @@ class GuiSession:
 
     @classmethod
     def _stage_rwp(cls, p: Project, plan) -> list[float | None]:
-        """One Rwp per plan stage, off the history nodes the run recorded.
+        """One Rwp per stage the plan runs, off the history nodes the run recorded.
 
-        The alignment rule is in :meth:`plan_resolve`'s docstring; this is it
-        applied.  ``None`` everywhere is the ordinary answer before the first
-        run, and the honest one whenever the plan on screen is not the plan
-        that ran.
+        Parallel to ``plan.run_stages()``: the declared stages, then the
+        closing stage when the plan has one (WP-2002), whose Rwp is the
+        answer's.  The alignment rule is in :meth:`plan_resolve`'s docstring;
+        this is it applied.  ``None`` everywhere is the ordinary answer before
+        the first run, and the honest one whenever the plan on screen is not
+        the plan that ran.
         """
-        blank: list[float | None] = [None] * len(plan.stages)
+        stages = plan.run_stages()
+        blank: list[float | None] = [None] * len(stages)
         tree = p.refinement.history
         head = p.refinement._head_id
         if tree is None or head is None or head not in tree:
             return blank
+        out = cls._aligned_rwp(tree, head, stages)
+        if any(r is not None for r in out) or len(stages) == len(plan.stages):
+            return out
+        # a run recorded before every plan closed (WP-2002) has the declared
+        # stages alone; its numbers still describe the rungs it ran
+        return cls._aligned_rwp(tree, head, list(plan.stages)) + [None]
+
+    @classmethod
+    def _aligned_rwp(cls, tree, head, stages) -> list[float | None]:
+        """The last run of ``len(stages)`` stage nodes, aligned to ``stages``."""
+        blank: list[float | None] = [None] * len(stages)
         run: list = []
         for node in reversed(tree.lineage(head)):
             if node.action.kind == "stage":
                 run.append(node)
-                if len(run) == len(plan.stages):
+                if len(run) == len(stages):
                     break   # the *last* run: back-to-back runs of one plan
                             # leave 2N contiguous stage nodes, and aligning
                             # from the far end of them would read the first
@@ -1111,7 +1134,7 @@ class GuiSession:
                 break   # the run has ended, or something ended it before it
         run.reverse()
         out = list(blank)
-        for k, stage in enumerate(plan.stages):
+        for k, stage in enumerate(stages):
             if k >= len(run):
                 break
             node = run[k]
@@ -1722,7 +1745,7 @@ class GuiSession:
                 return p.fit(plan=plan, events=stream, cancel=token)
 
             label = ""
-            n_stages = len(plan.stages)
+            n_stages = len(plan.run_stages())   # the closing stage counts
 
         p.live_dir.mkdir(exist_ok=True)  # a project copied without empty dirs
         with self._cond:

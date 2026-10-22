@@ -359,12 +359,13 @@ def test_a_joint_plan_that_reaches_one_histogram_says_which_it_missed(two_patter
     a joint fit reports it the way a single one does.
     """
     structure, instruments = _hump_on_histogram_0()
+    # the declared stages' record; the closing stage is tests/test_closing_stage.py's
     plan = RefinementPlan(stages=[
         Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
               max_iter=10),
         Stage("humps", ["instrument.extra_components.*", "instrument.zero"],
               max_iter=5),
-    ])
+    ], closing_window_tol=None)
     result = refine_multi(two_patterns, structure, instruments, plan=plan)
 
     assert [s.unreached_histograms for s in result.stages] == [
@@ -1125,7 +1126,8 @@ def _joint_cubic_pair_fit(monkeypatch, stages, script, *, full=False, log=None):
     data = [_cubic_pair_pattern(lam, seed) for lam, seed in ((0.41390, 11),
                                                              (0.71070, 12))]
     ref = MultiHistogramRefinement(_cubic_pair(), instruments)
-    result = ref.fit(data, plan=RefinementPlan(stages=stages))
+    # the declared stages' reset; the closing stage is tests/test_closing_stage.py's
+    result = ref.fit(data, plan=RefinementPlan(stages=stages, closing_window_tol=None))
     assert len(calls) == len(stages) + len(extra), solved
     OUT.mkdir(exist_ok=True)
     name = "_".join(s.name for s in stages)

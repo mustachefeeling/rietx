@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from pydantic import Field
 
+from ..optimize import lapack
 from ..schemas.common import Base, Diagnostic
 from ..schemas.pattern import PatternData
 from .estimators import arpls
@@ -150,7 +151,7 @@ def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
         if free_scale:
             rows = np.vstack([rows, curve[None, :]])
         A = (rows * w).T
-        coef, *_ = np.linalg.lstsq(A, y_m * w, rcond=None)
+        coef, *_ = lapack.lstsq(A, y_m * w, rcond=None)
         r = y_m * w - A @ coef
         scores.append(CandidateScore(
             complexity=float(n), bic=_bic(float(r @ r), m, len(rows)),

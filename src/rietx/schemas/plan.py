@@ -113,6 +113,70 @@ def check_phase_support_sigma(value: Any) -> float | None:
     return float(value)
 
 
+#: The area each peak's window may drop in a plan's closing stage, and what
+#: :attr:`PlanSpec.closing_window_tol` and
+#: ``strategy.staged.RefinementPlan.closing_window_tol`` default to (WP-2002,
+#: the sixth round's Q1 and Q2, ruled 2026-10-21).  Here for
+#: :data:`INTERMEDIATE_FTOL`'s reason: both mirrors quote one literal.
+#:
+#: **What the closing stage is.**  Every stage freezes its peak windows, its
+#: reflection list and its axial-divergence nodes at the values it starts from
+#: (root CLAUDE.md § Invariants).  So a plan's last stage computes on a model
+#: frozen wherever the stages before it stopped.  Two errors follow.  The
+#: windows drop ``forward.WINDOW_AREA_TOL`` (2 %) of each peak's area, more
+#: once a peak widens inside a stage, and the answers carry it: up to 0.97 esd
+#: on lab data (cpd-1a's zincite scale, the fluorapatite Lorentzian size), the
+#: background 2 to 5 esd.  And two starts that stop the early stages in
+#: different places reach different answers: Biso started at 0.5 and at
+#: 1.5 Å² put cpd-1a's sample displacement 0.75 esd apart.  The closing stage
+#: recompiles at the answer with windows dropping this fraction and solves
+#: once more with every glob the plan freed.  Measured on 2026-10-21 against
+#: the 5e-5 fixed point polished from the same start (macOS arm64, ``[dev]``):
+#: within 0.008, 0.018 and 0.019 plain esd on the fluorapatite, cpd-1a and
+#: 11-BM NAC, and two Biso starts within 0.000, 0.070 and 0.000 esd.  Through the shipped code
+#: the whole fit takes 1.05-1.19× (LaB6), 2.03-2.05× (FAP), 1.37-1.38×
+#: (cpd-1a) and 1.12-1.26× (NAC) its time without the closing stage, the last
+#: declared stage now stopping at ``intermediate_ftol``.  SRM 660c LaB6 lands
+#: in its mirrored axial minimum from either start under every setting
+#: (WP-2012).
+#:
+#: **Practice.**  BGMN ends every refinement ladder with a closing run, all
+#: free and restarted from the previous answer (Doebelin & Kleeberg 2015,
+#: *J. Appl. Cryst.* **48**, 1573, §2).  RIETAN-FP's automatic mode ends with
+#: everything refining together, its windows moving at every evaluation.
+#: MAUD's wizard has no final cycle.  1e-3 drops less than TOPAS (0.001 of the
+#: strongest line's height, 2 % of a Lorentzian), MAUD (±15 FWHM, 2.1 %),
+#: RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and
+#: EasyDiffraction, which compute the whole peak
+#: (``docs/wp/2002-batch/practice.md``).  At 1e-3 the window error is under
+#: 0.1σ at every point on four families, and the closing answer lies within
+#: 0.1 plain esd of the converged tails' on three of them
+#: (``tests/test_window_domain.py``).  SRM 660c LaB6 misses by 0.9 esd on U,
+#: from the Gaussian-variance clamp its high-angle reflections sit on, which
+#: moves U at any window (WP-1467).
+CLOSING_WINDOW_TOL = 1e-3
+
+
+def check_closing_window_tol(value: Any) -> float | None:
+    """``value`` as a closing stage's window area fraction, or ``None`` for no closing stage.
+
+    The one check behind :attr:`PlanSpec.closing_window_tol`, the dataclass
+    plan's field (read where the runner reads it, since a dataclass validates
+    nothing) and the ``.rxt`` parser.  A fraction of a peak's area lies
+    strictly between 0 and 1: zero would ask for an infinite window, one for
+    none, and a NaN compares false both ways.
+    """
+    if value is None:
+        return None
+    if (isinstance(value, bool) or not isinstance(value, numbers.Real)
+            or not math.isfinite(value) or not 0.0 < value < 1.0):
+        raise ValueError(
+            f"closing_window_tol is the fraction of each peak's area the "
+            f"closing stage's windows may drop, a number strictly between 0 "
+            f"and 1, or None for no closing stage; got {value!r}")
+    return float(value)
+
+
 class StageSpec(Base):
     """One stage of a staged plan as data that round-trips through JSON, mirroring ``Stage``."""
 
@@ -128,7 +192,7 @@ class StageSpec(Base):
         "this stage's own relative cost-decrease termination tolerance, "
         "overriding the plan's schedule; null = take it from the plan "
         "(intermediate_ftol for every stage but the last, the solver's 1e-9 "
-        "for the last)"))
+        "for the last, which is the closing stage when the plan has one)"))
     lebail_cycles: int = 3
     seed: float = Field(0.0, description=(
         "start at this value every parameter this stage frees that sits "
@@ -212,10 +276,26 @@ class PlanSpec(Base):
             "(PHASE_UNCONSTRAINED still reports a phase under the default 3); "
             "WP-1301/1523, a caller's option since WP-2002 B1"))
 
+    closing_window_tol: float | None = Field(
+        CLOSING_WINDOW_TOL, description=(
+            "after the last declared stage, one more stage recompiles at the "
+            "answer with peak windows dropping this fraction of each peak's "
+            "area and solves with every glob the plan freed.  Earlier stages "
+            "drop 2 %, which moves lab answers by up to an esd; 1e-3 meets "
+            "0.1 esd on three of four families at 1.2-2.3x the fit time.  Any "
+            "value under 2 % keeps the closing stage's finer axial-divergence "
+            "sampling.  null = no closing stage, today's answers bit for bit "
+            "(WP-2002)"))
+
     @field_validator("phase_support_sigma")
     @classmethod
     def _a_threshold_or_none(cls, value: Any) -> float | None:
         return check_phase_support_sigma(value)
+
+    @field_validator("closing_window_tol")
+    @classmethod
+    def _a_fraction_or_none(cls, value: Any) -> float | None:
+        return check_closing_window_tol(value)
 
     @model_validator(mode="before")
     @classmethod
@@ -253,7 +333,8 @@ class PlanSpec(Base):
                    correlation_guard=plan.correlation_guard,
                    intermediate_ftol=plan.intermediate_ftol,
                    lebail_passes=plan.lebail_passes,
-                   phase_support_sigma=plan.phase_support_sigma)
+                   phase_support_sigma=plan.phase_support_sigma,
+                   closing_window_tol=plan.closing_window_tol)
 
     def to_plan(self) -> Any:
         from ..strategy.staged import RefinementPlan
@@ -262,7 +343,8 @@ class PlanSpec(Base):
                               correlation_guard=self.correlation_guard,
                               intermediate_ftol=self.intermediate_ftol,
                               lebail_passes=self.lebail_passes,
-                              phase_support_sigma=self.phase_support_sigma)
+                              phase_support_sigma=self.phase_support_sigma,
+                              closing_window_tol=self.closing_window_tol)
 
     def preset_name(self) -> str | None:
         """The registered preset this plan equals, or ``None`` if it was edited.

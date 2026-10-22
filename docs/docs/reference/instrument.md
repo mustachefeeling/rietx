@@ -217,11 +217,10 @@ It sets `ProfileTCHZ.w` to the square of the width you observed and leaves `x` a
 A neutron instrument's lines are typically 0.2-0.5° wide, against about 0.03° for the default profile.
 The evaluation windows of each stage are sized from the starting width, so a 0.3° line started from the default is not found.
 
-The width bounds differ from an X-ray instrument's.
-The default box caps `w` at 1 deg², a 1.0° FWHM.
-A long-wavelength neutron line can be wider: 1.10° on the ILL D1B Co₃O₄ set at λ = 2.52 Å, whose published model has U = 1.576, outside the default bound on `u`.
-The neutron constructor therefore builds its profile with `ProfileTCHZ.coarse`, whose box `TCHZ_BOUNDS_COARSE` puts `u` in [−0.5, 8], `v` in [−4, 4], and `w`, `x` and `y` up to 8.
-`fwhm_deg` may reach √8 ≈ 2.83°, and a larger value raises.
+The width floors differ from an X-ray instrument's.
+No width has a chosen ceiling. Each stops at the width of the 2θ axis, 180° for `x` and `y` and 180² deg² for `u`, `v` and `w`, which no peak reaches.
+A long-wavelength neutron line's model can sit under the default floors: on the ILL D1B Co₃O₄ set at λ = 2.52 Å the published model has V = −0.501, under the default floor of −0.5 on `v`.
+The neutron constructor therefore builds its profile with `ProfileTCHZ.coarse`, whose box `TCHZ_BOUNDS_COARSE` puts `u` at −0.5 or more and `v` at −4 or more.
 
 ```python
 from rietx.schemas.instrument import ProfileTCHZ
@@ -233,7 +232,7 @@ except ValueError as refusal:
 else:
     raise AssertionError("a bare width is refused")
 d1b = ProfileTCHZ.coarse(u=1.576, v=-0.501, w=0.475)
-assert d1b.u.max == 8.0 and d1b.w.max == 8.0
+assert d1b.v.min == -4.0 and d1b.w.max == 180.0 ** 2
 ```
 
 `Geometry.surface_roughness` is refused on a neutron source, because neither roughness model has a regime where the beam penetrates centimetres.
@@ -353,27 +352,33 @@ The beam therefore carries a small λ/n component for every order that is not ex
 At a given 2θ that component diffracts from planes of spacing λ/(2n sin θ), so its peak from a given hkl sits at lower 2θ than the fundamental's, {eq}`pos-harmonic-d`.
 Left out of the model, it is intensity where the model puts none.
 
-Declare it with `Harmonic`, on the source or through the constructor:
+Declare it with `Harmonic`, on the source or through the constructor, naming the orders the monochromator passes:
 
 ```python
 from rietx import Instrument
 from rietx.schemas.instrument import Harmonic
 
+# NIST BT-1's Cu(311) passes λ/2
 bt1 = Instrument.constant_wavelength_neutron(
-    wavelength=1.54040, fwhm_deg=0.3, harmonics=True)
+    wavelength=1.54040, fwhm_deg=0.3, harmonics=[2])
 assert [line.wavelength.value for line in bt1.source.lines] == [1.54040, 0.77020]
 # a harmonic's λ is derived, so it is never free even when the fundamental is
 assert [line.wavelength.vary for line in bt1.source.lines] == [False, False]
 
-# general in n; True above is exactly [2]
+# general in n
 thirds = Instrument.constant_wavelength_neutron(1.54040, harmonics=[2, 3])
 assert len(thirds.source.lines) == 3
 assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
 ```
 
+The order has no default, because which orders pass depends on the monochromator's crystal.
+Cu(311) and graphite pass λ/2.
+In the diamond structure of Si and Ge, a reflection on all-odd indices has its second order extinct, so Si(111), Ge(311) and Ge(733) pass λ/3 and no λ/2.
+`harmonics=True` is refused with that message.
+
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Harmonic.order` | `int`, ≥ 2 | 2 | n in λ/n |
+| `Harmonic.order` | `int`, ≥ 2 | none, required | n in λ/n |
 | `Harmonic.weight` | `Parameter` | 0.01, fixed, at or above 0 | intensity relative to line 0, as for any emission line |
 | `Harmonic.wavelength_factor` | `float` | derived | 1/n, the factor on the fundamental wavelength |
 

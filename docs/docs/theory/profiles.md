@@ -506,11 +506,18 @@ The integrand is smooth, and fixed-node Gauss-Legendre quadrature in
 $\tau = \xi/\xi_{\max}$ evaluates it. The $|\tan 2\theta|$ cap removes the
 unphysical $\cos 2\varphi > 1$ branch at very low angle. The weights are
 renormalised to $\sum\omega = 1$, so the composite peak keeps unit area and
-reflection intensities stay areas. Node counts are frozen per stage
-({{ NODES_PER_FWHM }} nodes per FWHM of smear where the map moves fastest,
-clamped to [8, 64]), and node positions follow $s$, $h$ and $2\theta$ smoothly.
-When the asymmetric extent falls below {{ SKIP_EXTENT_FWHM_RATIO }} of the peak
-FWHM the aberration is invisible, and the peak is treated as symmetric.
+reflection intensities stay areas. Node counts are frozen per stage, and node
+positions follow $s$, $h$ and $2\theta$ smoothly. A declared stage takes
+{{ NODES_PER_FWHM }} nodes per FWHM of smear where the map moves fastest,
+clamped to [8, 64]. When the asymmetric extent falls below
+{{ SKIP_EXTENT_FWHM_RATIO }} of the peak FWHM, it treats the peak as symmetric.
+A compile at windows finer than the declared stages' takes
+{{ CLOSING_NODES_PER_FWHM }} nodes per FWHM, clamped to [10, 1024], and treats
+a peak as symmetric below {{ CLOSING_SKIP_EXTENT_FWHM_RATIO }}. The closing
+stage and any model evaluated outside a fit are such compiles. That rule keeps
+the composite peak within a tenth of the counting noise of a 512-node
+reference on lab and synchrotron peaks. The declared stages' rule misses it by
+up to eight times on a lab Lorentzian, and those stages only steer.
 
 With one aperture at zero the trapezoid {eq}`prof-fcj-weight` has no height,
 and {eq}`prof-fcj-integral` is a ratio of two zeros. Its limit as $h \to 0^+$

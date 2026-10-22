@@ -19,16 +19,21 @@ from dataclasses import dataclass, field
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
-# INTERMEDIATE_FTOL, CORRELATION_GUARD and PHASE_SUPPORT_SIGMA are defined
-# beside the mirror because the pydantic fields need them at class-definition
-# time and this module is the *upper* layer; they are re-exported here, where
-# plan policy is read.
+# INTERMEDIATE_FTOL, CORRELATION_GUARD, PHASE_SUPPORT_SIGMA and
+# CLOSING_WINDOW_TOL are defined beside the mirror because the pydantic fields
+# need them at class-definition time and this module is the *upper* layer;
+# they are re-exported here, where plan policy is read.
 from ..schemas.plan import (
+    CLOSING_WINDOW_TOL,
     CORRELATION_GUARD,
     INTERMEDIATE_FTOL,
     PHASE_SUPPORT_SIGMA,
     PlanSpec,
+    check_closing_window_tol,
 )
+
+#: The name of the stage :meth:`RefinementPlan.closing_stage` appends.
+CLOSING_STAGE_NAME = "closing"
 
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
@@ -125,7 +130,8 @@ class Stage:
     #: this stage's own ftol (relative cost-decrease termination), overriding
     #: whatever schedule the plan sets.  ``None`` = take it from the plan
     #: (:attr:`RefinementPlan.intermediate_ftol` for every stage but the last,
-    #: the solver's 1e-9 for the last) — which is why the two cannot be told
+    #: the solver's 1e-9 for the last, which is the closing stage when the
+    #: plan has one) — which is why the two cannot be told
     #: apart here and a plan is where the schedule is declared.  Set it to say
     #: that *this* stage is different: an early stage whose seed the next one
     #: is unusually sensitive to, or a one-stage validation fit that must
@@ -200,6 +206,15 @@ class Stage:
 #: every freed row sitting exactly on a floor of 0 or above
 #: (``ParameterTable.seed_floored``, WP-1938).  Pitschke's ``tau`` at its 0.05
 #: default is above its floor, so it starts where it is (issue #499).
+#:
+#: The one 0.3 starts both models' strength, and the two are recorded apart
+#: (WP-2002, the sixth round's Q3, ruled (c)).  Suortti's start does not change
+#: the answer (``tests/test_seed_invariance.py``, five patterns, three families).
+#: Pitschke's does: from c = 0 CPD zincite lands in the model's turned-over
+#: regime, which ``ROUGHNESS_OUTSIDE_REGIME`` flags, and from 0.3 it reaches the
+#: switched-off branch inside the valid range.  No program supplies a Pitschke
+#: start, so 0.3 stays, at tier 3.  A per-model value would need a per-path seed
+#: or a second stage, and an inert stage re-solves everything already freed.
 _ROUGHNESS_STAGE = (
     Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
 )
@@ -338,6 +353,55 @@ class RefinementPlan:
     #: then refined without signal.  The default reproduces every fit before
     #: the field, bit for bit.
     phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
+    #: the area fraction the closing stage's peak windows may drop (WP-2002,
+    #: the sixth round's Q1 and Q2).  After the declared stages, one more
+    #: recompiles at the answer with these windows and solves with every glob
+    #: the plan freed (:meth:`closing_stage`); :data:`CLOSING_WINDOW_TOL` says
+    #: what it fixes, what it costs and what other programs do.  ``None``
+    #: runs the declared stages alone, which reproduces every fit before the
+    #: field, bit for bit.
+    closing_window_tol: float | None = CLOSING_WINDOW_TOL
+
+    def closing_stage(self) -> Stage | None:
+        """The stage a fit runs after the declared ones, or ``None``.
+
+        It frees every glob any declared stage freed, in first-seen order,
+        and takes the last declared stage's discrete settings (iterations, Le
+        Bail cycles, c_w, window slack, its own ``ftol``), so a schedule's end
+        state is what it re-solves.  It seeds nothing: a row back on its floor
+        at the answer is where the data put it.  Its window fraction is
+        :attr:`closing_window_tol`, which :meth:`stage_window_tols` carries.
+        ``None`` when that is ``None`` or the plan declares no stage.
+        """
+        if check_closing_window_tol(self.closing_window_tol) is None or not self.stages:
+            return None
+        last = self.stages[-1]
+        globs = list(dict.fromkeys(g for s in self.stages for g in s.turn_on))
+        return Stage(CLOSING_STAGE_NAME, globs, max_iter=last.max_iter, ftol=last.ftol,
+                     lebail_cycles=last.lebail_cycles,
+                     restraint_weight_scale=last.restraint_weight_scale,
+                     window_slack_deg=last.window_slack_deg)
+
+    def run_stages(self) -> list[Stage]:
+        """The stages a fit runs, in order: the declared ones, then :meth:`closing_stage`.
+
+        Every runner iterates this, never :attr:`stages`, together with
+        :meth:`stage_ftols` and :meth:`stage_window_tols`, which are parallel
+        to it.
+        """
+        closing = self.closing_stage()
+        return [*self.stages, closing] if closing is not None else list(self.stages)
+
+    def stage_window_tols(self) -> list[float | None]:
+        """The window area fraction each of :meth:`run_stages` compiles at.
+
+        ``None`` for a declared stage, which takes ``forward.WINDOW_AREA_TOL``,
+        and :attr:`closing_window_tol` for the closing stage.
+        """
+        tols: list[float | None] = [None] * len(self.stages)
+        if self.closing_stage() is not None:
+            tols.append(self.closing_window_tol)
+        return tols
 
     def stage_ftols(self) -> list[float | None]:
         """The tolerance each stage runs at, in order — the one authority.
@@ -351,17 +415,20 @@ class RefinementPlan:
         Three inputs, in precedence order: a stage's own ``ftol`` wins; the
         last stage takes the solver default, because it is the one that
         produces the answer; everything else takes
-        :attr:`intermediate_ftol`.
+        :attr:`intermediate_ftol`.  The list is parallel to
+        :meth:`run_stages`, so with a closing stage the last is the closing
+        stage and the last declared stage is an intermediate one.
 
-        A single-stage plan is therefore all endpoint and nothing is loosened
-        — which is the right reading of a warm series pattern collapsed to one
-        stage, and of the indexing validation fit, neither of which has a
-        successor to seed.
+        A single-stage plan without a closing stage is therefore all endpoint
+        and nothing is loosened, which is the right reading of the indexing
+        validation fit, with no successor to seed.  With one, its stage seeds
+        the closing stage like any other.
         """
-        last = len(self.stages) - 1
+        stages = self.run_stages()
+        last = len(stages) - 1
         return [s.ftol if s.ftol is not None
                 else (None if i == last else self.intermediate_ftol)
-                for i, s in enumerate(self.stages)]
+                for i, s in enumerate(stages)]
 
     def __getattr__(self, name: str):
         if name in _PYDANTIC_SURFACE:

@@ -20,6 +20,8 @@ fix, and it is pinned to the numbers it had then.
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import pytest
 
@@ -31,7 +33,7 @@ from rietx.crystallography.magnetic.moments import (
 )
 from rietx.crystallography.magnetic.operators import moment_magnitude
 from rietx.io.exporters import reflection_table
-from rietx.model.forward import compile_model
+from rietx.model.forward import WINDOW_AREA_TOL, compile_model, recorded_window_tol
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter as P
 from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Moment, Phase
@@ -73,10 +75,22 @@ def _grid() -> rx.PatternData:
     return rx.PatternData(two_theta=TT.tolist(), intensity=[1.0] * len(TT))
 
 
-def _simulate(instrument, seed):
-    """The truth at β = 101°, scaled to a 2e4-count peak, on a 50-count floor."""
+def _redraw(structure, instrument, grid, window_area_tol):
+    """``Refinement.predict(grid)`` at a stated window fraction, which it does not take."""
+    table = ParameterTable(structure, instrument)
+    model = compile_model(structure, instrument, grid,
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=window_area_tol)
+    return np.asarray(model.evaluate(table.decode(table.x0())), float)
+
+
+def _simulate(instrument, seed, window_area_tol=None):
+    """The truth at β = 101°, scaled to a 2e4-count peak, on a 50-count floor.
+
+    ``None`` draws it at ``predict``'s windows, the closing stage's (WP-2002).
+    """
     truth = rx.Structure(phases=[_phase(101.0)])
-    y = np.asarray(rx.Refinement(truth, instrument).predict(_grid()), float)
+    y = _redraw(truth, instrument, _grid(), window_area_tol)
     scale = 2e4 / y.max()
     y = y * scale + 50.0
     yo = y + np.random.default_rng(seed).normal(0.0, np.sqrt(y))
@@ -89,6 +103,14 @@ def _simulate(instrument, seed):
 def cw():
     instrument = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.25)
     data, scale = _simulate(instrument, seed=7)
+    return instrument, data, scale
+
+
+@pytest.fixture(scope="module")
+def cw_declared():
+    """``cw`` drawn at the declared stages' windows, as every pattern was before WP-2002."""
+    instrument = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.25)
+    data, scale = _simulate(instrument, seed=7, window_area_tol=WINDOW_AREA_TOL)
     return instrument, data, scale
 
 
@@ -151,17 +173,22 @@ def test_the_written_back_moment_is_the_fitted_one_after_the_angle_moved(cw, bet
     np.testing.assert_allclose(moment_magnitude(m_back, cell), 3.1772, atol=5e-4)
 
 
-def test_the_start_at_truth_control_is_unchanged(cw):
+def test_the_start_at_truth_control_is_unchanged(cw_declared):
     """Nothing moves before the moment stage, so main was right here already.
 
     Pinned to main's numbers (13520aae): components (2.49970, ±0.09520, 2.49298),
-    |m| 3.17716 at the fitted β, written-back and forward-model alike.
+    |m| 3.17716 at the fitted β, written-back and forward-model alike.  So it
+    declares the setting they were measured at: the pattern drawn at the
+    declared stages' windows and fitted on them, with no closing stage
+    (WP-2002).  Drawn and fitted at the default's 1e-3 instead, the b
+    component reads 0.09512, 7e-5 from it and nearer the truth's 0.
 
     The sign of the b component is not a measurement.  Flipping it changes
     the pattern by 4.5e-17 of its maximum, so TRF's −0.09520 and the LM
     driver's +0.09520 are one minimum, their χ² equal to 4e-13 (WP-1938).
     """
-    ref, result = _fit(cw, 101.0, PLAN_3)
+    ref, result = _fit(cw_declared, 101.0,
+                       dataclasses.replace(PLAN_3, closing_window_tol=None))
     m_back, cell = _written_back(ref)
     np.testing.assert_allclose(m_back * [1.0, np.sign(m_back[1]), 1.0],
                                [2.49970, 0.09520, 2.49298], atol=2e-5)
@@ -169,7 +196,8 @@ def test_the_start_at_truth_control_is_unchanged(cw):
     # 1e-5 rather than roundoff, so this arm stays the one that passed before
     # the fix: main's 1.2e-6 here was the in-stage symptom below at the 1e-4°
     # β moves inside the last stage, which the fix takes to 1e-16
-    y_back = rx.Refinement(ref.fitted_structure, ref.fitted_instrument).predict(cw[1])
+    y_back = _redraw(ref.fitted_structure, ref.fitted_instrument, cw_declared[1],
+                     recorded_window_tol(result.stages[-1].window_area_tol))
     assert _rel(y_back, result.y_calc) < 1e-5
 
 

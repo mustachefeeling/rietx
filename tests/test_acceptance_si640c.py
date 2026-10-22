@@ -219,6 +219,7 @@ def _plan(*, asymmetric: bool) -> rx.RefinementPlan:
     # user's own run does.  ``None`` would converge every stage and move the
     # numbers in the module docstring.
     plan.intermediate_ftol = 1e-6
+    plan.closing_window_tol = 1e-3   # WP-2002: the shipped closing stage, named rather than inherited
     return plan
 
 
@@ -585,6 +586,7 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool = False,
                                 "instrument.background.c*"]))
     plan = rx.RefinementPlan(stages=stages)
     plan.intermediate_ftol = 1e-6
+    plan.closing_window_tol = 1e-3   # WP-2002: the shipped closing stage, named rather than inherited
 
     data = rx.read_pattern(PATTERN)
     ref = rx.Refinement(_structure(), ins, history=False)

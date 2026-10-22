@@ -369,11 +369,11 @@ def _pattern(m, seed, scale=None):
                           sigma=np.sqrt(np.maximum(y, 1.0)).tolist()), s
 
 
-def _plan():
+def _plan(**kw):
     base = ["phases.*.scale", "instrument.background.c*"]
     return rx.RefinementPlan(stages=[
         rx.Stage("scale", base),
-        rx.Stage("moment", base + ["phases.*.atoms.*.moment.dof*"])])
+        rx.Stage("moment", base + ["phases.*.atoms.*.moment.dof*"])], **kw)
 
 
 def _along_minus_a(m):
@@ -400,10 +400,13 @@ def test_a_fit_that_winds_its_azimuth_reports_it_in_the_chart_with_the_same_esds
     ends this pattern at φ = 3.065 rad, inside the chart, so nothing would be
     moved and the test would not reach the code it is about (WP-1938)."""
     data, scale = _pattern(_along_minus_a(3.5), 700)
-    fitted = rx.Refinement(_start(scale), INS, solver="trf").fit(data, plan=_plan())
+    # the declared stages' last commit; the closing stage is tests/test_closing_stage.py's
+    fitted = rx.Refinement(_start(scale), INS, solver="trf").fit(
+        data, plan=_plan(closing_window_tol=None))
     monkeypatch.setattr(ParameterTable, "_canonicalise_moment_dofs",
                         lambda self: None)
-    unmoved = rx.Refinement(_start(scale), INS, solver="trf").fit(data, plan=_plan())
+    unmoved = rx.Refinement(_start(scale), INS, solver="trf").fit(
+        data, plan=_plan(closing_window_tol=None))
     a = {p.path: p for p in fitted.parameters}
     b = {p.path: p for p in unmoved.parameters}
     assert a.keys() == b.keys()

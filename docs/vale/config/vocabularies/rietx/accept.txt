@@ -94,6 +94,7 @@ DIFC
 [dD]isplacive
 [dD]ocstring
 [dD]ocstrings
+Doebelin
 DOF
 DOFs
 Dollase
@@ -159,6 +160,7 @@ Kass
 Kessler
 Kirfel
 Kissel
+Kleeberg
 Kovalev
 Landé
 Langford

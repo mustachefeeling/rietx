@@ -138,6 +138,7 @@ from ..crystallography.magnetic.supercell import (
 )
 from ..crystallography.symmetry import resolve_group
 from ..schemas.common import Diagnostic
+from ..schemas.plan import CLOSING_WINDOW_TOL
 from ..schemas.structure import MagneticSymmetry, Moment, Structure
 from .staged import RefinementPlan, Stage
 
@@ -414,6 +415,10 @@ class MagneticTrial:
     reference_status: str | None = None
     _structure: Structure | None = field(default=None, repr=False, compare=False)
     _result: object | None = field(default=None, repr=False, compare=False)
+    #: the winning start's refinement and the plan it ran, which
+    #: :func:`_close` continues from
+    _refinement: object | None = field(default=None, repr=False, compare=False)
+    _plan: RefinementPlan | None = field(default=None, repr=False, compare=False)
 
     @property
     def supported(self) -> bool:
@@ -1376,9 +1381,45 @@ def _fit(structure, instrument, data, plan, ties=None, limits=None, hold=()):
         result = ref.fit(data, plan=RefinementPlan(stages=[Stage(
             f"{last.name} (continued)", freed, max_iter=last.max_iter,
             ftol=last.ftol)], phase_support_sigma=plan.phase_support_sigma,
-            correlation_guard=plan.correlation_guard),
+            correlation_guard=plan.correlation_guard,
+            # and its closing stage, so a continued trial ends on the windows
+            # every other trial's χ² was measured on (WP-2002)
+            closing_window_tol=plan.closing_window_tol),
             two_theta_limits=limits, telemetry=False)
     return ref, result
+
+
+def _close(trial: MagneticTrial, data, limits, mask) -> MagneticTrial:
+    """The winner, its fit ended in a closing stage (WP-2002, ruled 2026-10-22).
+
+    The trials a package-chosen plan ranks run at the declared stages'
+    windows and stop there, because ΔBIC compares their χ² with a reference's
+    at one precision.  The winner's moments are the answer, and at those
+    windows their esds carry the misfit of the peak tails the windows drop:
+    1.61× the closing stage's on the two-site Pnma test, 0.00242 against
+    0.00151 μ_B.  So the winner continues from its own fit with the closing
+    stage its plan would have run (``RefinementPlan.closing_stage``, every
+    glob the plan freed, at ``CLOSING_WINDOW_TOL``), and its Rwp, GoF, R_mag,
+    moments, held list and status are that fit's.  Its ΔBIC stays the
+    ranking's.
+    """
+    plan = replace(trial._plan, closing_window_tol=CLOSING_WINDOW_TOL)
+    ref = trial._refinement
+    result = ref.run_stage(data, plan.closing_stage(), two_theta_limits=limits,
+                           correlation_guard=plan.correlation_guard,
+                           phase_support_sigma=plan.phase_support_sigma,
+                           telemetry=False)
+    moments, _n, _pairs = _moment_rows(ref, result, ref.fitted_structure)
+    # measured on the moments it is reported beside, where the trial took one
+    drift = (None if trial.anti_translation_drift is None
+             else anti_translation_residual(ref.fitted_structure.phases[0]))
+    return replace(trial, rwp=float(result.statistics.rwp),
+                   gof=float(result.statistics.gof),
+                   r_magnetic=r_magnetic(result, mask), moments=moments,
+                   held=tuple(result.stages[-1].held) if result.stages else (),
+                   anti_translation_drift=drift,
+                   fit_status=result.status, _structure=ref.fitted_structure,
+                   _result=result)
 
 
 def _moment_owner(label: str, owners: Sequence[str]) -> str | None:
@@ -2055,7 +2096,11 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
 
     ``plan`` overrides :data:`SOLVE_STAGE_PATHS` for both the trials and the
     nuclear reference; pass one whose stages differ only by the moment paths,
-    or ΔBIC stops meaning what it says.
+    or ΔBIC stops meaning what it says.  Without one, the trials and the
+    reference run no closing stage, and the winner then runs one
+    (:func:`_close`), so its moments and their esds are measured on peaks with
+    their tails; a caller's plan keeps its own ``closing_window_tol`` for every
+    fit, the winner's included.
 
     ``tie_to_parent=True`` (default ``False``, which is the behaviour above
     unchanged) takes a k ≠ 0 trial's nuclear freedom from the parent: the child
@@ -2247,9 +2292,14 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     skipped: list[str] = []
 
     # --- the candidates, per site, merged into classes -----------------------
+    # the trials the package fits and ranks by ΔBIC pay for no closing stage
+    # when it chose the plan, and the winner then runs one (_close); a
+    # caller's plan keeps its own (WP-2002)
+    package_plan = plan is None
     plan = plan or RefinementPlan(stages=[
         Stage(name, list(paths))
-        for name, paths in zip(SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, strict=True)])
+        for name, paths in zip(SOLVE_STAGE_NAMES, SOLVE_STAGE_PATHS, strict=True)],
+        closing_window_tol=None)
     # A stage that differed from its predecessor only by moment paths repeats
     # it here, and is dropped: the default's moduli and moment stages would
     # otherwise refit the reference twice under one free set, and move it.
@@ -2263,7 +2313,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     # ΔBIC compares them with is fitted under the same rule (WP-2002, B1)
     nuclear_plan = RefinementPlan(stages=nuclear_stages,
                                   phase_support_sigma=plan.phase_support_sigma,
-                                  correlation_guard=plan.correlation_guard)
+                                  correlation_guard=plan.correlation_guard,
+                                  closing_window_tol=plan.closing_window_tol)
 
     def enumerate_for(k_try):
         """Candidate classes for one k, or a sentence saying why there are none."""
@@ -2479,7 +2530,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 n_starts=n_starts, n_minima=n_minima, start=start,
                 fit_status=result.status,
                 reference_status=reference_of[(kk, index)][5],
-                _structure=ref.fitted_structure, _result=result))
+                _structure=ref.fitted_structure, _result=result,
+                _refinement=ref, _plan=trial_plan))
             if result.status != "converged":
                 caveats.append(
                     f"class {index}: the trial fit stopped at "
@@ -2564,6 +2616,31 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 parent, winner_trial, winner_candidate, winner_classes,
                 magnetic, g_map, plan, instrument, data, limits, tie_width,
                 zero)
+    if package_plan and verdict == "solved" and ordered:
+        try:
+            closed = _close(ordered[0], data, limits, mask)
+        except Exception as exc:      # noqa: BLE001 - reported, never swallowed
+            caveats.append(
+                f"class {ordered[0].class_index}, the winner: its closing stage "
+                f"raised {type(exc).__name__}: {exc}, so its Rwp, GoF, R_mag and "
+                f"moments are the ranked fit's, at the declared stages' windows")
+        else:
+            ordered = (closed, *ordered[1:])
+            caveats.append(
+                f"class {closed.class_index}, the winner: its Rwp, GoF, R_mag "
+                f"and moments are from a closing stage at windows dropping "
+                f"{CLOSING_WINDOW_TOL:g} of each peak, run after the ranking; its "
+                f"ΔBIC, the other rows and the nuclear reference are at the "
+                f"declared stages' windows, where every trial was ranked")
+            if closed.fit_status != "converged":
+                caveats.append(
+                    f"class {closed.class_index}, the winner: its closing stage "
+                    f"stopped at {closed.fit_status!r}, so its moments and their "
+                    f"esds measure where the solver stopped rather than a "
+                    f"minimum")
+    # the refinements only the close continues from: a solution that kept
+    # them would hold every trial's compiled model alive
+    ordered = tuple(replace(t, _refinement=None, _plan=None) for t in ordered)
 
     reference = _reported_reference(reference_of, references, kk, ordered, tied)
     if reference is not None:

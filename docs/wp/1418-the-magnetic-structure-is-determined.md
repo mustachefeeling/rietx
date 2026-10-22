@@ -125,6 +125,15 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-22, from WP-2002 (PR #1085): `solve_magnetic`'s winner ends in a closing stage.**
+  When the package chose the plan, the trials and the nuclear reference still
+  run no closing stage and are ranked there, and the winner then runs one from
+  its own refinement (`strategy.magnetic._close`). Its Rwp, GoF, R_mag, moments
+  and held list come from that stage; its ΔBIC stays the ranking's, and a caveat
+  says so. A caller's plan is untouched. Numbers quoted from an earlier solve
+  move: on the two-site Pnma set the moduli esds fall 1.61× (0.00242 → 0.00151
+  μ_B), and on Cr₂WO₆ at 4 K the blind moment reads 2.0383 ± 0.0467 μ_B (was
+  2.0353 ± 0.0459). The losing trials' rows stay at the declared windows.
 - **2026-10-15, from WP-1325: the moment-angle test divides by χ²_red·f².**
   `least_squares.stationary_angle_test` scales its Δχ² by χ²_red·f², the
   Bérar-Lelann factor squared. WP-1325's parametric form test dropped the f²

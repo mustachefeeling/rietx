@@ -30,7 +30,7 @@ from .backend.api import backend_dtype_note
 from .crystallography.symmetry import reflection_label_row
 from .history.events import _attach_progress, as_event_stream
 from .model.components import EXTRA_TICK_KEY
-from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
+from .model.forward import PHASE_SUPPORT_SIGMA, compile_model, recorded_window_tol
 from .model.microstructure import microstructure_table
 from .optimize.blocked import BlockJacobian
 from .optimize.cancel import RefinementCancelled
@@ -1130,7 +1130,7 @@ class MultiHistogramRefinement:
                 fitted = [int(fitted_mask(d, lim).sum())
                           for d, lim in zip(data, limits, strict=True)]
                 stream.emit("fit_start", mode=mode,
-                            stages=[s.name for s in plan.stages],
+                            stages=[s.name for s in plan.run_stages()],
                             n_points=sum(len(d.two_theta) for d in data),
                             n_fitted=sum(fitted), n_histograms=n,
                             histograms=[{"histogram_index": h,
@@ -1226,7 +1226,8 @@ class MultiHistogramRefinement:
         return build_report(
             self.result_.for_histogram(histogram),
             model=self._models[histogram], values=answer["values"],
-            plan=plan, structure=answer["structure"], held=answer["held"],
+            plan=plan, structure=answer["structure"],
+            instrument=answer["instrument"], held=answer["held"],
             free_paths=answer["free_paths"], **kw)
 
     def _freeze_answer(self) -> list[dict]:
@@ -1251,6 +1252,7 @@ class MultiHistogramRefinement:
             out.append({
                 "values": table.decode(table.x0()),
                 "structure": structure.model_copy(deep=True),
+                "instrument": self.mtable.instruments[h].model_copy(deep=True),
                 "held": held,
                 # what ``Refinement._record_free_paths`` records: free, or
                 # held by the last stage
@@ -1339,9 +1341,13 @@ class MultiHistogramRefinement:
         models = None
         outcome = None
         carried_hold: list[str] = []
-        n_stages = len(plan.stages)
-        for index, (stage, ftol) in enumerate(
-                zip(plan.stages, plan.stage_ftols(), strict=True), start=1):
+        # the declared stages and the closing one, the single runner's
+        # schedule (WP-2002, the sixth round's Q1 and Q2)
+        stages = plan.run_stages()
+        n_stages = len(stages)
+        for index, (stage, ftol, window_tol) in enumerate(
+                zip(stages, plan.stage_ftols(), plan.stage_window_tols(),
+                    strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 freed = self.mtable.set_vary(stage.turn_on, True)
                 # what the glob matched and a hold refused (WP-1435): here only
@@ -1372,7 +1378,8 @@ class MultiHistogramRefinement:
                 self.mtable.reframe_moments()
                 models = [
                     compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
-                                  moving_paths=set(tab.moving_paths))
+                                  moving_paths=set(tab.moving_paths),
+                                  window_area_tol=recorded_window_tol(window_tol))
                     for s, ins, d, lim, tab in zip(
                         self.mtable.structures, self.mtable.instruments, data, limits,
                         self.mtable.tables, strict=True)]
@@ -1525,7 +1532,9 @@ class MultiHistogramRefinement:
                         # summed for the same reason the truncations are: the stage
                         # ran twice and the count is a fact about its whole search
                         n_degenerate_cell_probes=(outcome.n_degenerate_cell_probes
-                                                  + second.n_degenerate_cell_probes))
+                                                  + second.n_degenerate_cell_probes),
+                        n_lapack_fallbacks=(outcome.n_lapack_fallbacks
+                                            + second.n_lapack_fallbacks))
                 runaway_diag = _cell_runaway_diagnostic(cell_runaway)
                 answer_runaway = [] if runaway_diag is None else [runaway_diag]
                 if runaway_diag is not None:
@@ -1549,7 +1558,9 @@ class MultiHistogramRefinement:
                     freed=freed,
                     n_constraint_truncations=outcome.n_constraint_truncations,
                     n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                    ftol=ftol, held=held, released=released,
+                    n_lapack_fallbacks=outcome.n_lapack_fallbacks,
+                    ftol=ftol, window_area_tol=window_tol,
+                    held=held, released=released,
                     held_reach={c: v for c, v in held_reach.items() if c in still},
                     scale_b_held=dict(scale_b_held),
                     moment_flat_axes=kept_axes,

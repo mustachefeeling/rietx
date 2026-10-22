@@ -1888,7 +1888,9 @@ def test_a_flat_combination_found_at_the_answer_is_turned_too(eps, released,
     start = tuple(eps * np.array([3.0, 0.2, 0.2]))
     ref, result = _fit(_rhombohedral(truth), _rhombohedral(start),
                        solver=solver)
-    stage = result.stages[-1]
+    # both checks run in the stage that starts at the vanishing modulus; the
+    # closing stage starts at the answer, where nothing is left to release
+    stage = next(s for s in result.stages if s.name == "moment")
     base = "phases.0.atoms.0.moment"
     assert stage.held == [f"{base}.dof2"], stage.held
     assert (f"{base}.dof1" in stage.released) is released, stage.released

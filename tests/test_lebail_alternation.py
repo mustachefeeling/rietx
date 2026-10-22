@@ -93,13 +93,13 @@ def _refinement(cell_scale: float, history: bool = False) -> rx.Refinement:
                          ins, history=history)
 
 
-def _plan(passes: int):
+def _plan(passes: int, **fields):
     return dataclasses.replace(resolve_plan("profile_only", "lebail"),
-                               lebail_passes=passes)
+                               lebail_passes=passes, **fields)
 
 
-def _fit(ref, data, passes: int, limits=LIMITS):
-    return ref.fit(data, mode="lebail", plan=_plan(passes),
+def _fit(ref, data, passes: int, limits=LIMITS, **fields):
+    return ref.fit(data, mode="lebail", plan=_plan(passes, **fields),
                    two_theta_limits=limits, telemetry=False)
 
 
@@ -127,7 +127,8 @@ def exact(pattern):
 def worse(pattern):
     """``WORSE_START`` cells with a history: pass 1 kept, pass 2 discarded."""
     ref = _refinement(WORSE_START, history=True)
-    return ref, _fit(ref, pattern, 8)
+    # the declared stages' passes; the closing stage is tests/test_closing_stage.py's
+    return ref, _fit(ref, pattern, 8, closing_window_tol=None)
 
 
 @pytest.fixture(scope="module")
@@ -319,9 +320,10 @@ def test_a_cancel_in_a_later_pass_leaves_the_best_pass_standing(pattern):
             seen.append(kind)
             if len(seen) == 2:
                 token.cancel()
+    # the declared stages' passes; the closing stage is tests/test_closing_stage.py's
     with pytest.raises(RefinementCancelled):
-        ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
-                telemetry=False, events=on_event, cancel=token)
+        ref.fit(pattern, mode="lebail", plan=_plan(8, closing_window_tol=None),
+                two_theta_limits=LIMITS, telemetry=False, events=on_event, cancel=token)
     assert ref.result_ is not None
     assert ref.result_.statistics.rwp == pytest.approx(WORSE_KEPT_RWP,
                                                        abs=RWP_PLATFORM_SPREAD)
@@ -359,9 +361,10 @@ def test_a_cancel_part_way_through_a_later_pass_restores_the_best_pass(pattern):
             ends.append(1)
             if len(ends) == 4:          # the cell is free by then
                 token.cancel()
+    # the declared stages' passes; the closing stage is tests/test_closing_stage.py's
     with pytest.raises(RefinementCancelled):
-        ref.fit(pattern, mode="lebail", plan=_plan(8), two_theta_limits=LIMITS,
-                telemetry=False, events=on_event, cancel=token)
+        ref.fit(pattern, mode="lebail", plan=_plan(8, closing_window_tol=None),
+                two_theta_limits=LIMITS, telemetry=False, events=on_event, cancel=token)
     kept = ref.result_
     assert kept.statistics.rwp == pytest.approx(WORSE_KEPT_RWP, abs=RWP_PLATFORM_SPREAD)
     cell = {p.path: p.value for p in kept.parameters}["phases.0.cell.a"]

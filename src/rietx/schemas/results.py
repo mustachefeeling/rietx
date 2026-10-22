@@ -774,7 +774,7 @@ class GeometryTable(Base):
     #: the listing criteria actually used, so a row can be read without
     #: knowing which version of the module produced it
     bond_slack: float = 0.0           # Å, added to the covalent-radius sum
-    contact_max: float = 0.0          # Å, the nonbonding search radius
+    contact_max: float = 0.0          # Å, the nonbonding listing radius; bonds are not bounded by it
     notes: list[str] = Field(default_factory=list)
 
     @property
@@ -986,6 +986,18 @@ class StageResult(Base):
     #: fits' parameter shifts needs to know whether they were converged the
     #: same way.
     ftol: float | None = None
+    #: the fraction of each peak's area this stage's windows dropped, or
+    #: ``None`` for ``forward.WINDOW_AREA_TOL`` — what every declared stage
+    #: takes.  A plan's closing stage runs at ``closing_window_tol`` (WP-2002,
+    #: the sixth round's Q1 and Q2), a stage run by hand at the fraction it
+    #: ran at, and the result's curves and statistics are measured at the last
+    #: stage's.  So a reader rebuilding the model from
+    #: ``RefinementResult.parameters`` passes
+    #: ``forward.recorded_window_tol(this)`` to ``compile_model`` to reproduce
+    #: them, ``compile_model``'s own default being the closing stage's
+    #: fraction: the 2 % and 0.1 % windows of one answer differ by up to 0.6 %
+    #: in χ².
+    window_area_tol: float | None = None
     #: steps the bounded-LM driver held on a linear-inequality constraint (the
     #: Stephens strain cone, or the Γ_G² floor of WP-1938 D7) during this
     #: stage: the step for the box alone crossed a row, and the step solved
@@ -1008,6 +1020,14 @@ class StageResult(Base):
     #: bumped with this change, ``SCHEMA_VERSION`` 0.19 → 0.20 (see the
     #: changelog entry in ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: decompositions this stage's solve and esds repeated with LAPACK's
+    #: QR-iteration driver because the divide-and-conquer driver stopped
+    #: without converging (``optimize.lapack``): the same decomposition by
+    #: another route, so the answer is the one a converging build computes.
+    #: Met on macOS's system LAPACK, whose ``gesdd`` failed on a TRF step on
+    #: CPD brucite that OpenBLAS's decomposed (WP-2002).  0 means no
+    #: decomposition needed it.
+    n_lapack_fallbacks: int = 0
     #: paths this stage **held** although the plan had freed them: the
     #: structural parameters of a phase the data could not see at stage start
     #: (the screen ``CompiledModel.phase_support`` below

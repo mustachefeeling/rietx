@@ -181,6 +181,11 @@ and why, and the running count of free parameters. That resolution is the real
 verb and not a preview. It is the same call the fit makes, so the ties, the
 locks and the mode's force-fixes shown are the ones you will get.
 
+Under the last stage the panel names the closing stage every plan ends with.
+It frees every stage's globs once more, on peak windows that drop 0.10% of
+each peak, and its Rwp is the answer's. The plan's `closing` line in the text
+document sets the fraction, and `none` removes the stage.
+
 The two buttons do different things:
 
 - `Run all` runs the plan from the start. A plan replaces the vary flags rather
