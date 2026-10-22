@@ -293,15 +293,23 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
 // mutation of `data-theme`.
 // The choice is stored under the manual's keys, pydata-sphinx-theme's `mode` and `theme`,
 // so one click holds on both pages of the origin (WP-2021).  `rietx-theme`, this page's
-// own key before that, is read once as a fallback and then removed.
+// own key before that, is read once where `mode` pins nothing -- the manual writes `auto`
+// there on every load, so `mode` being set is no sign of a choice -- carried over to the
+// two keys, and removed.
 (function(){
   "use strict";
   const root = document.documentElement, tb = document.getElementById("theme");
   const mqDark = window.matchMedia("(prefers-color-scheme: dark)");
+  const isTheme = s => s === "light" || s === "dark";
   let pinned = null;
   try {
-    const s = localStorage.getItem("mode") || localStorage.getItem("rietx-theme");
-    if (s === "light" || s === "dark") pinned = s;
+    const mode = localStorage.getItem("mode"), old = localStorage.getItem("rietx-theme");
+    if (isTheme(mode)) pinned = mode;
+    else if (isTheme(old)) {
+      pinned = old;
+      localStorage.setItem("mode", old); localStorage.setItem("theme", old);
+    }
+    localStorage.removeItem("rietx-theme");
   } catch (e) {}
   const isDark = () => pinned ? pinned === "dark" : mqDark.matches;
   function applyTheme(){
@@ -315,7 +323,6 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
     pinned = isDark() ? "light" : "dark";
     try {
       localStorage.setItem("mode", pinned); localStorage.setItem("theme", pinned);
-      localStorage.removeItem("rietx-theme");
     } catch (e) {}
     applyTheme();
   });
