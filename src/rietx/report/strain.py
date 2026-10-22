@@ -233,7 +233,7 @@ def _strain_errors(model: CompiledModel, values: dict[str, float], ip: int,
     amp_factor = np.ones(n_group)   # multiplicative: each step scales the current
     weight = np.zeros(n_group)
     h_lambda = 1e-6
-    for _ in range(max(n_iter, 1)):
+    for done in range(max(n_iter, 1)):
         y = y_other.copy()
         col_a = np.zeros((npts, n_group))
         col_w = np.zeros((npts, n_group))
@@ -268,7 +268,18 @@ def _strain_errors(model: CompiledModel, values: dict[str, float], ip: int,
         # strongly leave near-collinear columns whose split the data does not
         # determine; truncating those singular values spreads the correction
         # over the group instead of letting the iteration walk along them
-        step, *_ = np.linalg.lstsq(design, delta, rcond=1e-6)
+        try:
+            step, *_ = np.linalg.lstsq(design, delta, rcond=1e-6)
+        except np.linalg.LinAlgError:
+            # ``least_squares._guarded_covariance``'s rule (#225): a solve that
+            # does not converge must not take the fit down.  The rounds that
+            # completed are the answer, and with none the phase has no reading.
+            # Met in a stage report on 11-BM NAC (WP-2002): a rank-deficient
+            # 22003 x 102 design that macOS's system LAPACK gelsd did not
+            # converge on and SciPy's gelsd, gelss and gelsy all solved
+            if not done:
+                return np.zeros(n), np.zeros(n)
+            break
         n_live = int(live.sum())
         amp_factor[live] *= 1.0 + np.clip(step[:n_live], -0.5, 0.5)
         d_lambda[live] += step[n_live:]

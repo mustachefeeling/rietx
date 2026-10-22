@@ -688,7 +688,10 @@ def test_a_parametric_slope_recovers_a_known_expansion_within_its_esd():
     intercept, slope = result.parametric
     assert (intercept.term, slope.term) == ("1", "T")
     assert slope.reference == {"T": 750.0}
-    assert abs(slope.value - truth) < slope.esd, (slope.value, slope.esd, truth)
+    # Two esds: one noise draw.  Over five sets of seeds the slope lands
+    # -1.04, +0.15, -0.44, +0.32 and -0.14 esd from the truth (WP-2002, the
+    # closing windows), so a one-esd bar fails a third of correct fits.
+    assert abs(slope.value - truth) < 2 * slope.esd, (slope.value, slope.esd, truth)
     a_ref = A0 * (1.0 + RAMP * (750.0 - 300.0) / 100.0)
     assert abs(intercept.value - a_ref) < 3 * intercept.esd
 
