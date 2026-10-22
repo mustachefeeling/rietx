@@ -134,6 +134,12 @@ _Q_TRIGGER = 5               # … and λ/10 fires only above this
 #: a step tried at most 6 trials, and a stage's last iteration up to 9 (WP-2002,
 #: tests/test_budget_and_tolerance_invariance.py).
 _INNER_MAX = 18
+#: The default ``ftol``: the relative decrease in S under which an iteration
+#: counts towards convergence, here and in both of
+#: :mod:`~rietx.optimize.least_squares`' drivers.  It is the final stage's
+#: tolerance, the plan's earlier stages taking ``INTERMEDIATE_FTOL`` (WP-1123).
+#: One decade under SciPy's own 1e-8; no stated source.
+FTOL = 1e-9
 #: consecutive outer iterations below ``ftol`` that count as converged.  One
 #: small step is a small step; three running is convergence (Coelho's rule).
 _CONVERGED_RUNS = 3
@@ -360,7 +366,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
              x0: np.ndarray, *,
              lo: np.ndarray, hi: np.ndarray,
              max_nfev: int = 400,
-             ftol: float = 1e-9,
+             ftol: float = FTOL,
              inequalities: list[LinearInequality] | None = None,
              callback: Callable[[np.ndarray, float], None] | None = None,
              on_trial: Callable[[np.ndarray, float, bool, float, float],

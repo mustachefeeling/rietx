@@ -215,9 +215,17 @@ class Stage:
 #: switched-off branch inside the valid range.  No program supplies a Pitschke
 #: start, so 0.3 stays, at tier 3.  A per-model value would need a per-path seed
 #: or a second stage, and an inert stage re-solves everything already freed.
+ROUGHNESS_SEED = 0.3
 _ROUGHNESS_STAGE = (
-    Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
+    Stage("roughness", ["instrument.geometry.surface_roughness.*"],
+          seed=ROUGHNESS_SEED),
 )
+
+#: The microstrain, in ppm of ΔM/M, that ``lab_sample_refine`` puts an all-zero
+#: Stephens block at before solving (``Stage.strain_seed``): the width's square
+#: root has unbounded slope at zero, so some start is forced.  1000 ppm is
+#: GSAS-II's isotropic microstrain default, on the isotropic ray (WP-1467).
+STRAIN_SEED_PPM = 1000.0
 
 
 #: Additive background peaks (:class:`~rietx.schemas.instrument.HumpComponent`)
@@ -572,7 +580,7 @@ class RefinementPlan:
             Stage("sample_profile", ["phases.*.lor_size", "phases.*.lor_strain",
                                      "phases.*.gauss_size", "phases.*.gauss_strain",
                                      "phases.*.microstrain.dof.*"],
-                  strain_seed=1000.0),
+                  strain_seed=STRAIN_SEED_PPM),
             Stage("biso", list(_DISPLACEMENT_GLOBS)),
             *_ROUGHNESS_STAGE,
         ])

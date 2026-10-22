@@ -61,6 +61,7 @@ from ..schemas.results import MomentAngleTest
 from . import blocked, lapack
 from .blocked import BlockJacobian
 from .cancel import RefinementCancelled
+from .lm import FTOL
 
 if TYPE_CHECKING:
     from ..params.multi import MultiParameterTable
@@ -2379,7 +2380,7 @@ def _check_magnetic_width_compiled(model: CompiledModel,
 
 
 def run_least_squares(model: CompiledModel, table: ParameterTable,
-                      *, max_iter: int = 100, ftol: float = 1e-9,
+                      *, max_iter: int = 100, ftol: float = FTOL,
                       compute_uncertainties: bool = True,
                       events=None, stage: str = "",
                       backend: str = "numpy",
@@ -2618,7 +2619,7 @@ def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
 def run_multi_least_squares(models: list[CompiledModel],
                             mtable: "MultiParameterTable", *,
                             weights: list[float] | None = None,
-                            max_iter: int = 100, ftol: float = 1e-9,
+                            max_iter: int = 100, ftol: float = FTOL,
                             compute_uncertainties: bool = True,
                             backend: str = "numpy",
                             solver: str = DEFAULT_SOLVER,

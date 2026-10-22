@@ -17,7 +17,7 @@ from .parametric import (
     ParametricValue,
     RefinedParametricEquation,
 )
-from .pattern import _floor_sigma
+from .pattern import POISSON_FLOOR_COUNTS, _floor_sigma
 
 
 class RefinedParameter(Base):
@@ -1774,7 +1774,8 @@ class RefinementResult(Base):
         if self.sigma:
             s = np.asarray(self.sigma, dtype=np.float64)
         else:
-            s = np.sqrt(np.maximum(np.asarray(self.y_obs, dtype=np.float64), 1.0))
+            s = np.sqrt(np.maximum(np.asarray(self.y_obs, dtype=np.float64),
+                                   POISSON_FLOOR_COUNTS))
         return _floor_sigma(s)
 
     def for_histogram(self, h: int) -> "RefinementResult":

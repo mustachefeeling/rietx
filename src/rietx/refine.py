@@ -81,6 +81,7 @@ from .optimize.least_squares import (
     _SCALE_PATH,
     DEFAULT_SOLVER,
     SOLVERS,
+    STATIONARY_ANGLE_STEP,
     _jacobian_for,
     _longest_line_wavelength,
     covariance_estimates,
@@ -895,7 +896,9 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
     current = _direction(values[f"{base}.dof1"], values[f"{base}.dof2"])
     tests = [current] + [t / np.linalg.norm(t)
                          for t in _FLAT_AXIS_TEST_DIRECTIONS]
-    h = 1e-4
+    # the stationary-angle test's own step on the same quantity, an angle of
+    # order one; the SVD only proposes, the finite turn below decides
+    h = STATIONARY_ANGLE_STEP
     blocks = []
     for s in tests:
         cols = [(evaluate(_rotate(s, e, h)) - evaluate(_rotate(s, e, -h)))

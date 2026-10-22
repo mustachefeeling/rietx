@@ -75,7 +75,7 @@ from ..schemas.structure import (
     StephensStrain,
     Structure,
 )
-from ..strategy.staged import RefinementPlan, Stage
+from ..strategy.staged import ROUGHNESS_SEED, STRAIN_SEED_PPM, RefinementPlan, Stage
 from .packed import CURVES_CEILING, Packed
 
 
@@ -664,13 +664,15 @@ def _with_hump(inputs: StandardInputs) -> None:
 def _with_roughness_suortti(inputs: StandardInputs) -> None:
     inputs.instrument.geometry.surface_roughness = RoughnessSuortti()
     inputs.plan.stages.append(
-        Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3))
+        Stage("roughness", ["instrument.geometry.surface_roughness.*"],
+              seed=ROUGHNESS_SEED))
 
 
 def _with_roughness_pitschke(inputs: StandardInputs) -> None:
     inputs.instrument.geometry.surface_roughness = RoughnessPitschke()
     inputs.plan.stages.append(
-        Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3))
+        Stage("roughness", ["instrument.geometry.surface_roughness.*"],
+              seed=ROUGHNESS_SEED))
 
 
 def _with_extinction(inputs: StandardInputs) -> None:
@@ -732,7 +734,7 @@ def _with_stephens(inputs: StandardInputs) -> None:
         if phase.microstrain is None:
             phase.microstrain = StephensStrain.isotropic(1000.0, phase.cell)
     _extend_broadening_stage(inputs.plan, ["phases.*.microstrain.dof.*"],
-                             strain_seed=1000.0)
+                             strain_seed=STRAIN_SEED_PPM)
 
 
 def _extend_broadening_stage(plan: RefinementPlan, globs: list[str],

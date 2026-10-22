@@ -1074,6 +1074,12 @@ class RoughnessPitschke(_InheritsDeclaredDefaults):
 
 SurfaceRoughness = RoughnessSuortti | RoughnessPitschke
 
+#: The fraction of a capillary bore or a flat slab occupied by solid, read only
+#: to estimate µR or µt from the composition: 0.3-0.6 is typical for a tapped
+#: powder and 0.64 is random close packing of spheres.  An assumption about the
+#: caller's specimen; GSAS-II's absorption calculator starts at 0.50.
+PACKING_FRACTION = 0.6
+
 
 class Geometry(_InheritsDeclaredDefaults):
     """Diffraction geometry.
@@ -1270,7 +1276,7 @@ class Geometry(_InheritsDeclaredDefaults):
     #: fraction of the bore (or the specimen slab) occupied by solid.  0.3-0.6 is
     #: typical for a tapped powder; 0.64 is random close packing of spheres.
     #: Estimator input only.
-    packing_fraction: float = Field(default=0.6, gt=0.0, le=1.0)
+    packing_fraction: float = Field(default=PACKING_FRACTION, gt=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _bb_needs_radius(self) -> "Geometry":
@@ -1563,6 +1569,13 @@ class BackgroundChebyshev(Base):
         return cls(coefficients=[Parameter(value=0.0, vary=vary) for _ in range(n)])
 
 
+#: The P-spline's default stiffness, in :attr:`BackgroundPSpline.lambda_units`'
+#: dimensionless units: λ = 1 suppresses features narrower than a knot spacing,
+#: and Rwp and Biso stay flat from 0.1 to 100 on IUCr CPD sample 2 and 11-BM
+#: NAC (WP-1454).  ``auto_background`` builds every P-spline at it.
+PSPLINE_LAMBDA_SMOOTH = 1.0
+
+
 class BackgroundPSpline(Base):
     """Penalised cubic P-spline background, co-refined with the structure.
 
@@ -1594,7 +1607,7 @@ class BackgroundPSpline(Base):
     kind: Literal["pspline"] = "pspline"
     breakpoints: list[float]
     coefficients: list[Parameter]
-    lambda_smooth: float = Field(default=1.0, ge=0.0)
+    lambda_smooth: float = Field(default=PSPLINE_LAMBDA_SMOOTH, ge=0.0)
     #: What ``lambda_smooth`` is measured against.  ``"dimensionless"``: the
     #: rows are √(λ·m)·D₂c/σ̄, with σ̄ the median σ over the fitted channels
     #: and m the fitted channels per coefficient, both frozen at compile
@@ -1622,7 +1635,8 @@ class BackgroundPSpline(Base):
 
     @classmethod
     def for_range(cls, lo: float, hi: float, *, knot_step_deg: float = 5.0,
-                  lambda_smooth: float = 1.0, vary: bool = True) -> "BackgroundPSpline":
+                  lambda_smooth: float = PSPLINE_LAMBDA_SMOOTH,
+                  vary: bool = True) -> "BackgroundPSpline":
         """Uniform knots covering [lo, hi] at ~``knot_step_deg`` spacing."""
         n = max(int(round((hi - lo) / knot_step_deg)) + 1, 2)
         breaks = [lo + (hi - lo) * i / (n - 1) for i in range(n)]
@@ -2260,6 +2274,19 @@ class PeakComponent(_InheritsDeclaredDefaults):
 #: this seam admits *any* evaluator shape is an intention.
 ExtraComponent = HumpComponent | PeakComponent
 
+#: :meth:`Instrument.debye_scherrer`'s polarisation K, in the GSAS POLA
+#: convention: 0.99, as APS 11-BM's instrument-parameter files state it.  An
+#: assumption about the caller's beam, which a lab capillary does not share.
+DEBYE_SCHERRER_POLARIZATION = 0.99
+#: :meth:`Instrument.bragg_brentano`'s goniometer radius, mm: the radius a lab
+#: diffractometer commonly has, there because the geometry refuses a missing one.
+BRAGG_BRENTANO_RADIUS_MM = 217.5
+#: The Kα2/Kα1 intensity ratio the lab presets seed: 0.5 is the 2j+1 degeneracy
+#: ratio (4:2).  Measured integrated ratios run a few percent above it and a
+#: diffracted-beam monochromator clips it (Hölzer et al. 1997, Phys. Rev. A 56,
+#: 4554); ``lab_bragg_brentano`` refines it and ``mccusker_default`` holds it.
+KA2_RATIO = 0.5
+
 
 class Instrument(_InheritsDeclaredDefaults):
     """Everything about the measurement except the sample.
@@ -2479,10 +2506,11 @@ class Instrument(_InheritsDeclaredDefaults):
                                      mu_r=mu_r))
 
     @classmethod
-    def debye_scherrer(cls, wavelength: float, *, polarization: float = 0.99,
+    def debye_scherrer(cls, wavelength: float, *,
+                       polarization: float = DEBYE_SCHERRER_POLARIZATION,
                        goniometer_radius_mm: float | None = None,
                        capillary_radius_mm: float | None = None,
-                       packing_fraction: float = 0.6,
+                       packing_fraction: float = PACKING_FRACTION,
                        mu_r: float | None = None) -> "Instrument":
         """Synchrotron/capillary preset with a single wavelength.
 
@@ -2510,9 +2538,9 @@ class Instrument(_InheritsDeclaredDefaults):
 
     @classmethod
     def bragg_brentano(cls, *, radiation: str = "CuKa",
-                       goniometer_radius_mm: float = 217.5,
+                       goniometer_radius_mm: float = BRAGG_BRENTANO_RADIUS_MM,
                        monochromator_two_theta: float | None = None,
-                       ka2_ratio: float = 0.5,
+                       ka2_ratio: float = KA2_RATIO,
                        mu_t: float | None = None,
                        thickness_mm: float | None = None) -> "Instrument":
         """Lab flat-plate diffractometer preset with a Kα1/Kα2 doublet.
@@ -2583,8 +2611,8 @@ class Instrument(_InheritsDeclaredDefaults):
     def flat_plate_transmission(cls, *, radiation: str = "CuKa1",
                                 mu_t: float | None = None,
                                 thickness_mm: float | None = None,
-                                packing_fraction: float = 0.6,
-                                ka2_ratio: float = 0.5) -> "Instrument":
+                                packing_fraction: float = PACKING_FRACTION,
+                                ka2_ratio: float = KA2_RATIO) -> "Instrument":
         """Flat-specimen **transmission** preset (WP-0508).
 
         The powder sits between two foils and the beam passes through it —
