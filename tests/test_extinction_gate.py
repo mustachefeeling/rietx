@@ -131,6 +131,20 @@ def test_a_cell_outside_the_prefits_basin_reaches_the_gate(si):
     assert "prefit" in message
 
 
+def test_the_unreliable_suggestion_lists_the_causes_without_ranking_them(si):
+    """Round 4 (#939): a second phase and weak data trip the gate at a right
+    cell, so the suggestion may not name the cell the first suspect."""
+    screen = _screen(si, 1.01)
+    diag = next(d for d in screen.diagnostics
+                if d.code == "EXTINCTION_SCREEN_UNRELIABLE")
+    text = diag.suggestion
+    assert "first suspect" not in text and "no order" in text
+    for cause in ("the cell", "a phase the reference does not model",
+                  "weak data", "the range", "the wavelength", "the width law"):
+        assert cause in text, cause
+    assert "may measure that misfit" in diag.message
+
+
 def test_the_gate_reads_a_background_no_fit_can_move():
     """A fit that has lost its peaks can sink its own background and let the
     Le Bail intensities carry the pedestal; the background-subtracted Rwp then
