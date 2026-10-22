@@ -1011,9 +1011,8 @@ def test_structure_from_candidate_is_the_scaffold_plus_the_symbol_default():
 # ------------------------------------------ the shared form-factor grammar ---
 # The *where* of a bad species — the refusal naming the phase, the atom and the
 # label — is tested at the compile boundary, in test_robustness_external.py,
-# because that is where the lookups fire and ``docs/manual/using/data.md``
-# § Atom promises the check lives ("validated when the model compiles rather
-# than when the object is built").  What stays here is the property one rank
+# because that is where the lookups fire and ``docs/docs/reference/data.md``
+# § Atom promises the check lives ("checked when the model compiles").  What stays here is the property one rank
 # below: the two **X-ray** lookups parse the *same* grammar, which
 # ``cif._CANONICAL_SPECIES`` claims they "share deliberately" — an agreement
 # nothing asserted before, and the divergence class the first attempt fell into

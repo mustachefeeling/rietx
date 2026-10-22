@@ -19,9 +19,10 @@ as an artifact *fragment*, so without the document skeleton the site build
 rendered every `·` and `°C` as mojibake, and the payload fetch its own comments
 promised did not exist. Both are asserted on the assembled bytes.
 
-**A link that means the wrong page.** `/` is the landing page now and the manual
-is `/manual.html`, so a `https://rietx.org/` in the page that meant "the manual"
-silently points at the page itself.
+**A link that means the wrong page.** `/` is the landing page and the manual is
+`/docs/` (WP-1986), so a `https://rietx.org/` in the page that meant "the manual"
+silently points at the page itself, and a link into a chapter lands only if the
+page it names is built or stubbed.
 
 Everything here reads `docs/landing/build.py`'s own tables rather than restating
 them, so a new image or a new leak token is covered by adding it there.
@@ -29,6 +30,7 @@ them, so a new image or a new leak token is covered by adding it there.
 
 from __future__ import annotations
 
+import functools
 import html as _html
 import importlib.util
 import json
@@ -47,12 +49,13 @@ LANDING = REPO_ROOT / "docs" / "landing"
 # directory (tests/CLAUDE.md — a shared fixture stays on one worker, and this
 # shares a directory rather than a fixture).  The module costs about a second.
 #
-# And the group is the *manual build's*, not one of its own: `conf.py` puts
-# `docs/landing/site` on `html_extra_path`, so a sphinx build on another worker
-# copies the very directory this module is rmtree-ing — a `-W` build that fails
-# on a file that vanished under it.  Sharing the group keeps the two serialised
-# on one worker, which is the only thing `--dist loadgroup` guarantees.
-pytestmark = pytest.mark.xdist_group("manual-build")
+# The group is the module's own.  It was the manual build's while the old
+# tree's `conf.py` put `docs/landing/site` on `html_extra_path`, so a sphinx
+# build on another worker copied the very directory this module rmtree's.  No
+# build reads that directory since WP-1986 retired the old tree (pages.yml
+# copies it into the site itself), so sharing the group would only queue this
+# module behind the manual's build.
+pytestmark = pytest.mark.xdist_group("landing-site")
 
 
 def _build_module():
@@ -319,25 +322,75 @@ def _links(page: str) -> list[str]:
     return re.findall(r'(?:href|src)="([^"]+)"', page)
 
 
+@functools.cache
+def _versions():
+    """`docs/docs_versions.py`, imported by path once a session: its `RETIRED`
+    table is where an old-tree address is sent."""
+    spec = importlib.util.spec_from_file_location(
+        "_docs_versions", REPO_ROOT / "docs" / "docs_versions.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_no_link_means_the_manual_and_lands_on_this_page(any_page):
-    """`/` is the landing page since WP-1331 and the manual is `/manual.html`.
-    Three links in the page meant "the manual" and pointed at the site root."""
+    """`/` is the landing page since WP-1331 and the manual is `/docs/` since
+    WP-1986.  Three links in the page meant "the manual" and pointed at the site root."""
     name, page = any_page
     roots = [a for a in _links(page) if a.rstrip("/") == "https://rietx.org"]
     assert len(roots) == 1, (
         f"{name}: {len(roots)} links point at the site root; exactly one may (the brand, "
-        f"which does mean 'home').  A link meaning the manual is "
-        f"https://rietx.org/manual.html."
+        f"which does mean 'home').  A link meaning the manual is https://rietx.org/docs/."
     )
 
 
-def test_the_manual_still_gives_up_index_html():
+def test_every_link_into_the_manual_lands_on_a_page(any_page):
+    """A chapter link is either a page of the manual under `/docs/<version>/` or an
+    old-tree address `docs_versions.RETIRED` stubs, which sends the reader to the
+    released tree once one carries the page and to `dev/` until then (WP-1986).  A
+    stub link carries no `#fragment`: the stub carries one over, but a chapter's
+    sections took new heading ids on their new pages."""
+    name, page = any_page
+    retired = _versions().RETIRED
+    tree = REPO_ROOT / "docs" / "docs"
+    for link in _links(page):
+        path = link.removeprefix("https://rietx.org/")
+        if path == link or not path.partition("#")[0].endswith(".html"):
+            continue
+        if path.startswith("lite/"):
+            continue
+        target, _, fragment = path.partition("#")
+        target = target.removesuffix(".html")
+        version = re.match(r"docs/[^/]+/", target)
+        if version:
+            rel = target[version.end():]
+            source = tree / rel
+            # A notebook page is copied in at build from its committed .ipynb
+            # (`sphinx_shared.copy_tutorials`), and only into start/tutorials/.
+            notebook = (rel.rpartition("/")[0] == "start/tutorials" and (
+                REPO_ROOT / "examples" / "tutorials" / f"{source.name}.ipynb").is_file())
+            assert source.with_suffix(".md").is_file() or notebook, (
+                f"{name}: {link} names no page of docs/docs/")
+        else:
+            assert target in retired, f"{name}: {link} is neither a manual page nor a stub"
+            assert not fragment, (
+                f"{name}: {link} carries #{fragment}, which names an old-tree heading")
+
+
+def test_the_landing_page_alone_is_written_at_the_site_root():
     """The other half of that: sphinx writes its root document to index.html,
-    so the landing page only gets `/` while conf.py says otherwise."""
-    conf = (REPO_ROOT / "docs" / "manual" / "conf.py").read_text(encoding="utf-8")
-    assert 'root_doc = "manual"' in conf
-    assert (REPO_ROOT / "docs" / "manual" / "manual.md").is_file()
-    assert not (REPO_ROOT / "docs" / "manual" / "index.md").exists()
+    so the landing page keeps `/` only while no sphinx build writes into the
+    site's root.  Since WP-1986 the manual builds under `site/docs/`, and
+    pages.yml copies the landing page's own build into `site/`."""
+    workflow = (REPO_ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+    builds = re.findall(r"-m sphinx\b[^\n]*", workflow)
+    assert builds, "pages.yml builds no manual"
+    for build in builds:
+        assert build.split()[-1].startswith("site/docs/"), (
+            f"a sphinx build writes outside site/docs/, over the landing page: {build}")
+    assert "docs/landing/build.py --site" in workflow
+    assert "cp -R docs/landing/site/. site/" in workflow, (
+        "pages.yml no longer copies the landing page into the site root")
 
 
 def test_every_relative_link_resolves_to_something_the_build_writes(any_page, build):
@@ -515,13 +568,24 @@ def test_every_jupyterlite_link_opens_a_notebook_the_lite_site_serves(site_html,
 
 def test_every_read_link_is_a_page_the_manual_builds(site_html):
     """A Read link lands on the notebook's manual page, which exists while the
-    tutorials index lists it in its toctree (`using/quickstart.md`, WP-1916)."""
-    index = (REPO_ROOT / "docs" / "manual" / "using" / "quickstart.md").read_text(encoding="utf-8")
+    tutorials index lists it in its toctree (`start/tutorials.md`, WP-1916).
+
+    The link reaches the page either directly, under `/docs/<version>/`, or
+    through the redirect stub the retired old tree's address became
+    (`docs/docs_versions.py`'s `RETIRED`, WP-1986), which must then send the
+    reader to that same page."""
+    versions = _versions()
+    index = (REPO_ROOT / "docs" / "docs" / "start" / "tutorials.md").read_text(encoding="utf-8")
     toctree = re.search(r"```\{toctree\}(.*?)```", index, re.S).group(1).split()
-    reads = re.findall(r'href="https://rietx\.org/using/(tutorials/[^"]+)\.html">Read</a>', site_html)
+    reads = re.findall(r'href="https://rietx\.org/([^"]+)\.html">Read</a>', site_html)
     assert len(reads) == len(_rows(site_html))
-    for page in reads:
-        assert page in toctree, f"using/{page}.html is not in the manual's tutorials toctree"
+    for path in reads:
+        if not re.match(r"docs/[^/]+/start/tutorials/", path):
+            assert path in versions.RETIRED, f"/{path}.html is neither a manual page nor a stub"
+            path = versions.RETIRED[path]
+        page = "tutorials/" + path.rsplit("/", 1)[-1]
+        assert path.endswith(f"start/{page}") and page in toctree, (
+            f"/{path}.html is not in the manual's tutorials toctree")
 
 
 def test_each_quickstart_toggle_controls_a_panel_that_starts_hidden(site_html):

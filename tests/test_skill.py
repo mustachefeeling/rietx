@@ -932,8 +932,8 @@ def test_the_dotted_walk_visits_the_tree_and_fails_a_broken_name():
 # GFM splits a table row on every unescaped `|`, code spans included, so
 # `scale × |F|² × profile` in a cell opens a span the cell never closes and
 # the backticks print literally.  The manual's HTML scan caught that one only
-# because `using/skill.md` includes the body whole; no reference file reaches
-# that build.  So the check runs on the Markdown: split each table row where
+# because the old tree's `using/skill.md` included the body whole; the manual
+# renders neither the body nor a reference file now.  So the check runs on the Markdown: split each table row where
 # GFM does, and require every code span to close inside its own cell.
 
 _UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")

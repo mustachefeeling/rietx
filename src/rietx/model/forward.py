@@ -3401,7 +3401,7 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     """Name the phase, atom and label behind a species lookup that failed.
 
     ``species`` is validated when the model *compiles*, not when the object is
-    built (``docs/manual/using/data.md`` § Atom): the scattering lookups are the
+    built (``docs/docs/reference/data.md`` § Atom): the scattering lookups are the
     authority on what they can read, and duplicating their grammar in a schema
     would put a periodic table in ``pydantic`` and, worse, refuse for one
     radiation's sake a spelling the other reads — a neutron nuclide (``2H``) has

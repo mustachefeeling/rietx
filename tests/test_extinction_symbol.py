@@ -661,7 +661,8 @@ def corundum_inputs():
     ``seed_widths`` is applied because the instrument declares the ``ProfileTCHZ``
     default (a synchrotron line, ~13× too narrow here) and the screen's whole
     argument rests on a profile fit; the range is trimmed to 20-90° for the same
-    reason, which is the protocol ``docs/manual/using/indexing.md`` prescribes.
+    reason, which is what ``docs/docs/reference/extinction.md``'s ``peaks`` and
+    ``two_theta_limits`` are for.
     """
     import rietx as rx
     from rietx.indexing.workflow import seed_widths

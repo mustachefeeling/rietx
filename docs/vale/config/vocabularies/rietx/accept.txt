@@ -47,6 +47,7 @@ Caglioti
 [cC]entrosymmetry
 [cC]hangelog
 Chebyshev
+[cC]hiral
 [cC]hirality
 CIF
 CIFs
@@ -99,6 +100,8 @@ Dollase
 Dreele
 [eE]igenpairs
 [eE]lectronegative
+[eE]nantiomorphic
+[eE]nantiopure
 [eE]qualities
 [eE]quilibrate
 [eE]quilibrated
@@ -200,6 +203,7 @@ Maxwellian
 [mM]onomials
 [mM]onotonicity
 [mM]ultimodal
+[mM]ultiplet
 [mM]ultiplets
 [nN]anocrystalline
 Niggli
@@ -244,6 +248,7 @@ Pitschke
 [pP]seudosymmetry
 [pP]x
 [pP]ydantic
+[pP]yroelectric
 [pP]ytest
 [qQ]uadratically
 [qQ]uantile
@@ -287,6 +292,7 @@ Schwarzenbach
 Shirane
 Shubnikov
 [sS]oftplus
+Sohncke
 [sS]pallation
 [sS]pglib
 [sS]pinel
@@ -347,4 +353,5 @@ Wertheim
 [wW]hitespace
 Whittaker
 Wyckoff
+Yue
 [zZ]incite

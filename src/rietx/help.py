@@ -81,15 +81,20 @@ class HelpEntry:
     because it arrives with the structure.
 
     ``anchor`` is where the explanation continues, as ``page.html#heading-id``
-    relative to the manual's root — so a consumer builds a link by joining it to
-    :data:`rietx._about.DOCS_URL` and nothing has to know the manual's layout a
-    second time.  It carried the id alone until WP-1203 needed to *render* the
-    link and found that an id names no page; every one of the thirty was on
-    exactly one page of the built manual, which is what made the change
-    mechanical.  ``tests/test_help.py`` checks it against the built HTML rather
-    than the sources — a heading that fails to render still has an id in the
-    Markdown — and now checks the page as well as the id, which the bare form
-    could not.
+    relative to the root of the manual in ``docs/docs/`` — so a consumer builds
+    a link by joining it to :func:`rietx._about.docs_base` of the running
+    version (``<DOCS_URL>/docs/dev`` or ``…/docs/X.Y``) and nothing has to know
+    the manual's layout a second time.  The page carries its tab:
+    ``theory/<chapter>.html`` for the equation behind a parameter,
+    ``reference/…``, ``guides/…`` or ``concepts/…`` where the fact is about the
+    API rather than the physics.  It carried the id alone until WP-1203 needed
+    to *render* the link and found that an id names no page; every one of the
+    thirty was on exactly one page of the built manual, which is what made the
+    change mechanical.  WP-1986 moved every anchor off the old tree's site-root
+    pages onto the new tree's, under the versioned base.  ``tests/test_help.py``
+    checks it against the new tree's built HTML rather than the sources — a
+    heading that fails to render still has an id in the Markdown — and checks
+    the page as well as the id, which the bare form could not.
 
     ``label`` is the short form a chip carries where the name itself would not
     read — ``at bound`` for ``position_at_bound`` (WP-1209).  The GUI's
@@ -164,7 +169,7 @@ _CELL_LENGTH = HelpEntry(
     ),
     unit="Å", default=None,
     typical="3-40 Å for an inorganic phase; refined shifts are 10-1000 ppm",
-    anchor="peak-positions.html#lattice-metric-and-bragg-s-law",
+    anchor="theory/peak-positions.html#lattice-metric-and-bragg-s-law",
 )
 _CELL_ANGLE = HelpEntry(
     title="Lattice parameter α, β, γ",
@@ -176,7 +181,7 @@ _CELL_ANGLE = HelpEntry(
     ),
     unit="deg", default=None,
     typical="90° or 120° when symmetry fixes it; 80-100° for a monoclinic β",
-    anchor="peak-positions.html#lattice-metric-and-bragg-s-law",
+    anchor="theory/peak-positions.html#lattice-metric-and-bragg-s-law",
 )
 _BODY_ORIGIN = HelpEntry(
     title="Rigid-body origin",
@@ -188,7 +193,7 @@ _BODY_ORIGIN = HelpEntry(
     ),
     unit=None, default=None,
     typical="0 to 1",
-    anchor="parameterisation.html#rigid-bodies",
+    anchor="theory/parameterisation.html#rigid-bodies",
 )
 
 
@@ -203,7 +208,7 @@ _ATOM_COORD = HelpEntry(
     ),
     unit=None, default=None,
     typical="0 to 1",
-    anchor="parameterisation.html#site-symmetry-degrees-of-freedom",
+    anchor="theory/parameterisation.html#site-symmetry-degrees-of-freedom",
 )
 _ATOM_ANISO_U = HelpEntry(
     title="Anisotropic displacement component",
@@ -215,7 +220,7 @@ _ATOM_ANISO_U = HelpEntry(
     ),
     unit="Å²", default=None,
     typical="0.005-0.05 Å² on the diagonal; off-diagonal components are smaller",
-    anchor="intensities.html#debye-waller-factors-and-adp-representations",
+    anchor="theory/intensities.html#debye-waller-factors-and-adp-representations",
 )
 _STEPHENS_S = HelpEntry(
     title="Stephens strain coefficient",
@@ -230,7 +235,7 @@ _STEPHENS_S = HelpEntry(
     ),
     unit="10⁻¹² Å⁻⁴", default="0.0",
     typical="0-500 for a sample with measurable anisotropic strain",
-    anchor="microstructure.html#stephens-anisotropic-strain",
+    anchor="theory/microstructure.html#stephens-anisotropic-strain",
 )
 
 PARAMETER_HELP: dict[str, HelpEntry] = {
@@ -247,7 +252,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="|Δ| < 0.05 deg on an aligned diffractometer",
-        anchor="peak-positions.html#aberration-shifts",
+        anchor="theory/peak-positions.html#aberration-shifts",
     ),
     "instrument.polarization": HelpEntry(
         title="Polarisation factor",
@@ -267,7 +272,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.5",
         typical="0.5 unmonochromated lab; 0.51-0.63 monochromated lab "
                 "(graphite 002, Ag Kα to Cr Kα); 0.9-1.0 synchrotron",
-        anchor="corrections.html#lorentz-polarisation",
+        anchor="theory/corrections.html#lorentz-polarisation",
     ),
     "instrument.source.lines.*.wavelength": HelpEntry(
         title="Emission wavelength",
@@ -281,7 +286,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å", default=None,
         typical="1.540598 Å Cu Kα1, 0.7093 Å Mo Kα1, 0.3-1.0 Å synchrotron",
-        anchor="peak-positions.html#the-wavelengthcell-degeneracy",
+        anchor="theory/peak-positions.html#the-wavelengthcell-degeneracy",
     ),
     "instrument.source.lines.*.weight": HelpEntry(
         title="Emission line weight",
@@ -294,7 +299,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="1.0",
         typical="0.5 for Kα2 against Kα1",
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "instrument.geometry.sample_displacement": HelpEntry(
         title="Specimen displacement",
@@ -312,7 +317,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm", default="0.0",
         typical="|s| < 0.05 mm on a carefully packed flat plate",
-        anchor="peak-positions.html#aberration-shifts",
+        anchor="theory/peak-positions.html#sample-displacement",
     ),
     "instrument.geometry.sample_transparency": HelpEntry(
         title="Specimen transparency",
@@ -325,7 +330,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0-0.01 for a dense oxide; larger for a low-absorbing organic",
-        anchor="peak-positions.html#aberration-shifts",
+        anchor="theory/peak-positions.html#sample-transparency",
     ),
     "instrument.geometry.axial_sl": HelpEntry(
         title="Axial divergence: specimen length",
@@ -338,7 +343,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
-        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
+        anchor="theory/profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "instrument.geometry.axial_hl": HelpEntry(
         title="Axial divergence: detector slit",
@@ -351,7 +356,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
-        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
+        anchor="theory/profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "instrument.geometry.capillary_offset_along_beam": HelpEntry(
         title="Capillary offset along the beam",
@@ -363,7 +368,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm", default="0.0",
         typical="|d| < 0.05 mm on an aligned spinner",
-        anchor="peak-positions.html#aberration-shifts",
+        anchor="theory/peak-positions.html#capillary-displacement",
     ),
     "instrument.geometry.capillary_offset_across_beam": HelpEntry(
         title="Capillary offset across the beam",
@@ -374,7 +379,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm", default="0.0",
         typical="|d| < 0.05 mm on an aligned spinner",
-        anchor="peak-positions.html#aberration-shifts",
+        anchor="theory/peak-positions.html#capillary-displacement",
     ),
     # Surface roughness is an opt-in Bragg-Brentano block and the two models
     # are alternatives, so each field is its own family: one entry over
@@ -393,7 +398,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "0.5-1. The default sits inside the range because at a = 1 the derivative "
             "with respect to b vanishes, and b could never move off its start"
         ),
-        anchor="corrections.html#surface-roughness",
+        anchor="theory/corrections.html#surface-roughness",
     ),
     "instrument.geometry.surface_roughness.b": HelpEntry(
         title="Suortti roughness: layer depth",
@@ -408,7 +413,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0.1-0.5; past about 3 the correction is dead and its gradient flat",
-        anchor="corrections.html#surface-roughness",
+        anchor="theory/corrections.html#surface-roughness",
     ),
     "instrument.geometry.surface_roughness.c": HelpEntry(
         title="Pitschke roughness: strength",
@@ -420,7 +425,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0-4; beyond 4 R can go negative inside the valid range",
-        anchor="corrections.html#surface-roughness",
+        anchor="theory/corrections.html#surface-roughness",
     ),
     "instrument.geometry.surface_roughness.tau": HelpEntry(
         title="Pitschke roughness: τ",
@@ -434,7 +439,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.05",
         typical="0.005-0.12, the span of the paper's own four specimens",
-        anchor="corrections.html#surface-roughness",
+        anchor="theory/corrections.html#surface-roughness",
     ),
     "instrument.profile.u": HelpEntry(
         title="Caglioti U",
@@ -448,7 +453,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
-        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
+        anchor="theory/profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.v": HelpEntry(
         title="Caglioti V",
@@ -463,7 +468,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="−0.05 to 0",
-        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
+        anchor="theory/profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.w": HelpEntry(
         title="Caglioti W",
@@ -476,7 +481,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.001",
         typical="0.001-0.02 on a laboratory diffractometer",
-        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
+        anchor="theory/profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.x": HelpEntry(
         title="Lorentzian X",
@@ -488,7 +493,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.001",
         typical="0.001-0.05 on a laboratory diffractometer",
-        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
+        anchor="theory/profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.y": HelpEntry(
         title="Lorentzian Y",
@@ -500,7 +505,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
-        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
+        anchor="theory/profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     # ------------------------------------------------------------------
     # The time-of-flight bank.  Fourteen families, one per field, for the
@@ -523,7 +528,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs/Å", default=None,
         typical="740 µs/Å on an 8.7° bank, 5000-13000 µs/Å at 90-150°",
-        anchor="peak-positions.html#time-of-flight",
+        anchor="theory/peak-positions.html#time-of-flight",
     ),
     "instrument.source.difa": HelpEntry(
         title="TOF calibration DIFA",
@@ -537,7 +542,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs/Å²", default="0.0",
         typical="−20 to +2 µs/Å²; 0 on a bank that never needed one",
-        anchor="peak-positions.html#time-of-flight",
+        anchor="theory/peak-positions.html#time-of-flight",
     ),
     "instrument.source.tzero": HelpEntry(
         title="TOF calibration TZERO",
@@ -551,7 +556,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs", default="0.0",
         typical="|TZERO| < 100 µs on a calibrated bank",
-        anchor="peak-positions.html#time-of-flight",
+        anchor="theory/peak-positions.html#time-of-flight",
     ),
     "instrument.source.difb": HelpEntry(
         title="TOF calibration DIFB",
@@ -564,7 +569,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs·Å", default="0.0",
         typical="0 on almost every bank",
-        anchor="peak-positions.html#time-of-flight",
+        anchor="theory/peak-positions.html#time-of-flight",
     ),
     "instrument.source.profile_tof.alpha0": HelpEntry(
         title="TOF rise rate α₀",
@@ -578,7 +583,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs⁻¹", default="0.0",
         typical="0-1 µs⁻¹; often left at 0 with all of α in α₁",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.alpha1": HelpEntry(
         title="TOF rise rate α₁",
@@ -590,7 +595,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å/µs", default="0.0",
         typical="0.1-2 Å/µs",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.beta0": HelpEntry(
         title="TOF decay rate β₀",
@@ -602,7 +607,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs⁻¹", default="0.0",
         typical="0.01-0.2 µs⁻¹",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.beta1": HelpEntry(
         title="TOF decay rate β₁",
@@ -613,7 +618,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å⁴/µs", default="0.0",
         typical="0-0.05 Å⁴/µs",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.sig0": HelpEntry(
         title="TOF Gaussian variance σ₀²",
@@ -626,7 +631,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs²", default="0.0",
         typical="0-500 µs²",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.sig1": HelpEntry(
         title="TOF Gaussian variance σ₁²",
@@ -638,7 +643,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs²/Å²", default="0.0",
         typical="100-400 µs²/Å² (√σ₁² ≈ 10-20 µs/Å)",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.sig2": HelpEntry(
         title="TOF Gaussian variance σ₂²",
@@ -648,7 +653,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs²/Å⁴", default="0.0",
         typical="0-50 µs²/Å⁴",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.gam0": HelpEntry(
         title="TOF Lorentzian FWHM γ₀",
@@ -659,7 +664,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs", default="0.0",
         typical="0-20 µs; 0 on a type-1 bank",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.gam1": HelpEntry(
         title="TOF Lorentzian FWHM γ₁",
@@ -670,7 +675,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs/Å", default="0.0",
         typical="0-30 µs/Å",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.profile_tof.gam2": HelpEntry(
         title="TOF Lorentzian FWHM γ₂",
@@ -681,7 +686,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="µs/Å²", default="0.0",
         typical="0-5 µs/Å²",
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#time-of-flight-peak-shape",
     ),
     "instrument.source.incident_spectrum.p*": HelpEntry(
         title="Incident-spectrum coefficient",
@@ -704,7 +709,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "Whatever the instrument-parameter file states. A bank whose reduction "
             "already divided by vanadium declares ITYP 0 and has no coefficients at all"
         ),
-        anchor="using/data.html#a-time-of-flight-bank",
+        anchor="reference/instrument.html#incident-spectrum",
     ),
     "instrument.background.c*": HelpEntry(
         title="Background coefficient",
@@ -720,7 +725,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.0",
         typical="4-8 terms for a flat laboratory background; c0 is of the "
                 "order of the observed background counts",
-        anchor="background.html#choosing-the-flexibility",
+        anchor="theory/background.html#choosing-the-flexibility",
     ),
     "instrument.background.scale": HelpEntry(
         title="Measured-background scale",
@@ -741,7 +746,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="1.0",
         typical="1 for an estimated baseline; within 20-40 % "
                 "of 1 for a measured blank",
-        anchor="background.html#a-measured-background",
+        anchor="theory/background.html#a-measured-background",
     ),
     "instrument.background.air": HelpEntry(
         title="Air-scatter term",
@@ -757,7 +762,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="null",
         typical="absent unless the pattern diagnostics report a low-angle "
                 "rise; 1e-3 as a seed where they do",
-        anchor="background.html#additive-background-models",
+        anchor="theory/background.html#additive-background-models",
     ),
     "instrument.extra_components.*.position": HelpEntry(
         title="Background-peak position",
@@ -773,7 +778,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="wherever the diffuse feature sits, for example 14.4 on NIST BT-1",
-        anchor="background.html#explicit-humps",
+        anchor="theory/background.html#explicit-humps",
     ),
     "instrument.extra_components.*.height": HelpEntry(
         title="Background-peak height",
@@ -785,7 +790,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="counts", default="0.0",
         typical="of the order of the hump's rise above the smooth background",
-        anchor="background.html#explicit-humps",
+        anchor="theory/background.html#explicit-humps",
     ),
     # One entry for two members, and it has to be: the dot-path carries the
     # list index, never the `kind`, so no glob can tell a hump's width from a
@@ -809,7 +814,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="a hump: several times the instrumental FWHM at that angle, ~6 "
                 "on the BT-1 case it was measured on. A peak: the instrumental "
                 "FWHM itself, since it is a reflection",
-        anchor="background.html#explicit-humps",
+        anchor="theory/background.html#explicit-humps",
     ),
     "instrument.extra_components.*.center": HelpEntry(
         title="Extra-peak centre",
@@ -831,7 +836,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit="deg 2θ", default=None,
         typical="where you can see the intruding line, bounded a few tenths "
                 "either side",
-        anchor="using/model.html#declared-extra-peaks",
+        anchor="theory/profiles.html#declared-extra-peaks",
     ),
     "instrument.extra_components.*.area": HelpEntry(
         title="Extra-peak area",
@@ -848,7 +853,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="counts·deg 2θ", default="0.0",
         typical="the intruding line's integrated counts above the background",
-        anchor="using/model.html#declared-extra-peaks",
+        anchor="theory/profiles.html#declared-extra-peaks",
     ),
     "instrument.extra_components.*.eta": HelpEntry(
         title="Extra-peak mixing",
@@ -865,7 +870,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.5",
         typical="0.3-0.9 for a lab peak; leave it fixed unless the peak is "
                 "strong enough to carry a fourth parameter",
-        anchor="using/model.html#declared-extra-peaks",
+        anchor="theory/profiles.html#declared-extra-peaks",
     ),
     # -- phase -------------------------------------------------------
     "phases.*.cell.a": _CELL_LENGTH,
@@ -886,7 +891,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="1.0",
         typical="positive, spanning several orders of magnitude between phases",
-        anchor="corrections.html#quantitative-phase-analysis-and-microabsorption",
+        anchor="theory/corrections.html#quantitative-phase-analysis-and-microabsorption",
     ),
     "phases.*.extinction": HelpEntry(
         title="Primary extinction",
@@ -901,7 +906,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit="µm²", default="0.0",
         typical="0 for a ground powder; 0.1 to 100 (blocks of 0.3 to 10 µm) "
                 "where a strong reflection loses a visible share",
-        anchor="corrections.html#primary-extinction",
+        anchor="theory/corrections.html#primary-extinction",
     ),
     "phases.*.lor_size": HelpEntry(
         title="Lorentzian size broadening",
@@ -920,7 +925,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm domain at Cu Kα",
-        anchor="microstructure.html#isotropic-size-and-strain",
+        anchor="theory/microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.lor_strain": HelpEntry(
         title="Lorentzian strain broadening",
@@ -938,7 +943,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",
-        anchor="microstructure.html#isotropic-size-and-strain",
+        anchor="theory/microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.gauss_size": HelpEntry(
         title="Gaussian size broadening",
@@ -953,7 +958,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",
-        anchor="microstructure.html#isotropic-size-and-strain",
+        anchor="theory/microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.gauss_strain": HelpEntry(
         title="Gaussian strain broadening",
@@ -966,7 +971,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",
-        anchor="microstructure.html#isotropic-size-and-strain",
+        anchor="theory/microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.magnetic_lor_size": HelpEntry(
         title="Magnetic Lorentzian size broadening",
@@ -996,7 +1001,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm magnetic domain at 2.4 Å",
-        anchor="microstructure.html#isotropic-size-and-strain",
+        anchor="theory/microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.magnetic_lor_strain": HelpEntry(
         title="Magnetic Lorentzian strain broadening",
@@ -1015,7 +1020,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",
-        anchor="microstructure.html#isotropic-size-and-strain",
+        anchor="theory/microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.preferred_orientation.r": HelpEntry(
         title="March-Dollase coefficient",
@@ -1030,7 +1035,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="1.0",
         typical="0.6-1.4; a value outside 0.5-2 describes a texture few powder "
                 "mounts produce",
-        anchor="corrections.html#preferred-orientation-march-dollase",
+        anchor="theory/corrections.html#preferred-orientation-march-dollase",
     ),
     "phases.*.texture.*": HelpEntry(
         title="Texture coefficient",
@@ -1048,7 +1053,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.0",
         typical="|C| under 1 at l = 2 for a lightly textured mount; several "
                 "for a strongly platy one",
-        anchor="corrections.html#preferred-orientation-spherical-harmonics",
+        anchor="theory/corrections.html#preferred-orientation-spherical-harmonics",
     ),
     "phases.*.atoms.*.x": _ATOM_COORD,
     "phases.*.atoms.*.y": _ATOM_COORD,
@@ -1071,7 +1076,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="0 to 1, in the same units as the coordinate it drives",
-        anchor="parameterisation.html#site-symmetry-degrees-of-freedom",
+        anchor="theory/parameterisation.html#site-symmetry-degrees-of-freedom",
     ),
     "phases.*.rigid_bodies.*.origin.x": _BODY_ORIGIN,
     "phases.*.rigid_bodies.*.origin.y": _BODY_ORIGIN,
@@ -1086,7 +1091,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="a few hundredths, in the units of the coordinate it drives",
-        anchor="parameterisation.html#rigid-bodies",
+        anchor="theory/parameterisation.html#rigid-bodies",
     ),
     "phases.*.rigid_bodies.*.rotation.*": HelpEntry(
         title="Rigid-body rotation step",
@@ -1100,7 +1105,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="under 0.5 rad from a sensible start",
-        anchor="parameterisation.html#rigid-bodies",
+        anchor="theory/parameterisation.html#rigid-bodies",
     ),
     "phases.*.rigid_bodies.*.torsions.*.twist": HelpEntry(
         title="Rigid-body torsion step",
@@ -1114,7 +1119,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="a few degrees to a few tens of degrees from a sensible start",
-        anchor="parameterisation.html#rigid-bodies",
+        anchor="theory/parameterisation.html#rigid-bodies",
     ),
     "phases.*.atoms.*.occ": HelpEntry(
         title="Site occupancy",
@@ -1130,7 +1135,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="1.0",
         typical="0 to 1; above 1 when a mixed site declared as its lighter species "
                 "refines site scattering",
-        anchor="intensities.html#the-structure-factor",
+        anchor="theory/intensities.html#the-structure-factor",
     ),
     "phases.*.atoms.*.biso": HelpEntry(
         title="Isotropic displacement parameter",
@@ -1148,7 +1153,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",
-        anchor="intensities.html#debye-waller-factors-and-adp-representations",
+        anchor="theory/intensities.html#debye-waller-factors-and-adp-representations",
     ),
     "phases.*.atoms.*.u11": _ATOM_ANISO_U,
     "phases.*.atoms.*.u22": _ATOM_ANISO_U,
@@ -1171,7 +1176,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å²", default=None,
         typical="0.005-0.05 Å²",
-        anchor="intensities.html#debye-waller-factors-and-adp-representations",
+        anchor="theory/intensities.html#debye-waller-factors-and-adp-representations",
     ),
     "phases.*.atoms.*.moment.crystalaxis_*": HelpEntry(
         title="Magnetic moment component",
@@ -1187,7 +1192,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="μ_B", default=None,
         typical="1-5 μB for a 3d ion, up to 10 μB for a rare earth",
-        anchor="intensities.html#the-magnetic-structure-factor",
+        anchor="theory/intensities.html#the-magnetic-structure-factor",
     ),
     "phases.*.atoms.*.moment.dof*": HelpEntry(
         title="Magnetic moment parameter",
@@ -1212,7 +1217,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "They are reported with μ ≥ 0, the polar angle in [0, π] and the azimuth in "
             "(−π, π]"
         ),
-        anchor="parameterisation.html#moment-degrees-of-freedom",
+        anchor="theory/parameterisation.html#moment-degrees-of-freedom",
     ),
     "phases.*.microstrain.s*": _STEPHENS_S,
     "phases.*.microstrain.dof.*": HelpEntry(
@@ -1231,7 +1236,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="the isotropic seed is ε²·[M²] for a strain ε of 1e-4 to 1e-3",
-        anchor="microstructure.html#the-positivity-cone-the-seed-and-the-guard",
+        anchor="theory/microstructure.html#the-positivity-cone-the-seed-and-the-guard",
     ),
     # A caller's own parameter, outside the model tree (WP-1981).
     "vars.*": HelpEntry(
@@ -1249,7 +1254,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="the range of the parameters it drives",
-        anchor="using/concepts.html#naming-a-variable-of-your-own",
+        anchor="guides/tie.html#tie-to-a-quantity-of-your-own",
     ),
 }
 
@@ -1279,7 +1284,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "so a report can say why it went. It is excluded from everything that "
             "matches positions."
         ),
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "ghost_kbeta": HelpEntry(
         title="Kβ line of a stronger reflection",
@@ -1293,7 +1298,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "counting noise and biases what is left. The line is unusable as evidence "
             "of a lattice."
         ),
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "ghost_tungsten": HelpEntry(
         title="Tungsten L line from the tube",
@@ -1303,7 +1308,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "contaminated anode produces. Such lines are flagged jointly, as Kβ lines "
             "are, and excluded for the same reasons. The line is unusable."
         ),
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "excluded": HelpEntry(
         title="Removed by hand",
@@ -1359,7 +1364,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "shape allows, so the position is biased towards the tail. Axial divergence "
             "at low 2θ is the usual cause."
         ),
-        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
+        anchor="theory/profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "not_separable": HelpEntry(
         title="Improves the fit as a shape only",
@@ -1379,7 +1384,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "extrapolated and not observed. The intensity is real but may not belong to "
             "a line. The line stays usable, so you can weigh the evidence yourself."
         ),
-        anchor="background.html#model-free-estimation",
+        anchor="theory/background.html#model-free-estimation",
     ),
     "axial_tail": HelpEntry(
         title="Possibly a stronger line's axial tail",
@@ -1392,7 +1397,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "sign at 90°. The line stays usable, since a real line can coincide with a "
             "tail."
         ),
-        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
+        anchor="theory/profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "kalpha2_residual": HelpEntry(
         title="Sitting on a modelled Kα2 maximum",
@@ -1404,7 +1409,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "the residual of a doublet that the model already carries. The line stays "
             "usable, since a real line can coincide with it."
         ),
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "unnamed_neighbour": HelpEntry(
         title="An unnamed component shares this window",
@@ -3248,7 +3253,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "are pulled towards the tail. Declaring the axial divergence terms is the "
             "usual fix."
         ),
-        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
+        anchor="theory/profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "PEAK_AXIAL_TAIL": HelpEntry(
         title="Weak lines that may be axial tails",
@@ -3257,7 +3262,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "axial divergence points. They may be real lines and are reported rather "
             "than removed."
         ),
-        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
+        anchor="theory/profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "PEAK_CONTAMINATION_LINE": HelpEntry(
         title="Contamination lines excluded",
@@ -3270,7 +3275,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "filter or monochromator only cuts it. They are excluded and never stripped, "
             "because stripping redistributes the counting noise."
         ),
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "PEAK_EXPECTED_FALSE_LINES": HelpEntry(
         title="How many kept lines are expected to be noise",
@@ -3289,7 +3294,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "dropped them before any fit. The drop is reported because a genuine weak "
             "line can alias onto one."
         ),
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "PEAK_KALPHA2_RESIDUAL": HelpEntry(
         title="Components on a modelled Kα2 maximum",
@@ -3298,7 +3303,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "modelled, so they are that doublet's residual rather than new lines. "
             "Reported rather than removed."
         ),
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "PEAK_LIST_TOO_SHORT": HelpEntry(
         title="Too few usable lines to index",
@@ -3308,7 +3313,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "confidence rather than refuting any cell. Widen the 2θ range, count for "
             "longer, or lower the detection threshold and check what arrives."
         ),
-        anchor="using/indexing.html#the-confidence-gate",
+        anchor="reference/peaks.html#enough-lines-and-precise-enough",
     ),
     "PEAK_NOT_SEPARABLE": HelpEntry(
         title="Components refuted as distinct lines",
@@ -3326,7 +3331,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "than within σ, so this is context for reading a search result, not a "
             "refusal."
         ),
-        anchor="using/indexing.html#the-confidence-gate",
+        anchor="reference/peaks.html#enough-lines-and-precise-enough",
     ),
     "PEAK_SHOULDER_SEEDED": HelpEntry(
         title="Extra components seeded from the residual",
@@ -3378,7 +3383,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "came within the factor. A phase the data cannot see is left out of that "
             "comparison."
         ),
-        anchor="profiles.html#the-instrument-sample-width-split",
+        anchor="theory/profiles.html#the-instrument-sample-width-split",
     ),
     "PHASE_UNCONSTRAINED": HelpEntry(
         title="The data cannot see this phase",
@@ -4167,7 +4172,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="[]",
         typical="one or two patterns per stage",
-        anchor="parameterisation.html#from-tree-to-vector",
+        anchor="theory/parameterisation.html#from-tree-to-vector",
     ),
     "max_iter": HelpEntry(
         title="Iteration budget",
@@ -4178,7 +4183,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="100",
         typical="20-100",
-        anchor="estimation.html#convergence",
+        anchor="theory/estimation.html#convergence",
     ),
     "ftol": HelpEntry(
         title="Stage stopping tolerance",
@@ -4191,7 +4196,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="null",
         typical="leave empty unless reproducing a specific run",
-        anchor="estimation.html#convergence",
+        anchor="theory/estimation.html#convergence",
     ),
     "lebail_cycles": HelpEntry(
         title="Le Bail cycles",
@@ -4203,7 +4208,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="3",
         typical="3",
-        anchor="forward-model.html#three-intensity-models",
+        anchor="theory/forward-model.html#three-intensity-models",
     ),
     "seed": HelpEntry(
         title="Starting value for parameters at zero",
@@ -4229,7 +4234,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="ppm", default="0.0",
         typical="100-1000 ppm where a stage frees an anisotropic strain block",
-        anchor="microstructure.html#the-positivity-cone-the-seed-and-the-guard",
+        anchor="theory/microstructure.html#the-positivity-cone-the-seed-and-the-guard",
     ),
     "restraint_weight_scale": HelpEntry(
         title="Restraint weight",
@@ -4243,7 +4248,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="1.0",
         typical="1-100 early, falling to 1 in the last stage",
-        anchor="parameterisation.html#weighting-the-restraints",
+        anchor="theory/parameterisation.html#weighting-the-restraints",
     ),
     "window_slack_deg": HelpEntry(
         title="Peak window margin",
@@ -4315,7 +4320,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         typical="`CuKa`, `MoKa`, `CoKa`, `CrKa`, `FeKa`, `AgKa`, or the "
                 "`…Ka1` variant of any of them for a Kα1-only beam",
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "wavelength": HelpEntry(
         title="Wavelength",
@@ -4326,7 +4331,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å",
         typical="0.3-1.0 Å synchrotron, 1.0-2.5 Å constant-wavelength neutron",
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "polarization": HelpEntry(
         title="Polarisation factor",
@@ -4339,7 +4344,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
             "transmission is unpolarised with K = 0.5."
         ),
         typical="0.99 is the preset default; 0.5 is an unpolarised lab beam",
-        anchor="corrections.html#lorentz-polarisation",
+        anchor="theory/corrections.html#lorentz-polarisation",
     ),
     "goniometer_radius_mm": HelpEntry(
         title="Goniometer radius",
@@ -4351,7 +4356,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm",
         typical="217.5 mm is a common laboratory value and the default",
-        anchor="peak-positions.html#aberration-shifts",
+        anchor="theory/peak-positions.html#sample-displacement",
     ),
     "monochromator_two_theta": HelpEntry(
         title="Monochromator 2θ",
@@ -4366,7 +4371,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         unit="deg",
         typical="26.6° for graphite (002) at Cu Kα; 9.6-39.9° for the same "
                 "crystal from Ag Kα to Cr Kα",
-        anchor="corrections.html#lorentz-polarisation",
+        anchor="theory/corrections.html#lorentz-polarisation",
     ),
     "ka2_ratio": HelpEntry(
         title="Kα2 to Kα1 ratio",
@@ -4377,7 +4382,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="0.5",
         typical="0.5",
-        anchor="peak-positions.html#wavelength-scales",
+        anchor="theory/peak-positions.html#wavelength-scales",
     ),
     "capillary_radius_mm": HelpEntry(
         title="Capillary radius",
@@ -4387,7 +4392,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm",
         typical="0.1-0.5 mm",
-        anchor="corrections.html#capillary-cylindrical-absorption",
+        anchor="theory/corrections.html#capillary-cylindrical-absorption",
     ),
     "packing_fraction": HelpEntry(
         title="Packing fraction",
@@ -4398,7 +4403,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="0.6",
         typical="0.3-0.6",
-        anchor="corrections.html#attenuation-coefficients",
+        anchor="theory/corrections.html#attenuation-coefficients",
     ),
     "mu_r": HelpEntry(
         title="µR",
@@ -4411,7 +4416,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
             "c(µR)·λ²/2."
         ),
         typical="0-1 for a typical capillary mount",
-        anchor="corrections.html#capillary-cylindrical-absorption",
+        anchor="theory/corrections.html#capillary-cylindrical-absorption",
     ),
     "mu_t": HelpEntry(
         title="µt",
@@ -4426,7 +4431,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         typical="empty for a thick reflection specimen; 1-5 for a thin "
                 "transmission mount",
-        anchor="corrections.html#flat-plate-absorption",
+        anchor="theory/corrections.html#flat-plate-absorption",
     ),
     "thickness_mm": HelpEntry(
         title="Specimen thickness",
@@ -4437,7 +4442,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm",
         typical="0.1-2 mm for a transmission mount",
-        anchor="corrections.html#flat-plate-absorption",
+        anchor="theory/corrections.html#flat-plate-absorption",
     ),
 }
 
@@ -4462,7 +4467,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "the systems it searched and makes no claim about the others."
         ),
         typical="all seven; narrow only when a prior tells you the system",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#the-search-specification",
     ),
     "centrings": HelpEntry(
         title="Bravais centrings",
@@ -4472,7 +4477,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "ticked in every system you search."
         ),
         typical="all of them; a wrongly excluded centring costs the true cell",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#the-search-specification",
     ),
     "preset": HelpEntry(
         title="Search preset",
@@ -4483,7 +4488,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "overrides the preset, and the result then records `custom`."
         ),
         typical="`quick` for a first look, `full` when the answer matters",
-        anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
+        anchor="reference/indexing.html#presets-budgets-and-the-three-states-of-a-system",
     ),
     "total_budget_seconds": HelpEntry(
         title="Whole-run budget",
@@ -4494,7 +4499,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="s",
         typical="empty; a few minutes to bound an interactive run",
-        anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
+        anchor="reference/indexing.html#presets-budgets-and-the-three-states-of-a-system",
     ),
     "budget_seconds": HelpEntry(
         title="Time per engine and system",
@@ -4507,7 +4512,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         unit="s",
         default="30.0",
         typical="30 s; raise it for a triclinic search you intend to trust",
-        anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
+        anchor="reference/indexing.html#presets-budgets-and-the-three-states-of-a-system",
     ),
     "min_d_axis": HelpEntry(
         title="Shortest principal d-spacing",
@@ -4519,7 +4524,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         unit="Å",
         default="2.0",
         typical="2 Å for an inorganic phase",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#the-search-specification",
     ),
     "max_d_axis": HelpEntry(
         title="Longest principal d-spacing",
@@ -4531,7 +4536,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         unit="Å",
         default="25.0",
         typical="25 Å; raise it only for a genuinely large cell",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#the-search-specification",
     ),
     "min_volume": HelpEntry(
         title="Smallest cell volume",
@@ -4542,7 +4547,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         unit="Å³",
         default="15.0",
         typical="15 Å³",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#the-search-specification",
     ),
     "max_volume": HelpEntry(
         title="Largest cell volume",
@@ -4553,7 +4558,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å³",
         typical="empty; state it only when you know the volume",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#the-search-specification",
     ),
     "n_unindexed": HelpEntry(
         title="Unindexed lines allowed",
@@ -4569,7 +4574,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "an impurity."
         ),
         typical="empty; `'inliers'` on a pattern with a known impurity",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#driven-lines-and-the-inlier-rule",
     ),
     "n_search_lines": HelpEntry(
         title="Lines that drive the search",
@@ -4581,7 +4586,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="20",
         typical="20; foreign lines live in the tail of a list",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#driven-lines-and-the-inlier-rule",
     ),
     "k_sigma": HelpEntry(
         title="Matching window in σ",
@@ -4592,7 +4597,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="3.0",
         typical="3",
-        anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
+        anchor="reference/peaks.html#the-systematic-shift-and-the-window-it-opens",
     ),
     "shift_allowance_deg": HelpEntry(
         title="Systematic 2θ allowance",
@@ -4607,7 +4612,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         unit="deg 2θ",
         default="0.0",
         typical="0 unless an internal standard measured the shift",
-        anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
+        anchor="reference/peaks.html#the-systematic-shift-and-the-window-it-opens",
     ),
     "shift_template": HelpEntry(
         title="Shift template",
@@ -4617,7 +4622,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "widened search from reporting a biased cell."
         ),
         typical="`cos_theta` for specimen displacement, `constant` for a zero-point shift",
-        anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
+        anchor="reference/peaks.html#the-systematic-shift-and-the-window-it-opens",
     ),
     "max_candidates": HelpEntry(
         title="Candidates reported",
@@ -4629,7 +4634,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="12",
         typical="12",
-        anchor="using/indexing.html#the-result-object",
+        anchor="reference/indexing.html#the-result-object",
     ),
     "seed": HelpEntry(
         title="Random seed",
@@ -4639,7 +4644,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="0",
         typical="0",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#the-search-specification",
     ),
     "prior_cells": HelpEntry(
         title="Analogue cells",
@@ -4651,7 +4656,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "true cell, and the result records what it changed."
         ),
         typical="empty; one analogue cell when the chemistry suggests one",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#priors-from-a-structural-analogue",
     ),
     "prior_spacegroups": HelpEntry(
         title="Analogue space groups",
@@ -4661,7 +4666,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "prior cell, supplies its centring."
         ),
         typical="empty",
-        anchor="using/indexing.html#the-search-specification",
+        anchor="reference/indexing.html#priors-from-a-structural-analogue",
     ),
     "engines": HelpEntry(
         title="Engines to run",
@@ -4671,7 +4676,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "what the answer can say."
         ),
         typical="all of them",
-        anchor="using/indexing.html#three-engines-and-why-the-default-is-all-of-them",
+        anchor="reference/indexing.html#three-engines-and-why-the-default-is-all-of-them",
     ),
     "validate_candidates": HelpEntry(
         title="Le Bail validation",
@@ -4683,7 +4688,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="true",
         typical="on",
-        anchor="using/indexing.html#the-whole-profile-test",
+        anchor="reference/indexing.html#the-whole-profile-test",
     ),
     "check_top": HelpEntry(
         title="Candidates checked in depth",
@@ -4693,7 +4698,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
             "the confidence gate could promote."
         ),
         typical="empty",
-        anchor="using/indexing.html#the-whole-profile-test",
+        anchor="reference/indexing.html#the-whole-profile-test",
     ),
 }
 
@@ -4714,7 +4719,7 @@ def plan_help() -> dict[str, HelpEntry]:
             title=info.title,
             description=info.description,
             typical=info.when_to_use,
-            anchor="estimation.html#staged-strategy-and-series",
+            anchor="theory/estimation.html#staged-strategy-and-series",
         )
         for name, info in PLAN_INFO.items()
     }

@@ -1,4 +1,4 @@
-# The new manual's Reference tab, generated from the code that owns each fact
+# The manual's Reference tab, generated from the code that owns each fact
 # (WP-1981).  Prose pages are written; tables of names are built (WP-1975
 # § F8), so none of these pages can drift from the package.
 #

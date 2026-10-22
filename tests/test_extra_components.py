@@ -791,7 +791,7 @@ def test_a_known_hump_comes_back_within_its_esds():
     actually makes.  It deliberately does **not** assert that the structural
     parameters improve: on this fixture they are not determined well enough to
     carry such a claim (scale esd 209 on a value of 0.046), and the real-data
-    measurement in `docs/manual/using/data.md` reports what happened there,
+    measurement in `docs/docs/concepts/parameters.md` § Humps reports what happened there,
     including where it did not go the expected way.
     """
     result, truth = fit_hump_case(with_peak=True)

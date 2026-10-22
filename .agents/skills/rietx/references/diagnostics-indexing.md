@@ -121,8 +121,8 @@ the chemistry (formula, Z or density, solvent), infer a volume window with
 **These names are provisional, and the answers they return are versioned.**
 Indexing is under active development, so everything under `rietx.indexing` and
 every answer type in `rietx.schemas.indexing` may change in any release — the
-[compatibility promise](https://rietx.org/using/compatibility.html#provisional-by-declaration)
-has the detail. Two things do not move with them:
+[compatibility promise](https://rietx.org/using/compatibility.html)
+has the detail, § Provisional by declaration. Two things do not move with them:
 `capabilities().indexing_thresholds_version`, which is what the gates below are
 versioned by, and the serialized shape of an `IndexingResult`. So a tool loop
 that *reads* an answer sees any observable change as a version bump; one that

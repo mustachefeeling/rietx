@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-20 — Guides: 23 of 25 written, 18 and 24 waiting on other WPs; every old chapter's reference moved except indexing's; then retirement
+Milestone: unscheduled · Status: 🔄 2026-10-22 — the old tree retired (one manual; its 47 URLs redirect); open for guides 18 and 24, and the README and landing feature links at the 1.10 cut
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -187,8 +187,11 @@ the tree that day.
   CLAUDE.md (four region gates and a global one), `Project.open`'s ten refusals,
   `history.jsonl`'s append and `save`'s rewrite, and `apply.py`'s eighteen kinds.
 - The Switching tab's feature table (`switching/at-a-glance.md` § Features and what they were
-  checked against) has a "Read more" column linking Concepts and Reference pages. Point each row
-  at its guide once the guides exist. Those pages' python blocks carry `no-exec` lines naming
+  checked against) has a "Read more" column linking Concepts and Reference pages. Done
+  2026-10-22 for the six rows a guide answers (laboratory X-ray and peak shape →
+  `calibrate`, joint → `joint`, background → `hump`, phase fractions → `qpa`, other
+  programs' files → `foreign`); the synchrotron, neutron, Le Bail and Pawley, strain,
+  extinction and texture rows have no guide and keep theirs. Those pages' python blocks carry `no-exec` lines naming
   `examples/switching.py`, so a rename of anything it calls fails `tests/test_examples.py`.
 
 **Retirement.**
@@ -211,7 +214,9 @@ the tree that day.
   `quickstart` → `start/tutorials`; `compatibility` → `reference/compatibility`; `glossary`
   → `reference/settings`; `skill` → `reference/agents`; `gui-quickstart` →
   `start/gui-quickstart`; `gui-guide`, `gui-power` → their `reference/` namesakes;
-  `constraints` → `reference/parameter-table` (ties and § Restraints); `indexing` → not yet. Old labels other old pages cite and
+  `constraints` → `reference/parameter-table` (ties and § Restraints); `indexing` →
+  `reference/indexing` (2026-10-22; its peaks, evidence and extinction halves are
+  `reference/peaks`, `indexing-evidence` and `extinction`). Old labels other old pages cite and
   their new anchors: `a-phase-that-appears-part-way-through` →
   `series.md#a-phase-that-appears-part-way`, `a-refinable-wavelength-jointly` →
   `joint.md#wavelength-refinement`, `scanning-a-parameter` → `joint.md#profile-scan`,
@@ -244,7 +249,12 @@ the tree that day.
   into the package, since `_about.py` imports nothing); `help.py`'s anchors and the GUI's
   `docs_url` (`gui/session.py`) on that base; and
   `tests/test_help.py::test_every_anchor_resolves_in_the_built_manual` pointed at the new
-  tree's build.
+  tree's build. Done 2026-10-22 (9th session, by a lane): `_about.docs_version` and
+  `_about.docs_base`, the GUI's `docs_url`, all 124 anchors, and the test on
+  `built_docs_tree`. Left open for the maintainer by that session's review: a release's
+  help links reach `/docs/X.Y/`, which `docs_versions.KEEP_MINORS` stops hosting six
+  minors on, with no redirect; a `.postN` or `+local` build maps to `dev`, as the old
+  regex did; and `kept_releases` still parses tags itself beside `docs_version`.
 - When the old tree goes, its `pages.yml` build step goes too, and the stubs remain.
 - Also at retirement (the 7th session's review): `docs/docs/make_figures.py`'s `hump()`
   docstring cites `docs/manual/using/data.md` for the Si 640c table; repoint it at that
@@ -262,7 +272,8 @@ the tree that day.
   tripwire that fails once a notebook keeps the rule). WP-1545 is closed, so the fix is
   this WP's: move the note below the opening paragraph in each `examples/tutorials/NN_*.py`
   (`01_quickstart.py:4`), rebuild with `build.py`, and delete the waiver. A twin
-  writes a notebook's inline figure out as a file: six of the seven twins measured
+  writes a notebook's inline figure out as a file (the waiver went 2026-10-22: each note
+  now sits below its tutorial's opening paragraph): six of the seven twins measured
   62 752 to 551 259 characters with the base64 in, 7 561 to 39 799 without.
   `DOCS_PAGES` stays markdown-only, for the reason written at the glob.
 - A seventh notebook, `02b_steering_a_refinement`, sits between 02 and 03 (the source glob is
@@ -297,15 +308,19 @@ the tree that day.
       (2026-10-17, map under Notes by task).
 - [x] GUI chapters moved with `test_gui_manual.py`. (2026-10-19; the old copies stay up,
       unguarded, until the tree retires. Notes under GUI chapters.)
-- [ ] Each chapter's reference and explanation re-homed (survey and retirement map under
+- [x] Each chapter's reference and explanation re-homed (survey and retirement map under
       Notes by task, Retirement). Done 2026-10-19: Start (install, a first fit in Python,
       the tutorial notebooks), Reference compatibility and the `help` arms (`settings.md`).
       Done 2026-10-20: every other chapter, as 27 Reference pages and `concepts/plans.md`
-      (8th session's entry). Left: indexing, whose 283 names are the only public names the
-      old tree still documents alone.
-- [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
-      landing page's link to `/manual.html` pointed at `/docs/`.
-- [ ] Skill: links into the manual updated to the new URLs.
+      (8th session's entry). Done 2026-10-22: indexing, as `reference/peaks.md`,
+      `indexing.md`, `indexing-evidence.md` and `extinction.md`; the partition is 0.
+- [x] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
+      landing page's link to `/manual.html` pointed at `/docs/`. (2026-10-22, 11th session, by
+      the maintainer's choice to retire before guides 18 and 24: `docs/manual/` deleted, its 47
+      URLs redirect stubs from `RETIRED`, the landing page copied into the site root by
+      `pages.yml`.)
+- [x] Skill: links into the manual updated to the new URLs. (2026-10-22: `/docs/`, and the
+      compatibility link on its old address, whose stub follows stable.)
 
 ## Acceptance
 
@@ -314,6 +329,196 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-22 (11th session) — the old manual retires: one tree, and every old address redirects
+
+There is now one manual. The maintainer chose to retire the old tree before the last two
+guides exist, so the old pages are gone and every address they were published at sends the
+reader to its new page, carrying the section the reader asked for where the new page kept it.
+The site still opens on the landing page, now copied in by the deploy itself rather than by
+the old build, and every link that meant "the manual" (landing page, README, the package's
+Documentation URL, the agent skill) now goes to the new one. The old front page's note on how
+the manual was written, and its reading conventions, would have been lost because the coverage
+check counts names rather than prose; they have a Start page of their own. The WP stays open
+only for guides 18 and 24.
+
+*Done.* Repair entry for the 10th session's header brand (below). By lane retire-tree:
+`docs/manual/` deleted (49 files); `RETIRED` holds a row for each of the 47 old pages
+(`OLD_PAGES` gained `using/tutorials/02b_steering_a_refinement`, which the old tree did
+publish and the landing page links, so the WP's earlier "needs no row" was wrong);
+`pages.yml` copies `docs/landing/site/` into the site root before the stubs are written, and a
+test fails a stub landing on a landing file; the bibliography is `docs/docs/references.bib`,
+its one old-only citation (`rietx2026`) now under `theory/references.md` § Citing rietx;
+`test_manual.py` and `test_manual_api.py` read the new tree alone (the furo sidebar tests
+deleted, the favicon test re-anchored), `test_multi_diagnostics` reads `reference/joint.md`,
+the hump-table test `concepts/parameters.md`; `reference/magnetic.md` names
+`MagneticSolution`, which only an old page had spelled beside the provisional promise.
+`start/this-manual.md` carries the old `manual.md`'s authorship note and reading conventions.
+By lane retire-links: the landing page, README and `pyproject.toml` link `/docs/`; the
+skill's manual link is `/docs/`, its compatibility link the old address (whose stub follows
+stable from the 1.10 cut), copies re-synced; root, `gui/`, `io/` CLAUDE.md, `AGENTS.md`,
+`pr-review.md` and every comment the old paths' grep found repointed. A new landing test holds every manual link
+to a built page or a stub. Main's #1071 edited `using/refining.md` after this branch forked;
+its change was already in the new tree (97b417f), so the merge kept the deletion.
+
+*Retirement map, as landed* (supersedes the map under Notes by task where they differ):
+Part 2's fourteen pages and the old root `indexing` → `theory/<stem>`; `manual` → `index`;
+`using/constraints` → `reference/parameter-table#ties`; `using/glossary` →
+`reference/parameters` (the review's call: the parameter entries were most of the old page;
+the other arms are `reference/settings`); tutorials → `start/tutorials/<stem>`.
+
+*Review* (`/code-review high --fix`): eight findings, six fixed. A stub now carries the
+reader's `#fragment` over by a one-line script (meta refresh as fallback), so an installed
+release's help links still land on their Theory heading, whose ids did not change; the
+landing favicon is pinned to the manual's; `furo` left the `docs` extra and its stale
+comments; `test_landing` reads committed notebooks only, has its own xdist group
+(`landing-site`) and loads `docs_versions` once; the glossary redirect above. One the
+review left open is now taken (the glossary). One stays open: README and landing feature links
+sit on old addresses whose section moved to a page the old tree never had (magnetic, joint,
+foreign models and writers, peaks, humps, figures, plans), so they open the right chapter's
+successor but not the right page. They want `/docs/stable/<page>`, which 404s until the 1.10
+cut; see Next.
+
+*Measured* (`[dev]`, Linux x86-64 cloud container). Lane acceptance re-run here: retire-tree's
+selection 604 passed; retire-links' 472 passed; ruff clean. Fast selection on main merged into
+the branch: 11 059 passed, 203 skipped, 3 xfailed in 20:46, alone; `tests.added_test_times`: six
+added tests (four in `test_docs_versions`, two in `test_landing`), 0.01 s together. The full selection did not run: no measured number can move. No
+main baseline was run, so the count check is by file: the old-tree parametrisations
+(`[built_manual]`) and the two furo tests left, the per-page landing link test and new
+`test_docs_versions` tests joined.
+
+Lanes (`session_usage.py lanes`): two, both `opus-5-5`, none redone.
+
+| lane | est | requests | main at dispatch | re-read | left in main | lane $ | main $ | in-session $ | saved $ |
+|---|---|---|---|---|---|---|---|---|---|
+| retire-tree | 45 | 109 | 191K | 0K of 59K | 26K | 9.21 | 0.79 | 11.57 | +1.44 |
+| retire-links | 25 | 73 | 220K | 0K of 0K | 12K | 4.30 | 0.49 | 6.55 | +1.73 |
+
+Saved +$3.17, 15 % of the session; estimates ran 2.67× short. Baseline's selective policy for
+sessions peaking under 300K: +3 % (one session).
+
+*CI* (PR #1109's first lint run): Vale failed on the maintainer's given name in
+`start/this-manual.md`; added to `docs/vale/terms.txt` under a new people section.
+
+*Gotchas.* `test_docs_consistency`'s CLAUDE.md line cap has no slack: the review's one added
+line failed it. The worktree guard refuses a compound `git` command holding a `$(…)`; split it.
+
+Next: (1) at the 1.10 cut, once `/docs/stable/` exists, repoint README's and the landing
+page's feature links at `/docs/stable/<the page that now holds the section>`, the skill's
+compatibility link likewise; the review's list above names the pages. (2) Guides 18 and 24
+when WP-1910/WP-1510 and the magnetic WPs land, written straight into the new tree (the old
+chapters' text is at `git show 1661895:docs/manual/using/indexing.md` and `refining.md`).
+(3) The three findings the 9th session declined stay open for the maintainer (Notes by task,
+Retirement).
+
+### 2026-10-22 (10th session) — the new manual's header carries the rietx mark and brand (reconstructed post hoc)
+
+*Reconstructed post hoc* by the 11th session, from `git log --stat` over 8146df5 and c06871a
+(merged as PR #1104); the session that made them wrote no entry. The new manual's header bar
+now carries its own brand: the rietx mark beside the wordmark, in the manual's teal, linking to
+the manual's front page, with an orange mark among the header's icons linking out to the
+landing page — teal for the manual, orange for the site. This is presentation only and moves
+none of the retirement work; the commits do not say who chose the colours, beyond the first
+commit calling colour and link target "await a decision" and the second settling both.
+
+*Done* (from the commit messages). `docs/docs/_templates/rietx-brand.html` (mark + word,
+inline SVG filled from a CSS variable so it follows the theme toggle) and `rietx-landing.html`
+(the orange mark, before GitHub's icon); a teal `docs/docs/_static/favicon.svg`, replacing the
+old tree's favicon as `html_favicon`; the wordmark in Instrument Sans 600 from Google Fonts,
+asked for its five glyphs only (`text=`), falling back to the theme's sans offline;
+`navbar_align: "left"`, because with a release's version label the bar folded onto two rows
+below 1270 px and now stays on one down to 1110 px (measured in chromium by that session);
+the narrow-screen drawer's end items wrap, four of them having overrun a 390 px drawer.
+
+*Tests added* (`tests/test_manual.py`): `test_the_new_trees_marks_are_the_favicons` (both
+inline marks equal the favicon, which equals the old tree's mark, its hexes equal to
+`--rietx-ink`) and `test_every_new_tree_page_brands_its_header_and_links_the_landing_page`
+(on `built_docs_tree`). No counts were recorded for the session and none are reconstructed.
+
+*Gotcha for retirement.* The first test compares against the old tree's favicon, so deleting
+`docs/manual/` must re-anchor it on the new tree's own file rather than delete it.
+
+Next: unchanged from the 9th session's entry below.
+
+### 2026-10-22 (9th session) — indexing's reference moves over, so nothing in the old tree lacks a home; help links point into the new manual
+
+Every fact the old manual held now has a page in the new one. Indexing was the last chapter,
+and it went over as four Reference pages: peak lists, the search and its result, the evidence,
+and the extinction symbol. Each was written from the code, and about fifty statements in the
+old chapter proved wrong, from a pattern it called bundled that is not, to a caveat it called
+mild that in fact fails a candidate. The help popovers in the GUI and the glossary now link
+into the new manual, at the version that is running, rather than into the old tree. So the
+one thing between today and the old tree's retirement is the maintainer's decision whether to
+retire before the last two guides exist.
+
+*Done.* `reference/peaks.md`, `indexing.md`, `indexing-evidence.md` and `extinction.md`, by
+three lanes, each checked here on its riskiest claims (the six-line `weak_line` floor,
+`engines.py:1182`; the 16-point and time-of-flight refusals, `peaks.py:437`; the refuting
+`geometric_ambiguity` on an unreached candidate, `consensus.py:631`; the single-finder floor
+in `consensus.grade`; `screened` written only under `max_classes` or a cancel,
+`extinction.py:982-999`). Three `ExtinctionCandidate` field comments corrected to match. The
+partition (Notes by task, Retirement) went 283 → 202 → 45 → 0, and `indexing` has its
+`RETIRED` target. Then: the tutorials' authorship note moved below each opening paragraph and
+the notebooks rebuilt (`build.py --check` clean), so `NOTEBOOK_WAIVED` is gone; tutorial 03's
+indexed cell now prints in its conventional setting, which no prose quotes. The Switching
+feature table links six guides. WP-1979's three pieces, by a lane: `_about.docs_version`
+(moved from `docs/docs_versions.py`, which imports it) and `_about.docs_base`; the GUI serves
+`docs_base(version)` as `docs_url`; all 124 `help.py` anchors re-pointed (86 to `theory/`, five
+narrowed to their own subsection; 23 indexing to `reference/indexing` and `peaks`; 11
+time-of-flight to `reference/instrument`; three extra-peak to `theory/profiles`; `vars.*` to
+the tie guide), and the anchor test reads `built_docs_tree`. The lane flagged the old
+variable-bounds passage as lost; it is in `reference/parameter-table.md` § Ties and the tie
+guide.
+
+*Review* (`/code-review high --fix`): six findings. Fixed three: the E305 blank line, the
+stale `gui/src/lib/help.ts` comment, and the vitest corpora still quoting the site-root shape
+(now `…/docs/dev` and a `theory/` anchor; dist rebuilt, 586 vitest passed, svelte-check
+clean). Declined three, written under Notes by task, Retirement, for the maintainer: a
+release's help links 404 once `KEEP_MINORS` stops hosting its minor; a `.postN` or `+local`
+build links `dev`, as the old regex mapped it; `kept_releases` keeps its own tag parse beside
+`docs_version` (they disagree only on a tag such as `v1.010.0`).
+
+*Routed* (step 5): the indexing comments calling an unreached ambiguity search *capping*, the
+`fom_panel_disagrees` "caps" comment, the two-engine `budget_seconds` text and the unconfirmed
+`PEAK_SIGMA_ASSUMED` docstring → WP-2013 `### Inherited`; whether the unreached case should
+cap or refute, and `VALIDATION_RESERVE_FRACTION` validating none of fluorapatite's twelve
+candidates on a default run → WP-2007 `### Inherited`. No closed WP written to.
+
+*Measured* (`[dev]`, Linux x86-64 cloud container). Fast selection on the final tree, alone:
+11 013 passed, 203 skipped, 2 xfailed in 26:01; `tests.added_test_times`: 0 added tests (the
+waiver's deletion removed assertions, not a test). The full selection did not run: no measured
+number can move (docs, link targets, comments). Lane acceptance (the WP's files plus
+`test_docs_versions`, `test_examples`, `test_vale`, `test_reference_pages`): 220 passed each;
+the anchors lane's selection 361 passed. Two default `index_pattern` runs (lane B): qarr
+corundum 121.3 s, four systems entered, certified R cell first; fluorapatite 130.7 s, no
+candidate validated. Vale (3.24.0, CI's binary) over `docs/docs`: 0 errors.
+
+Lanes (`session_usage.py lanes`): four, all `opus-5-5`, none redone. The two kept items
+(the tutorial waiver ~10, the Switching links ~8) were declared inline rather than as lines of
+their own, so the tool counts 0 kept.
+
+| lane | est | requests | main at dispatch | re-read | left in main | lane $ | main $ | in-session $ | saved $ |
+|---|---|---|---|---|---|---|---|---|---|
+| indexing-peaks-reference | 35 | 92 | 190K | 0K of 13K | 15K | 6.60 | 0.69 | 11.65 | +4.17 |
+| indexing-search-reference | 40 | 94 | 205K | 0K of 135K | 8K | 8.66 | 0.34 | 15.44 | +6.35 |
+| indexing-extinction-reference | 30 | 62 | 214K | 0K of 4K | 28K | 3.98 | 0.97 | 7.13 | +1.94 |
+| versioned-docs-anchors | 30 | 72 | 267K | 0K of 2K | 11K | 4.10 | 0.63 | 7.19 | +2.46 |
+
+Saved +$14.92, 32 % of the session; estimates ran 2.38× short. Baseline's selective policy for
+sessions peaking under 300K: −5 % (one session).
+
+*Gotchas.* Vale is not on the container's PATH; CI's pinned binary, fetched into the
+scratchpad with its sha256, runs after `vale sync`. The worktree guard refuses a heredoc
+followed by `git` in one command, and a `( cd … )` subshell; split them. `npm --prefix gui ci`
+works here (node 22), so a GUI-source edit can be rebuilt in a cloud session.
+
+Next: (1) the maintainer's choice, now the only blocker: retire the old tree before guides 18
+and 24 exist, or wait for WP-1910, WP-1510 and the magnetic WPs. (2) On a yes, retirement:
+the `RETIRED` rows from the map, `docs/manual/` deleted with its build, guards and
+`pages.yml` step, `tests/test_manual_api.py`'s old-tree half, the skill's two links and the
+landing page's `/manual.html` link, and `make_figures.py`'s `hump()` docstring. Several lanes'
+worth; the three declined review findings ride with it. (3) Guides 18 and 24 when their WPs
+land.
 
 ### 2026-10-20 (8th session) — every old chapter's reference moves over except indexing's, with about 150 stale facts corrected on the way
 

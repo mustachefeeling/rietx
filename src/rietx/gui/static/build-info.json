@@ -1,5 +1,5 @@
 {
-  "source_hash": "23c0550036c15bdce271d0c6f5232c9b66e1ca2294573980ea278fc7706aa748",
+  "source_hash": "5bee6c0230bd13839aa43892dd9a7f88d5b8c2ee561eb6f2d65ff3ac38fca79e",
   "n_source_files": 92,
   "hashed_by": "gui/scripts/build_info.py",
   "note": "Recomputed by tests/test_gui_dist.py. A mismatch means the committed dist is stale: run `npm --prefix gui run build`. Deliberately carries no timestamp \u2014 a rebuild of unchanged sources must produce a byte-identical tree."

@@ -1,4 +1,4 @@
-# A markdown twin of every page of the new manual, and the llms.txt that
+# A markdown twin of every page of the manual, and the llms.txt that
 # lists them (WP-1980).  An agent reads these, never the HTML: WP-1975 § F8
 # chose a clean markdown copy of each page beside the skill.
 #

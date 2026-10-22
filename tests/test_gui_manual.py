@@ -1,11 +1,10 @@
 """The GUI chapters' anti-divergence guards (WP-1017).
 
-The chapters are the new tree's since WP-1986: `start/gui-quickstart.md`, and
-`reference/gui-guide.md` and `reference/gui-power.md`, under `docs/docs/`, with
-their screenshots and the script that takes them beside the tree's pages.  The
-old tree keeps its copies until it retires, unguarded.
+The chapters are `start/gui-quickstart.md`, `reference/gui-guide.md` and
+`reference/gui-power.md`, under `docs/docs/` since WP-1986, with their
+screenshots and the script that takes them beside the tree's pages.
 
-Part 2 is guarded by injected constants, Part 1 by name resolution
+The Theory tab is guarded by injected constants, every page by name resolution
 (`test_manual.py`, `test_manual_api.py`).  A GUI chapter is guarded by neither,
 because its subject is routes and panels rather than importable names — and the
 prose-drift problem is worse here than anywhere else in the manual: this WP's

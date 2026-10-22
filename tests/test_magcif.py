@@ -947,17 +947,18 @@ def test_a_magnetic_supercell_is_refused_naming_what_would_be_needed(tmp_path):
 def test_the_manual_describes_the_transform_tag_the_writer_writes():
     """Review of #628, item 1: ``using/exports.md`` still said a supercell's
     ``setting`` prose was copied into ``transform_BNS_Pp_abc``, which this
-    writer no longer does (the test above).  Both manual chapters that state
-    what goes into the tag must say it is left out for anything that is not a
-    (P,p) transform, and neither may say prose is copied into it."""
-    root = Path(__file__).resolve().parents[1] / "docs" / "manual" / "using"
-    for chapter in ("exports.md", "files.md"):
-        text = " ".join((root / chapter).read_text(encoding="utf-8").split())
+    writer no longer does (the test above).  The manual page that states what
+    goes into the tag must say it is left out for anything that is not a (P,p)
+    transform, and no page may say prose is copied into it."""
+    root = Path(__file__).resolve().parents[1] / "docs" / "docs"
+    for page in root.rglob("*.md"):
+        text = " ".join(page.read_text(encoding="utf-8").split())
         assert "copied verbatim into `_space_group_magn.transform_BNS_Pp_abc`" \
-            not in text, chapter
-        assert "(P,p) transform" in text or "(P,p) from the current" in text, \
-            chapter
-        assert "left out" in text, chapter
+            not in text, page
+    chapter = root / "reference" / "structure-files.md"
+    text = " ".join(chapter.read_text(encoding="utf-8").split())
+    assert "(P,p) transform" in text or "(P,p) from the current" in text, chapter
+    assert "left out" in text, chapter
 
 def test_a_magnetic_supercell_phase_round_trips_in_its_own_cell(tmp_path):
     """A phase ``magnetic_supercell`` built (#477) is already stated in the

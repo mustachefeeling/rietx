@@ -145,7 +145,7 @@ re-reading its own diff.
    (`test_manual_api.py` already fails on an undocumented public surface,
    `test_docs_consistency.py` on glyphs and links, the `capabilities`
    meta-tests on a registry member missing from its arm). Did this session
-   add physics with Part 1 prose but no Part 2 manual equation — **four of
+   add physics with prose but no Theory-tab manual equation — **four of
    the six McCusker WPs** did exactly that (WP-1067's log)? Something this
    session **measured that an agent driving rietx needs** — a rule, a stop
    condition, a surprise — sitting in the handover entry and not in the
