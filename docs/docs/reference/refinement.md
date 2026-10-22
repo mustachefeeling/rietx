@@ -338,9 +338,8 @@ The answer is then that of every fit before the setting, to the bit.
 On the four patterns above it lands 0.15 to 0.96 plain esd from the closing stage's answer.
 In physical units, cpd-1a's phase fractions move by up to 0.12 wt%, the fluorapatite's Lorentzian size by 2.5 % and its strain by 3 %, LaB6's widths by 1-2 %, and NAC's values by under 0.4 %.
 A long series or a large batch is the case for it: each pattern pays the closing stage's cost.
-The FitReport of such a fit still reads its misfit at the closing precision ([Region attribution](report.md#region-attribution)).
-On the fluorapatite and cpd-1a fitted without a closing stage, it printed the same report as a reading at the fit's own 2 %.
-The same regions passed its gates with the same leading shape, and neither reading suggested an action.
+Its FitReport still reads the misfit at the closing precision ([Region attribution](report.md#region-attribution)).
+On the fluorapatite and cpd-1a, a reading at the fit's own 2 % printed the same report.
 `PlanSpec.closing_window_tol` carries the setting into a project file, and the GUI's text document writes it as the `closing` line.
 `Refinement.run_stage` runs no closing stage, so its `window_area_tol` defaults to the closing stage's fraction; pass `rietx.model.forward.WINDOW_AREA_TOL` for the declared stages' faster windows.
 
@@ -450,7 +449,7 @@ for stage in result.stages:
 | `StageResult.ftol` | the tolerance it ran at; `None` is the solver default |
 | `StageResult.n_constraint_truncations` | steps the `lm` driver held on a linear inequality |
 | `StageResult.n_degenerate_cell_probes` | trial cells the residual refused as degenerate, with zero or negative volume |
-| `StageResult.n_lapack_fallbacks` | decompositions the solve and its esds repeated with LAPACK's second driver, because the first did not converge |
+| `StageResult.n_lapack_fallbacks` | decompositions the solve and its esds repeated with LAPACK's second driver because the first did not converge, the same answer by another route |
 | `StageResult.held` | parameters the plan freed that this stage held because the data cannot determine them |
 | `StageResult.held_reach` | per held parameter, the tied parameters it also stopped |
 | `StageResult.released` | parameters held at the start and freed again within the stage |
@@ -560,13 +559,6 @@ Nonzero in the last stage, it also raises [`CONSTRAINT_ACTIVE`](diagnostics-refi
 `Cell` declares no bounds, so a poorly determined cell stage can reach a zero- or negative-volume metric while searching.
 Each such trial is pushed back and counted rather than crashing the stage or returning a silent NaN.
 A nonzero count is the ordinary outcome on a poorly determined cell, and [`CELL_DEGENERATE_PROBE`](diagnostics-refinement.md#cell_degenerate_probe) sums it over the stages that ran.
-
-`StageResult.n_lapack_fallbacks` counts decompositions, never a change to the answer.
-The solver's eigensolves, singular value decompositions and linear least-squares solves call LAPACK's divide-and-conquer drivers.
-Those can stop without converging on a finite matrix.
-rietx then repeats the decomposition with LAPACK's QR-iteration driver, which computes the same decomposition by another route.
-macOS's system LAPACK did this on a `solver="trf"` fit of CPD brucite, on a step matrix that OpenBLAS decomposed.
-The repeat gave singular values equal to OpenBLAS's to the last bit.
 
 ## Guards
 
