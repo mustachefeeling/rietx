@@ -326,6 +326,35 @@ the tree that day.
 
 ## Handover log
 
+### 2026-10-22 (10th session) — the new manual's header carries the rietx mark and brand (reconstructed post hoc)
+
+*Reconstructed post hoc* by the 11th session, from `git log --stat` over 8146df5 and c06871a
+(merged as PR #1104); the session that made them wrote no entry. The new manual's header bar
+now carries its own brand: the rietx mark beside the wordmark, in the manual's teal, linking to
+the manual's front page, with an orange mark among the header's icons linking out to the
+landing page — teal for the manual, orange for the site. This is presentation only and moves
+none of the retirement work; the commits do not say who chose the colours, beyond the first
+commit calling colour and link target "await a decision" and the second settling both.
+
+*Done* (from the commit messages). `docs/docs/_templates/rietx-brand.html` (mark + word,
+inline SVG filled from a CSS variable so it follows the theme toggle) and `rietx-landing.html`
+(the orange mark, before GitHub's icon); a teal `docs/docs/_static/favicon.svg`, replacing the
+old tree's favicon as `html_favicon`; the wordmark in Instrument Sans 600 from Google Fonts,
+asked for its five glyphs only (`text=`), falling back to the theme's sans offline;
+`navbar_align: "left"`, because with a release's version label the bar folded onto two rows
+below 1270 px and now stays on one down to 1110 px (measured in chromium by that session);
+the narrow-screen drawer's end items wrap, four of them having overrun a 390 px drawer.
+
+*Tests added* (`tests/test_manual.py`): `test_the_new_trees_marks_are_the_favicons` (both
+inline marks equal the favicon, which equals the old tree's mark, its hexes equal to
+`--rietx-ink`) and `test_every_new_tree_page_brands_its_header_and_links_the_landing_page`
+(on `built_docs_tree`). No counts were recorded for the session and none are reconstructed.
+
+*Gotcha for retirement.* The first test compares against the old tree's favicon, so deleting
+`docs/manual/` must re-anchor it on the new tree's own file rather than delete it.
+
+Next: unchanged from the 9th session's entry below.
+
 ### 2026-10-22 (9th session) — indexing's reference moves over, so nothing in the old tree lacks a home; help links point into the new manual
 
 Every fact the old manual held now has a page in the new one. Indexing was the last chapter,
