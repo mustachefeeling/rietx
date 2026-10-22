@@ -321,6 +321,7 @@ A fit no longer fails because the system's linear-algebra library gives up on a 
 - Item 3: the closing node rule's line moved to `window_area_tol < WINDOW_AREA_TOL` (test made to fail on the old line); `build_report` refuses a non-Pawley `model=` without `structure=` and `instrument=`; the closing-off report kept and recorded.
 - Merged main (`b2fa5b0aa`, through #1109): WP-1986 retired `docs/manual/`. This branch's 109 lines there all had homes in the new tree (checked by phrase); the deletions stand. The GUI dist and the seven notebooks rebuilt from the merged sources. The landing panel's GoF corrected to the builder's 1.60 (the tutorial's fit is bit-identical to the session's start, GoF 1.60489).
 - Forward references: WP-1418's Inherited (the closed winner, the moved numbers), WP-2004's (the refused bare model, the closing-off reading).
+- CI's lint now runs Vale over `docs/docs` (WP-1986 on main): eight errors in this branch's pages fixed (`05e2c0dbc`), `Doebelin` and `Kleeberg` accepted.
 
 *Measured* (macOS arm64, worktree venv `[dev]`, compiled tier on).
 - The failing matrix: 7279 × 28, condition 7.9e10; Accelerate `gesdd` 20 of 20 failures; OpenBLAS `gesdd` (SciPy 1.18.1's macOS 12 wheel, scratch venv) decomposed it, singular values equal to `gesvd`'s (max relative difference 0.0). Brucite TRF: `gesvd` retry Rwp 0.17872, 19 of 43 σ² negative; `tr_solver="lsmr"` 0.17873, 20 of 43, S_HKL 0.04 esd from it; a plain restart passed only because two columns came out 5e-4 different.
