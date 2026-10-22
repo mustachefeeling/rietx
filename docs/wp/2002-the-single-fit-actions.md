@@ -169,7 +169,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       `2002-batch/batch.md`, 16 classes. Ruled 2026-10-19: B7, B10, B12, B14, and B1
       confirmed. The other nine re-briefed in `2002-batch/rulings.md`, awaiting answers.
       All sixteen ruled by 2026-10-20 (`rulings.md`, three rounds; B2 and B14 re-asked).*
-- [ ] Approved demotions: the action removed, and its number left in the record field (or
+- [x] Approved demotions: the action removed, and its number left in the record field (or
       its ranking returned) with its meaning in the package's own output; the code's
       `level` to `info`, or, where the threshold was its trigger, the code replaced by an
       `info` record with no threshold (the record § Demotion). Each as its own commit.
@@ -186,7 +186,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       both search defects fixed. Left: Q1-Q3's builds (the sixth round) and B14's lifts.
       5th session: the sixth round built (the closing stage, the roughness seed's record,
       the axis ceilings, the tier-2 rule). Left: B14's lifts. 6th session: no demotion;
-      left: B14's lifts.*
+      left: B14's lifts. 8th session: B14's lifts landed (§ The hand rows that stay).*
 - [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved
@@ -278,6 +278,40 @@ Three choices the opening session made, each reversible:
   34 to WP-2005, 15 to WP-2004, 9 to WP-2007, from this WP's own non-goal. Until ruled,
   they stay `unaudited` here, and this file's acceptance line below reads "no
   action-gating row at unaudited".
+
+## The hand rows that stay (B14, option 3)
+
+B14's lifts landed 2026-10-23 (8th session): 21 numbers a retune could move became
+module-level constants, `ProfileTCHZ` a seat, and the collapse restore and the Stephens
+seed record fields (`StageResult.collapsed`, `StageResult.seeded`). What the table still
+cannot see, by the ruling's design, is listed here, each with why it stays outside.
+
+- **Tier 1, a floor, guard or formula a retune cannot make a different answer:**
+  `pspline_penalty_scale`, `lorentz_polarization`, `build_pawley_restraint:group_scale_floor`,
+  `compile_model:fcj_sizing_from_moving_paths`, `compile_model:reflection_floor_deg`,
+  `lebail_update:floors`, `TEXTURE_SAMPLE_PSI_DEG`, `_feasible_start:trf_nudge`,
+  `brindley_tau:series_switch`, `_psd_pinv:magnitude_inversion`, `Refinement._final_compile`,
+  `mode_fixed_column`, `ExtraComponent:fwhm_floor_repair`, `Phase:off_state_defaults`,
+  `PreferredOrientation._r_bound_is_reachable`, `_MODE_SUBSTITUTES`, `Atom:occ` (floor 0, no
+  ceiling since B9), `EmissionLine:weight` (floor 0), `Geometry:bounds` (physical floors only),
+  `Instrument:zero_shift` (unbounded off state).
+- **Invariant internals:** `CompiledPhase.skip_extinction`, `_formula_units:tol`,
+  `arpls:max_iter,tol`, `_walk:bracket_growth`, `_DegenerateCellGuard`'s two penalties,
+  `_Arrow.largest_eigenvalue:lanczos_tol`, `n_threads:cap`, `run_least_squares:max_iter`, the
+  compiled tier's default and the Le Bail/Pawley intensity seed.
+- **A number inside a dict or array, which the walk cannot read:** `TCHZ_BOUNDS_COARSE` (reached
+  only through `ProfileTCHZ.coarse`), `_KA_DOUBLETS` and `_LAUE_COEF` (tier 2), `_KBETA`,
+  `_ASSUMED_ION`, `_FLAT_AXIS_TEST_DIRECTIONS`, `FLOOR_SEEDS`, `_NS_PER_ELEMENT`.
+- **Seats not added, because each brings unruled defaults:** `Geometry` (14 defaults,
+  among them `mu_t=None` meaning a transparent plate under transmission, never ruled; so
+  `Geometry:kind` stays a hand row, WP-2015's), `Instrument` (three whole nested models),
+  `Atom` (nothing judged left once `BISO_SEED` holds the Biso), the two presets (their
+  numbers are constants now; seating them brings `radiation="CuKa"`, unruled) and
+  `run_least_squares` (its `ftol` is `optimize.lm.FTOL`).
+- **Left as literals, no ruling covering them:** `select_arpls_lambda`'s and `auto_lambda`'s
+  candidate grids (10⁴ to 10¹⁰), inside pick verbs.
+- **`cherry_pick:fallbacks`** are `NodeAction`'s defaults (`schemas/history.py`): what a node
+  stored before those fields ran at, so they stay 100 and 3 whatever `StageSpec` says.
 
 ## Acceptance
 
