@@ -96,15 +96,22 @@ h1, h2, h3, h4 {
   text-wrap: balance;
 }
 
-/* The small label: the two sidebars' headings, and the landing page's table and pane
- * heads.  Uppercase, tracked, `--faint` on the page ground. */
+/* The small label, the landing page's table and box heads (README § House style): the two
+ * sidebars' headings here, and the previous and next links' "Previous" and "Next".
+ * Uppercase, tracked, `--faint` on the page ground.  The last selector is pydata's own
+ * plus the element, since pydata capitalises that label at four classes deep. */
 nav.bd-links p.bd-links__title,
-.onthispage {
-  font-size: 0.72rem;
+.onthispage,
+.prev-next-area a .prev-next-info p.prev-next-subtitle {
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--faint);
+}
+
+nav.bd-links p.bd-links__title,
+.onthispage {
   margin-bottom: 0.6rem;
 }
 
@@ -488,13 +495,6 @@ pre {
 
 .prev-next-area a p.prev-next-title:hover {
   text-decoration: none;
-}
-
-.prev-next-area a p.prev-next-subtitle {
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--faint);
 }
 
 /* A diagram takes the site's colours in both themes.  mermaid writes its colours into a

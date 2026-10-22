@@ -121,6 +121,9 @@ html_theme_options = {
     # Six tabs, so none folds into a "More" dropdown.
     "header_links_before_dropdown": 6,
     "navbar_end": ["version-switcher", "navbar-icon-links", "rietx-theme"],
+    # Follow the system until the reader pins a theme.  Unset, pydata writes an
+    # empty mode on a first visit and logs it as invalid before it resets.
+    "default_mode": "auto",
     "switcher": {
         "json_url": "/docs/switcher.json",
         "version_match": _shared.DOCS_VERSION,
