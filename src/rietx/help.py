@@ -1141,7 +1141,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å", default=None,
         typical="0 to about 1.5 Å for an octahedral tilt",
-        anchor="parameterisation.html#distortion-mode-amplitudes",
+        anchor="theory/parameterisation.html#distortion-mode-amplitudes",
     ),
     "phases.*.atoms.*.occ": HelpEntry(
         title="Site occupancy",
