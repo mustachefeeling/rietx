@@ -381,7 +381,8 @@ cut; see Next.
 
 *Measured* (`[dev]`, Linux x86-64 cloud container). Lane acceptance re-run here: retire-tree's
 selection 604 passed; retire-links' 472 passed; ruff clean. Fast selection on main merged into
-the branch: FAST_RESULT. The full selection did not run: no measured number can move. No
+the branch: 11 059 passed, 203 skipped, 3 xfailed in 20:46, alone; `tests.added_test_times`: six
+added tests (four in `test_docs_versions`, two in `test_landing`), 0.01 s together. The full selection did not run: no measured number can move. No
 main baseline was run, so the count check is by file: the old-tree parametrisations
 (`[built_manual]`) and the two furo tests left, the per-page landing link test and new
 `test_docs_versions` tests joined.
