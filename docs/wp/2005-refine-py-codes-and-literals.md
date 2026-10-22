@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002
-Priority: P3 2026-10-18 — codes, not actions; a verdict here is a flag the caller reads, and the workaround is to read past it
+Priority: P3 2026-10-23 — 2002 closed, so nothing blocks it; codes, not actions; a verdict here is a flag the caller reads, and the workaround is to read past it
 
 ## Goal
 

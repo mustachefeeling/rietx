@@ -1,9 +1,8 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-22 — ninth round built (a second LAPACK driver on the fit path, solve_magnetic's winner closed, three design questions inferred); B14's lifts and two domain tests remain
+Milestone: generality · Status: ✅ 2026-10-23 — every single-fit action tiered over nine ruling rounds; B14's lifts landed; the two owed domain tests went to 2017 at the maintainer's call
 Track: The audits
 Depends on: 2001
-Priority: P2 2026-10-19 — 2001 closed, so nothing blocks it; upstream of 2003 and 2004 (every fit runs these), and the seam the maintainer named first
 
 ## Goal
 
@@ -132,7 +131,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       2001's walk, with the file and line, what it decides, and what the caller sees
       without it. Lanes read disjoint files; the lead assembles. *2026-10-19:
       `2002-batch/inventory.json`, 402 proposals from six readers.*
-- [ ] Tier each row per part (statistic, threshold, action), with evidence: the citation,
+- [x] Tier each row per part (statistic, threshold, action), with evidence: the citation,
       the program and its default behaviour, or the families measured. Where the families
       are fewer than three, run the missing ones (the fits are cheap; a chain family is
       2003's). *157 rows needing no approval landed 2026-10-19; the rest wait on the batch.
@@ -156,7 +155,10 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       magnetic floor invariant behind the closing stage, the margin and the axial floor
       tier 3); `GTOL`/`XTOL` tier 3 under the caller-tier ruling and
       `DEFAULT_HARMONIC_ORDER`'s row gone with the constant. 7th session: the
-      LAPACK fallback's row, `StageResult.n_lapack_fallbacks`, tier 1.*
+      LAPACK fallback's row, `StageResult.n_lapack_fallbacks`, tier 1. 8th session:
+      B14's lifts landed; the interval and width-grid domain tests handed to
+      [2017](2017-the-second-pass-every-tier-3-threshold-on-three-families.md) by the
+      maintainer (2026-10-23), their eight rows staying tier 3 as approved.*
 - [x] The clash table: every pair of actions that read or move the same parameter, with
       the measured interaction (Rwp and the parameter, both orderings). *38 candidate pairs
       found, none measured: `2002-batch/clashes.md`. Moved to
@@ -229,17 +231,21 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       winner ended in a closing stage; the three design questions inferred (the
       closing-off report kept as measured, the closing node rule for every compile
       finer than 2 %, `build_report` refusing a bare `model=`).
-- [ ] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
-      comparison can show; add a row where a standard exercises it.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
+- [x] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
+      comparison can show; add a row where a standard exercises it. *8th session: none
+      owed. Every demotion removed a limit, lowered a level to info or made a tie
+      abstain, and none is a switch a standard's variant exercises; the closing stage is
+      a kept default, not a demotion.*
+- [x] Tests + obs/calc/diff PNGs to `tests/output/` for every refit used as evidence.
       *3rd session: done for every refit it ran (`tests/output/b3_*`, `b9_*`, `b10*`,
       `b7b11_*`, `seed_invariance_*`, `window_domain_*`, `fd_step_*`). 4th session: the
       0.5 % window polishes wrote `window_domain_*` PNGs; the last-stage, closing-stage and
       Biso-start measurements are scratch scripts with no figure, their numbers in
       `rulings.md` § Sixth round. 5th session: `staged_start_*` and
       `window_domain_*_closing` PNGs. 6th session: probes only (scratch scripts, no
-      figure); their numbers are in `rulings.md`'s seventh and eighth rounds.*
-- [ ] Skill: none here. A demoted verdict's meaning goes into the package's own output and
+      figure); their numbers are in `rulings.md`'s seventh and eighth rounds. 7th and 8th
+      sessions: no refit used as evidence.*
+- [x] Skill: none here. A demoted verdict's meaning goes into the package's own output and
       never into a skill row (DESIGN.md § Rules, 3; the record § Decisions, the skill's
       role). List each skill row that named a demoted verdict, for 2008. *2nd session:
       `references/magnetic.md`'s abstained row and `api-magnetic.md`'s criterion (from

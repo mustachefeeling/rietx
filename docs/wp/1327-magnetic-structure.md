@@ -140,6 +140,8 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-23, 8th session, PR #1113): a joint fit can hold a moment direction its record does not name.** In `MultiHistogramRefinement.fit`, a phase `_rehold_multi` releases is then scanned by `_rehold_flat_moments_multi` (`multi.py` ~852); a direction it finds flat is restored and held in the table, but `held` (~1496) subtracts `released`, so that path is missing from `held` and from `carried_hold`, the next stage does not lift it, and `StageResult.collapsed` is then not a subset of `held`. Found by the lane that added `collapsed`; predates it; a fix may move values.
+
 - **From WP-2002 (2026-10-20, PR #1050): `strategy.magnetic.SOLVE_D_MIN` waits on the form factor.** WP-2002's batch (B12, revised pick) dropped setting it from the data's d range: the magnetic signal dies with the form factor (Mn³⁺ ⟨j₀⟩ 0.39 at d = 1.5 Å, 0.04 at 0.77 Å), so a limit from the data's range would split classes on reflections with no magnetic intensity. Set it where the form factor falls under the noise; its audit row stays `unaudited` until then.
 - **2026-10-19, from [2001](2001-the-rule-the-table-and-the-guard.md): magnetic
   refinement has no validating reference, and

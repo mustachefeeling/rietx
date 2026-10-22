@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002, 2003
-Priority: P2 2026-10-18 — the report is what an agent reads first; waits on 2002 because its rival fits run the holds, and on 2003 because the one `THRESHOLDS_VERSION` bump carries its rulings
+Priority: P2 2026-10-23 — 2002 closed; waits on 2003 alone, because the one `THRESHOLDS_VERSION` bump carries its rulings
 
 ## Goal
 
@@ -65,6 +65,8 @@ WP-1339 (where the improvement lives) and 1335 (the report costs more than the f
 open under the same track; neither tiers a gate.
 
 ### Inherited
+
+- **From WP-2002 (2026-10-23, 8th session, PR #1113): 2002 closed.** The holds the report's rival fits run are settled; `StageResult.collapsed` now tells a collapse restore from a start-of-stage hold, which `PHASE_UNCONSTRAINED`'s message could use. This WP still waits on 2003.
 
 - **From WP-2002 (2026-10-22, 6th session, PR #1085): the report reads two models.** `report._reading_models` takes Layer 1's misfit from a model at the closing stage's precision and the shapes it is fitted with (the derivative bases, and the windows the texture screen shares a point's misfit over) from a twin at `WINDOW_AREA_TOL`, compiling whichever the caller's model is not (4-19 ms against a 0.24-1.57 s report). `build_report` takes `instrument=` beside `structure=` for it, and without both reads the one model as before. It is a heuristic of this WP's subsystem with no table row (an ordering of two compiles, keyed on `CompiledModel.window_area_tol`). Measured while choosing it: shapes at the closing precision read an impurity as texture (0.35) and lost zero shift from displacement (the closing FCJ rule's asymmetry column beside 90°, |cos| 0.9986 with position); a misfit at the declared precision sent a displaced specimen to axial asymmetry (that rule leaves 5.6e-3 of a peak's maximum). Every report before WP-2002 read a declared-precision model against real data, so the second misreading was latent on real fits, unmeasured.
   *7th session (2026-10-22).* `build_report` now refuses a non-Pawley `model=` without `structure=` and `instrument=` (`TypeError` naming them), so the one-model reading is gone. A fit run with `closing_window_tol=None` keeps its misfit read at the closing precision: on the fluorapatite and cpd-1a fitted that way, both readings printed the same report, passed the same regions with the same leading shape and suggested nothing (WP-2002 `rulings.md` § Ninth round). The two-model reading is still a heuristic of this WP's subsystem with no table row.

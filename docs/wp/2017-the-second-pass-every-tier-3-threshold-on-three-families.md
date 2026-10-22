@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002
-Priority: P2 2026-10-20 — split from WP-2002 by the maintainer; the evidence every tier-3 approval in the single-fit audit was granted on the promise of
+Priority: P2 2026-10-23 — 2002 closed, so nothing blocks it; the evidence every tier-3 approval in the single-fit audit was granted on the promise of, now with 2002's two owed domain tests
 
 ## Goal
 
@@ -67,6 +67,8 @@ under `~/rietx-local-data` (`python -m tests.local_data`), the magnetic fixtures
 LaMnO₃). A family is a specimen type with its own instrument, not a pattern.
 
 ### Inherited
+
+- **From WP-2002 (2026-10-23, 8th session, PR #1113): two domain tests, handed here by the maintainer at 2002's close.** The profile-interval settings (`PARAMETER_INTERVAL_CHI2_TOL` 0.01, `_MAX_REFITS` 60, `_SETTLE_RUNS` 4, `_XTOL` 1e-3) and the fraction-profile width grid (`FRACTION_PROFILE_FWHM_MIN` 0.01, `_N_FWHM` 11, `_FWHM_MAX_SPAN` 0.5, lifted from an inline literal by B14) sit at tier 3, approved 2026-10-19 on B10 option 2: tier 1 once a test bounds each setting's error over its claimed domain. No domain has been stated for either; the interval runs automatically on every moment angle the stationary test leaves out (B2), 20-32 refits an angle on the two-site Pnma fixtures, and the grid on every `profile_fraction` call, which the skill sends every agent to. The bar the earlier domain tests used was 0.1 of a point's σ at fixed parameters and 0.1 plain esd after a common-start polish (`tests/test_window_domain.py`).
 
 - **From WP-2002 (2026-10-22, 6th session, PR #1085).** The eighth round kept `REFLECTION_MARGIN_DEG` at 0.5° and `AXIAL_SIZING_FLOOR` at tier 3, both for this pass. The caller-tier ruling moved `GTOL` and `XTOL` (1e-12, defaulted inside the opt-in TRF solver, SciPy's own 1e-8) from caller to tier 3, with their domain test owed: WP-1109's 1e-8 trial is their only evidence (1.22-1.27× faster on cpd-1a, 1.04× slower on cpd-2, corundum's strain anisotropy past the Stephens suite's bar).
 
