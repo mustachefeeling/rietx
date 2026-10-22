@@ -505,3 +505,28 @@ def test_a_normal_perpendicular_to_the_frozen_one_keeps_its_rows():
     cart -= cart.mean(axis=0)
     assert np.sum(d * d) == pytest.approx(np.linalg.eigvalsh(cart.T @ cart)[0],
                                           rel=1e-9)
+
+
+def test_the_listing_cap_changes_the_message_and_nothing_else(monkeypatch):
+    """``RESTRAINT_PAIRS_STALE_LISTED`` only shortens the spelled-out list: the
+    count, ``value`` and ``where`` are the same at any cap (its audit row's
+    ``invariant`` claim)."""
+    import importlib
+    import types
+
+    refine = importlib.import_module("rietx.refine")
+    from rietx.model import restraints
+
+    phase = _torsion_phase(180.0)
+    fake = [(0, 1, 1.0 + 0.1 * k, 2.0) for k in range(1, 8)]      # 7 stale pairs
+    monkeypatch.setattr(restraints, "stale_anti_bump_pairs", lambda *a, **k: list(fake))
+    structure = types.SimpleNamespace(phases=[phase])
+    got = {}
+    for cap in (2, 100):
+        monkeypatch.setattr(refine, "RESTRAINT_PAIRS_STALE_LISTED", cap)
+        (d,) = refine._restraint_pairs_stale_diagnostics(structure, [()])
+        got[cap] = d
+    assert got[2].value == got[100].value == 7.0
+    assert got[2].where == got[100].where
+    assert "7 contact(s)" in got[2].message and "and 5 more" in got[2].message
+    assert "more" not in got[100].message
