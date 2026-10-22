@@ -246,13 +246,19 @@ def test_the_bound_and_no_intensity_texts_say_only_what_holds(flat_si):
     b = _one(pl, "PEAK_POSITION_AT_BOUND")
     assert "usually a seed" not in b.suggestion
     assert "true optimum" not in b.suggestion
-    assert "σ(2θ) is a lower bound" in b.suggestion
-    assert "optimum lies past the bound" in b.suggestion
+    for text in (b.message, b.suggestion):
+        assert "lower bound" not in text and "optimum lies" not in text
+        assert "the fit stopped on its" in text
+    assert "the curvature there" in b.suggestion
+    assert "how far past the bound the fit would have moved" in b.suggestion
     n = _one(pl, "PEAK_NO_INTENSITY")
     for text in (n.message, n.suggestion):
         assert "excluded from usable()" in text and "kept in peaks" in text
     assert "carry no intensity" not in n.message
     assert "there is no line" not in n.suggestion
+    # round 3: "not measurements" is said of the zero bound only
+    assert "zero bound has a 2θ and σ(2θ) that are not measurements" in n.suggestion
+    assert "under its esd has a 2θ" not in n.suggestion
     # the three causes, each counted: the flat-Si census has the bound's and
     # the floor's, and none by hand
     assert "on the fit's zero-intensity bound" in n.message

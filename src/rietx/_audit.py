@@ -605,7 +605,8 @@ ROWS: tuple[Row, ...] = (
         evidence="Arithmetic: a record of main's position_at_bound flag, a component whose "
                  "fitted 2θ equals its box bound (PEAK_POSITION_BOUND_FWHM × the window's "
                  "seed FWHM) to 1e-8 relative, so the reported 2θ is the bound's and "
-                 "its σ a lower bound. It moves no flag, threshold or usable(); the level "
+                 "its σ is the curvature there, which leaves out how far past "
+                 "the bound the fit would have moved. It moves no flag, threshold or usable(); the level "
                  "is info everywhere (Yue's ruling, #993 round 2, 2026-10-21: of the "
                  "19 usable above-bar components freed on 16 Oct, 12 moved away from "
                  "the lattice's line and 7 towards it)."),
@@ -1498,12 +1499,13 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_NO_INTENSITY.suggestion", "suggestion", value=1, tier=1, ambiguity=1,
         evidence="Arithmetic: says only what holds for all three causes, that the "
                  "component is excluded from usable() and kept in peaks so a report "
-                 "can say why, and that a component on the zero bound or under its "
-                 "esd has a 2θ and σ(2θ) that are not measurements (Yue, #993 round "
-                 "2, 2026-10-21)."),
+                 "can say why, and that a component on the zero bound has a 2θ and "
+                 "σ(2θ) that are not measurements, one under its esd a weak "
+                 "gradient and a large σ(2θ) (Yue, #993 round 3, 2026-10-22)."),
     Row("PEAK_POSITION_AT_BOUND.suggestion", "suggestion", value=1, tier=1, ambiguity=1,
-        evidence="Arithmetic: the reported 2θ is the box bound's, σ(2θ) is a lower "
-                 "bound, and the fit's optimum lies past the bound. It says nothing "
+        evidence="Arithmetic: the reported 2θ is the box bound's, the fit stopped "
+                 "on it, and σ(2θ) is the curvature there, which leaves out how "
+                 "far past the bound the fit would have moved. It says nothing "
                  "of the line's true position, which the 16 Oct re-solve showed the "
                  "bound does not predict (Yue, #993 round 2, 2026-10-21)."),
     Row("PEAK_POSITION_PRECISION.suggestion", "suggestion", value=1),

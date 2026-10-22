@@ -320,17 +320,18 @@ def _bound_diagnostics(peaks: PeakList,
             message=(f"{len(moved)} component(s) ended on their position "
                      f"bound, {PEAK_POSITION_BOUND_FWHM:g} of the group's "
                      "seed FWHM from where they were seeded "
-                     "(PEAK_POSITION_BOUND_FWHM): the fit's optimum lies "
-                     "past the bound, so the reported 2θ is the bound's; "
+                     "(PEAK_POSITION_BOUND_FWHM): the fit stopped on its "
+                     "bound, so the reported 2θ is the bound's; "
                      f"{len(offered)} of them usable and above the "
                      "false-discovery bar"),
             where=[_at(p, (f"bound ±{PEAK_POSITION_BOUND_FWHM * s:.4f}°"
                            if (s := _seed_fwhm(p, windows)) else "at the bound")
                        + f", I/σ_I {_significance(p):.1f}")
                    for p in moved],
-            suggestion=("the reported 2θ of a component on its bound is the "
-                        "bound's, its σ(2θ) is a lower bound, and the fit's "
-                        "optimum lies past the bound"),
+            suggestion=("the reported 2θ is the bound's: the fit stopped on "
+                        "its bound, and its σ(2θ) is the curvature there, "
+                        "which leaves out how far past the bound the fit "
+                        "would have moved"),
             value=float(len(offered))))
 
     empty = [p for p in peaks.peaks if "no_intensity" in p.flags]
@@ -361,9 +362,10 @@ def _bound_diagnostics(peaks: PeakList,
                    for p in empty],
             suggestion=("these components are excluded from usable() and "
                         "kept in peaks so a report can say why; a component "
-                        "on the zero bound or under its esd has a 2θ and "
-                        "σ(2θ) that are not measurements, and one marked by "
-                        "hand was withheld by the caller, whatever its "
+                        "on the zero bound has a 2θ and σ(2θ) that are not "
+                        "measurements, one under its esd has a weak "
+                        "gradient and a large σ(2θ), and one marked by hand "
+                        "was withheld by the caller, whatever its "
                         "intensity"),
             value=float(n_zero)))
     return out

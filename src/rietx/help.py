@@ -3216,8 +3216,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "Components whose fitted position ran into its bound, half the "
             "group's seed FWHM from where detection or a re-seed put it. "
-            "The reported position is the bound's, and its uncertainty is a "
-            "lower bound, and the fit's optimum lies past the bound. Each "
+            "The reported position is the bound's: the fit stopped on its "
+            "bound, and its uncertainty is the curvature there, which leaves "
+            "out how far past the bound the fit would have moved. Each "
             "entry gives the bound in degrees and the component's intensity "
             "over its esd. The value counts those still usable above the "
             "false-discovery bar."
@@ -3229,8 +3230,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Components excluded from usable() and kept in the peak list so a "
             "report can say why. Three causes, and each entry says which: the "
             "fit's intensity is on its zero bound, it is under one esd, or "
-            "the caller marked it by hand whatever its intensity. For the "
-            "first two the position and its esd are not measurements."
+            "the caller marked it by hand whatever its intensity. On the "
+            "zero bound the position and its esd are not measurements; "
+            "whether a position under one esd is worth indexing on is a "
+            "reading of PEAK_NO_INTENSITY_SIGMA."
         ),
     ),
     "PEAK_ASYMMETRY_UNMODELLED": HelpEntry(
