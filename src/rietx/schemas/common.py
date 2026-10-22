@@ -537,7 +537,6 @@ from .._nearmiss import did_you_mean
 #: node ran at), the same rule.  And ``StageResult.n_lapack_fallbacks``, the
 #: decompositions a stage repeated with LAPACK's second driver, defaulting to
 #: 0, which every earlier stage took.
-#: Also in 0.59 (WP-1419 C3a): ``Phase.distortion_modes``, a child stated as
 #: 0.59 → 0.60 (WP-1419): ``Phase.distortion_modes``, a child stated as
 #: its parent plus absolute mode amplitudes (``DistortionModes``: the parent
 #: group, the transform, the reference metric, one base position per atom and
