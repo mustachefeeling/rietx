@@ -105,7 +105,8 @@ assert narrowed.best_or_none().path == "phases.0.extinction"
 assert narrowed.groups[0].delta_bic < 0
 assert "ΔBIC refuses it" in narrowed.summary
 assert f"{narrowed.groups[0].gain:.1f}" == "96.1"
-assert f"{narrowed.groups[0].delta_bic:.3f}" == "-1.299"
+# −1.29940 to −1.29971 between starts 1e-14 apart, so one decimal, as the summary prints it
+assert f"{narrowed.groups[0].delta_bic:.1f}" == "-1.3"
 assert round(narrowed.n_effective) == 1001 and narrowed.n_evaluated == 24
 assert round(narrowed.noise_floor, 2) == 26.98
 assert sorted(c.path for c in narrowed.non_separable) == [

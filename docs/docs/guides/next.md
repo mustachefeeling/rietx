@@ -78,7 +78,7 @@ The two occupancies are of sites that are full in fluorapatite.
 
 <!-- output of examples/guides/next.py -->
 ```text
-free phases.0.extinction next: predicted Δχ² 96.11, ΔBIC -1.299; ΔBIC refuses it — the predicted gain does not pay for 1 parameter(s) at N_eff=1001 (5751 rows over the squared esd inflation) (24 candidate(s) evaluated, 4 non-separable from the free set, 0 without leverage; noise floor 26.98)
+free phases.0.extinction next: predicted Δχ² 96.1, ΔBIC -1.3; ΔBIC refuses it — the predicted gain does not pay for 1 parameter(s) at N_eff=1001 (5751 rows over the squared esd inflation) (24 candidate(s) evaluated, 4 non-separable from the free set, 0 without leverage; noise floor 26.98)
 ```
 
 Extinction clears the noise floor, and ΔBIC refuses it.
