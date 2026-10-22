@@ -15,7 +15,6 @@
 import sys as _sys
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
-from urllib.parse import quote as _quote
 
 from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
 
@@ -79,27 +78,38 @@ _reference.write_bodies()
 
 html_theme = "pydata_sphinx_theme"
 html_title = DIST_NAME
-# The mark in this manual's teal.  Without a favicon a browser falls back to
-# the origin root, which belongs to the user Pages site this project sits under.
-html_favicon = "_static/favicon.svg"
-html_static_path = ["_static"]
-# The wordmark's face is the landing page's, Instrument Sans 600, and `text=`
-# asks Google Fonts for the brand's own glyphs and nothing else: one small
-# file, which leaves the theme's body face alone.  Offline (a `file://` build
-# with no network) the word falls back to the theme's sans.
-html_css_files = [
-    "https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@600"
-    f"&text={_quote(DIST_NAME)}&display=swap",
-    "custom.css",
-]
+# The manual and the landing page are one site (WP-2021), and these two files
+# are the landing page's own, read from `docs/landing/src/` rather than
+# copied: the favicon (the mark in the site's accent; without one a browser
+# falls back to the origin root, which belongs to the user Pages site this
+# project sits under) and `tokens.css`, the site's colours and faces.
+# `custom.css` maps pydata's names onto the tokens, so it loads after them,
+# and `fonts/fonts.css` serves the two faces from this tree.
+_LANDING = _Path(__file__).resolve().parent.parent / "landing" / "src"
+html_favicon = str(_LANDING / "favicon.svg")
+html_static_path = ["_static", str(_LANDING / "tokens.css")]
+html_css_files = ["tokens.css", "fonts/fonts.css", "custom.css"]
+html_js_files = ["rietx-theme.js"]
+# The footer is ours (`_templates/rietx-footer.html`), with no credit to the
+# tools that built the page.
+html_show_sphinx = False
+# The tab's pages and nothing above them: pydata's collapse button is gone,
+# since 0.23 keeps no state for it and every click through re-expanded it.
+html_sidebars = {"**": ["sidebar-nav-bs"]}
 # A release's pages name stable/ as their canonical copy, so a search engine
 # sends a reader to the newest release rather than to an old one.
 html_baseurl = f"{DOCS_URL}/docs/{'dev' if _shared.DOCS_VERSION == 'dev' else 'stable'}/"
-# The header's brand and its link out to the landing page are templates of
-# our own (`_templates/`, whose comments say why each is inline SVG).  The URL
-# and the word reach them through the context, never spelled in a template.
+# The header's brand and theme control, the breadcrumb, the sidebar's
+# heading, the twin link and the footer are templates of our own
+# (`_templates/`, each saying what it replaces).  Every URL and the word reach
+# them through the context, never spelled in a template.
 templates_path = ["_templates"]
-html_context = {"rietx_home": DOCS_URL, "rietx_name": DIST_NAME}
+html_context = {
+    "rietx_home": DOCS_URL,
+    "rietx_name": DIST_NAME,
+    "rietx_repo": REPO_URL,
+    "rietx_docs_version": _shared.DOCS_VERSION,
+}
 html_theme_options = {
     "navbar_start": ["rietx-brand"],
     # The tabs follow the brand, as the landing page's links do, rather than
@@ -110,7 +120,7 @@ html_theme_options = {
     "navbar_align": "left",
     # Six tabs, so none folds into a "More" dropdown.
     "header_links_before_dropdown": 6,
-    "navbar_end": ["version-switcher", "theme-switcher", "rietx-landing", "navbar-icon-links"],
+    "navbar_end": ["version-switcher", "navbar-icon-links", "rietx-theme"],
     "switcher": {
         "json_url": "/docs/switcher.json",
         "version_match": _shared.DOCS_VERSION,
@@ -118,13 +128,21 @@ html_theme_options = {
     # The switcher file is the deploy's, written after every build, so the
     # build has none to check.
     "check_switcher": False,
-    # Dev, and each release older than the newest, says so above every page.
+    # Dev, and each release older than the newest, says so above every page,
+    # quietly for dev and in the warning colour for an old release
+    # (`custom.css` § The version banner).
     "show_version_warning_banner": True,
     "icon_links": [
         {"name": "GitHub", "url": REPO_URL, "icon": "fa-brands fa-github"},
     ],
     # The theme's arrow-key page turning takes the keys a reader scrolls with.
     "navigation_with_keys": False,
+    # The right column is the page's sections and its markdown twin, in place
+    # of "Show Source".  The front page has neither worth a column.
+    "secondary_sidebar_items": {"**": ["page-toc", "rietx-twin"], "index": []},
+    "footer_start": ["rietx-footer"],
+    "footer_center": [],
+    "footer_end": [],
 }
 
 
