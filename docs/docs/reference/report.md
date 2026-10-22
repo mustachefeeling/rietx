@@ -150,7 +150,7 @@ The closing rule also builds an asymmetry column for reflections whose asymmetry
 Near 90° that column runs almost parallel to the position column, and it failed the resolvability gate, so a zero shift and a sample displacement could not be told apart.
 A residual at the declared precision misreads too: its coarser asymmetry leaves up to 5.6e-3 of a peak's maximum, and a displaced specimen read that way ranked axial asymmetry first.
 `Refinement.report` compiles whichever of the two the fit's model is not, at about 2 % of the report's time.
-`build_report` does the same when it is passed `structure=` and `instrument=`, and without them reads both from `model=`.
+`build_report` does the same, and refuses `model=` without `structure=` and `instrument=` for any mode but Pawley, whose model is read as it is.
 The texture screen shares a point's misfit over the same declared-precision windows.
 
 `FitReport.attribution` holds one `RegionAttribution` for each kept region that contains at least one reflection centre.

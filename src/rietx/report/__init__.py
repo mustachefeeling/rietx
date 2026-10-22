@@ -248,11 +248,12 @@ def _reading_models(model, structure, instrument):
     declared precision too: it shares a point's misfit over that model's
     windows, and the two must come from one compile.
 
-    Without ``structure`` and ``instrument``, or for a Pawley model (whose
-    intensity block is the solve's), both are ``model``.
+    For a Pawley model (whose intensity block is the solve's), or one built by
+    hand that records no window fraction, both are ``model``.
+    :func:`build_report` refuses a non-Pawley ``model`` without ``structure``
+    and ``instrument``, so both are always given here.
     """
-    if (structure is None or instrument is None or model.mode == "pawley"
-            or model.window_area_tol is None):
+    if model.mode == "pawley" or model.window_area_tol is None:
         return model, model
     from ..model.forward import CLOSING_WINDOW_TOL, WINDOW_AREA_TOL
     misfit = (model if model.window_area_tol <= CLOSING_WINDOW_TOL
@@ -311,13 +312,28 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         The :class:`~rietx.schemas.instrument.Instrument` the model was
         compiled from.  With ``structure`` it lets Layer 1 and the texture
         screen read the misfit at the closing stage's precision and fit it
-        with shapes at the declared stages' (:func:`_reading_models`); without
-        both, they read ``model`` for each.
+        with shapes at the declared stages' (:func:`_reading_models`).
     held:
         The last stage's hold list (``StageResult.held``), so the moment arm's
         "unmeasured" directions are the refinement's answer rather than a
         second opinion about it.
+
+    ``model`` without ``structure`` and ``instrument`` is refused, except for a
+    Pawley model, whose intensity block is the solve's and is read as it is.
+    Read from one model, Layer 1 takes both its misfit and its shapes at one
+    precision, and each precision alone misreads a measured case
+    (:func:`_reading_models`), so the report would be wrong without saying so.
     """
+    if (model is not None and model.mode != "pawley"
+            and (structure is None or instrument is None)):
+        missing = " and ".join(name for name, arg in (("structure=", structure),
+                                                      ("instrument=", instrument))
+                               if arg is None)
+        raise TypeError(
+            f"build_report(model=...) needs {missing}: the Structure and "
+            f"Instrument the model was compiled from, because Layer 1 reads its "
+            f"misfit and its shapes from two compiles of them.  "
+            f"Refinement.report() passes all three")
     report = build_layer0(result, top_n=top_n, match_tol_deg=match_tol_deg,
                           min_peak_sigma=min_peak_sigma)
     # Soft-restraint deviations are model-free (carried from the result), so they
