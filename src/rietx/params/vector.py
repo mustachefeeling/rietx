@@ -60,6 +60,7 @@ from ..crystallography.wyckoff import (
     floating_origin_basis,
     stabilizer_rotations,
 )
+from ..optimize import lapack
 from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
@@ -1404,7 +1405,7 @@ class ParameterTable:
             return
         basis = strain_basis(rotation_matrices(sg))  # (n_free, 15)
         s0 = np.array(block.values(), dtype=np.float64)
-        coef, *_ = np.linalg.lstsq(basis.T.astype(np.float64), s0, rcond=None)
+        coef, *_ = lapack.lstsq(basis.T.astype(np.float64), s0, rcond=None)
         residual = basis.T @ coef - s0
         scale = max(float(np.abs(s0).max()), 1.0)
         if float(np.abs(residual).max()) > 1e-6 * scale:
@@ -1442,7 +1443,7 @@ class ParameterTable:
             self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
                                       lo=-np.inf, hi=np.inf))
         # S scales as microstrain², so one unit-ppm projection serves any seed
-        unit, *_ = np.linalg.lstsq(
+        unit, *_ = lapack.lstsq(
             basis.T.astype(np.float64),
             isotropic_coefficients(phase.cell.lengths_angles(), 1.0), rcond=None)
         self._strain_unit[base] = unit
@@ -1531,7 +1532,7 @@ class ParameterTable:
                 for k, d in enumerate(site_dofs):
                     for coord, coeff in self._anchored_dofs[d]:
                         basis[k, "xyz".index(coord[-1])] = coeff
-                a, *_ = np.linalg.lstsq(basis.T, np.asarray(f, float), rcond=None)
+                a, *_ = lapack.lstsq(basis.T, np.asarray(f, float), rcond=None)
                 if np.abs(basis.T @ a - f).max() > 1e-9:
                     continue  # this site cannot move along f at all
                 hits.extend(d for d, ak in zip(site_dofs, a, strict=True)
@@ -1755,7 +1756,7 @@ class ParameterTable:
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
         basis = adp_basis(stabilizer_rotations(sg, xyz))  # (n_free, 6)
         u0 = np.array(atom.aniso.values(), dtype=np.float64)
-        coef, *_ = np.linalg.lstsq(basis.T.astype(np.float64), u0, rcond=None)
+        coef, *_ = lapack.lstsq(basis.T.astype(np.float64), u0, rcond=None)
         residual = basis.T @ coef - u0
         scale = max(float(np.abs(u0).max()), 1e-6)
         if float(np.abs(residual).max()) > 1e-6 * scale:
@@ -2842,7 +2843,7 @@ class ParameterTable:
             if cs.size == 0:
                 return False
             block = a[rows][:, cs].toarray()
-            step, *_ = np.linalg.lstsq(block, b[rows], rcond=None)
+            step, *_ = lapack.lstsq(block, b[rows], rcond=None)
             if float(np.abs(block @ step - b[rows]).max()) > 1e-9:
                 return False
         return True
@@ -3125,7 +3126,7 @@ class ParameterTable:
                 gap -= basis[:, held] @ np.array(
                     [self.entries[self._paths[dofs[k]]].value for k in held],
                     dtype=np.float64)
-            theta, *_ = np.linalg.lstsq(basis[:, cols], gap, rcond=None)
+            theta, *_ = lapack.lstsq(basis[:, cols], gap, rcond=None)
             for k, value in zip(cols, theta):
                 self.entries[self._paths[dofs[k]]].value = float(value)
                 moved.append(dofs[k])
@@ -3177,7 +3178,7 @@ class ParameterTable:
                     # to the body's, and E's first column is one (#801)
                     e0 = block.axes[:, 0]
                     omega = math.pi * e0 / np.linalg.norm(e0)
-            theta, *_ = np.linalg.lstsq(block.axes, omega, rcond=None)
+            theta, *_ = lapack.lstsq(block.axes, omega, rcond=None)
             for path, value in zip(paths, theta, strict=True):
                 e = self.entries[self._paths[path]]
                 if e.tie is None:
@@ -3994,7 +3995,7 @@ class ParameterTable:
             if not len(cols):
                 continue
             a = a[:, cols]
-            out[np.ix_(cols, cols)] = np.linalg.pinv(a) @ chart @ a
+            out[np.ix_(cols, cols)] = lapack.pinv(a) @ chart @ a
         return out
 
     def restore_body_anchors(self, paths: Iterable[str]) -> list[str]:

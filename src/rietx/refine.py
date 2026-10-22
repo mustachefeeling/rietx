@@ -75,6 +75,7 @@ from .model.profiles.caglioti import (
 )
 from .model.restraints import summarise_restraints
 from .model.rows import layout as row_layout
+from .optimize import lapack
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import (
     _SCALE_PATH,
@@ -700,8 +701,8 @@ def _column_separation(scales: list[np.ndarray], columns: list[np.ndarray]
         return None
     span = np.column_stack(unit_b)
     a = np.column_stack(unit_a)
-    rest = a - span @ np.linalg.lstsq(span, a, rcond=None)[0]
-    return float(np.linalg.svd(rest, compute_uv=False)[-1])
+    rest = a - span @ lapack.lstsq(span, a, rcond=None)[0]
+    return float(lapack.svd(rest, compute_uv=False)[-1])
 
 
 def _scale_b_probe(model: CompiledModel, table: ParameterTable,
@@ -900,7 +901,7 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
         cols = [(evaluate(_rotate(s, e, h)) - evaluate(_rotate(s, e, -h)))
                 / (2.0 * h) for e in np.eye(3)]
         blocks.append(np.column_stack(cols))
-    _, _, vt = np.linalg.svd(np.vstack(blocks), full_matrices=False)
+    _, _, vt = lapack.svd(np.vstack(blocks), full_matrices=False)
     axis = vt[-1] / np.linalg.norm(vt[-1])
     signed = values[f"{base}.dof0"]
     for s in tests:
@@ -8892,7 +8893,7 @@ def _air_scatter_undeclared_diagnostics(model: CompiledModel,
     block = np.vstack([(model.bkg_design * w).T, model.bkg_penalty])
     air = np.concatenate([w / np.maximum(model.tt, 1e-3),
                           np.zeros(model.bkg_penalty.shape[0])])
-    beta, *_ = np.linalg.lstsq(block, air, rcond=None)
+    beta, *_ = lapack.lstsq(block, air, rcond=None)
     perp = air - block @ beta
     norm = float(perp @ perp)
     lean = float(perp @ r_aug)

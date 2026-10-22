@@ -486,6 +486,64 @@ early-stage misreading was latent there; the synthetic data hid it by sharing th
 precision. Item 2 corrected the session's own earlier label: the ridge the edge margin
 freed was on `tests/test_scale_b_ridge.py`'s synthetic narrow scan, not cpd-1a.
 
+## Ninth round: the 6th session's handover items (answered 2026-10-22)
+
+**Answer.** "1. Fix the TRF issue 2. End with closing stage 3. Infer what I would do"
+
+1. **The brucite TRF error: fixed by a retry.** macOS's system LAPACK (Accelerate)
+   `gesdd` failed 20 times in 20 on the 7279 × 28 step matrix (condition 7.9e10).
+   OpenBLAS's `gesdd`, installed from SciPy 1.18.1's macOS 12 wheel into a scratch
+   venv, decomposed the same matrix, with singular values equal to `gesvd`'s to the
+   last bit. A plain restart from the last accepted point also passed, but only
+   because two of the 28 columns came out 5e-4 different the second time, so it
+   was ruled out as luck. SciPy's supported alternative, `tr_solver="lsmr"`, landed
+   at Rwp 0.17873 with 20 of 43 σ² negative, against `gesvd`'s 0.17872 and 19 of
+   43; it changes the subproblem solver for the rest of the stage, so it was not
+   taken. Built: `optimize/lapack.py` (`eigh`, `eigvalsh`, `svd`, `lstsq` call numpy
+   unchanged and repeat a `LinAlgError` with `syev`, `gesvd` or `gelss`; TRF's step
+   SVD is reached through its module's own name, only on a thread inside the
+   package's solve). Every decomposition on the fit path goes through it, 41
+   calls, and a test refuses a bare one there: `optimize/`, `model/`, `params/`,
+   `report/`, `background/`, `solve/` and `refine.py`, among them the scale–B
+   separation every stage measures and the report's region solves.
+   `StageResult.n_lapack_fallbacks` records the count, tier 1.
+   Practice: TenPy's `svd_robust` does the same retry; SciPy's `svd` docstring
+   notes MATLAB and Octave call `gesvd` by default. Not generalised: the 44
+   calls in `crystallography/`, `indexing/` and `gui/`, on small symmetry
+   matrices or caught by their own handlers, none met failing;
+   `isotropy._svd_rows` already falls back and records its driver.
+2. **`solve_magnetic`'s winner: ends in a closing stage.** Only when the package
+   chose the plan. The trials and the reference stay at the declared windows,
+   where ΔBIC compares them; the winner then runs its plan's closing stage from
+   its own refinement. Its Rwp, GoF, R_mag and moments are that fit's, its ΔBIC
+   the ranking's, and a caveat says which is which. Two-site Pnma: moduli esds
+   0.00242 and 0.00179 → 0.00151 and 0.00111 μ_B; the solve 16.5 → 17.1 s (one
+   run each). Cr₂WO₆ at 4 K (the moment guide): blind 2.0353 ± 0.0459 → 2.0383 ±
+   0.0467 μ_B; the alternate model started from the winner's magCIF 2.1255 ±
+   0.0450 → 2.1240 ± 0.0440, scale shift 0.47 → 0.41 esd. Siblings checked: the
+   other package plans without a closing stage (indexing validation, the
+   extinction screen, the report's rival fits) hand the caller a ranking, never
+   refined values.
+3. **The three design questions, inferred.**
+   - *A closing-off fit's report: kept.* Measured on the fluorapatite and cpd-1a
+     fitted with `closing_window_tol=None` (the two patterns where switching it
+     off moved answers most, 0.9 and 0.96 esd): read at the closing precision and
+     at the fit's own 2 %, the report printed the same text, passed the same
+     regions (2 and 1) with the same leading shape, and suggested no action
+     either way; shares moved by 0.04 or less except one cpd-1a region, 0.43
+     against 0.57. The eighth round's rule (misfit from the accurate model)
+     stands, and `reference/refinement.md` says so beside the speed switch.
+   - *A loosened `closing_window_tol`: keeps the closing node rule.* The line
+     moved from `CLOSING_WINDOW_TOL` to `WINDOW_AREA_TOL`, so anything finer than
+     the declared stages takes the closing rule. Inferred from the eighth
+     round's framing of the switch as speed: a caller loosening the windows asks
+     for coarser windows, not for an asymmetry error 7.8× the lab bar. No
+     compile the package makes sits between the two, so nothing moved.
+   - *`build_report` without `instrument=`: refused.* A non-Pawley `model=`
+     without `structure=` and `instrument=` raises `TypeError` naming them,
+     since one model alone brings back both misreadings the eighth round
+     measured. Every package caller passes both; one test called it bare.
+
 ## The sixth round's briefs, kept whole
 
 ### The three briefs as sent (2026-10-21)

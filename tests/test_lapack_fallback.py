@@ -43,20 +43,22 @@ def test_a_converging_decomposition_is_numpys_own():
     assert lapack.retries() == before
 
 
-@pytest.mark.parametrize("name", ["eigh", "eigvalsh", "svd", "lstsq"])
+@pytest.mark.parametrize("name", ["eigh", "eigvalsh", "svd", "lstsq", "pinv"])
 def test_each_fallback_returns_the_twins_answer_and_is_counted(monkeypatch, name):
     a = _symmetric() if name.startswith("eig") else RNG.normal(size=(9, 4))
     b = RNG.normal(size=9)
     ref = {"eigh": lambda: np.linalg.eigh(a)[0],
            "eigvalsh": lambda: np.linalg.eigvalsh(a),
            "svd": lambda: np.linalg.svd(a, full_matrices=False)[1],
-           "lstsq": lambda: np.linalg.lstsq(a, b, rcond=None)[0]}[name]()
+           "lstsq": lambda: np.linalg.lstsq(a, b, rcond=None)[0],
+           "pinv": lambda: np.linalg.pinv(a)}[name]()
     _failing(monkeypatch, name)
     before = lapack.retries()
     got = {"eigh": lambda: lapack.eigh(a)[0],
            "eigvalsh": lambda: lapack.eigvalsh(a),
            "svd": lambda: lapack.svd(a, full_matrices=False)[1],
-           "lstsq": lambda: lapack.lstsq(a, b)[0]}[name]()
+           "lstsq": lambda: lapack.lstsq(a, b)[0],
+           "pinv": lambda: lapack.pinv(a)}[name]()
     assert lapack.retries() == before + 1
     np.testing.assert_allclose(got, ref, rtol=1e-12, atol=1e-12)
 
@@ -118,13 +120,25 @@ def test_a_trf_stage_records_its_fallbacks(monkeypatch):
     assert got.statistics.rwp == pytest.approx(ref.statistics.rwp, rel=1e-9)
 
 
-def test_the_solver_decomposes_only_through_the_fallbacks():
-    """``optimize/`` holds the step and the esds: a bare numpy decomposition
-    there would raise out of a fit where the fallback answers."""
-    root = pathlib.Path(rx.__file__).parent / "optimize"
+#: what a fit and its report run: the step and the esds (``optimize/``), the
+#: table, the model, the stage runner's holds, the report, the background
+#: pick and the solve costing.  ``crystallography/`` and ``indexing/`` are
+#: left out: their decompositions act on small symmetry matrices or are caught
+#: by their own handlers, and none has been met failing.
+FIT_PATH = ("optimize", "model", "params", "report", "background", "solve",
+            "refine.py", "multi.py", "sequential.py")
+
+
+def test_the_fit_path_decomposes_only_through_the_fallbacks():
+    """A bare numpy decomposition on the fit path would raise out of a fit, or
+    withhold its esds or a report, where the fallback answers."""
+    package = pathlib.Path(rx.__file__).parent
     names = {"eigh", "eigvalsh", "svd", "lstsq", "pinv"}
     found = []
-    for path in sorted(root.glob("*.py")):
+    paths = [p for entry in FIT_PATH for p in (
+        sorted((package / entry).rglob("*.py")) if (package / entry).is_dir()
+        else [package / entry])]
+    for path in paths:
         if path.name == "lapack.py":
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
@@ -132,5 +146,5 @@ def test_the_solver_decomposes_only_through_the_fallbacks():
                     and node.func.attr in names
                     and ast.unparse(node.func.value) in {"np.linalg", "numpy.linalg",
                                                          "scipy.linalg", "linalg"}):
-                found.append(f"{path.name}:{node.lineno}")
+                found.append(f"{path.relative_to(package)}:{node.lineno}")
     assert not found, found

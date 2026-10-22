@@ -1,6 +1,6 @@
 """The decompositions a fit makes, with a second LAPACK driver where the first does not converge.
 
-numpy's ``eigh``, ``eigvalsh``, ``svd`` and ``lstsq`` call LAPACK's
+numpy's ``eigh``, ``eigvalsh``, ``svd``, ``pinv`` and ``lstsq`` call LAPACK's
 divide-and-conquer drivers (``syevd``, ``gesdd``, ``gelsd``), and so does
 SciPy's Trust Region Reflective solver for its step.  Those drivers iterate,
 and one can stop without converging on a finite matrix, raising
@@ -20,6 +20,9 @@ Accelerate's ``gelsd`` did not converge on a 22 003 × 102 strain-screen design
 that ``gelss`` solved (WP-2002).  And issue #225 met ``Eigenvalues did not
 converge`` out of the covariance's ``eigh`` at a converged fit.
 
+Every decomposition on the fit path goes through here, which
+``tests/test_lapack_fallback.py`` holds: ``optimize/``, ``model/``,
+``params/``, ``report/``, ``background/``, ``solve/`` and ``refine.py``.
 Every fallback is counted on the calling thread (:func:`retries`), so a stage
 records how many it took (``StageResult.n_lapack_fallbacks``).  A failure of
 the twin as well raises as before, where ``_guarded_covariance``'s rule
@@ -81,6 +84,20 @@ def svd(a: np.ndarray, full_matrices: bool = True, compute_uv: bool = True):
         _note()
         return scipy.linalg.svd(a, full_matrices=full_matrices, compute_uv=compute_uv,
                                 lapack_driver="gesvd")
+
+
+def pinv(a: np.ndarray, rcond: float = 1e-15) -> np.ndarray:
+    """``np.linalg.pinv(a, rcond)``, from a ``gesvd`` SVD where ``gesdd`` does
+    not converge.  1e-15 is numpy's own default cut, relative to the largest
+    singular value."""
+    try:
+        return np.linalg.pinv(a, rcond=rcond)
+    except np.linalg.LinAlgError:
+        _note()
+        u, s, vt = scipy.linalg.svd(np.asarray(a), full_matrices=False,
+                                    lapack_driver="gesvd")
+        keep = s > rcond * (s.max() if s.size else 0.0)
+        return (vt[keep].T / s[keep]) @ u[:, keep].T
 
 
 def lstsq(a: np.ndarray, b: np.ndarray, rcond: float | None = None):

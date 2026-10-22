@@ -40,6 +40,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..model.forward import CompiledModel, DerivativeBases
+from ..optimize import lapack
 from .schemas import (
     CONTENTS_MAX_TEMPLATE_R2,
     CONTENTS_MIN_INTENSITY_SHARE,
@@ -152,7 +153,7 @@ def attribute_region(model: CompiledModel, bases: DerivativeBases,
     scale = np.linalg.norm(a, axis=0)
     normed = a / scale
     cond = float(np.linalg.cond(normed.T @ normed))
-    coef, *_ = np.linalg.lstsq(a, b, rcond=None)
+    coef, *_ = lapack.lstsq(a, b, rcond=None)
     resid = b - a @ coef
     ss_tot = float(b @ b)
     r2 = float(1.0 - (resid @ resid) / ss_tot) if ss_tot > 0 else 0.0
@@ -160,7 +161,7 @@ def attribute_region(model: CompiledModel, bases: DerivativeBases,
     # Gram covariance, scaled by the region's own residual variance
     dof = max(len(idx) - len(live), 1)
     sigma2 = float(resid @ resid) / dof
-    cov = np.linalg.pinv(gram) * sigma2
+    cov = lapack.pinv(gram) * sigma2
     err = np.sqrt(np.maximum(np.diag(cov), 0.0))
 
     # relative importance of each term: how much signal its fitted amplitude
@@ -491,7 +492,7 @@ def analyse_trends(attributions: list[RegionAttribution], wavelength: float,
         fitted: list[TrendTemplate] = []
         for name in names:
             col = (templates[name] * w)[:, None]
-            coef, *_ = np.linalg.lstsq(col, b, rcond=None)
+            coef, *_ = lapack.lstsq(col, b, rcond=None)
             resid = b - col @ coef
             r2 = float(1.0 - (resid @ resid) / ss_tot) if ss_tot > 0 else 0.0
             dof = max(len(pts) - 1, 1)

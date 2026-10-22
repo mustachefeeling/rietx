@@ -88,6 +88,7 @@ from scipy.sparse import csr_matrix
 
 from ..crystallography.symmetry import reflection_label
 from ..model.forward import d_spacings
+from ..optimize import lapack
 from ..optimize.statistics import column_rescale
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -326,7 +327,7 @@ def _low_rank_pinv(X: np.ndarray, w: np.ndarray) -> np.ndarray:
     d = np.sqrt(np.diag(G))
     live = d > 0.0
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    lam, Q = np.linalg.eigh(G * np.outer(inv_d, inv_d))
+    lam, Q = lapack.eigh(G * np.outer(inv_d, inv_d))
     keep = lam > NUISANCE_RCOND * max(float(lam[-1]), 0.0)
     if e is not None:
         inv_d = inv_d * e
@@ -541,7 +542,7 @@ class SolveCost:
             b = b - V @ yx
             c = c - float(yx @ yx)
         M = M0.toarray() - V @ V.T                            # once, for the floor
-        ip_sol, *_ = np.linalg.lstsq(M, b, rcond=None)
+        ip_sol, *_ = lapack.lstsq(M, b, rcond=None)
         cp = model.phases[phase]
         cell = _cell(values, phase)
         return cls(
