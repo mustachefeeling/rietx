@@ -632,6 +632,18 @@ html:has(.rietx-footer[data-docs-version="dev"]) #bd-header-version-warning {
   color: var(--muted);
 }
 
+/* "Hide search matches", which Sphinx's search script puts into `#searchbox` above the
+ * article on a page opened from a search result.  pydata draws it as a filled button on the
+ * primary colour, which is words on `--accent`, and that is 4.2:1 in the light theme, short
+ * of AA.  So it is a plain link like the banner's, and no page sets words on the accent. */
+div#searchbox p.highlight-link a {
+  background: none;
+  padding: 0;
+  font-size: 0.84rem;
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
 /* ---------------------------------------------------------------------------------------
  * The bibliography under `bibtex_reference_style = "author_year"`.  docutils gives every
  * citation node a label, and sphinxcontrib-bibtex documents that it cannot remove one, so

@@ -113,6 +113,8 @@ IGNORE_EXPECTED = {
     "docs/landing/src/shell.html": False,      # what every page shares
     "docs/landing/src/index.html": False,      # the landing page's own body
     "docs/landing/src/why.html": False,
+    "docs/landing/src/tokens.css": False,      # the site's colours, the manual's too
+    "docs/landing/src/favicon.svg": False,     # the site's one favicon
     "docs/landing/build.py": False,
     "docs/landing/README.md": False,
     "docs/landing/img/fap-light.png": False,   # committed figure, under a repo-wide *.png
@@ -614,3 +616,93 @@ def test_the_release_tag_is_the_newest_and_its_absence_refuses(build, tmp_path):
     for tag in ("v1.9.0", "v1.10.0", "v1.11.0rc1", "guillemot-study", "v2"):
         git("tag", tag)
     assert build.release_tag(tmp_path) == "v1.10.0"
+
+
+# ----------------------------------------------------------------------
+# The site's colours (WP-2021): one file, every text colour legible on its ground
+# ----------------------------------------------------------------------
+
+TOKENS = LANDING / "src" / "tokens.css"
+_HEX_TOKEN = re.compile(r"--([\w-]+):\s*(#[0-9a-fA-F]{6})\b")
+
+
+def site_tokens() -> dict[str, dict[str, str]]:
+    """`tokens.css`'s three blocks, each a name -> hex map of the colours it spells.
+
+    Keyed ``light``, ``dark (system)`` and ``dark (pinned)``, in file order:
+    `:root`, the `prefers-color-scheme` block and `:root[data-theme="dark"]`.
+    Only six-digit hexes are read; the shadows and the faces are not colours a
+    contrast is measured on.  `tests/test_manual.py` reads the accent here too."""
+    text = re.sub(r"/\*.*?\*/", "", TOKENS.read_text(encoding="utf-8"), flags=re.S)
+    light, rest = text.split("@media", 1)
+    system, pinned = rest.split(':root[data-theme="dark"]', 1)
+    return {name: dict(_HEX_TOKEN.findall(block)) for name, block in
+            (("light", light), ("dark (system)", system), ("dark (pinned)", pinned))}
+
+
+def _luminance(colour: str) -> float:
+    """Relative luminance, WCAG 2.2 § relative luminance."""
+    def linear(c: float) -> float:
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (linear(int(colour[i:i + 2], 16) / 255) for i in (1, 3, 5))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a: str, b: str) -> float:
+    """WCAG 2.2 contrast ratio, from 1 to 21."""
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+#: The grounds text is set on.  `--surface-3` is a hover ground only.
+GROUNDS = ("bg", "surface", "surface-2")
+#: (colour, the grounds it is drawn on, its bar), as `docs/landing/README.md`
+#: § House style assigns them.  Text takes AA's 4.5:1.  `--faint` is the one
+#: text colour kept off `--surface-2`, where a label takes `--muted` instead.
+#: `--accent` draws marks, bars and underlines, never words, so it takes a UI
+#: component's 3:1.  `--on-accent` is absent because no page sets words on the
+#: accent: pydata's one use, the search-match link in `#searchbox`, is a plain
+#: link in the manual's `custom.css`, since white on the light accent is 4.2:1.
+LEGIBLE = (
+    *((text, GROUNDS, 4.5) for text in
+      ("ink", "ink-2", "muted", "accent-ink", "ok", "warn", "info", "danger")),
+    ("faint", ("bg", "surface"), 4.5),
+    *((text, ("surface-3",), 4.5) for text in ("ink", "ink-2", "muted", "accent-ink")),
+    ("accent", GROUNDS, 3.0),
+)
+
+
+def test_the_two_dark_blocks_are_one_set_of_values():
+    """Dark is written twice, for the system's choice and for a pinned theme, and a
+    value changed in one block alone is a dark mode that depends on how you got there."""
+    tokens = site_tokens()
+    system, pinned = tokens["dark (system)"], tokens["dark (pinned)"]
+    assert system == pinned, {name: (system.get(name), pinned.get(name))
+                              for name in system.keys() | pinned.keys()
+                              if system.get(name) != pinned.get(name)}
+    assert tokens["light"].keys() == pinned.keys(), tokens["light"].keys() ^ pinned.keys()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark (pinned)"])
+def test_every_text_colour_is_legible_on_every_ground_it_is_set_on(theme):
+    """WCAG 2.2 AA, measured on the values rather than judged by eye: the old
+    `--faint` read as fine and measured 2.89:1 on the light page."""
+    tokens = site_tokens()[theme]
+    low = [f"--{text} on --{ground}: {contrast(tokens[text], tokens[ground]):.2f} < {bar}"
+           for text, grounds, bar in LEGIBLE for ground in grounds
+           if contrast(tokens[text], tokens[ground]) < bar]
+    assert not low, f"{theme}:\n" + "\n".join(low)
+
+
+def test_the_contrast_measure_is_the_standards():
+    """Black on white is 21:1, a colour on itself 1:1, and #767676 the lightest grey
+    that passes AA on white, so the measure cannot pass by being computed wrong."""
+    assert contrast("#000000", "#ffffff") == pytest.approx(21.0)
+    assert contrast("#777777", "#777777") == pytest.approx(1.0)
+    assert contrast("#767676", "#ffffff") == pytest.approx(4.54, abs=0.01)
+
+
+def test_every_page_wears_the_site_tokens(any_page):
+    """`build.py` inlines the token file at the top of each page's stylesheet."""
+    name, page = any_page
+    assert TOKENS.read_text(encoding="utf-8").strip() in page, name
