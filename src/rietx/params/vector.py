@@ -3293,7 +3293,7 @@ class ParameterTable:
                                  named: Callable[[str], bool]) -> list[str]:
         """The rotation half of :meth:`displace_anchored_dofs` (its docstring)."""
         from ..crystallography import rotation
-        from .bodies import SITE_AXIS_TOL
+        from ..crystallography.symmetry import SITE_TOL
 
         moved: list[str] = []
         for bbase, name, block in self._bodies:
@@ -3311,7 +3311,7 @@ class ParameterTable:
                                    dtype=np.float64)
                 w = block.site_axes
                 off = float(np.linalg.norm(omega - w @ (w.T @ omega)))
-                if off > SITE_AXIS_TOL:
+                if off > SITE_TOL:
                     allowed = ("no turn at all" if not w.shape[1] else
                                "turns about "
                                f"{tuple(round(float(v), 6) for v in w[:, 0])} only")
