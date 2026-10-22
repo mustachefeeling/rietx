@@ -754,12 +754,22 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code"),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code"),
+    Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=1,
+        evidence=("arithmetic: fires exactly when a model-side boundary (RefinementTree.load, a "
+                  "Refinement verb) finds a site's images under TWIN_DISTANCE and occupancy x "
+                  "(images before / after) <= 1, so the numbers read both as one atom off its "
+                  "position and as a split pair (#1088); nothing is moved and both counts are "
+                  "stated. Maintainer's ruling on #1014 (round 3): no other code merges a "
+                  "fit-made coordinate by default")),
     Row("SITE_TWINS_MERGED", "code", tier=1, ambiguity=1,
         evidence=("arithmetic: fires exactly when a site's images sit under TWIN_DISTANCE and it "
                   "was moved onto its special position; reports the atoms per cell before and "
-                  "after (multiplicity x occupancy). The merge's reading of a part-occupied site "
-                  "(occupancy kept, #765's rule) has one named dissenter, a split pair of "
-                  "part-atoms, and is the maintainer's to rule (PR #1014 body)")),
+                  "after (multiplicity x occupancy). Physics branch, tier 1: a model-side "
+                  "boundary merges only where occupancy x (before / after) > 1, since the "
+                  "unmerged model then puts more than one atom at one place. Reader branch (the "
+                  "file's stated occupancy is kept, as GSAS-II's GenAtom keeps it when it drops "
+                  "an image within 2e-4 fractional, GSASIIspc.py 2236-2239 per the maintainer's "
+                  "reading of 5.8.4): tier 2 at TWIN_DISTANCE's looser reach (PR #1014)")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code"),
     Row("SIZE_UNUSUALLY_SMALL", "code"),
     Row("SOLVE_B_TIED_PER_PARENT_SITE", "code", tier="caller", ambiguity=2,
@@ -1086,7 +1096,19 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS", "constant", value=30000000),
     Row("rietx.crystallography.symmetry.SITE_TOL", "constant", value=0.0001),
     Row("rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG", "constant", value=0.001),
-    Row("rietx.crystallography.symmetry.TWIN_DISTANCE", "constant", value=0.02),
+    Row("rietx.crystallography.symmetry.TWIN_DISTANCE", "constant", value=0.02,
+        evidence=("unaudited, for the maintainer's tier and approval (PR #1014, round 3). The "
+                  "comparison: GSAS-II drops an image within 2e-4 fractional per coordinate "
+                  "(0.001-0.004 A); no other code tested merges by default. 0.02 A is what a "
+                  "coordinate printed to three decimals needs: on a mirror the images sit "
+                  "2 x offset x b apart, so an offset of up to 5e-4 gives 0.001 x b, under 0.02 A "
+                  "for b up to 20 A. Measured here: P6_3/mmc 2c stated 0.333/0.667 (offset "
+                  "3.3e-4, a = 5 A) has a gap of 0.005 A and needs a distance of at least "
+                  "0.006 A; Pnma y = 0.2504 (b = 5.4 A) 0.0043 A, needs 0.006 A; y = 0.251 "
+                  "0.0108 A, needs 0.02 A; Fd-3m 8a at 0.1251 (a = 10 A) 0.0035 A, needs "
+                  "0.004 A. A 2e-4 fractional reach would miss the first three. The cost of "
+                  "the wider reach is a split pair closer than 0.02 A, which a model-side "
+                  "boundary now leaves as stored (SITE_TWINS_KEPT)")),
     Row("rietx.crystallography.symmetry._COINCIDENCE_TOL", "constant", value=1e-09),
     Row("rietx.crystallography.symmetry._GAMMA_HEX", "constant", value=120.0),
     Row("rietx.crystallography.symmetry._ORBIT_CHUNK_ELEMENTS", "constant", value=24000000),
@@ -2637,10 +2659,15 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_WIDTH_GROWTH.suggestion", "suggestion", value=1),
     Row("SERIES_PATTERN_FAILED.suggestion", "suggestion", value=1),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION.suggestion", "suggestion", value=2),
+    Row("SITE_TWINS_KEPT.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: names the special-position occupancy each reading implies "
+                  "(occ for one atom off its position, occ x before/after for a split pair) "
+                  "and TWIN_DISTANCE, read from the constant")),
     Row("SITE_TWINS_MERGED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence=("arithmetic: names the coordinate's source and the restatement (special "
-                  "position at occupancy 1, or at least 0.02 A from its own images) that "
-                  "keeps a real displacement")),
+                  "position at the occupancy that keeps a split pair, or at least "
+                  "TWIN_DISTANCE from its own images, read from the constant) that keeps a "
+                  "real displacement")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", value=1),
     Row("SIZE_UNUSUALLY_SMALL.suggestion", "suggestion", value=1),
     Row("SPACE_GROUP_SETTING_ASSUMED.suggestion", "suggestion", value=1),

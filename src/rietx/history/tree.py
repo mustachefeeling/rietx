@@ -46,26 +46,29 @@ def _merge_stored_twins(pending: Sequence[Any]) -> list[Diagnostic]:
 
     Applied to every node's structure as a log is read (issue #1007), so a
     coordinate a script or an older release stored a few 1e-5 off a mirror
-    counts the atoms it does everywhere else.  Nodes of one history repeat the
-    same stored coordinate, so the finding is said once per site, naming how
-    many nodes held it.
+    counts the atoms it does everywhere else.  A site whose merge would halve a
+    part-occupied split pair is left as stored and said as ``SITE_TWINS_KEPT``
+    (Yue's ruling on #1014).  Nodes of one history repeat the same site but
+    not its coordinate (a refined one differs in every node), so the finding
+    is said once per phase and atom, naming how many nodes held it.
     """
-    found: dict[str, list[Diagnostic]] = {}
+    found: dict[tuple[str, tuple[str, ...]], list[Diagnostic]] = {}
     for item in pending:
         if not isinstance(item, HistoryNode):
             continue
         local: list[Diagnostic] = []
         merged = merge_site_twins(item.state.structure, diagnostics=local,
-                                  source="this history")
+                                  source="this history",
+                                  keep_part_occupied=True)
         if local:
             item.state.structure = merged
         for d in local:
-            found.setdefault(d.message, []).append(d)
+            found.setdefault((d.code, tuple(d.where)), []).append(d)
     out: list[Diagnostic] = []
-    for message, group in found.items():
+    for group in found.values():
         first = group[0]
         out.append(first if len(group) == 1 else first.model_copy(update={
-            "message": f"{message} (stored in {len(group)} nodes)"}))
+            "message": f"{first.message} (stored in {len(group)} nodes)"}))
     return out
 
 

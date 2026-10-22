@@ -980,7 +980,8 @@ class MultiHistogramRefinement:
         # twin sites meet the merge here, once per distinct structure so a
         # shared one stays shared, and are said on the first result (#1007)
         self._twin_findings: list[Diagnostic] = []
-        merged = {id(s): merge_site_twins(s, diagnostics=self._twin_findings)
+        merged = {id(s): merge_site_twins(s, diagnostics=self._twin_findings,
+                                   keep_part_occupied=True)
                   for s in {id(s): s for s in starts}.values()}
         starts = [merged[id(s)] for s in starts]
         structure = starts[0] if isinstance(structure, Structure) else starts

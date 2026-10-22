@@ -3825,13 +3825,30 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "rounded."
         ),
     ),
+    "SITE_TWINS_KEPT": HelpEntry(
+        title="Near-duplicate atoms left as stored",
+        description=(
+            "A site's symmetry images fell in tight pairs, closer than 0.02 Å, in a "
+            "stored history or a model edit, and its occupancy times the images before "
+            "over the images after is at most 1. The numbers read two ways: one atom "
+            "stated off its special position, or a split pair of part-atoms (#1088). "
+            "Nothing was moved, and the model counts the second reading. The message "
+            "gives the atoms per cell each reading implies, and the suggestion gives the "
+            "occupancy to state on the special position for each. A project file or CIF "
+            "read merges the site instead and says `SITE_TWINS_MERGED`, keeping the "
+            "occupancy the file states."
+        ),
+    ),
     "SITE_TWINS_MERGED": HelpEntry(
         title="Near-duplicate atoms merged onto a special position",
         description=(
             "A site's symmetry images fell in tight pairs, closer than 0.02 Å, so it "
-            "would have put twice the atoms in the cell. Reading the project, loading "
-            "the history or a model edit moved the site onto "
-            "the special position its orbit collapses to. This changes the multiplicity, "
+            "would have put twice the atoms in the cell. Reading a project file, or a "
+            "history or model edit where the occupancy is high enough that the unmerged "
+            "site would put more than one atom at one place, moved the site onto "
+            "the special position its orbit collapses to. Coordinates the position fixes "
+            "lose `vary`, and an anisotropic tensor is projected onto the tensors the "
+            "position allows; the message says each. This changes the multiplicity, "
             "so it changes the density and every weight fraction. A CIF read says the "
             "same thing as `CIF_SITE_TWINS_MERGED`, and the two never both fire. The "
             "occupancy is kept, so the site's atoms per cell change with its "

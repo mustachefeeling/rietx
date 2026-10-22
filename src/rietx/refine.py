@@ -2238,12 +2238,14 @@ class Refinement:
         held in ``_twin_findings`` for the next result.
         """
         self.structure = merge_site_twins(self.structure,
-                                          diagnostics=self._twin_findings)
+                                          diagnostics=self._twin_findings,
+                                          keep_part_occupied=True)
 
     def _drain_twin_findings(self) -> list[Diagnostic]:
         """The merges no result has reported yet; each is reported once."""
         out, self._twin_findings = self._twin_findings, []
-        return out
+        # a site left as stored is found again by every verb that follows
+        return list({(d.code, tuple(d.where), d.message): d for d in out}.values())
 
     def _restore_state(self, state: RefinementState) -> None:
         """Make ``state`` the working state; ``checkout`` and keep-best share it.
@@ -2383,7 +2385,8 @@ class Refinement:
         # a proposed structure meets the twin merge before its table is built,
         # since moving a site changes the symmetry its table is checked against
         merged: list[Diagnostic] = []
-        candidate = merge_site_twins(candidate, diagnostics=merged)
+        candidate = merge_site_twins(candidate, diagnostics=merged,
+                                     keep_part_occupied=True)
         # No magnetic-group judgement here: ``edit`` receives refined state
         # plus one change (the GUI's funnel for every model edit), which is the
         # case :func:`_refined_state` exists for (issue #597).
@@ -9809,7 +9812,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     state = node.state
     twins: list[Diagnostic] = []
     structure = merge_site_twins(state.structure.model_copy(deep=True),
-                                 diagnostics=twins)
+                                 diagnostics=twins, keep_part_occupied=True)
     instrument = state.instrument.model_copy(deep=True)
     table = ParameterTable(structure, instrument)
     for name, prm in state.variables.items():

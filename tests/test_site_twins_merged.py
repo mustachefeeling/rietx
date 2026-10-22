@@ -519,3 +519,181 @@ def test_predict_on_the_merged_site_equals_the_site_stated_on_the_mirror(pbso4):
     off = Structure(phases=[_moved(pbso4, "S2", y=1e-4)])
     a, b = _predict(on), _predict(off)
     assert np.max(np.abs(a - b)) / np.max(a) < 1e-12
+
+
+# ------------------------------------------------ round 3: the ruling on #1014
+#
+# Where occupancy × (images before / images after) is at most 1, a model-side
+# boundary (``RefinementTree.load``, a ``Refinement`` verb) leaves the site as
+# stored and says ``SITE_TWINS_KEPT``; above 1 it merges; a file reader merges
+# at any occupancy.  Expected counts below come from ``site_orbit`` (ITA vol. A),
+# never from the merge.
+
+
+def _half_pnma() -> Structure:
+    return Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)])
+
+
+def _half_pnma_pattern() -> PatternData:
+    return _pattern(Structure(phases=[_phase(*_PNMA, _ON, occ=0.5)]))
+
+
+def test_a_refinement_leaves_a_half_occupied_site_and_names_both_readings():
+    ref = rx.Refinement(_half_pnma(), INSTRUMENT, history=False)
+    assert _y(ref.structure, "X") == _OFF[1]                       # nothing moved
+    assert _multiplicity(ref.structure.phases[0], "X") == 8
+    result = ref.run_stage(_half_pnma_pattern(), Stage("scale", ["phases.*.scale"]))
+    codes = [d.code for d in result.diagnostics]
+    assert codes.count("SITE_TWINS_KEPT") == 1 and "SITE_TWINS_MERGED" not in codes
+    (d,) = [d for d in result.diagnostics if d.code == "SITE_TWINS_KEPT"]
+    assert d.level == "warning" and d.where == ["phases.0.atoms.0"]
+    assert d.value == pytest.approx(2e-4 * 8.0)
+    assert "nothing was moved" in d.message
+    # one atom off its position: 4 × 0.5 = 2 there; a split pair: 8 × 0.5 = 4 as stored
+    assert _atoms_per_cell(_ON, 0.5) == 2.0 and _atoms_per_cell(_OFF, 0.5) == 4.0
+    assert "4 × 0.5 = 2" in d.message and "8 × 0.5 = 4" in d.message
+    assert "4 × 1 = 4" in d.message
+    assert "occupancy 0.5 if it is one atom" in d.suggestion
+    assert "occupancy 1 if it is a split pair" in d.suggestion
+    # said once: the next result carries nothing new
+    again = ref.run_stage(_half_pnma_pattern(), Stage("scale", ["phases.*.scale"]))
+    assert "SITE_TWINS_KEPT" not in [d.code for d in again.diagnostics]
+
+
+def test_edit_leaves_a_half_occupied_site_and_checkout_says_it_once():
+    ref = rx.Refinement(Structure(phases=[_phase(*_PNMA, _ON, occ=0.5)]),
+                        INSTRUMENT)
+    ref.edit(structure=_half_pnma())
+    ref.edit(structure=_half_pnma())                       # a second verb, same site
+    assert _y(ref.structure, "X") == _OFF[1]
+    result = ref.run_stage(_half_pnma_pattern(), Stage("scale", ["phases.*.scale"]))
+    assert [d.code for d in result.diagnostics].count("SITE_TWINS_KEPT") == 1
+
+
+def test_a_refinement_still_merges_where_the_site_would_overfill():
+    """The positive control: at occupancy 0.6, 8 × 0.6 on a mirror puts 1.2 atoms in one place."""
+    structure = Structure(phases=[_phase(*_PNMA, _OFF, occ=0.6)])
+    ref = rx.Refinement(structure, INSTRUMENT, history=False)
+    assert _y(ref.structure, "X") == 0.25
+    assert [d.code for d in ref._twin_findings] == ["SITE_TWINS_MERGED"]
+
+
+def test_a_file_reader_merges_a_half_occupied_site_as_before():
+    merged, found = _merge(_half_pnma())
+    assert _y(merged, "X") == 0.25
+    assert [d.code for d in found] == ["SITE_TWINS_MERGED"]
+
+
+def test_a_history_stored_with_a_half_occupied_site_keeps_it_and_says_so_once(tmp_path):
+    path = tmp_path / "half.jsonl"
+    ref = rx.Refinement(Structure(phases=[_phase(*_PNMA, _ON, occ=0.5)]),
+                        INSTRUMENT, history=path)
+    data = _half_pnma_pattern()
+    ref.run_stage(data, Stage("scale", ["phases.*.scale"]))
+    ref.run_stage(data, Stage("scale2", ["phases.*.scale"]))
+    lines = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        doc = json.loads(line)
+        if doc.get("node") is not None:
+            doc["node"]["state"]["structure"]["phases"][0]["atoms"][0]["y"]["value"] = _OFF[1]
+        lines.append(json.dumps(doc))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    found: list = []
+    tree = RefinementTree.load(path, diagnostics=found)
+    assert [d.code for d in found] == ["SITE_TWINS_KEPT"]
+    assert f"stored in {len(tree)} nodes" in found[0].message
+    for node_id in tree.order:
+        assert _y(tree[node_id].state.structure, "X") == _OFF[1]
+
+
+def test_the_load_warning_is_one_per_site_when_every_node_stores_another_coordinate(
+        tmp_path, pbso4, pattern):
+    """A refined log differs in the coordinate node by node; the finding is still one."""
+    path = tmp_path / "refined.jsonl"
+    ref = rx.Refinement(Structure(phases=[pbso4]), INSTRUMENT, history=path)
+    ref.run_stage(pattern, Stage("scale", ["phases.*.scale"]))
+    ref.run_stage(pattern, Stage("scale2", ["phases.*.scale"]))
+    lines, k = [], 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        doc = json.loads(line)
+        if doc.get("node") is not None:
+            k += 1
+            for atom in doc["node"]["state"]["structure"]["phases"][0]["atoms"]:
+                if atom["label"] == "S2":
+                    atom["y"]["value"] = 0.25 + 1e-4 + 1e-5 * k  # another one each node
+        lines.append(json.dumps(doc))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    found: list = []
+    tree = RefinementTree.load(path, diagnostics=found)
+    (d,) = [d for d in found if d.code == "SITE_TWINS_MERGED"]
+    assert k == len(tree) >= 3 and f"stored in {k} nodes" in d.message
+
+
+# a coordinate the merge fixes must not stop the model opening (Yue, #1014 item 2)
+
+
+def test_a_merged_centre_loses_vary_and_its_table_builds():
+    """P-1 1a: ``fix_special_positions`` would clear ``vary``; so does the merge."""
+    from rietx.params.vector import ParameterTable
+    phase = _phase("P -1", (5.0, 6.0, 7.0, 80, 85, 95), (3e-4, -3e-4, 6e-4))
+    for atom in phase.atoms:
+        for axis in "xyz":
+            getattr(atom, axis).vary = True
+    structure = Structure(phases=[phase])
+    merged, found = _merge(structure)
+    (a,) = merged.phases[0].atoms
+    assert not any(getattr(a, axis).vary for axis in "xyz")
+    assert all(getattr(structure.phases[0].atoms[0], axis).vary for axis in "xyz")
+    (d,) = found
+    assert "vary=False" in d.message
+    ParameterTable(merged, INSTRUMENT)                     # no "fully fixed special position"
+
+
+def test_a_merged_mirror_site_keeps_the_vary_of_its_free_coordinates():
+    """The negative arm: Pnma 4c still moves in x and z, so nothing is cleared."""
+    phase = _phase(*_PNMA, _OFF)
+    for axis in "xyz":
+        getattr(phase.atoms[0], axis).vary = True
+    merged, found = _merge(Structure(phases=[phase]))
+    (a,) = merged.phases[0].atoms
+    assert a.x.vary and a.y.vary and a.z.vary
+    assert "vary=False" not in found[0].message
+
+
+def test_a_merged_site_with_an_anisotropic_tensor_is_projected_and_its_table_builds():
+    """Pnma 4c allows U11, U22, U33, U13 only; U12 and U23 were free at 8c."""
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas import AnisoU
+    phase = _phase(*_PNMA, _OFF)
+    u = dict(u11=0.010, u22=0.012, u33=0.011, u12=3e-4, u13=1e-3, u23=2e-4)
+    phase.atoms[0].aniso = AnisoU(**{k: Parameter(value=v, vary=True) for k, v in u.items()})
+    structure = Structure(phases=[phase])
+    merged, found = _merge(structure)
+    t = merged.phases[0].atoms[0].aniso
+    assert (t.u12.value, t.u23.value) == (0.0, 0.0)
+    assert (t.u11.value, t.u22.value, t.u33.value, t.u13.value) == (0.010, 0.012, 0.011, 1e-3)
+    assert structure.phases[0].atoms[0].aniso.u12.value == 3e-4      # caller's untouched
+    assert "projected" in found[0].message
+    ParameterTable(merged, INSTRUMENT)
+
+
+def test_a_tensor_already_allowed_is_not_touched_nor_mentioned():
+    from rietx.schemas import AnisoU
+    phase = _phase(*_PNMA, _OFF)
+    phase.atoms[0].aniso = AnisoU(
+        u11=Parameter(value=0.01), u22=Parameter(value=0.012), u33=Parameter(value=0.011))
+    _, found = _merge(Structure(phases=[phase]))
+    assert "projected" not in found[0].message
+
+
+def test_the_suggestions_read_the_twin_distance_constant(monkeypatch):
+    """A retune cannot leave the advice stale: the figure comes from the constant."""
+    import rietx.crystallography.twins as twins
+    monkeypatch.setattr(twins, "TWIN_DISTANCE", 0.015)
+    _, merged = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=1.0)]))
+    assert "0.015 Å" in merged[0].suggestion and "0.02 Å" not in merged[0].suggestion
+    _, half = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
+    assert "0.015 Å" in half[0].suggestion and "0.02 Å" not in half[0].suggestion
+    kept: list = []
+    merge_site_twins(_half_pnma(), diagnostics=kept, keep_part_occupied=True)
+    assert "0.015 Å" in kept[0].suggestion and "0.02 Å" not in kept[0].suggestion

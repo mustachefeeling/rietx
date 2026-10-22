@@ -18,7 +18,8 @@ import numpy as np
 
 from ..schemas.common import Diagnostic
 from ..schemas.structure import Structure
-from .symmetry import TwinMerge, resolve_group, site_twin_merge
+from .symmetry import TWIN_DISTANCE, TwinMerge, resolve_group, site_twin_merge
+from .wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
 
 
 def _num(v: float) -> str:
@@ -52,17 +53,88 @@ def _content_change(occ: float, merge: TwinMerge) -> tuple[str, str]:
                   f"content.")
     keep = (f"To keep a split pair's content, restate the site on the "
             f"special position at occupancy {_num(restated)}, or state it at "
-            f"least 0.02 Å from its own images.")
+            f"least {_num(TWIN_DISTANCE)} Å from its own images.")
     return sentences, keep
+
+
+def _fixed_by_symmetry(atom, sg, position: np.ndarray, diagnostics_note: list[str]):
+    """``atom``'s coordinates and tensor as the special position ``position`` allows them.
+
+    What the merge moves onto a position, the parameter table then checks
+    against that position, and refuses what it did not allow before the move:
+    a coordinate with ``vary=True`` where the site symmetry allows no positional
+    freedom, and an anisotropic tensor outside the allowed subspace.  So the
+    merge clears ``vary`` on exactly the coordinates
+    :meth:`~rietx.refine.Refinement.fix_special_positions` would, and projects
+    the tensor onto the allowed patterns (least squares in U^ij, the table's own
+    test), each said in ``diagnostics_note``.
+    """
+    rotations = stabilizer_rotations(sg, position)
+    update: dict = {}
+    coords = {}
+    for n, v in zip("xyz", position, strict=True):
+        param = getattr(atom, n).model_copy(update={"value": float(v)})
+        coords[n] = param
+    if len(coordinate_basis(rotations)) == 0 and any(p.vary for p in coords.values()):
+        for p in coords.values():
+            p.vary = False
+        diagnostics_note.append(
+            "Its coordinates were set to vary=False: the position allows no "
+            "positional freedom.")
+    update.update(coords)
+    if atom.aniso is not None:
+        basis = adp_basis(rotations).astype(np.float64)
+        u0 = np.array(atom.aniso.values(), dtype=np.float64)
+        coef, *_ = np.linalg.lstsq(basis.T, u0, rcond=None)
+        u1 = basis.T @ coef
+        change = float(np.abs(u1 - u0).max())
+        if change > 1e-6 * max(float(np.abs(u0).max()), 1e-6):
+            aniso = atom.aniso.model_copy(update={
+                name: getattr(atom.aniso, name).model_copy(update={"value": float(v)})
+                for name, v in zip(("u11", "u22", "u33", "u12", "u13", "u23"),
+                                   u1, strict=True)})
+            update["aniso"] = aniso
+            diagnostics_note.append(
+                f"Its anisotropic tensor was projected onto the tensors the "
+                f"position allows (largest change {change:.2g} Å²).")
+    return update
+
+
+def _kept_message(atom, phase, source: str | None, xyz, merge: TwinMerge,
+                  position: list[float]) -> tuple[str, str]:
+    """Message and suggestion for a site left as stored, whose merge would lose content."""
+    occ = atom.occ.value
+    ratio = merge.before / merge.after
+    message = (
+        f"{source + ': ' if source else ''}site {atom.label!r} of phase "
+        f"{phase.name!r} is stated at {[round(float(v), 6) for v in xyz]}, "
+        f"where it puts {merge.before} positions in the cell in pairs "
+        f"{merge.gap:.2g} Å apart; nothing was moved. The coordinates cannot "
+        f"say which of two things this is. One atom stated off its special "
+        f"position {[round(v, 6) for v in position]} ({merge.after} positions) "
+        f"holds {merge.after} × {_num(occ)} = {_num(merge.after * occ)} atoms "
+        f"per cell there, at occupancy {_num(occ)}. A split pair of part-atoms "
+        f"holds {merge.before} × {_num(occ)} = {_num(merge.before * occ)} as "
+        f"stored, and {merge.after} × {_num(occ * ratio)} = "
+        f"{_num(merge.before * occ)} on the position, at occupancy "
+        f"{_num(occ * ratio)}. The model is left as stored and counts the "
+        f"second.")
+    suggestion = (
+        f"state the site on the special position at occupancy {_num(occ)} if "
+        f"it is one atom stated off its position, or at occupancy "
+        f"{_num(occ * ratio)} if it is a split pair; or state it at least "
+        f"{_num(TWIN_DISTANCE)} Å from its own images to say it is split.")
+    return message, suggestion
 
 
 def merge_site_twins(structure: Structure, *,
                      diagnostics: list[Diagnostic] | None = None,
-                     source: str | None = None) -> Structure:
+                     source: str | None = None,
+                     keep_part_occupied: bool = False) -> Structure:
     """``structure`` with every site whose own images coincide moved onto its position.
 
     A site whose images are closer than
-    :data:`~.symmetry.TWIN_DISTANCE` (0.02 Å) is one atom counted twice; it is
+    :data:`~.symmetry.TWIN_DISTANCE` is one atom counted twice; it is
     moved to the special position its orbit collapses to, and one
     ``SITE_TWINS_MERGED`` warning per site is appended to ``diagnostics``.  A
     split site (images ≥ 0.20 Å apart), a site already on its position and a
@@ -70,7 +142,28 @@ def merge_site_twins(structure: Structure, *,
     element is the body's own question, #876) are left alone.  Returns the
     argument itself when nothing moved, and never mutates it.
 
+    A moved site is also made fit for its new position: coordinates the
+    position fixes lose ``vary``, and an anisotropic tensor is projected onto
+    the allowed patterns, each said in the message (otherwise the parameter
+    table refuses the merged model, #1014).
+
+    ``keep_part_occupied`` is the stance of a boundary that holds a *model*
+    rather than reads a file (``RefinementTree.load`` and the ``Refinement``
+    verbs).  Where occupancy × (images before / images after) is at most 1, the
+    stated numbers read both as one atom off its position and as a split pair
+    of part-atoms (#1088), and no other code merges a fit-made coordinate by
+    default (GSAS-II drops an image only within 2e-4 fractional, FullProf and
+    BGMN not at all, TOPAS only on request).  There the site is **left as
+    stored** and ``SITE_TWINS_KEPT`` gives both readings.  Above 1 the unmerged
+    model puts more than one atom at one place, so the merge is physics and
+    happens either way.  A file reader keeps the occupancy the file states per
+    site and merges as before.
+
     ``source`` prefixes the message (a file path, as the readers' messages do).
+
+    The rule and its references are :func:`~.symmetry.site_twin_merge`'s:
+    International Tables for Crystallography vol. A (Wyckoff positions) and
+    Grosse-Kunstleve & Adams (2002), Acta Cryst. A58, 60.
     """
     phases = list(structure.phases)
     changed = False
@@ -94,9 +187,19 @@ def merge_site_twins(structure: Structure, *,
             if merge is None:
                 continue
             position = [float(v) for v in merge.position]
-            atoms[j] = atom.model_copy(update={
-                n: getattr(atom, n).model_copy(update={"value": v})
-                for n, v in zip("xyz", position, strict=True)})
+            if keep_part_occupied and round(
+                    atom.occ.value * merge.before / merge.after, 6) <= 1.0:
+                if diagnostics is not None:
+                    message, suggestion = _kept_message(
+                        atom, phase, source, xyz, merge, position)
+                    diagnostics.append(Diagnostic(
+                        level="warning", code="SITE_TWINS_KEPT",
+                        where=[f"phases.{i}.atoms.{j}"], value=merge.gap,
+                        message=message, suggestion=suggestion))
+                continue
+            notes: list[str] = []
+            atoms[j] = atom.model_copy(update=_fixed_by_symmetry(
+                atom, sg, np.array(position), notes))
             moved_any = True
             if diagnostics is not None:
                 content, keep = _content_change(atom.occ.value, merge)
@@ -111,13 +214,14 @@ def merge_site_twins(structure: Structure, *,
                         f"{merge.gap:.2g} Å apart; it was moved onto the "
                         f"special position {[round(v, 6) for v in position]}, "
                         f"{merge.after} positions, with its occupancy unchanged. "
-                        f"{content}"),
+                        f"{content}" + "".join(" " + n for n in notes)),
                     suggestion=(
                         "check the coordinate against its source: a special "
                         "position stated a few 1e-5 off (a hand edit, a "
                         "rounded project file) is the usual cause. "
-                        + (keep or "To keep a genuinely displaced atom, state "
-                           "it at least 0.02 Å from its own images."))))
+                        + (keep or f"To keep a genuinely displaced atom, state "
+                           f"it at least {_num(TWIN_DISTANCE)} Å from its own "
+                           f"images."))))
         if moved_any:
             # model_copy skips validation on purpose: the move is the repair,
             # and an assignment would re-run every validator of the phase
