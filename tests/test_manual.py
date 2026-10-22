@@ -1312,6 +1312,67 @@ def test_the_front_page_offers_three_audiences_and_six_tabs(built_docs_tree):
     assert tuple(dict.fromkeys(tabs)) == TABS, tabs
 
 
+#: The new tree's header brand, and its one link out to the landing page.
+HEADER_BRAND = re.compile(r'<a class="navbar-brand logo rietx-brand" href="([^"]*)"')
+LANDING_LINK = re.compile(r'<ul class="navbar-icon-links rietx-landing".*?<a href="([^"]*)"', re.S)
+
+
+def test_the_new_trees_marks_are_the_favicons():
+    """Both inline marks draw the new tree's favicon, which draws the old one's.
+
+    `_templates/rietx-brand.html` and `rietx-landing.html` copy the geometry
+    inline for the reason the old tree's brand does (an `<img>` cannot follow
+    the theme toggle), so the copies are pinned to `_static/favicon.svg`, and
+    that file to the old tree's: one mark, recoloured, never redrawn.  The
+    favicon's two hexes are the brand's `--rietx-ink` in `custom.css`, the
+    only other place they are spelled.
+    """
+    favicon = (DOCS_TREE / "_static" / "favicon.svg").read_text(encoding="utf-8")
+    shapes = SVG_SHAPES.findall(favicon)
+    old = SVG_SHAPES.findall((MANUAL_DIR / "_static" / "favicon.svg").read_text(encoding="utf-8"))
+    assert shapes == old, "the new tree's favicon no longer draws the old tree's mark"
+    for name in ("rietx-brand.html", "rietx-landing.html"):
+        inlined = SVG_SHAPES.findall((DOCS_TREE / "_templates" / name).read_text(encoding="utf-8"))
+        assert inlined == shapes, (
+            f"_templates/{name} has drifted from _static/favicon.svg, which is the "
+            f"authority: copy its shapes.\n  template: {inlined}\n  favicon:  {shapes}")
+    hexes = re.findall(r"fill:\s*(#[0-9a-fA-F]{6})", favicon)
+    css = (DOCS_TREE / "_static" / "custom.css").read_text(encoding="utf-8")
+    ink = re.findall(r"--rietx-ink:\s*(#[0-9a-fA-F]{6})", css)
+    assert len(hexes) == 2 and hexes == ink, (
+        f"favicon fills {hexes} and custom.css's --rietx-ink {ink} disagree")
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_every_new_tree_page_brands_its_header_and_links_the_landing_page(built_docs_tree):
+    """The brand goes to this manual's front page and the orange mark to the site root.
+
+    Asserted on every built page, because the brand is in the header and a
+    pydata upgrade renaming `navbar_start`'s slot would drop it with a green
+    build.  The wordmark is checked as the word itself, `_about.DIST_NAME`.
+    """
+    from rietx._about import DIST_NAME, DOCS_URL
+
+    out, result = built_docs_tree
+    assert result.returncode == 0, "the new tree did not build"
+    # `_static/` holds the theme's assets, one of them an HTML macro file.
+    pages = [p for p in sorted(out.rglob("*.html")) if p.relative_to(out).parts[0] != "_static"]
+    assert pages, "the build wrote no pages"
+    wrong: list[str] = []
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        depth = len(page.relative_to(out).parts) - 1
+        want = ["#"] if page == out / "index.html" else ["../" * depth + "index.html"]
+        name = page.relative_to(out).as_posix()
+        if HEADER_BRAND.findall(text) != want:
+            wrong.append(f"{name}: brand href {HEADER_BRAND.findall(text)} (want {want})")
+        elif f'rietx-wordmark">{DIST_NAME}</p>' not in text:
+            wrong.append(f"{name}: the brand carries no wordmark")
+        elif not LANDING_LINK.findall(text) or set(LANDING_LINK.findall(text)) != {DOCS_URL}:
+            wrong.append(f"{name}: landing link {LANDING_LINK.findall(text)} (want {DOCS_URL!r})")
+    assert not wrong, f"{len(wrong)} of {len(pages)} pages:\n" + "\n".join(wrong[:10])
+
+
 # ----------------------------------------------------------------------
 # The markdown twin and llms.txt (WP-1980)
 #

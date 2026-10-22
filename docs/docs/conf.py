@@ -15,6 +15,7 @@
 import sys as _sys
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
+from urllib.parse import quote as _quote
 
 from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
 
@@ -75,21 +76,38 @@ _reference.write_bodies()
 
 html_theme = "pydata_sphinx_theme"
 html_title = DIST_NAME
-# The old tree's mark.  Without a favicon a browser falls back to the origin
-# root, which belongs to the user Pages site this project sits under.
-html_favicon = "../manual/_static/favicon.svg"
+# The mark in this manual's teal.  Without a favicon a browser falls back to
+# the origin root, which belongs to the user Pages site this project sits under.
+html_favicon = "_static/favicon.svg"
 html_static_path = ["_static"]
-html_css_files = ["custom.css"]
+# The wordmark's face is the landing page's, Instrument Sans 600, and `text=`
+# asks Google Fonts for the brand's own glyphs and nothing else: one small
+# file, which leaves the theme's body face alone.  Offline (a `file://` build
+# with no network) the word falls back to the theme's sans.
+html_css_files = [
+    "https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@600"
+    f"&text={_quote(DIST_NAME)}&display=swap",
+    "custom.css",
+]
 # A release's pages name stable/ as their canonical copy, so a search engine
 # sends a reader to the newest release rather than to an old one.
 html_baseurl = f"{DOCS_URL}/docs/{'dev' if _shared.DOCS_VERSION == 'dev' else 'stable'}/"
+# The header's brand and its link out to the landing page are templates of
+# our own (`_templates/`, whose comments say why each is inline SVG).  The URL
+# and the word reach them through the context, never spelled in a template.
 templates_path = ["_templates"]
 html_context = {"rietx_home": DOCS_URL, "rietx_name": DIST_NAME}
 html_theme_options = {
     "navbar_start": ["rietx-brand"],
+    # The tabs follow the brand, as the landing page's links do, rather than
+    # starting over the content column: that column's 25 % holds a 100 px
+    # brand, and with the version label a release shows, the bar folded onto
+    # two rows below 1270 px under "content" and stays on one down to 1110 px
+    # here (measured in chromium on the built Concepts page).
+    "navbar_align": "left",
     # Six tabs, so none folds into a "More" dropdown.
     "header_links_before_dropdown": 6,
-    "navbar_end": ["version-switcher", "theme-switcher", "navbar-icon-links"],
+    "navbar_end": ["version-switcher", "theme-switcher", "rietx-landing", "navbar-icon-links"],
     "switcher": {
         "json_url": "/docs/switcher.json",
         "version_match": _shared.DOCS_VERSION,

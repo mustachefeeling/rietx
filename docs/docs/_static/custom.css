@@ -48,9 +48,57 @@ div.math:has(> span.eqno) > mjx-container {
   overflow-y: hidden;
 }
 
-/* The brand mark (prototype). */
-html { --rietx-ink: #6d4aff; }
-html[data-theme="dark"] { --rietx-ink: #a48cff; }
-.rietx-brand { display: inline-flex; align-items: center; gap: 0.55rem; }
-.rietx-brand .rietx-mark { width: 1.6rem; height: 1.6rem; fill: var(--rietx-ink); flex: none; }
-.rietx-brand .logo__title { font-weight: 600; }
+/* The brand (`_templates/rietx-brand.html`) and the link to the landing page
+ * (`_templates/rietx-landing.html`).
+ *
+ * Two colours, each named once.  `--rietx-ink` is the manual's teal, pydata's
+ * own primary at this release, so the mark agrees with the tab underline and
+ * the links; it is pinned here rather than read off `--pst-color-primary` so a
+ * theme upgrade cannot recolour the brand away from `_static/favicon.svg`,
+ * which carries the same two hexes literally.  `--rietx-landing` is the landing
+ * page's `--accent` (`docs/landing/src/shell.html`), worn by the one mark that
+ * goes there: teal is this manual, orange is the site root.
+ *
+ * Declared on `html`, where pydata stamps `data-theme`. */
+html {
+  --rietx-ink: #0a7d91;
+  --rietx-landing: #c65d0a;
+}
+
+html[data-theme="dark"] {
+  --rietx-ink: #3fb1c5;
+  --rietx-landing: #ff9d4d;
+}
+
+.rietx-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.rietx-brand .rietx-mark {
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: none;
+  fill: var(--rietx-ink);
+}
+
+.rietx-wordmark {
+  font-family: "Instrument Sans", var(--pst-font-family-base);
+  font-weight: 600;
+}
+
+.rietx-landing .rietx-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: var(--rietx-landing);
+  vertical-align: -0.15em;
+}
+
+/* In the narrow-screen drawer the header's end items share one row, and the
+ * version switcher, the theme control and two icons are wider than a 390 px
+ * drawer: the GitHub link went off its edge.  Wrapping keeps all of them. */
+.sidebar-header-items__end {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
