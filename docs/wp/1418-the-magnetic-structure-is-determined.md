@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-21 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853), #820's option (a) (PR #953), #565's certificates part 5 (PR #936), #458's recipe as a guide (PR #1074); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-22 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853), #820's option (a) (PR #953), #565's certificates part 5 (PR #936), #458's recipe as a guide (PR #1074), the LaMnO₃ acceptance on real data (PR #1086); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -823,6 +823,26 @@ no magnetic model declared.
 
 ## Handover log
 
+- **2026-10-22** — PR #1086 (outside contributor, head `643430a0`), merged as
+  `6a135459` by `/pr-review`, puts the first clause of § Acceptance under a
+  real-data test, the magnetic milestone's row J. The slow
+  `test_lamno3_at_50k_ranks_a_type_first_of_four` runs `solve_magnetic` on the
+  `Magnetic-I` BT-1 pattern. It finds k = 0 by the forbidden-lattice-point
+  route and ranks 62.448 (Pn′ma′, A-type) first of four classes, each listing
+  only itself. Its lead is more than ten tie widths
+  (`SOLVE_TIE_DELTA_BIC`), and its moment lies between 3.3 μ_B and three esds
+  below spin-only 4 μ_B. The same call carries the negative control: 62.446
+  comes back unsupported, with Rwp within 1e-3 of the nuclear one. The
+  nuclear fit moved into a session fixture, `conftest.lamno3_nuclear`, which
+  WP-1327's LaMnO₃ acceptance now shares. Each test in the file carries its
+  own `xdist_group`, because xdist joins every group mark an item carries into
+  one name. The test draws the winner's obs/calc/diff PNG, so the 4 K and
+  LaMnO₃ winners both draw now. The PNG task stays open for the 150 K
+  abstention. It ticks no task: M-9's `help.py` entries, M-8 and Part 2
+  remain. Gate: stacked with #1071 on `main` `1661895e`, macOS arm64,
+  `[dev,jax]`: `-m slow` 326 passed, 12 skipped, 1 xfailed; `main` after both
+  merges is content-identical to that tree. The record of #1071 is in
+  WP-1326's log.
 - **2026-10-21** — #458's recipe landed from outside as a guide, with no
   package code: PR #1074 (head `60a1822e`) merged as `1e876eaf` by
   `/pr-review` after three rounds. `docs/docs/guides/moment.md` ("How to
