@@ -86,7 +86,7 @@ A site further off a special position whose own images still sit closer than 0.0
 A CIF read says so with [`CIF_SITE_TWINS_MERGED`](diagnostics-structures.md#cif_site_twins_merged).
 The project readers' `to_structure` say `SITE_TWINS_MERGED` on their own `diagnostics=`, keeping the occupancy the file states.
 `RefinementTree.load` and `Refinement` construction, `edit`, `set_values` and `checkout` hold a model rather than a file.
-There a site is merged only where occupancy × (images before / images after) is above 1, since the unmerged site would put more than one atom at one place, and the result says `SITE_TWINS_MERGED` (on `RefinementTree.load`'s `diagnostics=`, or on the next `fit` or `run_stage` result).
+There a site is merged only where occupancy × (images before / images after) is above 1, since the site left as stored would put more than one atom at one place, and the result says `SITE_TWINS_MERGED` (on `RefinementTree.load`'s `diagnostics=`, or on the next `fit` or `run_stage` result).
 Where the product is 1 or below, the stated numbers read both as one atom off its position and as a split pair of part-atoms, so the site is left as stored and `SITE_TWINS_KEPT` gives both readings and the occupancy each implies.
 A merged site's coordinates that the position fixes lose `vary`, and an anisotropic tensor is projected onto the tensors the position allows, so the merged model still builds its table.
 `Phase` itself stays strict: a phase built in code with a twin site is held as stated until it enters one of those.
