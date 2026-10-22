@@ -533,6 +533,12 @@ freed was on `tests/test_scale_b_ridge.py`'s synthetic narrow scan, not cpd-1a.
      either way; shares moved by 0.04 or less except one cpd-1a region, 0.43
      against 0.57. The eighth round's rule (misfit from the accurate model)
      stands, and `reference/refinement.md` says so beside the speed switch.
+     A known-truth case, asked for by the generality judge: the eighth round's
+     displaced specimen (−0.10 mm in the data, the displacement held at 0),
+     fitted with the closing stage on and off and read both ways, ranks the
+     displacement's cos θ shape first among the position templates in all four
+     (R² 0.539-0.555, constant 0.527-0.542, not separable over this range), and
+     no reading suggests an action.
    - *A loosened `closing_window_tol`: keeps the closing node rule.* The line
      moved from `CLOSING_WINDOW_TOL` to `WINDOW_AREA_TOL`, so anything finer than
      the declared stages takes the closing rule. Inferred from the eighth

@@ -1353,7 +1353,8 @@ ROWS: tuple[Row, ...] = (
                   "shipped and at the planted width agrees to 0.000 plain esd (0.031 before the "
                   "closing stage), on the synthetic MnF2 round trip, one family "
                   "(tests/test_magnetic_width.py); the magnetic default solve's ranked trials (its "
-                  "winner runs one since 2026-10-22), a plan with closing_window_tol=None and a "
+                  "winner runs one on a solved verdict since 2026-10-22; the default solve frees "
+                  "no magnetic width), a plan with closing_window_tol=None and a "
                   "stage run by hand have none, and a plan "
                   "ending on the stage that frees the width keeps the clipping: 0.07, 0.17 and "
                   "0.57 esd on the moment (WP-2002, the seventh round's Q2, 2026-10-21)"),
@@ -1409,12 +1410,15 @@ ROWS: tuple[Row, ...] = (
                  "answer is computed in a closing stage at CLOSING_WINDOW_TOL, as is every "
                  "evaluation outside a fit and a stage run by hand (the seventh round's Q1).  Its "
                  "error still reaches a number a caller reads from a plan with "
-                 "closing_window_tol=None, the moments of the magnetic default solve's trials "
-                 "other than its winner, which runs a closing stage (ruled 2026-10-22), and "
+                 "closing_window_tol=None, on purpose the magnetic default solve's ranking (every "
+                 "ΔBIC, and the other trials' and the nuclear reference's Rwp, GoF and "
+                 "R_mag, so that all compare at one precision; on a solved verdict the "
+                 "winner's moments and statistics come from a closing stage, ruled "
+                 "2026-10-22), and "
                  "SolveCost.from_pawley, and on purpose the FitReport's shapes, which "
                  "report._reading_models compiles at this fraction (the eighth round's item 1, "
                  "ruled 2026-10-22)."),
-        approved="2026-10-21"),
+        approved="2026-10-22"),
     Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=3, value=0.3,
         evidence=("minimum window half-width, the room a peak has to move within one stage; "
                   "measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC from starts near "
@@ -2457,7 +2461,9 @@ ROWS: tuple[Row, ...] = (
                   "SRM 660c one closing solve sits 0.908 esd from the fixed point in u (the "
                   "Gaussian clamp, WP-1467), and under TRF it collapses CPD brucite's S_HKL "
                   "(t = -268); recorded in RefinementResult.stages as the stage named "
-                  "'closing'"),
+                  "'closing'; solve_magnetic runs it on its winner too, when the package "
+                  "chose the plan and the verdict is solved, after ranking every trial "
+                  "without it (2026-10-22)"),
         grounds=("The maintainer's ruling (the sixth round's Q2, option 3, 2026-10-21): every "
                  "plan ends with a closing stage at tight windows, which removes the 2 % "
                  "window's error from the answer and most of a staged plan's start dependence; "
