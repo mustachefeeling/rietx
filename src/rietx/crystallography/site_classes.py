@@ -20,7 +20,13 @@ Crystallography Vol. A, Hahn ed., 2005, sect. 8.3.2).  Three steps:
    International Tables A (quarters, eighths, thirds, sixths), and it is
    gemmi's own ``Op.DEN``, so every translation gemmi can represent lies on it.
    An off-grid translation is still refused by name (``SITE_CLASSES_GRID``)
-   rather than rounded.
+   rather than rounded.  Translations on the grid do not put every special
+   position on it: ``-x+1/24`` fixes x = 1/48.  A tabulated setting is
+   certified (all 564 gemmi settings are checked against spglib), so an
+   :class:`~.symmetry.OperatorGroup`, whose operations no table vouches for, is
+   also scanned on the 1/48 grid and refused by the same name when that finds
+   a stabiliser the 1/24 grid missed.  The guarantee is the 1/48 grid, not
+   every rational point.
 2. **One fixed subspace per stabiliser.** The points one stabiliser S fixes form
    an affine subspace p + span(B), with B = :func:`~.wyckoff.coordinate_basis`
    of S's rotations — the free-parameter basis the rest of the package already
@@ -62,6 +68,7 @@ import numpy as np
 
 from .species import element_symbol
 from .symmetry import (
+    OperatorGroup,
     _group_arrays,
     as_group,
     group_key,
@@ -163,6 +170,26 @@ def _integer_ops(sg) -> tuple[np.ndarray, np.ndarray]:
     return r, t
 
 
+def _stabiliser_keys(r: np.ndarray, t: np.ndarray, n: int) -> set[bytes]:
+    """The distinct non-trivial stabilisers of the 1/n grid, as step 1 keys them.
+
+    ``t`` is in 1/GRID units and ``n`` a multiple of GRID.  A key is the fixing
+    operations with their lattice translations, which do not depend on ``n``.
+    """
+    tn = t * (n // GRID)
+    axis = np.arange(n, dtype=np.int64)
+    grid = np.array(list(itertools.product(axis, axis, axis)), dtype=np.int64)
+    out: set[bytes] = set()
+    for lo in range(0, len(grid), _CHUNK):
+        pts = grid[lo:lo + _CHUNK]
+        diff = np.einsum("oij,pj->poi", r, pts) + tn[None] - pts[:, None, :]
+        fixes = np.all(diff % n == 0, axis=2)
+        for i in np.flatnonzero(fixes.sum(axis=1) > 1):
+            ops = np.flatnonzero(fixes[i])
+            out.add(ops.tobytes() + (diff[i, ops] // n).tobytes())
+    return out
+
+
 def _saturated(basis: np.ndarray) -> bool:
     """Whether ``basis`` spans span(B) ∩ Z³: the gcd of its maximal minors is 1."""
     if basis.shape[0] in (0, 3):
@@ -224,6 +251,9 @@ _CACHE_LOCK = threading.Lock()
 def _derive(sg) -> tuple[SiteClass, ...]:
     r, t = _integer_ops(sg)
     order = len(r)
+    fine = None
+    if isinstance(sg, OperatorGroup):
+        fine = _stabiliser_keys(r, t, 2 * GRID)
     axis = np.arange(GRID, dtype=np.int64)
     grid = np.array(list(itertools.product(axis, axis, axis)), dtype=np.int64)
     n_pts = len(grid)
@@ -249,6 +279,14 @@ def _derive(sg) -> tuple[SiteClass, ...]:
                 stabs.append(ops)
             members[kid].append(lo + i)
             key_of[lo + i] = kid
+
+    if fine is not None and fine != set(keys):
+        raise ValueError(
+            f"SITE_CLASSES_GRID: {sg.xhm()!r} has special positions off the "
+            f"1/{GRID} grid: its operations put {len(fine) - len(keys)} "
+            f"stabiliser(s) on the 1/{2 * GRID} grid and none on the 1/{GRID} one "
+            "(an inversion -x+t fixes x = t/2); use translations that are "
+            f"multiples of 1/{GRID // 2}, or transform to a tabulated setting")
 
     # 2–3. walk the stabiliser keys; each unassigned one opens a class, and its
     #      subspace's images claim every key of the same Wyckoff position

@@ -797,10 +797,24 @@ ROWS: tuple[Row, ...] = (
         evidence="Arithmetic: every translation of a gemmi space-group operation is a "
                  "multiple of 1/Op.DEN = 1/24, so the affine stabilisers are exact on the "
                  "1/24 grid, and an off-grid translation is refused by name "
-                 "(SITE_CLASSES_GRID). Completeness is checked on all 564 gemmi settings "
+                 "(SITE_CLASSES_GRID). Special positions can still fall off it (-x+1/24 "
+                 "fixes x = 1/48): a tabulated setting is certified by the completeness check below, and "
+                 "an operator list is also scanned on the 1/48 grid and refused by the same "
+                 "name when that finds a stabiliser the 1/24 grid missed "
+                 "(test_an_operator_list_with_a_special_position_off_the_grid_is_refused). "
+                 "Completeness is checked on all 564 gemmi settings "
                  "against spglib's Wyckoff letters (test_every_setting_matches_spglib).",
         value=24),
-    Row("rietx.crystallography.site_classes.MAX_SITE_ASSIGNMENTS", "constant", value=20000),
+    Row("rietx.crystallography.site_classes.MAX_SITE_ASSIGNMENTS", "constant", tier=3,
+        evidence="refuses with the exact count and never truncates "
+                 "(SITE_ASSIGNMENTS_EXCEED_CAP); max_assignments= overrides; largest case "
+                 "seen 4 000 on our own solve kits",
+        grounds="Above the cap the composition, the space group or the cell is wrong "
+                "for a site-class search, so refusing with the count is the package's "
+                "act: a list that large is one no search can hold or race, and the "
+                "caller who wants it passes max_assignments=.",
+        approved="2026-10-21",
+        value=20000),
     Row("rietx.crystallography.site_classes._CACHE_SIZE", "constant", tier="invariant",
         evidence="The cache only skips a rederivation of a group's classes; "
                  "test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes holds a "
@@ -2123,7 +2137,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.rotation._LOG_SERIES_NORM",
     "rietx.crystallography.satellites._ORDERS",
     "rietx.crystallography.scattering.written_neutral_diagnostics.suggestion",
-    "rietx.crystallography.site_classes.MAX_SITE_ASSIGNMENTS",
     "rietx.crystallography.spherical_harmonics._TOL",
     "rietx.crystallography.stephens._DEG_PER_RAD",
     "rietx.crystallography.superspace.generation.N_BRAVAIS_CLASSES_D1",

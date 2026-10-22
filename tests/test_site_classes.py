@@ -199,6 +199,19 @@ def test_every_representable_translation_is_on_the_grid():
         OperatorGroup(label="P1 [fifths]", xyz=("x,y,z", "x,y,z+1/5")).operations()
 
 
+def test_an_operator_list_with_a_special_position_off_the_grid_is_refused():
+    """-x+1/24 fixes x = 1/48: the translation is on the 1/24 grid, its centre is
+    not, and the scan used to return the general position alone, silently."""
+    with pytest.raises(ValueError, match="SITE_CLASSES_GRID"):
+        site_classes(OperatorGroup(label="P-1 [1/24]", xyz=("x,y,z", "-x+1/24,-y,-z")))
+
+
+def test_the_same_inversion_on_the_grid_gives_all_nine_classes():
+    """The positive arm: -x+1/12 puts every centre on the 1/24 grid."""
+    classes = site_classes(OperatorGroup(label="P-1 [1/12]", xyz=("x,y,z", "-x+1/12,-y,-z")))
+    assert sorted(c.multiplicity for c in classes) == [1] * 8 + [2]
+
+
 # --------------------------------------------------------------------------
 # origin choice
 
@@ -419,11 +432,19 @@ def test_max_sites_per_species_must_be_a_positive_integer_or_none(bad):
 
 
 def test_crystallography_does_not_import_optimize():
+    import ast
     from pathlib import Path
 
     import rietx.crystallography.site_classes as mod
 
-    assert "optimize" not in Path(mod.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(Path(mod.__file__).read_text(encoding="utf-8"))
+    imported = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            imported.append(("." * node.level) + (node.module or ""))
+        elif isinstance(node, ast.Import):
+            imported.extend(a.name for a in node.names)
+    assert imported and not [m for m in imported if "optimize" in m.split(".")]
 
 
 def _fields(classes):
