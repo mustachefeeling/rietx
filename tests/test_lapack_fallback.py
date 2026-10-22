@@ -63,6 +63,22 @@ def test_each_fallback_returns_the_twins_answer_and_is_counted(monkeypatch, name
     np.testing.assert_allclose(got, ref, rtol=1e-12, atol=1e-12)
 
 
+@pytest.mark.parametrize("name", ["svd", "lstsq", "pinv"])
+def test_a_non_finite_input_keeps_numpys_linalgerror(name):
+    """numpy reports a NaN as non-convergence.  The fallback re-raises that
+    error rather than SciPy's ``ValueError``, so every ``except LinAlgError``
+    (``_guarded_covariance``'s rule, #225) still catches it, and counts none."""
+    a = RNG.normal(size=(9, 4))
+    a[2, 1] = np.nan
+    call = {"svd": lambda: lapack.svd(a, full_matrices=False),
+            "lstsq": lambda: lapack.lstsq(a, RNG.normal(size=9)),
+            "pinv": lambda: lapack.pinv(a)}[name]
+    before = lapack.retries()
+    with pytest.raises(np.linalg.LinAlgError):
+        call()
+    assert lapack.retries() == before
+
+
 def test_a_stacked_eigh_falls_back_matrix_by_matrix(monkeypatch):
     stack = np.stack([_symmetric(), _symmetric()])
     ref_w, ref_v = np.linalg.eigh(stack)
@@ -133,7 +149,7 @@ def test_the_fit_path_decomposes_only_through_the_fallbacks():
     """A bare numpy decomposition on the fit path would raise out of a fit, or
     withhold its esds or a report, where the fallback answers."""
     package = pathlib.Path(rx.__file__).parent
-    names = {"eigh", "eigvalsh", "svd", "lstsq", "pinv"}
+    names = {"eigh", "eigvalsh", "svd", "lstsq", "pinv", "cond"}
     found = []
     paths = [p for entry in FIT_PATH for p in (
         sorted((package / entry).rglob("*.py")) if (package / entry).is_dir()

@@ -391,7 +391,7 @@ def analyse_strain(model: CompiledModel, values: dict[str, float], *,
         hkl_live = cp.reflections.hkl[live]
 
         norm = templates / np.maximum(np.linalg.norm(templates, axis=0), 1e-300)
-        cond = float(np.linalg.cond(norm.T @ norm)) if len(basis) > 1 else 1.0
+        cond = float(lapack.cond(norm.T @ norm)) if len(basis) > 1 else 1.0
         detected = (r2 >= STRAIN_MIN_R2 and anisotropy >= STRAIN_MIN_ANISOTROPY
                     and n_used >= STRAIN_MIN_REFLECTIONS)
         out.append(StrainAnalysis(

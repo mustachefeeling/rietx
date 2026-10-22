@@ -152,7 +152,7 @@ def attribute_region(model: CompiledModel, bases: DerivativeBases,
     # number sat at 7×10³ … 1×10⁶ regardless of separability.
     scale = np.linalg.norm(a, axis=0)
     normed = a / scale
-    cond = float(np.linalg.cond(normed.T @ normed))
+    cond = float(lapack.cond(normed.T @ normed))
     coef, *_ = lapack.lstsq(a, b, rcond=None)
     resid = b - a @ coef
     ss_tot = float(b @ b)

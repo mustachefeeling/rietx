@@ -1410,10 +1410,14 @@ def _close(trial: MagneticTrial, data, limits, mask) -> MagneticTrial:
                            phase_support_sigma=plan.phase_support_sigma,
                            telemetry=False)
     moments, _n, _pairs = _moment_rows(ref, result, ref.fitted_structure)
+    # measured on the moments it is reported beside, where the trial took one
+    drift = (None if trial.anti_translation_drift is None
+             else anti_translation_residual(ref.fitted_structure.phases[0]))
     return replace(trial, rwp=float(result.statistics.rwp),
                    gof=float(result.statistics.gof),
                    r_magnetic=r_magnetic(result, mask), moments=moments,
                    held=tuple(result.stages[-1].held) if result.stages else (),
+                   anti_translation_drift=drift,
                    fit_status=result.status, _structure=ref.fitted_structure,
                    _result=result)
 
@@ -2613,13 +2617,30 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
                 magnetic, g_map, plan, instrument, data, limits, tie_width,
                 zero)
     if package_plan and verdict == "solved" and ordered:
-        ordered = (_close(ordered[0], data, limits, mask), *ordered[1:])
-        caveats.append(
-            f"class {ordered[0].class_index}, the winner: its Rwp, GoF, R_mag "
-            f"and moments are from a closing stage at windows dropping "
-            f"{CLOSING_WINDOW_TOL:g} of each peak, run after the ranking; its "
-            f"ΔBIC, the other rows and the nuclear reference are at the "
-            f"declared stages' windows, where every trial was ranked")
+        try:
+            closed = _close(ordered[0], data, limits, mask)
+        except Exception as exc:      # noqa: BLE001 - reported, never swallowed
+            caveats.append(
+                f"class {ordered[0].class_index}, the winner: its closing stage "
+                f"raised {type(exc).__name__}: {exc}, so its Rwp, GoF, R_mag and "
+                f"moments are the ranked fit's, at the declared stages' windows")
+        else:
+            ordered = (closed, *ordered[1:])
+            caveats.append(
+                f"class {closed.class_index}, the winner: its Rwp, GoF, R_mag "
+                f"and moments are from a closing stage at windows dropping "
+                f"{CLOSING_WINDOW_TOL:g} of each peak, run after the ranking; its "
+                f"ΔBIC, the other rows and the nuclear reference are at the "
+                f"declared stages' windows, where every trial was ranked")
+            if closed.fit_status != "converged":
+                caveats.append(
+                    f"class {closed.class_index}, the winner: its closing stage "
+                    f"stopped at {closed.fit_status!r}, so its moments and their "
+                    f"esds measure where the solver stopped rather than a "
+                    f"minimum")
+    # the refinements only the close continues from: a solution that kept
+    # them would hold every trial's compiled model alive
+    ordered = tuple(replace(t, _refinement=None, _plan=None) for t in ordered)
 
     reference = _reported_reference(reference_of, references, kk, ordered, tied)
     if reference is not None:

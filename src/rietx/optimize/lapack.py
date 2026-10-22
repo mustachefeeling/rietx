@@ -1,6 +1,6 @@
 """The decompositions a fit makes, with a second LAPACK driver where the first does not converge.
 
-numpy's ``eigh``, ``eigvalsh``, ``svd``, ``pinv`` and ``lstsq`` call LAPACK's
+numpy's ``eigh``, ``eigvalsh``, ``svd``, ``pinv``, ``lstsq`` and ``cond`` call LAPACK's
 divide-and-conquer drivers (``syevd``, ``gesdd``, ``gelsd``), and so does
 SciPy's Trust Region Reflective solver for its step.  Those drivers iterate,
 and one can stop without converging on a finite matrix, raising
@@ -22,7 +22,8 @@ converge`` out of the covariance's ``eigh`` at a converged fit.
 
 Every decomposition on the fit path goes through here, which
 ``tests/test_lapack_fallback.py`` holds: ``optimize/``, ``model/``,
-``params/``, ``report/``, ``background/``, ``solve/`` and ``refine.py``.
+``params/``, ``report/``, ``background/``, ``solve/``, ``refine.py``,
+``multi.py`` and ``sequential.py``.
 Every fallback is counted on the calling thread (:func:`retries`), so a stage
 records how many it took (``StageResult.n_lapack_fallbacks``).  A failure of
 the twin as well raises as before, where ``_guarded_covariance``'s rule
@@ -47,7 +48,13 @@ def retries() -> int:
     return getattr(_local, "n", 0)
 
 
-def _note() -> None:
+def _note(*arrays) -> None:
+    """Count a fallback, or re-raise the first driver's error where an input
+    is not finite.  numpy reports a NaN or an infinity as non-convergence, and
+    SciPy's ``check_finite`` would turn that into a ``ValueError`` that no
+    ``except LinAlgError`` (``_guarded_covariance``'s rule, #225) catches."""
+    if not all(np.isfinite(x).all() for x in arrays):
+        raise
     _local.n = retries() + 1
 
 
@@ -56,8 +63,8 @@ def eigh(a: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     try:
         return np.linalg.eigh(a)
     except np.linalg.LinAlgError:
-        _note()
         a = np.asarray(a)
+        _note(a)
         if a.ndim == 2:
             return scipy.linalg.eigh(a, driver="ev")
         flat = a.reshape(-1, *a.shape[-2:])
@@ -72,8 +79,13 @@ def eigvalsh(a: np.ndarray) -> np.ndarray:
     try:
         return np.linalg.eigvalsh(a)
     except np.linalg.LinAlgError:
-        _note()
-        return scipy.linalg.eigh(a, eigvals_only=True, driver="ev")
+        a = np.asarray(a)
+        _note(a)
+        if a.ndim == 2:
+            return scipy.linalg.eigh(a, eigvals_only=True, driver="ev")
+        flat = a.reshape(-1, *a.shape[-2:])
+        return np.stack([scipy.linalg.eigh(m, eigvals_only=True, driver="ev")
+                         for m in flat]).reshape(a.shape[:-1])
 
 
 def svd(a: np.ndarray, full_matrices: bool = True, compute_uv: bool = True):
@@ -81,7 +93,7 @@ def svd(a: np.ndarray, full_matrices: bool = True, compute_uv: bool = True):
     try:
         return np.linalg.svd(a, full_matrices=full_matrices, compute_uv=compute_uv)
     except np.linalg.LinAlgError:
-        _note()
+        _note(np.asarray(a))
         return scipy.linalg.svd(a, full_matrices=full_matrices, compute_uv=compute_uv,
                                 lapack_driver="gesvd")
 
@@ -93,7 +105,7 @@ def pinv(a: np.ndarray, rcond: float = 1e-15) -> np.ndarray:
     try:
         return np.linalg.pinv(a, rcond=rcond)
     except np.linalg.LinAlgError:
-        _note()
+        _note(np.asarray(a))
         u, s, vt = scipy.linalg.svd(np.asarray(a), full_matrices=False,
                                     lapack_driver="gesvd")
         keep = s > rcond * (s.max() if s.size else 0.0)
@@ -109,10 +121,24 @@ def lstsq(a: np.ndarray, b: np.ndarray, rcond: float | None = None):
     try:
         return np.linalg.lstsq(a, b, rcond=rcond)
     except np.linalg.LinAlgError:
-        _note()
         a = np.asarray(a)
+        _note(a, np.asarray(b))
         cut = (np.finfo(np.float64).eps * max(a.shape) if rcond is None else rcond)
         return scipy.linalg.lstsq(a, b, cond=cut, lapack_driver="gelss")
+
+
+def cond(a: np.ndarray) -> float:
+    """``np.linalg.cond(a)``, the 2-norm condition number, from a ``gesvd``
+    SVD where ``gesdd`` does not converge."""
+    try:
+        return np.linalg.cond(a)
+    except np.linalg.LinAlgError:
+        a = np.asarray(a)
+        _note(a)
+        s = scipy.linalg.svd(a, compute_uv=False, lapack_driver="gesvd")
+        with np.errstate(divide="ignore", invalid="ignore"):
+            r = s[0] / s[-1]
+        return np.inf if np.isnan(r) else r
 
 
 # SciPy's TRF imports ``svd`` into its own module and offers no driver
