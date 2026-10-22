@@ -225,7 +225,7 @@ class _CentringForbidden(NamedTuple):
     two_theta: float      # the named peak
     hkl: tuple[int, int, int]
     height: float | None  # its Δ/σ; None when the caller passed no heights
-    half_order: bool      # 2·hkl is a reciprocal-lattice vector (λ/2 can)
+    half_order: bool      # 2·hkl is allowed by the group (λ/2 can put a line there)
 
 
 def _centring_sentence(f: _CentringForbidden, radiation: str) -> str:
@@ -430,8 +430,12 @@ def _centring_finding(model, values, ip: int, sg, peaks: np.ndarray,
     row = delta[pick]
     near = np.flatnonzero(row <= row.min() + 1e-9)
     label = max(tuple(int(v) for v in hkl[j]) for j in near)
-    half = bool(reciprocal_lattice_mask(
-        sg, 2 * np.asarray([label], dtype=np.int64))[0])
+    # λ/2 contamination is a nuclear reflection, so the group's whole
+    # reflection condition applies (centring, glides, screws), not the
+    # centring alone: (2 0 0) is extinct on F d -3 m (International Tables
+    # for Crystallography, Vol. A, §2.2.13)
+    half = not sg.operations().is_systematically_absent(
+        [2 * v for v in label])
     return _CentringForbidden(
         count=int(on.sum()),
         n_positions=int(len(np.unique(np.round(tt, 6)))),

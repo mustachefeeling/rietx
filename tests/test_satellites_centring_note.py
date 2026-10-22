@@ -35,9 +35,9 @@ CELL = (7.5, 7.8, 7.7, 90.0, 90.0, 90.0)
 SENTENCE = "centring forbids"
 
 
-def _phase(symbol: str):
+def _phase(symbol: str, cell=CELL):
     P = rx.Parameter
-    a, b, c, al, be, ga = CELL
+    a, b, c, al, be, ga = cell
     return rx.Phase(
         name="M", space_group=symbol,
         cell=rx.Cell(a=P(value=a), b=P(value=b), c=P(value=c),
@@ -59,15 +59,15 @@ def _pattern(y=None) -> rx.PatternData:
                           intensity=np.asarray(y).tolist())
 
 
-def _setup(symbol: str, instrument=None):
+def _setup(symbol: str, instrument=None, cell=CELL):
     instrument = instrument or rx.Instrument.constant_wavelength_neutron(
         LAMBDA, fwhm_deg=0.35)
-    structure = rx.Structure(phases=[_phase(symbol)])
+    structure = rx.Structure(phases=[_phase(symbol, cell)])
     model = compile_model(structure, instrument, _pattern())
     table = ParameterTable(structure, instrument)
     values = table.decode(table.x0())
     lam = float(model.line_lambdas(values)[0])
-    ticks = np.asarray(model.phases[0].reflections.two_theta(CELL, lam),
+    ticks = np.asarray(model.phases[0].reflections.two_theta(cell, lam),
                        dtype=np.float64)
     return model, values, lam, ticks[np.isfinite(ticks)]
 
@@ -101,6 +101,32 @@ def test_a_peak_on_a_centring_forbidden_position_is_named_with_its_hkl():
     assert "impurity" in arm.note
     assert "such as (1 0 0) itself" in arm.note
     assert "four causes" in arm.note
+
+
+def test_lambda_half_is_not_offered_where_the_group_extinguishes_2hkl():
+    """λ/2 contamination needs a nuclear (2h 2k 2l) that exists.
+
+    On F the centring alone passes 2·hkl always, but ``F d -3 m`` extinguishes
+    (2 0 0) by its d glide, so a peak on the forbidden (1 0 0) has no line to
+    be contaminated by; ``F m -3 m`` (no glide) keeps the cause, as does the
+    ``F m m m`` case above.
+    """
+    cell = (8.5, 8.5, 8.5, 90.0, 90.0, 90.0)
+    notes = {}
+    for symbol in ("F d -3 m", "F m -3 m"):
+        model, values, lam, ticks = _setup(symbol, cell=cell)
+        tt = np.asarray(two_theta_deg(
+            d_spacings(np.asarray([[1, 0, 0]], dtype=np.float64), *cell), lam),
+            dtype=np.float64)
+        arm = analyse_satellites(model, values, residual_two_theta=tt,
+                                 ticks=ticks,
+                                 residual_height_over_sigma=[30.0])[0]
+        assert "the F centring forbids" in arm.note, arm.note
+        notes[symbol] = arm.note
+    assert "λ/2" not in notes["F d -3 m"]
+    assert "three causes" in notes["F d -3 m"]
+    assert "four causes" in notes["F m -3 m"]
+    assert "λ/2 contamination from the (2 0 0) line" in notes["F m -3 m"]
 
 
 def test_the_sentence_changes_no_count_and_no_ranking():
