@@ -326,6 +326,86 @@ the tree that day.
 
 ## Handover log
 
+### 2026-10-22 (9th session) — indexing's reference moves over, so nothing in the old tree lacks a home; help links point into the new manual
+
+Every fact the old manual held now has a page in the new one. Indexing was the last chapter,
+and it went over as four Reference pages: peak lists, the search and its result, the evidence,
+and the extinction symbol. Each was written from the code, and about fifty statements in the
+old chapter proved wrong, from a pattern it called bundled that is not, to a caveat it called
+mild that in fact fails a candidate. The help popovers in the GUI and the glossary now link
+into the new manual, at the version that is running, rather than into the old tree. So the
+one thing between today and the old tree's retirement is the maintainer's decision whether to
+retire before the last two guides exist.
+
+*Done.* `reference/peaks.md`, `indexing.md`, `indexing-evidence.md` and `extinction.md`, by
+three lanes, each checked here on its riskiest claims (the six-line `weak_line` floor,
+`engines.py:1182`; the 16-point and time-of-flight refusals, `peaks.py:437`; the refuting
+`geometric_ambiguity` on an unreached candidate, `consensus.py:631`; the single-finder floor
+in `consensus.grade`; `screened` written only under `max_classes` or a cancel,
+`extinction.py:982-999`). Three `ExtinctionCandidate` field comments corrected to match. The
+partition (Notes by task, Retirement) went 283 → 202 → 45 → 0, and `indexing` has its
+`RETIRED` target. Then: the tutorials' authorship note moved below each opening paragraph and
+the notebooks rebuilt (`build.py --check` clean), so `NOTEBOOK_WAIVED` is gone; tutorial 03's
+indexed cell now prints in its conventional setting, which no prose quotes. The Switching
+feature table links six guides. WP-1979's three pieces, by a lane: `_about.docs_version`
+(moved from `docs/docs_versions.py`, which imports it) and `_about.docs_base`; the GUI serves
+`docs_base(version)` as `docs_url`; all 124 `help.py` anchors re-pointed (86 to `theory/`, five
+narrowed to their own subsection; 23 indexing to `reference/indexing` and `peaks`; 11
+time-of-flight to `reference/instrument`; three extra-peak to `theory/profiles`; `vars.*` to
+the tie guide), and the anchor test reads `built_docs_tree`. The lane flagged the old
+variable-bounds passage as lost; it is in `reference/parameter-table.md` § Ties and the tie
+guide.
+
+*Review* (`/code-review high --fix`): six findings. Fixed three: the E305 blank line, the
+stale `gui/src/lib/help.ts` comment, and the vitest corpora still quoting the site-root shape
+(now `…/docs/dev` and a `theory/` anchor; dist rebuilt, 586 vitest passed, svelte-check
+clean). Declined three, written under Notes by task, Retirement, for the maintainer: a
+release's help links 404 once `KEEP_MINORS` stops hosting its minor; a `.postN` or `+local`
+build links `dev`, as the old regex mapped it; `kept_releases` keeps its own tag parse beside
+`docs_version` (they disagree only on a tag such as `v1.010.0`).
+
+*Routed* (step 5): the indexing comments calling an unreached ambiguity search *capping*, the
+`fom_panel_disagrees` "caps" comment, the two-engine `budget_seconds` text and the unconfirmed
+`PEAK_SIGMA_ASSUMED` docstring → WP-2013 `### Inherited`; whether the unreached case should
+cap or refute, and `VALIDATION_RESERVE_FRACTION` validating none of fluorapatite's twelve
+candidates on a default run → WP-2007 `### Inherited`. No closed WP written to.
+
+*Measured* (`[dev]`, Linux x86-64 cloud container). Fast selection on the final tree, alone:
+11 013 passed, 203 skipped, 2 xfailed in 26:01; `tests.added_test_times`: 0 added tests (the
+waiver's deletion removed assertions, not a test). The full selection did not run: no measured
+number can move (docs, link targets, comments). Lane acceptance (the WP's files plus
+`test_docs_versions`, `test_examples`, `test_vale`, `test_reference_pages`): 220 passed each;
+the anchors lane's selection 361 passed. Two default `index_pattern` runs (lane B): qarr
+corundum 121.3 s, four systems entered, certified R cell first; fluorapatite 130.7 s, no
+candidate validated. Vale (3.24.0, CI's binary) over `docs/docs`: 0 errors.
+
+Lanes (`session_usage.py lanes`): four, all `opus-5-5`, none redone. The two kept items
+(the tutorial waiver ~10, the Switching links ~8) were declared inline rather than as lines of
+their own, so the tool counts 0 kept.
+
+| lane | est | requests | main at dispatch | re-read | left in main | lane $ | main $ | in-session $ | saved $ |
+|---|---|---|---|---|---|---|---|---|---|
+| indexing-peaks-reference | 35 | 92 | 190K | 0K of 13K | 15K | 6.60 | 0.69 | 11.65 | +4.17 |
+| indexing-search-reference | 40 | 94 | 205K | 0K of 135K | 8K | 8.66 | 0.34 | 15.44 | +6.35 |
+| indexing-extinction-reference | 30 | 62 | 214K | 0K of 4K | 28K | 3.98 | 0.97 | 7.13 | +1.94 |
+| versioned-docs-anchors | 30 | 72 | 267K | 0K of 2K | 11K | 4.10 | 0.63 | 7.19 | +2.46 |
+
+Saved +$14.92, 32 % of the session; estimates ran 2.38× short. Baseline's selective policy for
+sessions peaking under 300K: −5 % (one session).
+
+*Gotchas.* Vale is not on the container's PATH; CI's pinned binary, fetched into the
+scratchpad with its sha256, runs after `vale sync`. The worktree guard refuses a heredoc
+followed by `git` in one command, and a `( cd … )` subshell; split them. `npm --prefix gui ci`
+works here (node 22), so a GUI-source edit can be rebuilt in a cloud session.
+
+Next: (1) the maintainer's choice, now the only blocker: retire the old tree before guides 18
+and 24 exist, or wait for WP-1910, WP-1510 and the magnetic WPs. (2) On a yes, retirement:
+the `RETIRED` rows from the map, `docs/manual/` deleted with its build, guards and
+`pages.yml` step, `tests/test_manual_api.py`'s old-tree half, the skill's two links and the
+landing page's `/manual.html` link, and `make_figures.py`'s `hump()` docstring. Several lanes'
+worth; the three declined review findings ride with it. (3) Guides 18 and 24 when their WPs
+land.
+
 ### 2026-10-20 (8th session) — every old chapter's reference moves over except indexing's, with about 150 stale facts corrected on the way
 
 The new manual now holds the reference half of every old chapter except indexing. Twenty-eight
