@@ -24,6 +24,7 @@ What is pinned, and against what:
 
 from __future__ import annotations
 
+import re
 from fractions import Fraction
 from pathlib import Path
 
@@ -384,6 +385,9 @@ K_M = (Fraction(1, 2), Fraction(1, 2), Fraction(0))
 #: the O site (4 of seeds 0-199 do; at Γ on Mn none): a single-draw probe
 #: refused that child as ``DISTORTION_CHILD_LARGER``.
 UNLUCKY_SEEDS = (142, 194)
+#: The one seed of 0-79 whose first draw keeps an accidental operation at X
+#: or M (S10(a,b) at M, all sites; review round 3).
+UNLUCKY_SEED_AT_M = 41
 
 
 def _setting(cands):
@@ -415,7 +419,7 @@ def test_the_probe_tolerance_and_scale_decide_no_child(at_r, at_gamma, at_x_and_
     """A tolerance 1000× tighter, or a field 5× smaller or 4× larger: the same children.
 
     The bound on ``_PROBE_SYMPREC`` and ``_PROBE_RMS``: the operation check fixes
-    an answered child, and this pins the raise path, a false
+    an answered child's group, and this pins the raise path, a false
     ``DISTORTION_CHILD_LARGER`` (any raise fails the test) on every call.
     """
     for name, value in probe.items():
@@ -432,18 +436,23 @@ def test_a_tolerance_at_the_probe_scale_finds_extra_operations(at_gamma, monkeyp
         I.distortion_candidates(parent, K_GAMMA, sites="Mn")
 
 
-@pytest.mark.parametrize("seed", [1, 2026, *UNLUCKY_SEEDS])
-def test_the_probe_seed_decides_no_child(at_r, at_gamma, monkeypatch, seed):
-    """Other seeds, including two whose first draw is unlucky: the same children, P, p, atoms."""
+@pytest.mark.parametrize("seed", [1, 2026, *UNLUCKY_SEEDS, UNLUCKY_SEED_AT_M])
+def test_the_probe_seed_decides_no_child(at_r, at_gamma, at_x_and_m, monkeypatch, seed):
+    """Other seeds, three whose first draw is unlucky: the same children, P, p, atoms at Γ, R, X, M."""
     monkeypatch.setattr(I, "_PROBE_SEED", seed)
-    for parent, k, sites, expected in _every_call(at_r, at_gamma, (None, {})):
+    for parent, k, sites, expected in _every_call(at_r, at_gamma, at_x_and_m):
         assert _setting(I.distortion_candidates(parent, k, sites=sites)) == _setting(expected)
 
 
-def test_one_unlucky_draw_does_not_refuse_a_child(at_r, monkeypatch):
-    """The positive arm of the seed test: with a single draw, an unlucky seed refuses S6(a,b)."""
-    parent, _ = at_r
-    monkeypatch.setattr(I, "_PROBE_SEED", UNLUCKY_SEEDS[0])
+@pytest.mark.parametrize(("parent_from", "k", "sites", "seed", "label"), [
+    ("at_r", K_R, ["O"], UNLUCKY_SEEDS[0], "S6(a,b)"),
+    ("at_x_and_m", K_M, None, UNLUCKY_SEED_AT_M, "S10(a,b)"),
+], ids=["R", "M"])
+def test_one_unlucky_draw_does_not_refuse_a_child(request, monkeypatch, parent_from, k, sites,
+                                                  seed, label):
+    """The positive arm of the seed test: with a single draw, an unlucky seed refuses a child."""
+    parent, _ = request.getfixturevalue(parent_from)
+    monkeypatch.setattr(I, "_PROBE_SEED", seed)
     monkeypatch.setattr(I, "_PROBE_DRAWS", 1)
-    with pytest.raises(ValueError, match=r"DISTORTION_CHILD_LARGER.*S6\(a,b\)"):
-        I.distortion_candidates(parent, K_R, sites=["O"])
+    with pytest.raises(ValueError, match=r"DISTORTION_CHILD_LARGER.*" + re.escape(label)):
+        I.distortion_candidates(parent, k, sites=sites)

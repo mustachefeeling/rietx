@@ -2358,8 +2358,9 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
     so is the group; this function adds the setting and the basis.  A child
     whose group a generic displacement of these atoms does not keep exactly
     (``DISTORTION_CHILD_LARGER``) or spglib does not name
-    (``DISTORTION_CHILD_UNIDENTIFIED``) is refused, after three independent
-    draws of the displacement have each failed, since one can by chance.
+    (``DISTORTION_CHILD_UNIDENTIFIED``) is refused, after ``_PROBE_DRAWS``
+    independent draws of the displacement have each failed, since one can by
+    chance.
     """
     from ..representation.distortion import _refuse_shared_sites, distortion_basis
     from ..symmetry import resolve_group

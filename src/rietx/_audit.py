@@ -1017,17 +1017,20 @@ ROWS: tuple[Row, ...] = (
         evidence=("probability: a false DISTORTION_CHILD_LARGER needs every draw to keep an accidental "
                   "operation; one draw did in 3 of 320 calls at the shipped 50x (perovskite, Gamma/X/M/R, "
                   "seeds 0-79), and a genuine one keeps it on every draw; the first draw is the one an "
-                  "answered call uses; tests/test_distortion_candidates.py::test_one_unlucky_draw_does_not_refuse_a_child")),
+                  "answered call uses; tests/test_distortion_candidates.py::test_the_probe_seed_decides_no_child "
+                  "bounds it at 3 (seeds 142 and 194 at R, 41 at M answer as seed 1419), "
+                  "tests/test_distortion_candidates.py::test_one_unlucky_draw_does_not_refuse_a_child "
+                  "its positive arm (the same seeds refuse at 1)")),
     Row("rietx.crystallography.magnetic.isotropy._PROBE_RMS", "constant", tier=1, value=0.05,
-        evidence=("numerical scale, 50x _PROBE_SYMPREC: the operation check fixes an answered child, and "
+        evidence=("numerical scale, 50x _PROBE_SYMPREC: the operation check fixes an answered child's group, and "
                   "tests/test_distortion_candidates.py::test_the_probe_tolerance_and_scale_decide_no_child bounds the raise path (0.01 and "
                   "0.2 A: the same children at Gamma, R, X and M, no false DISTORTION_CHILD_LARGER)")),
     Row("rietx.crystallography.magnetic.isotropy._PROBE_SEED", "constant", tier="invariant", value=1419,
-        evidence=("answer-invariant: tests/test_distortion_candidates.py::test_the_probe_seed_decides_no_child (seeds 1, 2026 and two whose "
-                  "first draw keeps an accidental operation) asserts the same child groups, (P, p) and "
-                  "child atoms at Gamma and R")),
+        evidence=("answer-invariant: tests/test_distortion_candidates.py::test_the_probe_seed_decides_no_child (seeds 1 and 2026, two whose "
+                  "first draw keeps an accidental operation at R, and one whose first draw does at M) asserts the same child "
+                  "groups, (P, p) and child atoms at Gamma, R, X and M")),
     Row("rietx.crystallography.magnetic.isotropy._PROBE_SYMPREC", "constant", tier=1, value=0.001,
-        evidence=("numerical tolerance: the operation check fixes an answered child, and "
+        evidence=("numerical tolerance: the operation check fixes an answered child's group, and "
                   "tests/test_distortion_candidates.py::test_the_probe_tolerance_and_scale_decide_no_child bounds the raise path (1e-6: the "
                   "same children at Gamma, R, X and M, no false DISTORTION_CHILD_LARGER); "
                   "tests/test_distortion_candidates.py::test_a_tolerance_at_the_probe_scale_finds_extra_operations its positive arm")),
