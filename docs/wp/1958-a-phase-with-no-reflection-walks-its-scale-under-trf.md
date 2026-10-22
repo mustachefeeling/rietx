@@ -126,7 +126,9 @@ Relevant rules, restated:
   solvers, the seen phases' positive arm, iron with a reflection under TRF,
   `phase_support_sigma=None`, a restrained scale, a magnetic window, the joint
   hold) and four in `test_qpa.py`. The first batch failed on `main`'s `src`
-  (8 of 10 run there).
+  (8 of 10 run there). Fast selection on the final tree (Mac, worktree
+  `.venv`, Python 3.12, `-n 4`): 11 039 passed, 191 skipped, 2 xfailed; the
+  12 added items cost 3.3 s locally (`tests.added_test_times`).
   *Gotchas*: with `phase_support_sigma=None` a lineless phase is still held,
   which `PlanSpec`'s description, `RefinementPlan`'s comment, the skill row
   and the 1.10.0 note now say. `RefinementResult.qpa` moved from
