@@ -1,9 +1,8 @@
 # WP-2021 — The manual and the landing page are one site
 
-Milestone: unscheduled · Status: 🔄 2026-10-22 — decisions A and B taken; the build is under way
+Milestone: unscheduled · Status: ✅ 2026-10-22 — one token file and one set of faces, header and footer for both pages; contrast measured to AA; menus drop the tab's prefix
 Track: The repo's own process
 Depends on: 1986 soft (its last two guides land in the same tree; either order works)
-Priority: P3 2026-10-22 — the public face of the docs, asked for by the maintainer; nothing in it changes a number or a decision, so not P2
 
 ## Goal
 
@@ -187,19 +186,19 @@ The two as they were put:
 
 ## Tasks
 
-- [ ] **Write the house style down**, as `docs/landing/README.md` § House style covering both
+- [x] **Write the house style down**, as `docs/landing/README.md` § House style covering both
       pages: the rules now in CSS comments, the scales above, the label style, and which
       colour does which job.
-- [ ] **One token file.** Move the landing page's `:root` blocks to `docs/landing/src/tokens.css`,
+- [x] **One token file.** Move the landing page's `:root` blocks to `docs/landing/src/tokens.css`,
       inlined by `build.py` and copied into the manual's static files by `conf.py`.
       `custom.css` then *maps* `--pst-color-*` onto those names and spells no hex of its own.
       Decide the semantic colours here.
       A test computes the WCAG contrast of every text-on-ground pair in both themes.
-- [ ] **Two typefaces, self-hosted.** Ship Instrument Sans and IBM Plex Mono as woff2 under the
+- [x] **Two typefaces, self-hosted.** Ship Instrument Sans and IBM Plex Mono as woff2 under the
       manual's `_static/fonts/`, with their OFL licence beside them, for body, headings and
       code; drop the Google Fonts subset link. A versioned tree is read for years, so it must
       not depend on an outside URL. Re-run `check_equations.py`.
-- [ ] **Header.**
+- [x] **Header.**
       - The brand links to `rietx_home`, as NN/g's subsite rule asks: the top-left logo goes
         to the main home. `rietx-landing.html` and its CSS are deleted.
       - The theme control becomes the landing page's two-state toggle, as our own component
@@ -207,7 +206,7 @@ The two as they were put:
         moves from `rietx-theme` to those keys, so one choice holds across the origin.
       - The version switcher loses its box.
       - In the drawer: spacing above the controls, and the current tab marked.
-- [ ] **Sidebars.**
+- [x] **Sidebars.**
       - Set `--pst-sidebar-primary-width` to a fixed width in the 17–19rem band that
         Docusaurus (300 px) and Starlight (18.75rem) sit in. It is 25 % today, up to 22rem.
       - Set `html_sidebars = {"**": ["sidebar-nav-bs"]}` to drop the collapse button. Its
@@ -219,30 +218,35 @@ The two as they were put:
         change re-wraps the text.
       - Replace "Show Source" (`secondary_sidebar_items`, `html_show_sourcelink`) with a quiet
         link to the page's markdown twin (WP-1980), or drop it.
-- [ ] **Breadcrumb.** End the trail at the parent, never the page itself (GOV.UK's form).
+- [x] **Breadcrumb.** End the trail at the parent, never the page itself (GOV.UK's form).
       Name its root in a word ("Manual") rather than a house icon, so on a tab's front page
       it reads "Manual ›" above the H1 and repeats nothing. Every page but the front page
       then links the manual's home, which NN/g's subsite rule wants once the logo goes to
       `/`. Set it in regular weight and `--muted`, so the H1 is the only heavy thing at the
       top of the article. This needs our own `breadcrumbs.html`.
-- [ ] **Footer and banner.**
+- [x] **Footer and banner.**
       - The landing page's line (licence, GitHub, Cite, Sources) and the manual's version, in
         `footer_start`/`footer_end`, with `html_show_sphinx = False`.
       - The dev banner becomes a quiet one-line tag in the manner of GOV.UK's phase banner.
         The warning colour stays for an older release's banner, which pydata draws in the
         same red today.
-- [ ] **Inside the article.**
+- [x] **Inside the article.**
       - Inline code is ink on a tint.
       - Links are `--accent-ink` with a tinted underline, and the violet hover goes.
       - Tab sets draw no border round the panel, only a rule under the tabs.
       - Previous/Next lose the underline.
       - The front page gets a real lede and no right column.
-      - Mermaid uses `base` with theme variables from the tokens.
+      - Mermaid uses `base` with theme variables from the tokens. *Done otherwise*: the
+        extension passes one init config for both themes and mermaid's variables are literal
+        colours, so `custom.css` colours the diagram from the tokens over `neutral`/`dark`.
       - The light figure twins are saved on a transparent ground; regenerate the 16 figures.
-- [ ] **Titles** (decision B). As recommended: drop "About" from the seven Concepts H1s and
+        *Done otherwise*: `make_figures.py`'s reason for an opaque light twin stands, so they
+        are saved on the light `--bg`, read from `tokens.css`; all 16 regenerated.
+- [x] **Titles** (decision B). As recommended: drop "About" from the seven Concepts H1s and
       their link texts. Give each Guides toctree entry an explicit short title without "How
-      to", while the H1 keeps it. Update both front pages' sentence.
-- [ ] **Tests.** Change the two brand tests above. Add:
+      to", while the H1 keeps it. Update both front pages' sentence. *Taken narrower*
+      (Decision 6): both tabs' menus drop the prefix and every title keeps it.
+- [x] **Tests.** Change the two brand tests above. Add:
       - the token-file test, and the contrast test;
       - every built page's breadcrumb omits its own title, and every page but the front
         page links the manual's home;
@@ -251,8 +255,9 @@ The two as they were put:
 
       Extend `docs/landing/tools/page_shots.js` to shoot the manual's front page, a Concepts
       page and a Theory page at 1440, 900 and 390 px in both themes, beside the landing page.
-- [ ] Skill: none expected. The skill links `/docs/` and quotes no page title (grep
+- [x] Skill: none expected. The skill links `/docs/` and quotes no page title (grep
       2026-10-22: no `[How to` or `[About` link in `docs/skill/`). Re-check at the end.
+      Re-checked at the close: none, and no title moved.
 
 ## Acceptance
 

@@ -293,6 +293,15 @@ the tree that day.
 - `start/gui-quickstart.md` § Where to go next links the Guides index where the old page
   linked the Python quickstart. Repoint it when the tutorials render under Start.
 
+### Inherited
+
+- From WP-2021: the Guides menu names each guide without its "How to". So guides 18 and 24
+  each enter `guides/index.md`'s toctree as `Label <doc>`, the label being the H1 less
+  "How to", capitalised; the H1 keeps it.
+  `tests/test_manual.py::test_a_tabs_menu_names_each_page_without_the_prefix_its_tab_says`
+  fails on a bare entry. A new numbered equation re-runs `check_equations.py`, now measured
+  in the manual's own face.
+
 ## Non-goals
 
 - The tutorials themselves (WP-1545 owns them).
