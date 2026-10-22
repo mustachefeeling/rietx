@@ -732,7 +732,7 @@ def _with_stephens(inputs: StandardInputs) -> None:
     """
     for phase in inputs.structure.phases:
         if phase.microstrain is None:
-            phase.microstrain = StephensStrain.isotropic(1000.0, phase.cell)
+            phase.microstrain = StephensStrain.isotropic(STRAIN_SEED_PPM, phase.cell)
     _extend_broadening_stage(inputs.plan, ["phases.*.microstrain.dof.*"],
                              strain_seed=STRAIN_SEED_PPM)
 
