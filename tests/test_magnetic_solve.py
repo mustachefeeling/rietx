@@ -1951,3 +1951,90 @@ def test_a_budget_stopped_trial_far_behind_the_leader_does_not_block_it():
         tie_width=SOLVE_TIE_DELTA_BIC, d_min=1.0, nuclear_rwp=0.2,
         nuclear_gof=1.0, nuclear_r_magnetic=0.5, n_magnetic_channels=10)
     assert "class 1: the fit stopped at 'max_iter'" in str(s)
+
+
+# ================================ a k found only on the centred lattice's own set
+#
+# The X point of an F lattice, k = (1, 0, 0), is a zone-boundary point the
+# conventional {0, ½}³ never listed (2·(½, 0, 0) = (1, 0, 0) is not an F
+# reciprocal-lattice vector, while (1, 0, 0) itself is k ≡ −k).  With no k
+# given, ``solve_magnetic`` takes its k from the satellite arm's ranking, so it
+# can only reach X if the default generator lists it.  The structure is stated
+# in the conventional cell, which holds it exactly: k·t is an integer for every
+# primitive-conventional translation and ½ for the centrings (½, 0, ½) and
+# (½, ½, 0), which therefore carry time reversal.  Moment along c on 4a, so the
+# magnetic point group is m'm'm.
+
+X_POINT_OPS = ["x,y,z,+1", "-x,-y,z,+1", "-x,y,-z,-1", "x,-y,-z,-1",
+               "-x,-y,-z,+1", "x,y,-z,+1", "x,-y,z,-1", "-x,y,z,-1"]
+X_POINT_CENTRINGS = ["x,y,z,+1", "x,y+1/2,z+1/2,+1", "x+1/2,y,z+1/2,-1",
+                     "x+1/2,y+1/2,z,-1"]
+
+
+def face_centred(moment=None, magnetic=None) -> Phase:
+    return Phase(
+        name="face_centred", space_group="F m m m", cell=_cell(5.0, 5.4, 5.8),
+        atoms=[_atom("Mn1", "Mn", (0.0, 0.0, 0.0), moment=moment),
+               _atom("O1", "O", (0.0, 0.0, 0.5), biso=0.6)],
+        magnetic_symmetry=magnetic)
+
+
+@pytest.fixture(scope="module")
+def x_point_solution():
+    """``solve_magnetic`` with no k on a pattern simulated at the X point.
+
+    **Consumers carry** ``@pytest.mark.xdist_group("magnetic-solve-x-point")``.
+    """
+    instrument = neutron()
+    truth = face_centred(
+        moment=Moment.from_values((0.0, 0.0, 3.0), "Mn3+"),
+        magnetic=MagneticSymmetry(operations=X_POINT_OPS,
+                                  centerings=X_POINT_CENTRINGS))
+    data = simulate(truth, instrument)
+    ref = nuclear_fit(face_centred(), data, instrument)
+    return rx.solve_magnetic(ref, data, sites=["Mn1"], ion="Mn3+")
+
+
+@pytest.mark.xdist_group("magnetic-solve-x-point")
+def test_with_no_k_given_the_x_point_of_an_f_lattice_is_the_k_chosen(
+        x_point_solution):
+    """The k step reaches X, and the isotropy route finds its candidate groups.
+
+    Measured on this pattern: the arm's (1, 0, 0) indexes 13 of 13 unexplained
+    peaks from 14 satellite positions, the runner-up (½, ½, ½) 1 from 35.  Under
+    the conventional {0, ½}³ the vector was not a candidate, so whatever k the
+    workflow chose was wrong.
+    """
+    solution = x_point_solution
+    assert solution.k == ("1", "0", "0"), (solution.k, solution.k_reason)
+    assert solution.k_route == "satellite ranking"
+    assert solution.k_trials[0].k == ("1", "0", "0")
+    assert solution.k_trials[0].matched == solution.n_unexplained
+    # the k-subgroup step runs at X: three candidate classes at Mn on 4a
+    assert len(solution.trials) == 3, [t.bns_number for t in solution.trials]
+    assert {t.bns_number for t in solution.trials} == {"64.480", "66.500"}
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "magnetic_supercell refuses the X-point child cell of an F lattice "
+    "(|det P| = 1/2, a primitive cell of the magnetic lattice) until the "
+    "child-cell route of issue #612 lands; the k step above is unaffected"))
+@pytest.mark.xdist_group("magnetic-solve-x-point")
+def test_the_x_point_structure_is_solved(x_point_solution):
+    solution = x_point_solution
+    assert solution.verdict == "solved", solution.reason
+    assert solution.best.moments[0].magnitude == pytest.approx(3.0, abs=0.3)
+
+
+@pytest.mark.xdist_group("magnetic-solve-x-point")
+def test_the_x_point_refusal_is_an_abstention_that_says_why(x_point_solution):
+    """Until #612: every class is refused by name, and the verdict says so.
+
+    The abstention must not read as a statement about the specimen.
+    """
+    solution = x_point_solution
+    assert all(t.status == "refused" for t in solution.trials)
+    assert solution.verdict == "abstained"
+    assert "not a result about the specimen" in solution.reason
+    # the refusal is magnetic_supercell's, named (its text cites issue #612)
+    assert "|det P| = 1/2" in solution.reason
