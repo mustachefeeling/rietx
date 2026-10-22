@@ -545,7 +545,6 @@ from .._nearmiss import did_you_mean
 #: And ``QuantitativePhaseAnalysis.unmeasured_held`` (which of those a stage held
 #: rather than found lineless) and ``NodeMetrics.held_scale_phases`` (the held
 #: scales a node's replay reads), both defaulting to the empty list.
-#: Also in 0.59 (C3, issue #916): ``LeBailValidation.predicted_but_absent_uncancellable``,
 #: 0.59, C3 (issue #916), same cycle as the 0.59 above: ``LeBailValidation.predicted_but_absent_uncancellable``,
 #: ``.predicted_but_absent_uncancellable_in_window``, ``.absent_source`` and
 #: ``.n_lines_screened``,
