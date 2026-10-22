@@ -74,7 +74,6 @@ from ..schemas.instrument import Instrument
 from ..schemas.pattern import PatternData
 from .ambiguity import SupercellEvidence, uncancellable
 from .fom import (
-    FOM_N,
     LINE_COINCIDENCE_RTOL,
     MATCH_SIGMA,
     RESOLUTION_FWHM,
@@ -89,9 +88,11 @@ from .fom import (
 
 #: Lines of de Wolff's window: the capping count takes the predicted positions
 #: up to the Q of the N-th usable observed line, N the lesser of this and the
-#: list's length.  Aliased to the panel's N, since it is the same window M₂₀ is
-#: defined on.
-SCREEN_WINDOW_LINES = FOM_N
+#: list's length.  de Wolff's own twenty (1968, J. Appl. Cryst. 1, 108), the
+#: window M₂₀ is defined on, held as its own literal: the panel's
+#: :data:`~rietx.indexing.fom.FOM_N` is this package's choice for F_N and a
+#: retune of it must not move the absence window.
+SCREEN_WINDOW_LINES = 20
 _LN2 = float(np.log(2.0))
 
 
