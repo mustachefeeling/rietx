@@ -1,12 +1,12 @@
 # %% [markdown]
 # # Steering a refinement
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # We take the fluorapatite refinement from notebook 02 and change what it refines.
 # First we tie three displacement parameters together.
 # Then we run a plan that frees two parameters the data cannot separate, go back in the history, and hold one of them.
 # By the end you can tie, go back and hold, and read the verdict rietx gives for a structure.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces the first fit and how to read its parameters.
