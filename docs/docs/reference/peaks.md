@@ -3,7 +3,7 @@
 This page gives the peak list an indexing search runs on: what `pick_peaks` and `fit_peaks` return and refuse, the fields of a `PeakList` and of each `ObservedPeak`, the flags that take a line out of the list, and the verdict `assess_peak_list` gives on whether a list can be indexed, with its systematic-shift screen.
 
 Indexing finds a lattice from line positions alone, for a specimen whose cell is unknown or only guessed.
-The search itself is `index_pattern` and the extinction screen after it is `determine_extinction_symbol`; this page covers what both take in.
+The search itself is `index_pattern` ([The indexing search and its result](indexing.md)) and the extinction screen after it is `determine_extinction_symbol`; this page covers what both take in.
 The quadratic form the search runs over, what a peak list can support and the shift measured before the cell are in [Indexing](../theory/indexing.md).
 
 :::{admonition} Provisional
@@ -420,7 +420,7 @@ All ten sets of a published indexing benchmark {cite}`bergmann2004` arrive as ba
 Whether a list can be searched and whether its candidates can be scored are separate questions.
 Below 20 usable lines the classical figures are not computed: de Wolff's M₂₀ is defined on twenty lines {eq}`idx-m20`, and $F_N$ is scored at twenty as this package's own choice, since Smith and Snyder define it for any N and recommend thirty {eq}`idx-fn`.
 The search still runs, over the supported systems only, and ranks on the reduced panel.
-`DataQualityReport.fom_undefined` names each missing figure with its reason, [`INDEX_PANEL_REDUCED`](diagnostics-indexing.md#index_panel_reduced) says so, and the candidates' confidence is capped below `high`.
+`DataQualityReport.fom_undefined` names each missing figure with its reason, [`INDEX_PANEL_REDUCED`](diagnostics-indexing.md#index_panel_reduced) says so, and the candidates' confidence is capped below `high` ([The confidence gate](indexing.md#the-confidence-gate)).
 
 `DataQualityReport.volume_envelope` is Smith's (1977) estimate of the cell volume from the d-spacing of the N-th line {eq}`idx-volume`, with N the smaller of `envelope_n` and the usable count.
 It is per system because the estimate differs by up to 96× across them: a cubic F lattice shows far fewer distinct lines than a primitive triclinic one of the same volume.
@@ -474,12 +474,12 @@ So `SearchSpecSpec.shift_allowance_deg` takes the allowance, never the scatter.
 A window wider than the shift fails the other way: at 0.060° the same certified pattern returns a cell 293 000 ppm from its certificate, graded `high`.
 
 `index_pattern` sizes its window in this order: a declared `SearchSpecSpec.shift_allowance_deg`; a screen allowance from either measured road; a picked list's own lower-quartile FWHM, capped at 0.05°; and 0.05° otherwise.
-The last two are assumed, which [`INDEX_SHIFT_ALLOWANCE`](diagnostics-indexing.md#index_shift_allowance) reports and which caps the grade.
+The last two are assumed, which [`INDEX_SHIFT_ALLOWANCE`](diagnostics-indexing.md#index_shift_allowance) reports and which caps the grade ([The confidence gate](indexing.md#the-confidence-gate)).
 
 `ShiftScreen.best` names a cause, and `ShiftScreen.separable` says whether the name means anything; over a limited angular range it often does not.
 The magnitude survives that and the cause does not.
 `ShiftScreen.prediction_spread_deg` gives the cost of picking the wrong cause, counting only the templates that fit comparably: a template the data reject is no candidate cause.
-`index_pattern` corrects a cell with a template only when the screen is separable, or when that spread is within the list's median σ(2θ); a template you declare is never overridden.
+`index_pattern` corrects a cell with a template only when the screen is separable, or when that spread is within the list's median σ(2θ); a template you declare is never overridden ([The search specification](indexing.md#the-search-specification)).
 Against references, [`INDEX_SHIFT_DETECTED`](diagnostics-indexing.md#index_shift_detected) or [`INDEX_SHIFT_MODEL_AMBIGUOUS`](diagnostics-indexing.md#index_shift_model_ambiguous) on the report states the screen; when the pairs measured a shift, `index_pattern` reports [`INDEX_SHIFT_FROM_PAIRS`](diagnostics-indexing.md#index_shift_from_pairs).
 
 ### Reflection pairs
