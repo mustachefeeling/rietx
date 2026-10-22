@@ -3686,10 +3686,14 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     ``WINDOW_AREA_TOL`` for a declared stage and the plan's
     ``closing_window_tol`` for its closing stage; a caller rebuilding a stage
     from its record passes :func:`recorded_window_tol` of the recorded value.
-    At ``CLOSING_WINDOW_TOL`` or tighter the axial-divergence quadrature takes
-    the closing node rule (``profiles.fcj.CLOSING_NODES_PER_FWHM``), so the
-    recorded window fraction also says which rule a stage ran, and a declared
-    stage compiles as it did before.
+    Below ``WINDOW_AREA_TOL`` the axial-divergence quadrature takes the closing
+    node rule (``profiles.fcj.CLOSING_NODES_PER_FWHM``), so the recorded window
+    fraction also says which rule a stage ran, and a declared stage compiles as
+    it did before.  The line is the declared stages' fraction rather than
+    ``CLOSING_WINDOW_TOL``, so a closing stage loosened past 1e-3 for speed
+    keeps the asymmetry its rule was measured to (WP-2002, 2026-10-22): at the
+    declared rule it would leave up to 5.6e-3 of a peak's maximum, 7.8x the
+    lab bar, whatever its windows.
 
     The pattern must be in 2θ and the instrument a constant-wavelength one:
     this is the backstop for :func:`rietx.schemas.pattern.require_two_theta`,
@@ -3707,10 +3711,10 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         raise ValueError(
             f"window_area_tol is a fraction of a peak's area, strictly between 0 "
             f"and 1 (got {window_area_tol})")
-    # the closing stage's FCJ node rule, for every compile at its windows or
-    # tighter.  A declared stage keeps the rule it had, so a plan with
+    # the closing stage's FCJ node rule, for every compile finer than the
+    # declared stages.  A declared stage keeps the rule it had, so a plan with
     # closing_window_tol=None is the fit it was (the seventh round's Q2)
-    closing_precision = window_area_tol <= CLOSING_WINDOW_TOL
+    closing_precision = window_area_tol < WINDOW_AREA_TOL
     mask = pattern.in_range_mask()
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
     if two_theta_limits is not None:

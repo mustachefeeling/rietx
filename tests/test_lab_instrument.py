@@ -684,7 +684,7 @@ def test_fcj_max_nodes_meets_the_bar(family, eta):
 def test_the_closing_node_rule_meets_the_bar(family, eta, region):
     """The closing rule (``CLOSING_NODES_PER_FWHM`` 12, ``CLOSING_MIN_NODES`` 10,
     ``CLOSING_MAX_NODES`` 1024, ``CLOSING_SKIP_EXTENT_FWHM_RATIO`` 3e-4), which
-    ``compile_model`` takes at the closing stage's windows or tighter, over the
+    ``compile_model`` takes at windows finer than the declared stages', over the
     domain the four tests above fail on (WP-2002, the seventh round's Q2).
     The declared stages keep the rule above, since the closing stage computes
     the answer.  Measured 2026-10-21 over a finer grid of this domain (8 500
@@ -692,6 +692,36 @@ def test_the_closing_node_rule_meets_the_bar(family, eta, region):
     bars.  Made to fail on 2026-10-21 with ``CLOSING_NODES_PER_FWHM`` patched
     to 6."""
     _assert_fcj_bar(family, region, eta, closing=True)
+
+
+def test_the_closing_node_rule_serves_every_compile_finer_than_the_declared_stages():
+    """A ``closing_window_tol`` loosened past 1e-3 for speed keeps the closing
+    node rule, and the declared stages' 2 % keeps its own (WP-2002,
+    2026-10-22).  The line sat at ``CLOSING_WINDOW_TOL`` before, so 1.5e-3
+    sampled the asymmetry at the declared rule, 7.8x the lab bar."""
+    from rietx.model.forward import CLOSING_WINDOW_TOL, WINDOW_AREA_TOL
+    from tests.test_acceptance_qpa_roundrobin import corundum_phase, qarr_instrument
+
+    structure = rx.Structure(phases=[corundum_phase()])
+    ins = qarr_instrument()
+    ins.geometry.axial_sl.value = 0.03
+    tt = np.arange(20.0, 140.0, 0.02)
+    grid = rx.PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+
+    def nodes(tol):
+        return compile_model(structure, ins, grid, window_area_tol=tol).phases[0].fcj_n
+
+    # a reflection past the scan's end whose narrower window holds no point has
+    # no nodes at either rule, so only reflections with points in both compare
+    closing = nodes(CLOSING_WINDOW_TOL)
+    for tol in (5e-3, 0.0199):
+        looser = nodes(tol)
+        both = (looser > 0) & (closing > 0)
+        assert both.sum() > 0.9 * (closing > 0).sum()
+        assert np.array_equal(looser[both], closing[both]), tol
+    declared = nodes(WINDOW_AREA_TOL)
+    both = (declared > 0) & (closing > 0)
+    assert np.all(declared[both] <= closing[both]) and declared[both].sum() < closing[both].sum()
 
 
 # ---------------------------------------------------------------------------

@@ -282,8 +282,10 @@ class PlanSpec(Base):
             "answer with peak windows dropping this fraction of each peak's "
             "area and solves with every glob the plan freed.  Earlier stages "
             "drop 2 %, which moves lab answers by up to an esd; 1e-3 meets "
-            "0.1 esd on three of four families at 1.05-2.05x the fit time.  null = no "
-            "closing stage, today's answers bit for bit (WP-2002)"))
+            "0.1 esd on three of four families at 1.2-2.3x the fit time.  Any "
+            "value under 2 % keeps the closing stage's finer axial-divergence "
+            "sampling.  null = no closing stage, today's answers bit for bit "
+            "(WP-2002)"))
 
     @field_validator("phase_support_sigma")
     @classmethod

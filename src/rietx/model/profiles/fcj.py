@@ -68,7 +68,7 @@ SKIP_EXTENT_FWHM_RATIO = 0.02
 NODES_PER_FWHM = 6.0
 MIN_NODES = 8
 MAX_NODES = 64
-#: The same rule for a compile at the closing stage's windows or tighter: the
+#: The same rule for a compile finer than the declared stages' windows: the
 #: closing stage, and every evaluation outside a fit (WP-2002, the seventh
 #: round's Q2).  The declared stages' rule above leaves up to 5.6e-3 of the
 #: peak maximum on a lab Lorentzian against a bar of 7.2e-4, a tenth of σ at
@@ -134,7 +134,7 @@ def fcj_node_count(two_theta_deg: float, fwhm_deg: float, sl: float, hl: float,
     point slit beside a sample of half-length S still smears the peak, over
     the uniform weight the module docstring derives.  ``closing`` takes the
     closing rule (``CLOSING_NODES_PER_FWHM`` and its three siblings), which
-    ``compile_model`` asks for at the closing stage's windows or tighter.
+    ``compile_model`` asks for at any window fraction under the declared stages'.
     """
     if not fcj_live(sl, hl):
         return 0

@@ -511,9 +511,10 @@ positions follow $s$, $h$ and $2\theta$ smoothly. A declared stage takes
 {{ NODES_PER_FWHM }} nodes per FWHM of smear where the map moves fastest,
 clamped to [8, 64]. When the asymmetric extent falls below
 {{ SKIP_EXTENT_FWHM_RATIO }} of the peak FWHM, it treats the peak as symmetric.
-The closing stage, and any model evaluated outside a fit, takes
+A compile at windows finer than the declared stages' takes
 {{ CLOSING_NODES_PER_FWHM }} nodes per FWHM, clamped to [10, 1024], and treats
-a peak as symmetric below {{ CLOSING_SKIP_EXTENT_FWHM_RATIO }}. That rule keeps
+a peak as symmetric below {{ CLOSING_SKIP_EXTENT_FWHM_RATIO }}. The closing
+stage and any model evaluated outside a fit are such compiles. That rule keeps
 the composite peak within a tenth of the counting noise of a 512-node
 reference on lab and synchrotron peaks. The declared stages' rule misses it by
 up to eight times on a lab Lorentzian, and those stages only steer.
