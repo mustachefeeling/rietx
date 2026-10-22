@@ -136,10 +136,13 @@ single-pattern fit.
 ```{math}
 :label: est-cov
 
+\begin{gathered}
 \mathrm{Cov} \;=\; \chi^2_{\mathrm{red}} \cdot (J^\top J)^{-1},
 \qquad \mathrm{esd}^{\mathrm{uncorr}}_i = \sqrt{\mathrm{Cov}_{ii}},
-\qquad \mathrm{esd}_i = f \cdot \mathrm{esd}^{\mathrm{uncorr}}_i,
+\\
+\mathrm{esd}_i = f \cdot \mathrm{esd}^{\mathrm{uncorr}}_i,
 \qquad f = \sqrt{S'' / S},
+\end{gathered}
 ```
 
 {source}`rietx.optimize.least_squares.covariance_estimates`
