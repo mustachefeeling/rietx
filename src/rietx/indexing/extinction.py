@@ -815,7 +815,7 @@ def _prefit(data: PatternData, candidate: CellCandidate, instrument: Instrument,
     if _background_unseeded(ins.background):
         ins = ins.model_copy(deep=True)
         ins.background = auto_background(data, two_theta_limits=two_theta_limits,
-                                         source=ins.source, seed=True)
+                                         source=ins.source, seed=True).background
     ref = Refinement(structure_from_candidate(candidate, space_group=symbol),
                      ins, history=False)
     result = ref.fit(data, mode="lebail", plan="profile_only",

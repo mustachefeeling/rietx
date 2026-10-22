@@ -833,16 +833,17 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
                         f"a background-subtracted Rwp of {net:.3f}, above the "
                         f"{REFERENCE_NET_RWP_MAX:g} at which the allowed lines "
                         "are modelled well enough to read an absence against")
-                     + ", so every refutation and ΔBIC below measures that "
+                     + ", so every refutation and ΔBIC below may measure that "
                      "misfit; the classes are ranked but best_or_none() "
                      "abstains"),
             where=[f"{screen.system} {screen.centring}, cell "
                    f"{_cell_str(screen.cell)}"],
-            suggestion=("the cell is the first suspect: a cell a few tenths of "
-                        "a per cent off at synchrotron resolution is outside "
-                        "the basin any Le Bail can refine it from.  Re-index or "
-                        "Le Bail-refine the cell from a better start, then "
-                        "check the range, the wavelength and the width law")))
+            suggestion=("any of these, in no order: the cell (a few tenths of a "
+                        "per cent off at synchrotron resolution is outside the "
+                        "basin a Le Bail can refine it from; re-index it from a "
+                        "better start), a phase the reference does not model, "
+                        "weak data (counting longer helps; re-indexing does "
+                        "not), the range, the wavelength, the width law")))
     alive = [c for c in screen.candidates if not c.refuted and c.screened]
     # the classes a declared prior leaves a member in; every class without one
     admissible = [c for c in alive if c.space_groups]
