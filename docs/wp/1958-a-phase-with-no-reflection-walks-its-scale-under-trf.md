@@ -1,6 +1,6 @@
 # WP-1958 — A phase with no reflection in range walks its scale under TRF
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-22 — both halves built, on review
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P3 2026-10-13 — a quoted fraction is wrong, but `PHASE_UNCONSTRAINED` and `QPA_ESD_UNAVAILABLE` fire, and only `solver="trf"` reaches it
@@ -73,12 +73,12 @@ Relevant rules, restated:
 
 ## Tasks
 
-- [ ] Reproduce under `solver="trf"` and the default LM in a test, and
+- [x] Reproduce under `solver="trf"` and the default LM in a test, and
       record the scale and the fraction at each stage.
-- [ ] Decide: hold the scale of a phase with no reflection in range, or have
+- [x] Decide: hold the scale of a phase with no reflection in range, or have
       the QPA report no fraction for it. Record the choice and what moves on
       `tests/test_scale_b_ridge.py` and `tests/test_qpa.py`.
-- [ ] Land it, with a test under both solvers.
+- [x] Land it, with a test under both solvers.
 
 ## Acceptance
 
@@ -94,6 +94,37 @@ Relevant rules, restated:
 - #954, the public report of this defect.
 
 ## Handover log
+
+- **2026-10-22** — built both halves of the #954 decision. A phase with no
+  reflection in the fitted range now keeps the scale it was given under LM and
+  TRF alike, single and joint fits, and has no weight fraction; the other
+  fractions are fractions of the phases seen in range, and the finding, the
+  QPA table and the text summary say so. On the WP's repro the TRF walk to
+  164.7 and the 99.99 wt% iron are gone, and the three seen phases now carry
+  esds, since the zero column no longer sits in their sum.
+  *Done*: the support hold takes a lineless phase whole, scale included
+  (`refine._lineless_phases`, read off `phase_line_counts`), whatever
+  `phase_support_sigma` says, and never releases it; the joint runner's
+  `_unseen` does the same per histogram. `_quantify_phases` drops the phase
+  from the sum and from the esd block; `PhaseQuantity.weight_fraction` is
+  `None` for it and `QuantitativePhaseAnalysis.unmeasured_phases` names it
+  (schema 0.59, additive). `PHASE_UNCONSTRAINED`'s third wording says the
+  scale was held and what the fractions are relative to. Brindley runs over
+  the measured phases only; `profile_fraction` refuses an unmeasured phase;
+  `qpa_trajectory` skips its patterns.
+  *Measured* (`main` 4ca36160, the repro): LM scale 1e-4, iron 0.61 wt%; TRF
+  164.73, 99.99 wt%; `QPA_ESD_UNAVAILABLE` on both. Here both 1e-4 exactly,
+  iron `None`, corundum/zincite/fluorite 72.44/3.68/23.88 wt% ± 0.40/0.16/0.35.
+  Joint fit of two copies under TRF on `main`: 214.1 and 2.31, now 1e-4 each.
+  What moved on the tests: `test_held_phase.py`'s blind-range test asserted
+  the old rule (scale never held) and now asserts the new one; four new tests
+  in `test_scale_b_ridge.py` (acceptance under both solvers, the seen phases'
+  positive arm, iron with a reflection under TRF, the joint hold) and three
+  in `test_qpa.py`. All fail on `main`'s `src`.
+  *Gotchas*: with `phase_support_sigma=None` a lineless phase is still held,
+  which the 1.10.0 note on B1 now says; the generality row for
+  `StageResult.held` carries the extension in its evidence.
+  Next: review on the PR; closing moves this narrative to the v1.10 record.
 
 - **2026-10-13** — filed from WP-1523's close. No open WP owns it: 1534 and
   1463 are closed, 1420 is about a held phase re-entering a chain, and 1523's

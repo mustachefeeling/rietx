@@ -30,6 +30,7 @@ With two phases the fractions sum to 1, so their esds are equal.
 The fractions are of the crystalline phases in the model, and `result.qpa.crystalline_only` says so.
 An amorphous component or a crystalline phase you did not model is shared out among the phases you did, so the fractions still sum to 1.
 Report them as "wt % of the crystalline content".
+A phase with no reflection in the fitted range has no fraction (`None`), and the others are relative to the phases seen in range ([QPA reference](../reference/qpa.md#a-phase-with-no-reflection-in-the-fitted-range)).
 
 ## Check the minor phase
 

@@ -183,6 +183,15 @@ An amorphous fraction is a broad hump the background has to absorb, and a missin
 It is the RMS of what remains in the background envelope after a cubic and a 1/(2θ) term, over the median level, so it measures broad structure no ordinary background shape accounts for.
 
 Quote a fraction as a share of the crystalline content: 57.3 % corundum is wrong if the specimen is 20 % glass, while 57.3 % of the crystalline content is right either way.
+
+### A phase with no reflection in the fitted range
+
+A phase none of whose reflections lies in the fitted range has no fraction: its `weight_fraction` and esd are `None`, and `QuantitativePhaseAnalysis.unmeasured_phases` names it.
+Its scale's column is zero at every value, so the stage holds the scale at the value you handed in, under every solver, and a fraction read off it would be that start value.
+The other fractions are normalised over the phases seen in range, so they sum to 1 without it.
+They are relative to those phases, not to the crystalline content: a specimen known to hold the unmeasured phase has no absolute fractions from this range.
+[`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) says so, and so do the QPA table's caveats.
+Widen the range to cover a reflection of the phase, or take the phase out of the model.
 Internal-standard and amorphous quantification, spiking a known weight of a known phase and solving for the rest, is not implemented.
 
 ## Microabsorption
