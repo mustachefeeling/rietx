@@ -187,8 +187,11 @@ the tree that day.
   CLAUDE.md (four region gates and a global one), `Project.open`'s ten refusals,
   `history.jsonl`'s append and `save`'s rewrite, and `apply.py`'s eighteen kinds.
 - The Switching tab's feature table (`switching/at-a-glance.md` § Features and what they were
-  checked against) has a "Read more" column linking Concepts and Reference pages. Point each row
-  at its guide once the guides exist. Those pages' python blocks carry `no-exec` lines naming
+  checked against) has a "Read more" column linking Concepts and Reference pages. Done
+  2026-10-22 for the six rows a guide answers (laboratory X-ray and peak shape →
+  `calibrate`, joint → `joint`, background → `hump`, phase fractions → `qpa`, other
+  programs' files → `foreign`); the synchrotron, neutron, Le Bail and Pawley, strain,
+  extinction and texture rows have no guide and keep theirs. Those pages' python blocks carry `no-exec` lines naming
   `examples/switching.py`, so a rename of anything it calls fails `tests/test_examples.py`.
 
 **Retirement.**
