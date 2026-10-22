@@ -45,6 +45,17 @@ MEASURED = json.loads((DATA / "polyhedra_phases.json").read_text(encoding="utf-8
 _KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
 
 
+#: The numbers the module declares no default for (the caller supplies them),
+#: held here at the values its first review round ran at.
+FRACTION, SIGMA, COORDINATION_WEIGHT = 0.8, 0.1, DECISIVE_DELTA_BIC
+
+
+def _sp(**kw):
+    """A ``SolvePriors`` with the caller-supplied numbers filled in."""
+    kw.setdefault("weights", ch.PriorWeights(coordination=COORDINATION_WEIGHT))
+    return ch.SolvePriors(sigma=SIGMA, fraction=FRACTION, **kw)
+
+
 def _p(v):
     return rx.Parameter(value=float(v))
 
@@ -85,7 +96,7 @@ def test_contact_set_is_the_geometry_tables(row):
               for j, a in enumerate(phase.atoms) for c in "xyz"}
     g = _metric_g(row["cell"])
     shifts = _shell(g, CONTACT_MAX_ANG)
-    chem = ch.compile_chemistry(phase)
+    chem = ch.compile_chemistry(phase, _sp())
     xyz = _xyz(phase)
     pos = chem.positions(xyz)
     found = ch.contacts(pos, chem.g, CONTACT_MAX_ANG, centres=chem.first)
@@ -108,7 +119,7 @@ def test_clash_term_sums_the_oracle_checked_contacts(row):
     to make every contact out to 3 Å a clash, but for pairs the occupancy rule
     skips: the mixed Mg/Fe olivine's coincident 0.9 + 0.1 sites."""
     phase = _measured(row)
-    chem = ch.compile_chemistry(phase)
+    chem = ch.compile_chemistry(phase, _sp())
     pos = chem.positions(_xyz(phase))
     coexist = chem.occupancy[:, None] + chem.occupancy[None, :] > 1.0 + 1e-9
     r0 = np.where(coexist, 3.0, 0.0)
@@ -117,7 +128,7 @@ def test_clash_term_sums_the_oracle_checked_contacts(row):
     keep = coexist[chem.site_of[c.a], chem.site_of[c.b]]
     c = ch.Contacts(c.a[keep], c.b[keep], c.shift[keep], c.d[keep])
     expected = 0.5 * float(np.sum(((3.0 - c.d) / 0.1) ** 2))
-    got = ch.clash_energy(pos, chem.site_of, chem.g, r0, 0.1)
+    got = ch.clash_energy(pos, chem.site_of, chem.g, r0, SIGMA)
     assert got == pytest.approx(expected, rel=1e-12, abs=1e-12)
     assert ch.clash_count(pos, chem.site_of, chem.g, r0) == len(c.d) // 2
 
@@ -128,14 +139,14 @@ def test_site_clash_is_the_per_move_difference_of_the_total():
     phase = _phase("toy", "P 21/c", (5.1, 6.2, 7.3, 90, 101, 90),
                    [_atom("A", "O2-", 0.11, 0.23, 0.31), _atom("B", "O2-", 0.42, 0.18, 0.07),
                     _atom("C", "Mg2+", 0.27, 0.61, 0.44)])
-    chem = ch.compile_chemistry(phase)
+    chem = ch.compile_chemistry(phase, _sp())
     xyz = _xyz(phase)
     moved = xyz.copy()
     moved[1] = [0.13, 0.27, 0.36]
     p0, p1 = chem.positions(xyz), chem.positions(moved)
-    e0 = ch.clash_energy(p0, chem.site_of, chem.g, chem.r0)
-    e1 = ch.clash_energy(p1, chem.site_of, chem.g, chem.r0)
-    s = ch.site_clash(np.stack([p0, p1]), chem.site_of, np.array([1, 1]), chem.g, chem.r0)
+    e0 = ch.clash_energy(p0, chem.site_of, chem.g, chem.r0, SIGMA)
+    e1 = ch.clash_energy(p1, chem.site_of, chem.g, chem.r0, SIGMA)
+    s = ch.site_clash(np.stack([p0, p1]), chem.site_of, np.array([1, 1]), chem.g, chem.r0, SIGMA)
     assert e1 > e0
     assert s[1] - s[0] == pytest.approx(e1 - e0, rel=1e-12)
 
@@ -144,10 +155,10 @@ def test_site_clash_refuses_what_its_27_cells_cannot_hold():
     g = _metric_g((2.0, 8.0, 8.0, 90, 90, 90))
     with pytest.raises(ValueError, match="27 cells"):
         ch.site_clash(np.zeros((1, 1, 3)), np.zeros(1, int), np.zeros(1, int), g,
-                      np.array([[3.5]]))
+                      np.array([[3.5]]), SIGMA)
     with pytest.raises(ValueError, match="outside"):
         ch.site_clash(np.zeros((1, 1, 3)), np.array([1]), np.zeros(1, int), g,
-                      np.array([[1.0]]))
+                      np.array([[1.0]]), SIGMA)
 
 
 # -- 2. the inversion image the source run missed -------------------------------
@@ -179,20 +190,20 @@ def test_an_atom_past_its_inversion_image_clashes(x, defect_finds_it):
     """O at (x, ½, ½) in P -1 sits 0.5 Å from its inversion image either way."""
     phase = _phase("P-1 toy", "P -1", (5.0, 5.2, 5.4, 88, 92, 91),
                    [_atom("O1", "O2-", x, 0.5, 0.5)])
-    chem = ch.compile_chemistry(phase)
+    chem = ch.compile_chemistry(phase, _sp())
     xyz = _xyz(phase)
     pos = chem.positions(xyz)
     assert ch.clash_count(pos, chem.site_of, chem.g, chem.r0) == 1
-    assert ch.clash_energy(pos, chem.site_of, chem.g, chem.r0) > 100.0
+    assert ch.clash_energy(pos, chem.site_of, chem.g, chem.r0, SIGMA) > 100.0
     c = ch.contacts(pos, chem.g, 1.0)
     assert len(c.d) == 2 and np.allclose(c.d, c.d[0]) and 0.49 < c.d[0] < 0.53
     # the term reads unwrapped images the same way: R·x + t straight off the ops
     raw = np.concatenate([np.einsum("mab,b->ma", r, xyz[j]) + t
                           for j, (r, t) in enumerate(chem.ops)])
     assert np.any(raw > 1.0) or np.any(raw < 0.0) or x < 0.5
-    assert ch.site_clash(raw[None], chem.site_of, np.array([0]), chem.g, chem.r0)[0] \
+    assert ch.site_clash(raw[None], chem.site_of, np.array([0]), chem.g, chem.r0, SIGMA)[0] \
         == pytest.approx(ch.site_clash(pos[None], chem.site_of, np.array([0]), chem.g,
-                                       chem.r0)[0], rel=1e-12)
+                                       chem.r0, SIGMA)[0], rel=1e-12)
     assert (_shifted_before_wrapped(phase, 0) < float(chem.r0[0, 0])) is defect_finds_it
 
 
@@ -256,7 +267,7 @@ def _chem(h, priors):
 
 
 def test_a_planted_coordination_is_caught_by_the_prior_and_not_by_the_data(cdoh2):
-    priors = ch.SolvePriors(coordination=(COORDINATION,))
+    priors = _sp(coordination=(COORDINATION,))
     true_chem, true_xyz = _chem(H_TRUE, priors)
     bad_chem, bad_xyz = _chem(H_PLANTED, priors)
     assert true_chem.terms(true_xyz).coordination[0].counts == {2: 1.0}
@@ -270,7 +281,7 @@ def test_a_planted_coordination_is_caught_by_the_prior_and_not_by_the_data(cdoh2
     # the prior: zero on the truth, decisive on the plant
     assert right.chi2_prior == {"clash": 0.0, "coordination": 0.0}
     assert wrong.total - right.total >= DECISIVE_DELTA_BIC
-    assert wrong.chi2_prior["coordination"] == pytest.approx(2 * ch.COORDINATION_WEIGHT)
+    assert wrong.chi2_prior["coordination"] == pytest.approx(2 * COORDINATION_WEIGHT)
 
     cost, f_true, f_bad = cdoh2["poisson"]
     right = ch.candidate_cost(cost, f_true, true_chem, true_xyz)
@@ -291,10 +302,10 @@ def test_composition_holds_for_the_truth_and_the_plant():
 
 def test_chi2_data_is_identical_with_and_without_priors(cdoh2):
     cost, _f_true, f_bad = cdoh2["poisson"]
-    arms = [ch.SolvePriors(),
-            ch.SolvePriors(coordination=(COORDINATION,)),
-            ch.SolvePriors(coordination=(COORDINATION,)).control(),
-            ch.SolvePriors(coordination=(COORDINATION,),
+    arms = [_sp(),
+            _sp(coordination=(COORDINATION,)),
+            _sp(coordination=(COORDINATION,)).control(),
+            _sp(coordination=(COORDINATION,),
                            exclude=(ch.ExcludedContact("H", "Cd", 3.0),),
                            weights=ch.PriorWeights(clash=7.0, coordination=3.0))]
     got = []
@@ -307,23 +318,21 @@ def test_chi2_data_is_identical_with_and_without_priors(cdoh2):
 
 def test_the_zero_weight_control_measures_every_term_and_weighs_none(cdoh2):
     cost, _f_true, f_bad = cdoh2["poisson"]
-    priors = ch.SolvePriors(coordination=(COORDINATION,),
+    priors = _sp(coordination=(COORDINATION,),
                             exclude=(ch.ExcludedContact("H", "Cd", 3.0),))
     chem, xyz = _chem(H_PLANTED, priors.control())
     terms = chem.terms(xyz)
     assert terms.chi2_prior == {"clash": 0.0, "coordination": 0.0}
     assert terms.raw["coordination"] == 2.0 and terms.raw["clash"] > 0.0
     c = ch.candidate_cost(cost, f_bad, chem, xyz)
-    assert c.total == c.chi2_data and c.prior_share == 0.0 and not c.prior_dominant
+    assert c.total == c.chi2_data and c.prior_share == 0.0
 
 
-def test_prior_dominant_is_the_share_rule():
-    share = ch.PRIOR_SHARE_MAX
-    at = ch.CandidateCost(chi2_data=1.0 - share, chi2_prior={"clash": share})
-    over = ch.CandidateCost(chi2_data=1.0 - share, chi2_prior={"clash": share, "x": 0.01})
-    assert at.prior_share == pytest.approx(share) and not at.prior_dominant
-    assert over.prior_dominant
+def test_the_prior_share_is_reported_and_no_verdict_is_read_off_it():
+    c = ch.CandidateCost(chi2_data=3.0, chi2_prior={"clash": 1.0})
+    assert c.prior_share == pytest.approx(0.25)
     assert ch.CandidateCost(0.0, {"clash": 0.0}).prior_share == 0.0
+    assert not hasattr(c, "prior_dominant")
 
 
 # -- composition ------------------------------------------------------------------
@@ -366,7 +375,7 @@ def test_a_split_site_is_skipped_and_said_so_while_a_real_clash_fires():
                     _atom("Ob", "O2-", 0.15, 0.10, 0.10, occ=0.5),   # 0.3 Å from Oa
                     _atom("Oc", "O2-", 0.60, 0.60, 0.60),
                     _atom("Od", "O2-", 0.65, 0.60, 0.60)])           # 0.3 Å from Oc
-    chem = ch.compile_chemistry(phase)
+    chem = ch.compile_chemistry(phase, _sp())
     pos = chem.positions(_xyz(phase))
     assert chem.r0[0, 1] == 0.0 and chem.r0[2, 3] > 0.3
     assert any("Oa–Ob" in n for n in chem.notes)
@@ -375,8 +384,8 @@ def test_a_split_site_is_skipped_and_said_so_while_a_real_clash_fires():
 
 def test_an_excluded_contact_is_a_clash_term_and_listed():
     phase = _cdoh2(H_TRUE).phases[0]
-    plain = ch.compile_chemistry(phase)
-    chem = ch.compile_chemistry(phase, ch.SolvePriors(
+    plain = ch.compile_chemistry(phase, _sp())
+    chem = ch.compile_chemistry(phase, _sp(
         exclude=(ch.ExcludedContact("Cd", "H", 2.9),)))
     assert plain.r0[0, 2] == 0.0                  # Cd²⁺ (Shannon) and H (Pyykkö): no term
     assert chem.r0[0, 2] == chem.r0[2, 0] == 2.9
@@ -384,15 +393,15 @@ def test_an_excluded_contact_is_a_clash_term_and_listed():
 
 
 def test_radii_follow_the_stated_rule_and_never_mix_tables():
-    assert ch.contact_radius("Ti4+").radius == 0.745              # Shannon CR, Ti⁴⁺ VI
+    assert ch.contact_radius("Ti4+", cn=6).radius == 0.745        # Shannon CR, Ti⁴⁺ VI
     assert ch.contact_radius("O2-").table == "shannon_crystal"
-    assert ch.contact_radius("Fe2+").radius == 0.75               # LS 0.75 < HS 0.92
-    assert ch.contact_radius("Fe2+", spin="HS").radius == 0.92
+    assert ch.contact_radius("Fe2+", cn=6).radius == 0.75          # LS 0.75 < HS 0.92
+    assert ch.contact_radius("Fe2+", cn=6, spin="HS").radius == 0.92
     assert ch.contact_radius("Ti4+", cn=4).radius == 0.56
     assert ch.contact_radius("Ti4+", cn=12) is None               # no row, no radius
     assert ch.contact_radius("Mg").table == "pyykko_r1"
     assert ch.contact_radius("Mg", anion_free=True).table == "pauling_r1"
-    mixed = ch.compile_chemistry(_cdoh2(H_TRUE).phases[0])
+    mixed = ch.compile_chemistry(_cdoh2(H_TRUE).phases[0], _sp())
     assert mixed.r0[1, 2] == 0.0
     assert any("O2-" in n and "H" in n and "different tables" in n for n in mixed.notes)
 
@@ -407,9 +416,9 @@ def _two_fe(occ):
 
 def test_a_declared_exclusion_outranks_the_occupancy_rule():
     phase = _two_fe(0.5)
-    plain = ch.compile_chemistry(phase)
+    plain = ch.compile_chemistry(phase, _sp())
     assert plain.r0[0, 1] == 0.0 and any("Fe1–Fe2" in n for n in plain.notes)
-    chem = ch.compile_chemistry(phase, ch.SolvePriors(
+    chem = ch.compile_chemistry(phase, _sp(
         exclude=(ch.ExcludedContact("Fe", "Fe", 2.5),)))
     assert chem.r0[0, 1] == chem.r0[1, 0] == 2.5       # its own d, not the radii's
     assert chem.terms(_xyz(phase)).raw["clash"] > 0.0
@@ -419,10 +428,10 @@ def test_a_declared_exclusion_outranks_the_occupancy_rule():
 
 def test_the_mixed_table_note_does_not_deny_a_declared_exclusion():
     phase = _cdoh2(H_TRUE).phases[0]
-    plain = ch.compile_chemistry(phase)
+    plain = ch.compile_chemistry(phase, _sp())
     assert any("different tables" in n and "no radius-derived clash term" in n
                and "declared exclusion" not in n for n in plain.notes)
-    chem = ch.compile_chemistry(phase, ch.SolvePriors(
+    chem = ch.compile_chemistry(phase, _sp(
         exclude=(ch.ExcludedContact("O", "H", 0.8),)))
     note = next(n for n in chem.notes if "different tables" in n and "O2-" in n)
     assert "declared exclusion at 0.8 Å is its clash term" in note
@@ -433,9 +442,9 @@ def test_a_radius_past_the_27_cells_is_refused_at_compile():
     thin = _phase("thin", "P 1", (2.0, 8.0, 8.0, 90, 90, 90),
                   [_atom("H1", "H", 0.0, 0.0, 0.0), _atom("H2", "H", 0.5, 0.5, 0.5)])
     with pytest.raises(ValueError, match="27 cells"):
-        ch.compile_chemistry(thin, ch.SolvePriors(
+        ch.compile_chemistry(thin, _sp(
             exclude=(ch.ExcludedContact("H", "H", 3.5),)))
-    ch.compile_chemistry(thin, ch.SolvePriors(
+    ch.compile_chemistry(thin, _sp(
         exclude=(ch.ExcludedContact("H", "H", 1.0),)))          # a fitting one compiles
 
 
@@ -444,16 +453,16 @@ def test_an_ambiguous_cn_raises_and_names_both_rows():
         ch.contact_radius("Cu2+", cn=4)
     assert ch.contact_radius("Cu2+", cn="IV").radius > 0       # the choice made
     assert ch.contact_radius("Ti4+", cn=12) is None            # untabulated stays None
-    assert ch.contact_radius("Fe2+").radius == 0.75            # both spins: still the smaller
+    assert ch.contact_radius("Fe2+", cn=6).radius == 0.75      # both spins: still the smaller
     phase = _phase("cu", "P 1", (6.0, 6.0, 6.0, 90, 90, 90),
                    [_atom("Cu1", "Cu2+", 0.1, 0.1, 0.1)])
     with pytest.raises(ValueError, match="IVSQ"):
-        ch.compile_chemistry(phase, ch.SolvePriors(cn={"Cu2+": 4}))
+        ch.compile_chemistry(phase, _sp(cn={"Cu2+": 4}))
 
 
 def test_a_prior_that_matches_nothing_says_so():
     phase = _cdoh2(H_TRUE).phases[0]
-    chem = ch.compile_chemistry(phase, ch.SolvePriors(
+    chem = ch.compile_chemistry(phase, _sp(
         coordination=(ch.CoordinationPrior("Zn", "O", 1.8, 2.4, 6, 6),
                       ch.CoordinationPrior("Cd", "Cl", 2.0, 2.8, 6, 6)),
         exclude=(ch.ExcludedContact("Zn", "H", 2.0),),
@@ -463,11 +472,73 @@ def test_a_prior_that_matches_nothing_says_so():
     assert "CoordinationPrior Cd–Cl: no site holds Cl" in notes
     assert "ExcludedContact Zn–H: no site holds Zn" in notes
     assert "SolvePriors.cn['Ti4+']" in notes and "SolvePriors.spin['Fe2+']" in notes
-    quiet = ch.compile_chemistry(phase, ch.SolvePriors(
+    quiet = ch.compile_chemistry(phase, _sp(
         coordination=(ch.CoordinationPrior("Cd", "O", 2.0, 2.8, 6, 6),)))
     assert not any("no site" in n for n in quiet.notes)
 
 
 def test_the_radius_detail_uses_shannons_spelling():
-    assert "Ti4+ CN VI" in ch.contact_radius("Ti4+").detail
-    assert "O2- CN VI" in ch.contact_radius("O2-").detail
+    assert "Ti4+ CN VI" in ch.contact_radius("Ti4+", cn=6).detail
+    assert "O2- CN VI" in ch.contact_radius("O2-", cn=6).detail
+
+
+# -- review round 2 (#1016) -------------------------------------------------------
+
+def test_no_clash_number_is_chosen_for_the_caller():
+    """The fraction, σ and coordination weight have no default, so none is the
+    package's decision on the caller's behalf until a measured one is chosen."""
+    phase = _cdoh2(H_TRUE).phases[0]
+    with pytest.raises(TypeError):
+        ch.SolvePriors()
+    with pytest.raises(TypeError):
+        ch.SolvePriors(sigma=SIGMA, fraction=FRACTION)            # no weights
+    with pytest.raises(TypeError):
+        ch.PriorWeights()
+    with pytest.raises(TypeError):
+        ch.compile_chemistry(phase)
+    with pytest.raises(TypeError):
+        ch.clash_energy(np.zeros((1, 3)), np.zeros(1, int), np.eye(3), np.zeros((1, 1)))
+    assert ch.PriorWeights(coordination=3.0).clash == 1.0          # the unit weight stays
+    for name in ("CLASH_FRACTION", "CLASH_SIGMA_ANG", "COORDINATION_WEIGHT",
+                 "PRIOR_SHARE_MAX", "DEFAULT_CN", "INVENTORY_TOL"):
+        assert not hasattr(ch, name), name
+
+
+def test_an_ion_of_unknown_coordination_takes_the_smallest_tabulated_radius():
+    from rietx.crystallography import radii
+
+    rows = [r for r in radii._shannon_rows() if r.ion == "Si" and r.charge == 4]
+    assert len(rows) > 1
+    got = ch.contact_radius("Si4+")
+    assert got.radius == min(r.crystal_radius for r in rows)
+    assert got.radius < ch.contact_radius("Si4+", cn=6).radius     # not CN VI by default
+    assert "smallest" in got.detail and "CN IV" in got.detail
+    # a declared CN is still that CN's own row
+    assert ch.contact_radius("Si4+", cn=6).radius == radii.ionic_radius(
+        "Si4+", 6, kind="crystal").radius
+    # a declared spin narrows the rows the smallest is taken over
+    fe = [r for r in radii._shannon_rows() if r.ion == "Fe" and r.charge == 2]
+    assert ch.contact_radius("Fe2+", spin="HS").radius == min(
+        r.crystal_radius for r in fe if r.spin in (None, "HS"))
+    assert ch.contact_radius("Fe2+").radius == min(r.crystal_radius for r in fe)
+    assert ch.contact_radius("Fe9+") is None                       # untabulated charge
+
+
+def test_the_inventory_tolerance_scales_with_the_part_occupied_multiplicity():
+    """A 192-fold site at occupancy 0.333 (⅓ printed to three decimals) holds
+    63.936 atoms against 64: 0.064 off, which a flat 0.05 refused."""
+    def cu(occ):
+        return _phase("cu", "F m -3 m", (12.0, 12.0, 12.0, 90, 90, 90),
+                      [_atom("Cu", "Cu", 0.11, 0.23, 0.37, occ=occ)])
+    comp = ch.Composition("Cu", z=64)
+    check = comp.require(cu(0.333))
+    assert check.found["Cu"] == pytest.approx(192 * 0.333)
+    assert abs(check.expected["Cu"] - check.found["Cu"]) > 0.05
+    assert check.tolerance["Cu"] == pytest.approx(0.0005 * 192)
+    with pytest.raises(ch.CompositionMismatch):                    # a real shortfall
+        comp.require(cu(0.32))
+    # a full site has no rounding to forgive: one atom short is still short
+    full = _cdoh2(H_TRUE).phases[0]
+    full.atoms = full.atoms[:2]
+    assert ch.Composition("CdO2H2", z=1).check(full).tolerance == {}
+    assert not ch.Composition("CdO2H2", z=1).check(full).inventory_matches

@@ -22,8 +22,8 @@ beside** ``chi2_data`` **and never folded into it** (the architecture's D8):
 * :class:`CoordinationPrior` — "each A has n_lo to n_hi B within [d_lo, d_hi]",
   a squared hinge outside, and :class:`ExcludedContact` — "A and B never
   within d", which raises r₀ and so is folded into the clash term, listed.
-* :class:`CandidateCost` — ``chi2_data``, ``chi2_prior`` per term, the prior's
-  share of the total and the ``prior_dominant`` reading of it.
+* :class:`CandidateCost` — ``chi2_data``, ``chi2_prior`` per term and the prior's
+  share of the total, reported as the number it is (no verdict is read off it).
 
 **Images are wrapped before they are shifted.**  The source run's contact code
 applied ±1 cell shifts to symmetry images it had not brought into the cell,
@@ -35,7 +35,7 @@ component in [−½, ½), before any lattice shift is added; the shift set is th
 sized to the cutoff from there.
 
 **Clash radii are sourced or absent** (#677).  r₀(A, B) =
-:data:`CLASH_FRACTION` × (r_A + r_B), with both radii from one table, chosen per
+``SolvePriors.fraction`` × (r_A + r_B), with both radii from one table, chosen per
 species by the rule of :func:`contact_radius`: Shannon (1976) crystal radii for
 an ion, Pauling (1960) R₁ for a neutral metal in an anion-free phase, and
 Pyykkö & Atsumi (2009) r₁ for any other neutral atom
@@ -56,13 +56,15 @@ for a representation of configurations.  **A declared** :class:`ExcludedContact`
 distance (never the radius-derived r₀) and the notes say it was kept.  The coordination count weighs each
 neighbour by its occupancy.
 
-**Thresholds are provisional.**  :data:`CLASH_FRACTION`,
-:data:`CLASH_SIGMA_ANG`, :data:`COORDINATION_WEIGHT` and
-:data:`PRIOR_SHARE_MAX` are declared, not cited
-and not measured on public data.  The grades that read them ship under a
+**No number here is chosen for the caller.**  The clash fraction
+(``SolvePriors.fraction``), the clash σ (``SolvePriors.sigma``) and the
+coordination weight (``PriorWeights.coordination``) have no default: they are
+declared and measured on no family yet, so the caller supplies them, and the
+engine PR that calls this module chooses and measures defaults.  The prior's
+share of the total cost is reported (:attr:`CandidateCost.prior_share`) and no
+yes/no verdict is made of it.  The grades that read these numbers ship under a
 versioned thresholds contract (WP-1515's 2026-09-30 review), which arrives
-with the answer type; until then a change to one of them is a change to this
-module's docstring and nothing else.
+with the answer type.
 
 Nothing here is exported from :mod:`rietx`.
 """
@@ -84,40 +86,8 @@ from ..crystallography.atomic_volume import (
 from ..crystallography.species import element_symbol
 from ..crystallography.structure_factor import select_orbit_ops
 from ..crystallography.symmetry import resolve_group
-from ..indexing.extinction import DECISIVE_DELTA_BIC
 from ..model.geometry import _COINCIDENT_D2, CONTACT_MAX_ANG
 from ..model.restraints import _metric_g
-
-#: r₀(A, B) = CLASH_FRACTION × (r_A + r_B).  Declared, cited to nobody, like
-#: :data:`~rietx.model.geometry.BOND_SLACK_ANG`: a sum of radii is a bond
-#: length, and a clash is a contact well short of one.  At 0.8 a Ti⁴⁺–O²⁻ pair
-#: (Shannon crystal radii, CN VI) clashes below 1.60 Å against a 1.95 Å bond.
-CLASH_FRACTION = 0.8
-
-#: σ of the clash term, Å: an overlap of σ costs 1 in χ² units at weight 1.
-#: Declared, not measured.
-CLASH_SIGMA_ANG = 0.1
-
-#: A candidate whose priors carry more than this share of its total cost is
-#: ``prior_dominant``: its minimum is the prior's as much as the data's.
-#: Proposed in the architecture (D8), not measured.
-PRIOR_SHARE_MAX = 0.25
-
-#: The default weight of the coordination term: one atom one neighbour off
-#: costs :data:`~rietx.indexing.extinction.DECISIVE_DELTA_BIC` (10) in χ²
-#: units, the package's margin for the data choosing one hypothesis over
-#: another, so a count the chemist declares is as strong a statement as a
-#: decisive fit.  Declared, not measured.
-COORDINATION_WEIGHT = DECISIVE_DELTA_BIC
-
-#: Shannon (1976) coordination looked up when the caller names none: VI, the
-#: coordination both of his scales are anchored on (r(ᵛᴵO²⁻), pp. 759-760).
-DEFAULT_CN = 6
-
-#: |Σ found − Σ expected| per element, in atoms per cell, under which an
-#: inventory matches: occupancies printed to three decimals (⅓ as 0.333) sum
-#: to within this of a whole number over the multiplicities a cell holds.
-INVENTORY_TOL = 0.05
 
 _CELL = ("a", "b", "c", "alpha", "beta", "gamma")
 
@@ -134,6 +104,10 @@ class CompositionCheck:
     or the whole number nearest ``z_implied`` = V/V_fu when none was declared.
     ``volume_ratio`` is V/(Z·V_fu), and ``in_volume_window`` whether it lies in
     Hofmann's (2002) 0.8-1.25 (:data:`~rietx.crystallography.atomic_volume.VOLUME_RATIO_BOUNDS`).
+    ``tolerance`` is atoms per cell by element, under which found matches
+    expected: an occupancy printed to three decimals is off by up to 0.0005 per
+    atom of its site's multiplicity, so it is 0.0005 × the summed multiplicity
+    of that element's part-occupied sites (0 where every site is full).
     """
 
     formula: str
@@ -146,20 +120,21 @@ class CompositionCheck:
     expected: dict[str, float]
     found: dict[str, float]
     omitted: tuple[str, ...]
+    tolerance: dict[str, float]
 
     @property
     def inventory_matches(self) -> bool:
-        """Every element within :data:`INVENTORY_TOL` atoms, and none extra."""
+        """Every element within its ``tolerance`` atoms, and none extra."""
         keys = set(self.expected) | set(self.found)
-        return all(abs(self.expected.get(k, 0.0) - self.found.get(k, 0.0)) <= INVENTORY_TOL
-                   for k in keys)
+        return all(abs(self.expected.get(k, 0.0) - self.found.get(k, 0.0))
+                   <= self.tolerance.get(k, 0.0) + 1e-9 for k in keys)
 
     @property
     def missing(self) -> dict[str, float]:
         """Atoms per cell the formula needs and the sites lack (negative: extra)."""
         keys = set(self.expected) | set(self.found)
         out = {k: self.expected.get(k, 0.0) - self.found.get(k, 0.0) for k in sorted(keys)}
-        return {k: v for k, v in out.items() if abs(v) > INVENTORY_TOL}
+        return {k: v for k, v in out.items() if abs(v) > self.tolerance.get(k, 0.0) + 1e-9}
 
 
 class CompositionMismatch(ValueError):
@@ -233,6 +208,10 @@ class Composition:
         omitted = tuple(sorted({element_symbol(e) for e in omit}))
         expected = {el: n * z for el, n in self.counts.items() if el not in omitted}
         found: dict[str, float] = {}
+        tolerance: dict[str, float] = {}
+        # half the last printed decimal of an occupancy (⅓ as 0.333), per atom
+        # of the site's multiplicity: a convention of the files read, not a fit
+        rounding = 0.0005
         sg = resolve_group(phase.space_group, phase.symmetry_operations)
         for atom in phase.atoms:
             el = element_symbol(atom.species)
@@ -240,14 +219,17 @@ class Composition:
                 continue
             rot, _ = select_orbit_ops(sg, np.array([atom.x.value, atom.y.value,
                                                     atom.z.value]))
-            found[el] = found.get(el, 0.0) + len(rot) * float(atom.occ.value)
+            occ = float(atom.occ.value)
+            found[el] = found.get(el, 0.0) + len(rot) * occ
+            if occ < 1.0:
+                tolerance[el] = tolerance.get(el, 0.0) + rounding * len(rot)
         ratio = volume / (z * v_fu)
         lo, hi = VOLUME_RATIO_BOUNDS
         return CompositionCheck(
             formula=self.formula, z=int(z), z_implied=z_implied, volume=volume,
             formula_unit_volume=v_fu, volume_ratio=ratio,
             in_volume_window=bool(lo <= ratio <= hi), expected=expected, found=found,
-            omitted=omitted)
+            omitted=omitted, tolerance=tolerance)
 
     def require(self, phase, *, omit: tuple[str, ...] = ()) -> CompositionCheck:
         """:meth:`check`, raising :class:`CompositionMismatch` unless the
@@ -352,7 +334,7 @@ def _clash_overlaps(pos_r, site_of, mine, g, r0, sigma):
 
 
 def site_clash(pos: np.ndarray, site_of: np.ndarray, moved: np.ndarray,
-               g: np.ndarray, r0: np.ndarray, sigma: float = CLASH_SIGMA_ANG,
+               g: np.ndarray, r0: np.ndarray, sigma: float,
                w_same: float = 0.5) -> np.ndarray:
     """The contact energy of site ``moved[r]`` in replica r, (R,).
 
@@ -405,7 +387,7 @@ def site_clash(pos: np.ndarray, site_of: np.ndarray, moved: np.ndarray,
 
 
 def clash_energy(pos: np.ndarray, site_of: np.ndarray, g: np.ndarray, r0: np.ndarray,
-                 sigma: float = CLASH_SIGMA_ANG) -> float:
+                 sigma: float) -> float:
     """The structure's clash term, each unordered contact once: ½ Σ_s of
     :func:`site_clash` with ``w_same`` = 1, every site moved in turn."""
     pos = np.asarray(pos, dtype=np.float64)
@@ -457,10 +439,13 @@ def contact_radius(species: str, *, cn: int | str | None = None, spin: str | Non
 
     1. **An ion** (a species with a charge, ``"Ti4+"``, ``"O2-"``): Shannon's
        (1976) **crystal** radius, the scale he says "correspond[s] more closely
-       to the physical size of ions in a solid" (p. 760), at ``cn`` (default
-       :data:`DEFAULT_CN`, VI).  Where he prints a high- and a low-spin row and
-       ``spin`` is ``None``, the **smaller** is taken: a clash is a floor, and
-       the smaller radius can only admit a structure the larger refuses.  A CN
+       to the physical size of ions in a solid" (p. 760), at ``cn``.  Where
+       ``cn`` is ``None`` the **smallest** crystal radius he tabulates for the
+       ion at any coordination is taken, and likewise the smaller of a high-
+       and a low-spin row when ``spin`` is ``None``: a clash is a floor, and
+       the smaller radius can only admit a structure the larger refuses.  (CN VI
+       is the zero of his scale, not evidence that an ion of unknown
+       coordination is six-fold: Si⁴⁺ is 0.40 Å at IV and 0.540 Å at VI.)  A CN
        or charge he does not tabulate gives ``None`` — never a neighbouring row.
     2. **A neutral metal in an anion-free phase** (``anion_free``, gemmi's
        ``is_metal``): Pauling's (1960) single-bond metallic radius R₁, the
@@ -481,7 +466,24 @@ def contact_radius(species: str, *, cn: int | str | None = None, spin: str | Non
     from ..crystallography import radii
 
     if _is_charged(species):
-        cn = DEFAULT_CN if cn is None else cn
+        if cn is None:
+            try:
+                ion, charge = radii._ion_and_charge(species)
+            except KeyError:                 # a mass number Shannon has no row for
+                return None
+            want = None if spin is None else spin.upper()
+            rows = [r for r in radii._shannon_rows()
+                    if r.ion == ion and r.charge == charge
+                    and (want is None or r.spin in (None, want))]
+            if not rows:
+                return None
+            row = min(rows, key=lambda r: r.crystal_radius)
+            sp = f" {row.spin}" if row.spin else ""
+            return ContactRadius(species, row.crystal_radius, "shannon_crystal",
+                                 f"Shannon (1976) crystal radius, "
+                                 f"{radii._label(row.ion, row.charge)} CN {row.cn}{sp}, "
+                                 f"p. {row.page}; the smallest of {len(rows)} tabulated "
+                                 "row(s), no CN declared")
         rows = []
         refused = None
         for s in ((None, "HS", "LS") if spin is None else (spin,)):
@@ -550,12 +552,16 @@ class ExcludedContact:
     d: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class PriorWeights:
-    """The weight of each term; :meth:`control` is the zero-weight arm."""
+    """The weight of each term; :meth:`control` is the zero-weight arm.
+
+    ``coordination`` has no default: one atom one neighbour off costs what the
+    caller says, and no weight has been measured on a family yet.  ``clash`` is
+    1, the unit weight the term's σ already sets."""
 
     clash: float = 1.0
-    coordination: float = COORDINATION_WEIGHT
+    coordination: float
 
     @classmethod
     def control(cls) -> PriorWeights:
@@ -564,21 +570,25 @@ class PriorWeights:
         return cls(clash=0.0, coordination=0.0)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SolvePriors:
     """What the chemist declares beside the composition.
 
     ``cn`` and ``spin`` name Shannon's row per species for the clash radii
-    (:func:`contact_radius`); the defaults are its rule.
+    (:func:`contact_radius`); the defaults are its rule.  ``sigma`` (Å: an
+    overlap of σ costs 1 in χ² units at weight 1), ``fraction`` (r₀ = fraction ×
+    the radius sum, a clash being a contact well short of a bond) and
+    ``weights`` (with its ``coordination``) are required: declared, measured on
+    no family, so the caller supplies them.
     """
 
     coordination: tuple[CoordinationPrior, ...] = ()
     exclude: tuple[ExcludedContact, ...] = ()
     cn: Mapping[str, int | str] = field(default_factory=dict)
     spin: Mapping[str, str] = field(default_factory=dict)
-    weights: PriorWeights = field(default_factory=PriorWeights)
-    sigma: float = CLASH_SIGMA_ANG
-    fraction: float = CLASH_FRACTION
+    weights: PriorWeights
+    sigma: float
+    fraction: float
 
     def control(self) -> SolvePriors:
         """The same priors at zero weight (:meth:`PriorWeights.control`)."""
@@ -622,11 +632,6 @@ class CandidateCost:
         """Σ chi2_prior / total; 0 when the total is 0."""
         t = self.total
         return sum(self.chi2_prior.values()) / t if t > 0.0 else 0.0
-
-    @property
-    def prior_dominant(self) -> bool:
-        """The priors carry more than :data:`PRIOR_SHARE_MAX` of the total."""
-        return self.prior_share > PRIOR_SHARE_MAX
 
 
 # ----------------------------------------------------------------------
@@ -706,7 +711,7 @@ class CompiledChemistry:
             coordination=tuple(readings))
 
 
-def compile_chemistry(phase, priors: SolvePriors | None = None) -> CompiledChemistry:
+def compile_chemistry(phase, priors: SolvePriors) -> CompiledChemistry:
     """Freeze ``priors`` onto ``phase``'s sites at their current coordinates.
 
     The orbit operations are :func:`~rietx.crystallography.structure_factor.select_orbit_ops`'s,
@@ -714,7 +719,6 @@ def compile_chemistry(phase, priors: SolvePriors | None = None) -> CompiledChemi
     onto a more special position meets its own images here (a clash), exactly
     as its structure factor counts them twice.
     """
-    priors = SolvePriors() if priors is None else priors
     cell = tuple(float(getattr(phase.cell, k).value) for k in _CELL)
     g = _metric_g(cell)
     sg = resolve_group(phase.space_group, phase.symmetry_operations)
@@ -818,8 +822,7 @@ def candidate_cost(cost, f2: np.ndarray, chemistry: CompiledChemistry,
                          chi2_prior=dict(chemistry.terms(xyz).chi2_prior))
 
 
-__all__ = ["CLASH_FRACTION", "CLASH_SIGMA_ANG", "COORDINATION_WEIGHT", "DEFAULT_CN", "INVENTORY_TOL",
-           "PRIOR_SHARE_MAX", "CandidateCost", "CompiledChemistry", "Composition",
+__all__ = ["CandidateCost", "CompiledChemistry", "Composition",
            "CompositionCheck", "CompositionMismatch", "ContactRadius", "Contacts",
            "CoordinationPrior", "CoordinationReading", "ExcludedContact",
            "PriorTerms", "PriorWeights", "SolvePriors", "candidate_cost",
