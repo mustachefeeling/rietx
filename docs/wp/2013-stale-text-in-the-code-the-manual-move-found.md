@@ -47,6 +47,24 @@ finding goes stale (memory `queued-wp-findings-go-stale`).
 - `crystallography/cif.py`'s two-block message is 1933's; `rietx.help`'s `lebail_cycles`
   text is 1947's.
 
+### Inherited
+
+- **From WP-1986 (2026-10-22, PR #1099), the indexing reference's lanes.** Text only, each
+  found writing `docs/docs/reference/{peaks,indexing,extinction}.md` against the code:
+  - An unchecked ambiguity search is called *capping* at `indexing/consensus.py:111-117`,
+    `:419-424`, `:560-561` and `indexing/workflow.py:568-571`, `:989-992`; the code writes
+    `geometric_ambiguity` for it (`consensus.py:627-632`), which is in
+    `INDEX_REFUTING_CAVEATS`, so it grades `low`. Whether the *code* should cap instead is
+    WP-2007's (its `### Inherited`); fix the words to whichever that rules.
+  - `schemas/indexing.py:1899-1901`: `IndexingResult.fom_panel_disagrees` "caps" every
+    candidate; `fom_panel_disagrees` refutes.
+  - `schemas/indexing.py:1567-1572`: `SearchSpecSpec.budget_seconds` still says "a default
+    two-engine … 2x7x30 s"; three engines run.
+  - `indexing/quality.py:409-412`: `assess_peak_list`'s docstring says `PEAK_SIGMA_ASSUMED`
+    "still fires" for a position list; neither it nor `PeakList.from_positions` emits it
+    (only `indexing/diagnostics.py:88` `peak_diagnostics` does, called by the GUI and
+    `pick_peaks`). Unconfirmed through `index_pattern`'s own diagnostics — trace that first.
+
 ## Tasks
 
 - [ ] Each line above corrected, or struck with the reason it no longer applies.

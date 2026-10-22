@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-22 — claimed by @yue-here; indexing's reference next (the last 283 names), then retirement; Guides 23 of 25, 18 and 24 waiting on other WPs
+Milestone: unscheduled · Status: 🔄 2026-10-22 — every old chapter's reference has a new home (partition 0); retirement waits on the maintainer's choice; Guides 23 of 25, 18 and 24 waiting on other WPs
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -249,7 +249,12 @@ the tree that day.
   into the package, since `_about.py` imports nothing); `help.py`'s anchors and the GUI's
   `docs_url` (`gui/session.py`) on that base; and
   `tests/test_help.py::test_every_anchor_resolves_in_the_built_manual` pointed at the new
-  tree's build.
+  tree's build. Done 2026-10-22 (9th session, by a lane): `_about.docs_version` and
+  `_about.docs_base`, the GUI's `docs_url`, all 124 anchors, and the test on
+  `built_docs_tree`. Left open for the maintainer by that session's review: a release's
+  help links reach `/docs/X.Y/`, which `docs_versions.KEEP_MINORS` stops hosting six
+  minors on, with no redirect; a `.postN` or `+local` build maps to `dev`, as the old
+  regex did; and `kept_releases` still parses tags itself beside `docs_version`.
 - When the old tree goes, its `pages.yml` build step goes too, and the stubs remain.
 - Also at retirement (the 7th session's review): `docs/docs/make_figures.py`'s `hump()`
   docstring cites `docs/manual/using/data.md` for the Si 640c table; repoint it at that
@@ -267,7 +272,8 @@ the tree that day.
   tripwire that fails once a notebook keeps the rule). WP-1545 is closed, so the fix is
   this WP's: move the note below the opening paragraph in each `examples/tutorials/NN_*.py`
   (`01_quickstart.py:4`), rebuild with `build.py`, and delete the waiver. A twin
-  writes a notebook's inline figure out as a file: six of the seven twins measured
+  writes a notebook's inline figure out as a file (the waiver went 2026-10-22: each note
+  now sits below its tutorial's opening paragraph): six of the seven twins measured
   62 752 to 551 259 characters with the base64 in, 7 561 to 39 799 without.
   `DOCS_PAGES` stays markdown-only, for the reason written at the glob.
 - A seventh notebook, `02b_steering_a_refinement`, sits between 02 and 03 (the source glob is
