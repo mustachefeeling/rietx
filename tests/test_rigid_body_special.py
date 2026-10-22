@@ -598,7 +598,8 @@ def _two_stage_fit(truth: Structure, pattern: PatternData):
              *BODY]
     ref = Refinement(start, LAB, history=False)
     result = ref.fit(pattern, plan=RefinementPlan(stages=[
-        Stage("s1", globs, max_iter=100), Stage("s2", globs, max_iter=100)]))
+        Stage("s1", globs, max_iter=100), Stage("s2", globs, max_iter=100)],
+        closing_window_tol=None))
     return ref, result
 
 
