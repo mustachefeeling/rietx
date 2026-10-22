@@ -689,14 +689,24 @@ ROWS: tuple[Row, ...] = (
                   "not changed")),
     Row("PATTERN_INTENSITY_SCALED", "code"),
     Row("PATTERN_MULTISCAN_DEFAULTED", "code"),
-    Row("PATTERN_NET_HAS_BACKGROUND", "code"),
+    Row("PATTERN_NET_HAS_BACKGROUND", "code", tier=1, ambiguity=3,
+        evidence=("warning; fires when a column the file labels background-subtracted "
+                  "(_pd_proc_intensity_net, the IUCr pdCIF definition) never comes within "
+                  "NET_BACKGROUND_MIN_SIGMA = 5 of zero in y/sigma; the statistic is "
+                  "arithmetic, the 5 is ours, measured on one deposit (COD 2242872, 14.1) "
+                  "and a synthetic zero baseline; reports only, y is never shifted and "
+                  "the caller decides, as Rule 1's third kind asks")),
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
     Row("PATTERN_UNDERSAMPLED", "code"),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),
-    Row("PATTERN_ZERO_WEIGHT_EXCLUDED", "code"),
+    Row("PATTERN_ZERO_WEIGHT_EXCLUDED", "code", tier=1, ambiguity=1,
+        evidence=("info; a record of an act the file's own value asks for: the pdCIF "
+                  "dictionary defines _pd_proc_ls_weight = 0 as 'a data point not used for "
+                  "refinement', and a point of weight 0 adds nothing to sum(w r^2), so "
+                  "excluding it is arithmetic; fires exactly when points were excluded")),
     Row("PAWLEY_OFF_DATA_RIDGED", "code"),
     Row("PAWLEY_OVERLAP_UNRESOLVED", "code"),
     Row("PEAK_ASYMMETRY_UNMODELLED", "code"),
@@ -2561,7 +2571,8 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_DEAD_CHANNELS.suggestion", "suggestion", value=2),
     Row("PATTERN_INTENSITY_SCALED.suggestion", "suggestion", value=6),
     Row("PATTERN_MULTISCAN_DEFAULTED.suggestion", "suggestion", value=1),
-    Row("PATTERN_NET_HAS_BACKGROUND.suggestion", "suggestion", value=1),
+    Row("PATTERN_NET_HAS_BACKGROUND.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence="arithmetic: names the background to refine; takes no action itself"),
     Row("PATTERN_ROWS_DROPPED.suggestion", "suggestion", value=1),
     Row("PATTERN_SIGMA_CONSTANT.suggestion", "suggestion", value=1),
     Row("PATTERN_UNDERSAMPLED.suggestion", "suggestion", value=1),
@@ -2913,8 +2924,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "PATTERN_INTENSITY_SCALED.suggestion",
     "PATTERN_MULTISCAN_DEFAULTED",
     "PATTERN_MULTISCAN_DEFAULTED.suggestion",
-    "PATTERN_NET_HAS_BACKGROUND",
-    "PATTERN_NET_HAS_BACKGROUND.suggestion",
     "PATTERN_ROWS_DROPPED",
     "PATTERN_ROWS_DROPPED.suggestion",
     "PATTERN_SCAN_REVERSED",
@@ -2926,7 +2935,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "PATTERN_X_AXIS_ASSUMED.suggestion",
     "PATTERN_X_AXIS_IMPLAUSIBLE",
     "PATTERN_X_AXIS_IMPLAUSIBLE.suggestion",
-    "PATTERN_ZERO_WEIGHT_EXCLUDED",
     "PAWLEY_OFF_DATA_RIDGED",
     "PAWLEY_OFF_DATA_RIDGED.suggestion",
     "PAWLEY_OVERLAP_UNRESOLVED",
