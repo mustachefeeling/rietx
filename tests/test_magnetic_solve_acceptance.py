@@ -25,7 +25,8 @@ seeds its moment fits from.  It is the case where a winner *is* named: every
 line indexes on the nuclear cell, and the four Γ classes of P n m a are four
 models the powder separates.
 
-obs/calc/diff PNGs of the 4 K winner go to ``tests/output/``.
+obs/calc/diff PNGs of the 4 K winner and of the LaMnO₃ winner go to
+``tests/output/``.
 """
 
 from __future__ import annotations
@@ -236,3 +237,8 @@ def test_lamno3_at_50k_ranks_a_type_first_of_four(solved_lamno3):
     assert control.delta_bic <= 0.0, control.delta_bic
     assert abs(control.rwp - s.nuclear_rwp) < 1e-3 * s.nuclear_rwp, (
         control.rwp, s.nuclear_rwp)
+
+    OUT.mkdir(exist_ok=True)
+    from rietx.viz.plots import plot_result
+
+    plot_result(s.best._result, path=str(OUT / "magnetic_solve_lamno3_50K.png"))
