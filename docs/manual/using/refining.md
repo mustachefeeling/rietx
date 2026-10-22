@@ -1148,6 +1148,7 @@ for stage in result.stages:
 | `StageResult.ftol` | the tolerance it was solved at; `None` = the solver default |
 | `StageResult.n_constraint_truncations` | steps the bounded-LM driver held on a linear-inequality constraint |
 | `StageResult.n_degenerate_cell_probes` | trial cells this stage's residual refused as degenerate (zero or negative volume) rather than warning about and returning NaN |
+| `StageResult.n_lapack_fallbacks` | decompositions this stage's solve and esds repeated with LAPACK's QR-iteration driver because the divide-and-conquer driver did not converge |
 | `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
 | `StageResult.held_reach` | per held path, the tied parameters it also stopped |
 | `StageResult.released` | the ones it held at the start and let go again, having seen the phase appear while it solved |

@@ -869,6 +869,17 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.results.StageResult.n_degenerate_cell_probes", "action", tier=1, ambiguity=1,
         evidence=("arithmetic: a cell of zero or negative volume has no metric, so the residual is "
                   "undefined there and the step must be rejected (issue #283)")),
+    Row("rietx.schemas.results.StageResult.n_lapack_fallbacks", "action", tier=1, ambiguity=1,
+        evidence=("arithmetic: a decomposition the divide-and-conquer LAPACK driver did not "
+                  "converge on is repeated with its QR-iteration twin, the same decomposition by "
+                  "another route (gesdd/gesvd, syevd/syev, gelsd/gelss; Anderson et al. 1999, "
+                  "LAPACK Users' Guide; optimize.lapack); a converging call is numpy's own, bit "
+                  "for bit.  On CPD brucite under TRF, macOS Accelerate's gesdd failed 20 of 20 "
+                  "on a 7279 x 28 step matrix (condition 7.9e10) that OpenBLAS's gesdd "
+                  "decomposed with singular values equal to gesvd's to the last bit; the fit "
+                  "lands at Rwp 0.1787 (WP-2002, 2026-10-22).  Practice: TenPy's svd_robust, "
+                  "the same retry; MATLAB and Octave call gesvd by default"),
+        approved="2026-10-22"),
     Row("rietx.schemas.results.StageResult.ftol", "action", tier=3, ambiguity=1,
         evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
                   "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "

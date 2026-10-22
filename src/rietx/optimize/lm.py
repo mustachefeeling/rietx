@@ -115,7 +115,7 @@ import numpy as np
 from scipy.optimize import lsq_linear, nnls
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
-from . import bccg
+from . import bccg, lapack
 from .blocked import BlockJacobian
 
 #: λ schedule constants, Coelho (2018) equation (9).  λ starts at 0 (pure
@@ -747,7 +747,7 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     if n > BVLS_MAX_COLUMNS:
         y, side = bccg.projected_cg(A_s, b_s, (lo - x) * d, (hi - x) * d)
         return y * inv_d, side
-    w, V = np.linalg.eigh(A_s)
+    w, V = lapack.eigh(A_s)
     w_max = float(w[-1]) if n else 0.0
     keep = w > _EIGEN_CUT_PER_ROW * max(n_rows, n) * w_max
     side = np.zeros(n, dtype=np.int8)
@@ -816,7 +816,7 @@ def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndar
     H = A * np.outer(inv_d, inv_d)
     H[np.diag_indices(n)] += lam
     g = b * inv_d
-    w, V = np.linalg.eigh(H)
+    w, V = lapack.eigh(H)
     w_max = float(w[-1]) if n else 0.0
     side = np.zeros(n, dtype=np.int8)
     if w_max <= 0.0:
@@ -914,7 +914,7 @@ def _equality_step(H: np.ndarray, g: np.ndarray, G: np.ndarray, h: np.ndarray,
     n = H.shape[0]
     if not len(G):
         return np.linalg.solve(H, g)
-    U, sv, Wt = np.linalg.svd(G)
+    U, sv, Wt = lapack.svd(G)
     rank = int(np.count_nonzero(sv > max(G.shape) * eps * sv[0]))
     s = Wt[:rank].T @ ((U[:, :rank].T @ h) / sv[:rank])
     Z = Wt[rank:].T

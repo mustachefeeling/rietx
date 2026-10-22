@@ -1020,6 +1020,14 @@ class StageResult(Base):
     #: bumped with this change, ``SCHEMA_VERSION`` 0.19 → 0.20 (see the
     #: changelog entry in ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: decompositions this stage's solve and esds repeated with LAPACK's
+    #: QR-iteration driver because the divide-and-conquer driver stopped
+    #: without converging (``optimize.lapack``): the same decomposition by
+    #: another route, so the answer is the one a converging build computes.
+    #: Met on macOS's system LAPACK, whose ``gesdd`` failed on a TRF step on
+    #: CPD brucite that OpenBLAS's decomposed (WP-2002).  0 means no
+    #: decomposition needed it.
+    n_lapack_fallbacks: int = 0
     #: paths this stage **held** although the plan had freed them: the
     #: structural parameters of a phase the data could not see at stage start
     #: (the screen ``CompiledModel.phase_support`` below

@@ -67,6 +67,7 @@ from ..crystallography.lattice import d_spacings
 from ..crystallography.stephens import monomial_matrix, stephens_basis
 from ..crystallography.symmetry import resolve_group
 from ..model.forward import CompiledModel
+from ..optimize import lapack
 from .schemas import (
     STRAIN_MAX_GRAM_CONDITION,
     STRAIN_MIN_ANISOTROPY,
@@ -269,7 +270,7 @@ def _strain_errors(model: CompiledModel, values: dict[str, float], ip: int,
         # determine; truncating those singular values spreads the correction
         # over the group instead of letting the iteration walk along them
         try:
-            step, *_ = np.linalg.lstsq(design, delta, rcond=1e-6)
+            step, *_ = lapack.lstsq(design, delta, rcond=1e-6)
         except np.linalg.LinAlgError:
             # ``least_squares._guarded_covariance``'s rule (#225): a solve that
             # does not converge must not take the fit down.  The rounds that
@@ -290,7 +291,7 @@ def _strain_errors(model: CompiledModel, values: dict[str, float], ip: int,
 def _fit(templates: np.ndarray, y: np.ndarray, w: np.ndarray) -> tuple[np.ndarray, float]:
     """Weighted least squares of ``y`` on ``templates``; returns (θ, residual SS)."""
     sw = np.sqrt(w)[:, None]
-    coef, *_ = np.linalg.lstsq(templates * sw, y * np.sqrt(w), rcond=None)
+    coef, *_ = lapack.lstsq(templates * sw, y * np.sqrt(w), rcond=None)
     resid = (templates @ coef - y) * np.sqrt(w)
     return coef, float(resid @ resid)
 

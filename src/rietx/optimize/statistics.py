@@ -30,6 +30,7 @@ import numpy as np
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
 from ..schemas.results import DataSupport, Statistics
+from . import lapack
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from ..model.forward import CompiledModel
@@ -202,7 +203,7 @@ def _psd_pinv(a: np.ndarray, rcond: float) -> np.ndarray:
     if a.size == 0:
         m, n = a.shape[-2:]
         return np.empty(a.shape[:-2] + (n, m), dtype=a.dtype)
-    lam, u = np.linalg.eigh(a)
+    lam, u = lapack.eigh(a)
     s = np.abs(lam)
     order = np.argsort(s)[..., ::-1]
     s = np.take_along_axis(s, order, axis=-1)
@@ -261,7 +262,7 @@ def discarded_directions(jac: np.ndarray) -> tuple[int, np.ndarray]:
     if live.sum() < 2:
         return none
     inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
-    lam, vec = np.linalg.eigh(JTJ * np.outer(inv_d, inv_d))
+    lam, vec = lapack.eigh(JTJ * np.outer(inv_d, inv_d))
     cut = PINV_RCOND * np.abs(lam).max()
     gone = np.abs(lam) <= cut
     # a dead column is its own eigenvector at zero, and not this function's
@@ -873,7 +874,7 @@ def one_parameter_gains(jac: np.ndarray, resid: np.ndarray, block: list[int],
             if jg.shape[1] == 0:
                 out[key] = 0.0
                 continue
-            beta, *_ = np.linalg.lstsq(jg, r, rcond=None)
+            beta, *_ = lapack.lstsq(jg, r, rcond=None)
             fitted = jg @ beta
             out[key] = float(fitted @ fitted)
     return out

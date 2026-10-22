@@ -4394,6 +4394,10 @@ class Refinement:
                 n_iterations=outcome.n_iterations + second.n_iterations,
                 n_constraint_truncations=(outcome.n_constraint_truncations
                                           + second.n_constraint_truncations),
+                # counts of the whole search, as multi.py's merge sums them
+                n_degenerate_cell_probes=(outcome.n_degenerate_cell_probes
+                                          + second.n_degenerate_cell_probes),
+                n_lapack_fallbacks=outcome.n_lapack_fallbacks + second.n_lapack_fallbacks,
                 truncated_by={k: (outcome.truncated_by.get(k, 0)
                                   + second.truncated_by.get(k, 0))
                               for k in {**outcome.truncated_by,
@@ -5067,6 +5071,7 @@ class Refinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
+                n_lapack_fallbacks=outcome.n_lapack_fallbacks,
                 ftol=ftol, window_area_tol=window_tol,
                 held=hold.held, released=hold.released,
                 held_reach=hold.reach,
@@ -5365,6 +5370,7 @@ class Refinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
+                n_lapack_fallbacks=outcome.n_lapack_fallbacks,
                 ftol=stage.ftol, window_area_tol=window_area_tol,
                 held=hold.held, released=hold.released,
                 held_reach=hold.reach,

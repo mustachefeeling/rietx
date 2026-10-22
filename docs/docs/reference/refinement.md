@@ -446,6 +446,7 @@ for stage in result.stages:
 | `StageResult.ftol` | the tolerance it ran at; `None` is the solver default |
 | `StageResult.n_constraint_truncations` | steps the `lm` driver held on a linear inequality |
 | `StageResult.n_degenerate_cell_probes` | trial cells the residual refused as degenerate, with zero or negative volume |
+| `StageResult.n_lapack_fallbacks` | decompositions the solve and its esds repeated with LAPACK's second driver, because the first did not converge |
 | `StageResult.held` | parameters the plan freed that this stage held because the data cannot determine them |
 | `StageResult.held_reach` | per held parameter, the tied parameters it also stopped |
 | `StageResult.released` | parameters held at the start and freed again within the stage |
@@ -555,6 +556,13 @@ Nonzero in the last stage, it also raises [`CONSTRAINT_ACTIVE`](diagnostics-refi
 `Cell` declares no bounds, so a poorly determined cell stage can reach a zero- or negative-volume metric while searching.
 Each such trial is pushed back and counted rather than crashing the stage or returning a silent NaN.
 A nonzero count is the ordinary outcome on a poorly determined cell, and [`CELL_DEGENERATE_PROBE`](diagnostics-refinement.md#cell_degenerate_probe) sums it over the stages that ran.
+
+`StageResult.n_lapack_fallbacks` counts decompositions, never a change to the answer.
+The solver's eigensolves, singular value decompositions and linear least-squares solves call LAPACK's divide-and-conquer drivers.
+Those can stop without converging on a finite matrix.
+rietx then repeats the decomposition with LAPACK's QR-iteration driver, which computes the same decomposition by another route.
+macOS's system LAPACK did this on a `solver="trf"` fit of CPD brucite, on a step matrix that OpenBLAS decomposed.
+The repeat gave singular values equal to OpenBLAS's to the last bit.
 
 ## Guards
 

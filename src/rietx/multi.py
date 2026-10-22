@@ -1532,7 +1532,9 @@ class MultiHistogramRefinement:
                         # summed for the same reason the truncations are: the stage
                         # ran twice and the count is a fact about its whole search
                         n_degenerate_cell_probes=(outcome.n_degenerate_cell_probes
-                                                  + second.n_degenerate_cell_probes))
+                                                  + second.n_degenerate_cell_probes),
+                        n_lapack_fallbacks=(outcome.n_lapack_fallbacks
+                                            + second.n_lapack_fallbacks))
                 runaway_diag = _cell_runaway_diagnostic(cell_runaway)
                 answer_runaway = [] if runaway_diag is None else [runaway_diag]
                 if runaway_diag is not None:
@@ -1556,6 +1558,7 @@ class MultiHistogramRefinement:
                     freed=freed,
                     n_constraint_truncations=outcome.n_constraint_truncations,
                     n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
+                    n_lapack_fallbacks=outcome.n_lapack_fallbacks,
                     ftol=ftol, window_area_tol=window_tol,
                     held=held, released=released,
                     held_reach={c: v for c, v in held_reach.items() if c in still},
