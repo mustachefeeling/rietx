@@ -3844,7 +3844,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "A site's symmetry images fell in tight pairs, closer than 0.02 Å, so it "
             "would have put twice the atoms in the cell. Reading a project file, or a "
-            "history or model edit where the occupancy is high enough that the unmerged "
+            "history or model edit where the occupancy is high enough that the unchanged "
             "site would put more than one atom at one place, moved the site onto "
             "the special position its orbit collapses to. Coordinates the position fixes "
             "lose `vary`, and an anisotropic tensor is projected onto the tensors the "
