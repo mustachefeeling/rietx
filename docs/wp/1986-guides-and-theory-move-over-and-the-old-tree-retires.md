@@ -1,6 +1,6 @@
 # WP-1986 — Guides and Theory move over, and the old tree retires
 
-Milestone: unscheduled · Status: 🔄 2026-10-22 — claimed by @yue-here (11th session): the old tree retires now, by the maintainer's choice
+Milestone: unscheduled · Status: 🔄 2026-10-22 — the old tree retired (one manual; its 47 URLs redirect); open for guides 18 and 24, and the README and landing feature links at the 1.10 cut
 Track: The repo's own process
 Depends on: 1978 (the new tree); 1985 (the report text the guides show); 1979 (redirect stubs)
 Priority: P2 2026-10-16 — unblocked: WP-1979 built the redirect stubs (PR #1023)
@@ -329,6 +329,83 @@ the tree that day.
 ```
 
 ## Handover log
+
+### 2026-10-22 (11th session) — the old manual retires: one tree, and every old address redirects
+
+There is now one manual. The maintainer chose to retire the old tree before the last two
+guides exist, so the old pages are gone and every address they were published at sends the
+reader to its new page, carrying the section the reader asked for where the new page kept it.
+The site still opens on the landing page, now copied in by the deploy itself rather than by
+the old build, and every link that meant "the manual" (landing page, README, the package's
+Documentation URL, the agent skill) now goes to the new one. The old front page's note on how
+the manual was written, and its reading conventions, would have been lost because the coverage
+check counts names rather than prose; they have a Start page of their own. The WP stays open
+only for guides 18 and 24.
+
+*Done.* Repair entry for the 10th session's header brand (below). By lane retire-tree:
+`docs/manual/` deleted (49 files); `RETIRED` holds a row for each of the 47 old pages
+(`OLD_PAGES` gained `using/tutorials/02b_steering_a_refinement`, which the old tree did
+publish and the landing page links, so the WP's earlier "needs no row" was wrong);
+`pages.yml` copies `docs/landing/site/` into the site root before the stubs are written, and a
+test fails a stub landing on a landing file; the bibliography is `docs/docs/references.bib`,
+its one old-only citation (`rietx2026`) now under `theory/references.md` § Citing rietx;
+`test_manual.py` and `test_manual_api.py` read the new tree alone (the furo sidebar tests
+deleted, the favicon test re-anchored), `test_multi_diagnostics` reads `reference/joint.md`,
+the hump-table test `concepts/parameters.md`; `reference/magnetic.md` names
+`MagneticSolution`, which only an old page had spelled beside the provisional promise.
+`start/this-manual.md` carries the old `manual.md`'s authorship note and reading conventions.
+By lane retire-links: the landing page, README and `pyproject.toml` link `/docs/`; the
+skill's manual link is `/docs/`, its compatibility link the old address (whose stub follows
+stable from the 1.10 cut), copies re-synced; root, `gui/`, `io/` CLAUDE.md, `AGENTS.md`,
+`pr-review.md` and every comment the old paths' grep found repointed. A new landing test holds every manual link
+to a built page or a stub. Main's #1071 edited `using/refining.md` after this branch forked;
+its change was already in the new tree (97b417f), so the merge kept the deletion.
+
+*Retirement map, as landed* (supersedes the map under Notes by task where they differ):
+Part 2's fourteen pages and the old root `indexing` → `theory/<stem>`; `manual` → `index`;
+`using/constraints` → `reference/parameter-table#ties`; `using/glossary` →
+`reference/parameters` (the review's call: the parameter entries were most of the old page;
+the other arms are `reference/settings`); tutorials → `start/tutorials/<stem>`.
+
+*Review* (`/code-review high --fix`): eight findings, six fixed. A stub now carries the
+reader's `#fragment` over by a one-line script (meta refresh as fallback), so an installed
+release's help links still land on their Theory heading, whose ids did not change; the
+landing favicon is pinned to the manual's; `furo` left the `docs` extra and its stale
+comments; `test_landing` reads committed notebooks only, has its own xdist group
+(`landing-site`) and loads `docs_versions` once; the glossary redirect above. One the
+review left open is now taken (the glossary). One stays open: README and landing feature links
+sit on old addresses whose section moved to a page the old tree never had (magnetic, joint,
+foreign models and writers, peaks, humps, figures, plans), so they open the right chapter's
+successor but not the right page. They want `/docs/stable/<page>`, which 404s until the 1.10
+cut; see Next.
+
+*Measured* (`[dev]`, Linux x86-64 cloud container). Lane acceptance re-run here: retire-tree's
+selection 604 passed; retire-links' 472 passed; ruff clean. Fast selection on main merged into
+the branch: FAST_RESULT. The full selection did not run: no measured number can move. No
+main baseline was run, so the count check is by file: the old-tree parametrisations
+(`[built_manual]`) and the two furo tests left, the per-page landing link test and new
+`test_docs_versions` tests joined.
+
+Lanes (`session_usage.py lanes`): two, both `opus-5-5`, none redone.
+
+| lane | est | requests | main at dispatch | re-read | left in main | lane $ | main $ | in-session $ | saved $ |
+|---|---|---|---|---|---|---|---|---|---|
+| retire-tree | 45 | 109 | 191K | 0K of 59K | 26K | 9.21 | 0.79 | 11.57 | +1.44 |
+| retire-links | 25 | 73 | 220K | 0K of 0K | 12K | 4.30 | 0.49 | 6.55 | +1.73 |
+
+Saved +$3.17, 15 % of the session; estimates ran 2.67× short. Baseline's selective policy for
+sessions peaking under 300K: +3 % (one session).
+
+*Gotchas.* `test_docs_consistency`'s CLAUDE.md line cap has no slack: the review's one added
+line failed it. The worktree guard refuses a compound `git` command holding a `$(…)`; split it.
+
+Next: (1) at the 1.10 cut, once `/docs/stable/` exists, repoint README's and the landing
+page's feature links at `/docs/stable/<the page that now holds the section>`, the skill's
+compatibility link likewise; the review's list above names the pages. (2) Guides 18 and 24
+when WP-1910/WP-1510 and the magnetic WPs land, written straight into the new tree (the old
+chapters' text is at `git show 1661895:docs/manual/using/indexing.md` and `refining.md`).
+(3) The three findings the 9th session declined stay open for the maintainer (Notes by task,
+Retirement).
 
 ### 2026-10-22 (10th session) — the new manual's header carries the rietx mark and brand (reconstructed post hoc)
 
