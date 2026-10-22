@@ -85,22 +85,17 @@ def test_the_two_site_winner_finds_each_site_its_own_moment(monkeypatch):
 
     monkeypatch.setattr(solve, "_moment_correlations", recorded)
 
-    from rietx.model.forward import WINDOW_AREA_TOL
-
     instrument = T.neutron()
     truth = T.candidate_named("P n m a", T.MN_SITE, (0, 0, 0), T.A_TYPE_BNS)
     ops, cent = truth.group.xyz_strings()
-    # Drawn at the declared stages' 2 % windows, the precision solve_magnetic's
-    # stages run at (it ends in no closing stage).  At the closing windows
-    # ``predict`` now uses (WP-2002) the solve's window misfit inflates both
-    # esds by the same 1.61 (0.00242 and 0.00179), which is a statement about
-    # that misfit and not about the covariance this test pins.
+    # Drawn by ``predict`` at the closing windows, where the winner's closing
+    # stage measures it (WP-2002).  Without that stage the window misfit
+    # inflated both esds by the same 1.61 (0.00242 and 0.00179).
     data = T.simulate(T.two_site(
         m1=Moment.from_values((3.5, 0.0, 0.0), "Mn3+"),
         m2=Moment.from_values((0.7, 0.0, 0.0), "Mn3+"),
         magnetic=MagneticSymmetry(operations=list(ops),
-                                  centerings=list(cent))), instrument,
-        window_area_tol=WINDOW_AREA_TOL)
+                                  centerings=list(cent))), instrument)
     ref = T.nuclear_fit(T.two_site(), data, instrument)
     solution = rx.solve_magnetic(ref, data, sites=["Mn1", "Mn2"], ion="Mn3+")
 

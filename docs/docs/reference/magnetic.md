@@ -366,6 +366,13 @@ A small moment's direction barely moves the pattern, and the default driver scal
 A stage pattern that frees nothing makes the compared models differ from the ones the plan describes, so `solve_magnetic` puts any such pattern in the caveats.
 A trial fit or nuclear reference that stops on its iteration budget is continued up to ten times, and one still short is listed and not ranked.
 
+Without a `plan`, the trials and the nuclear reference run no closing stage, so the ranking compares every χ² at the declared stages' windows.
+The winner then runs one closing stage from its own fit.
+Its moments and their esds, Rwp, GoF and magnetic-only R come from that stage, and a caveat says so.
+Its ΔBIC stays the ranking's.
+On a synthetic two-site Pnma pattern the larger modulus's esd falls from 0.00242 to 0.00151 μ<sub>B</sub>, because the declared windows drop the peak tails.
+A `plan` you pass keeps its own `closing_window_tol` for every fit, the winner's included.
+
 `solve_magnetic` refuses a pattern that is not constant-wavelength neutron, a refinement that has not fitted, a phase that already declares a magnetic space group, and a phase that declares a propagation vector.
 Everything else, such as no unexplained intensity or a tie at the top, is reported.
 

@@ -1331,8 +1331,9 @@ ROWS: tuple[Row, ...] = (
                   "stage recompiles at the width reached; the preset's answer with the floor "
                   "shipped and at the planted width agrees to 0.000 plain esd (0.031 before the "
                   "closing stage), on the synthetic MnF2 round trip, one family "
-                  "(tests/test_magnetic_width.py); the package's magnetic default solve, a plan "
-                  "with closing_window_tol=None and a stage run by hand have none, and a plan "
+                  "(tests/test_magnetic_width.py); the magnetic default solve's ranked trials (its "
+                  "winner runs one since 2026-10-22), a plan with closing_window_tol=None and a "
+                  "stage run by hand have none, and a plan "
                   "ending on the stage that frees the width keeps the clipping: 0.07, 0.17 and "
                   "0.57 esd on the moment (WP-2002, the seventh round's Q2, 2026-10-21)"),
         grounds=("A numerical setting whose domain test passes behind the closing stage and "
@@ -1387,7 +1388,8 @@ ROWS: tuple[Row, ...] = (
                  "answer is computed in a closing stage at CLOSING_WINDOW_TOL, as is every "
                  "evaluation outside a fit and a stage run by hand (the seventh round's Q1).  Its "
                  "error still reaches a number a caller reads from a plan with "
-                 "closing_window_tol=None, the magnetic default solve's trial moments and "
+                 "closing_window_tol=None, the moments of the magnetic default solve's trials "
+                 "other than its winner, which runs a closing stage (ruled 2026-10-22), and "
                  "SolveCost.from_pawley, and on purpose the FitReport's shapes, which "
                  "report._reading_models compiles at this fraction (the eighth round's item 1, "
                  "ruled 2026-10-22)."),

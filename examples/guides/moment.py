@@ -91,22 +91,22 @@ print(f"scale moved {abs(shift) / scale.stderr:.1f} esd")
 # What the page says in prose, asserted here.
 assert reference.verdict == solution.verdict == "solved"
 assert reference.best.bns_number == solution.best.bns_number == "58.395"
-assert n == 2 and abs(row.magnitude - 2.13) < 0.03 and row.magnitude_esd < 0.05
+assert n == 2 and abs(row.magnitude - 2.12) < 0.03 and row.magnitude_esd < 0.05
 assert 2.08 < reference.best.moments[0].magnitude < 2.14
 assert blind.fitted_structure.phases[0].atoms[1].biso.value < -1 and ref.fitted_structure.phases[0].atoms[1].biso.value > -0.2
 assert abs(shift) < scale.stderr
 # the three moments the "Read the result" section compares, and the two checks it names
-assert abs(solution.best.moments[0].magnitude - 2.035) < 0.005 and abs(solution.best.moments[0].esd - 0.05) < 0.005
+assert abs(solution.best.moments[0].magnitude - 2.038) < 0.005 and abs(solution.best.moments[0].esd - 0.05) < 0.005
 assert abs(reference.best.moments[0].magnitude - 2.09) < 0.005 and abs(reference.best.moments[0].esd - 0.03) < 0.005
-assert abs(row.magnitude - 2.13) < 0.03 and abs(row.magnitude_esd - 0.045) < 0.003
+assert abs(row.magnitude - 2.12) < 0.03 and abs(row.magnitude_esd - 0.044) < 0.003
 # "the blind moment is 0.05 and 0.09 μB below the other two, which agree within their esds"
 blind_m, ref_m = solution.best.moments[0].magnitude, reference.best.moments[0]
 assert 0.04 < ref_m.magnitude - blind_m < 0.07 and 0.07 < row.magnitude - blind_m < 0.11
 assert abs(row.magnitude - ref_m.magnitude) < row.magnitude_esd + ref_m.esd
-assert abs(abs(shift) / scale.stderr - 0.5) < 0.05
+assert abs(abs(shift) / scale.stderr - 0.4) < 0.05
 assert abs(blind.fitted_structure.phases[0].atoms[1].biso.value + 1.4) < 0.05
-# "round 1 moves the moment by 0.07 to 0.09 μB, more than its esd of 0.045, and round 2 by less than 0.001"
-assert 0.06 < steps[0][0] < 0.10 and steps[0][0] > steps[0][1] and abs(steps[0][1] - 0.045) < 0.003
+# "round 1 moves the moment by 0.07 to 0.09 μB, more than its esd of 0.044, and round 2 by less than 0.001"
+assert 0.06 < steps[0][0] < 0.10 and steps[0][0] > steps[0][1] and abs(steps[0][1] - 0.044) < 0.003
 assert steps[1][0] < 0.001
 
 # Holding the lattice at its 150 K values as well leaves a nuclear model that does not
