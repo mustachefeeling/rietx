@@ -989,7 +989,7 @@ def _planning_docs() -> list[Path]:
     # directory's README under the same two checks (WP-1412).
     docs += _kept_by_git(sorted((ROOT / "docs" / "wp").rglob("*.md")))
     docs += sorted((ROOT / "docs" / "milestones").glob("*.md"))
-    return docs  # docs/manual/ is excluded: MyST links are sphinx's to check (-W)
+    return docs  # docs/docs/ is excluded: MyST links are sphinx's to check (-W)
 
 
 def _kept_by_git(paths: list[Path]) -> list[Path]:
@@ -1037,8 +1037,8 @@ def test_no_planning_doc_links_something_gitignored():
 
     `.gitignore` carries a blanket `*.png`, un-ignored directory by directory,
     and it has swallowed a committed image five times.  The guard written after
-    the third (`tests/test_gui_manual.py`) names two directories under
-    `docs/manual/`, so WP-1412's eighteen sheets under `docs/wp/` went past it:
+    the third (`tests/test_gui_manual.py`) named two directories under
+    the old manual tree, so WP-1412's eighteen sheets under `docs/wp/` went past it:
     the local build was right, the commit took the README alone, and nothing
     was red.
 

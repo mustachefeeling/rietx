@@ -314,9 +314,13 @@ the tree that day.
       Done 2026-10-20: every other chapter, as 27 Reference pages and `concepts/plans.md`
       (8th session's entry). Done 2026-10-22: indexing, as `reference/peaks.md`,
       `indexing.md`, `indexing-evidence.md` and `extinction.md`; the partition is 0.
-- [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
-      landing page's link to `/manual.html` pointed at `/docs/`.
-- [ ] Skill: links into the manual updated to the new URLs.
+- [x] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
+      landing page's link to `/manual.html` pointed at `/docs/`. (2026-10-22, 11th session, by
+      the maintainer's choice to retire before guides 18 and 24: `docs/manual/` deleted, its 47
+      URLs redirect stubs from `RETIRED`, the landing page copied into the site root by
+      `pages.yml`.)
+- [x] Skill: links into the manual updated to the new URLs. (2026-10-22: `/docs/`, and the
+      compatibility link on its old address, whose stub follows stable.)
 
 ## Acceptance
 

@@ -4,7 +4,7 @@ API-first Rietveld refinement package (powder XRD). MIT. numpy/scipy fp64 core, 
 schemas, gemmi for CIF/symmetry. Import name `rietx`, aliased `rx` (`import rietx as rx`).
 
 **This file is for changing the package.** To *use* it (refine someone's data):
-`docs/skill/rietx/SKILL.md` (the agent skill) + `docs/manual/` Part 1. Nothing here
+`docs/skill/rietx/SKILL.md` (the agent skill) + the manual, `docs/docs/`. Nothing here
 substitutes for either.
 
 Each rule below is stated with its identifiers and its measured anchor; the derivation, the
@@ -22,8 +22,7 @@ uv pip install --python .venv/bin/python -e ".[dev,jax,torch]"   # + optional ja
 .venv/bin/python -m tests.bethanechol_benchmark        # the graded indexing benchmark (~1 h; run it ALONE — engine budgets are wall-clock)
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
-.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # old manual (Theory is in docs/docs/)
-.venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html      # the new manual, beside the old until WP-1986
+.venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html      # the manual
 .venv/bin/rietx gui my_sample.rex [--scratch]      # the refinement GUI (localhost:8731); --scratch works on a temp-dir copy
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
 npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-scene/splitter/theme/plot/peaks logic; count: § Numbers) + svelte-check
@@ -236,7 +235,7 @@ rungs are states the plan already visits, so the answer is bit-identical.
 ### GUI
 
 `rietx gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist,
-**documented** since WP-1017 (`using/gui-quickstart|guide|power.md`) with its **routes still
+**documented** since WP-1017 (the manual's `gui-*.md` pages) with its **routes still
 provisional by declaration**. Rulebook — session/wire split, server contract (the 409 while a run
 is in flight), `.rxt` document, editors, the nine panels, 3D viewer, theming, the example
 projects: `gui/CLAUDE.md`, loaded under `gui/`.
@@ -543,7 +542,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   words a chip carries, WP-1209) are the only authored fields. A `ParameterRow` carries
   `help_key`, the family glob, never the entry: an entry describes a *family*, so inlining one
   repeats a paragraph once per atom (3.4× the `/api/params` payload).
-  `docs/manual/using/glossary.md` is generated from it in `conf.py`, and every `anchor` is checked
+  The manual's `reference/parameters.md` and `settings.md` are generated from it
+  (`docs/reference_pages.py`, run by `conf.py`), and every `anchor` is checked
   against the built HTML, not the sources. **A family has a second consumer and only node sees
   it**: `gui/src/lib/history.ts`'s `PLACES` declares a print format per family and its vitest holds
   the table equal to the live vocabulary (`gui/CLAUDE.md`), so adding one means
@@ -843,14 +843,14 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   reported. **A foreign format's unit is measured against that format's own reference output, never
   adopted from its prose**, and a row the format states two ways is **refused** rather than chosen,
   exactly as a CIF whose angle contradicts its symbol is.
-- The **manual** (`docs/manual/`) is one `-W` Sphinx tree in two parts, guarded differently because
-  each fails differently. **Part 2 — Theory** (source in `docs/docs/theory/` since WP-1986, the old
-  tree's pages one-line includes of it; `tests/test_manual.py`): fenced constants are MyST
-  substitutions injected from `docs/sphinx_shared.py` (both trees), every displayed equation carries a
+- The **manual** (`docs/docs/`) is one `-W` Sphinx tree in tabs (Start, Guides, Concepts,
+  Reference, Theory, Switching), guarded twice because pages fail two ways. **The Theory tab**
+  (`docs/docs/theory/`, `tests/test_manual.py`): fenced constants are MyST
+  substitutions injected from `docs/sphinx_shared.py`, every displayed equation carries a
   `*Source:*` line whose symbol must import, every bib entry is cited — so renaming a physics
   symbol or retuning a fenced constant means touching the manual in the same change, and **a WP
-  that adds physics adds its equation there**, never only Part 1 prose (WP-1067). **Part 1 — Using
-  rietx** (`docs/manual/using/`, `tests/test_manual_api.py`): its failure mode is a *name*, so every
+  that adds physics adds its equation there**, never only in another tab's prose (WP-1067). **Every
+  page** (`tests/test_manual_api.py`): its failure mode is a *name*, so every
   dotted name and dot-path must resolve, every python block parses and either executes or carries a
   written reason, and the public call surface is partitioned into documented /
   excluded-with-a-reason / generated-deferred. That surface is **derived**
@@ -858,7 +858,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   field fails the partition until documented or deferred** — a coverage gate, not a freeze
   (WP-1117). Under-development subsystems declare themselves (1078): `PROVISIONAL_MODULES` keys a
   module prefix to a reason and the tier derives from each name's **defining** module, so a new
-  type inherits it and a re-export is reached; four modules are, promised in the new tree's
+  type inherits it and a re-export is reached; four modules are, promised in
   `reference/compatibility.md` § Provisional by declaration, `{ref}`d not restated. **A green
   build is not a rendered page**: `-W` cannot see a paragraph that printed its own TeX, so
   `test_no_unrendered_math_survives_the_build` scans the *built* HTML, and diagrams and themed
@@ -871,11 +871,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `docs/docs/make_screenshots.py`.
 - **The site root is the landing page, and `docs/landing/README.md` is its rulebook**
   (WP-1331). Two consequences reach a session that never opens that directory. `/` is the
-  page and the manual is `/manual.html` — sphinx's `root_doc` is `manual.md`, so a link
-  meaning "the manual" is never the site root. And `conf.py` copies the page in through
-  `html_extra_path` **only if `docs/landing/site` exists** (`-W` makes a missing entry an
-  error, and the suite builds the manual on every run), so the build output holds pages
-  Sphinx never rendered and a guard walking it must exclude them, not widen itself.
+  page and the manual is `/docs/` (`dev/` from `main`, each kept release beside it:
+  `docs/docs_versions.py`), so a link meaning "the manual" is `/docs/`, never the site root.
+  And `pages.yml` copies the page into the site root itself, so **no sphinx build writes
+  outside `site/docs/`**; the old tree's URLs (`/manual.html`, `/using/<x>.html`) are redirect
+  stubs from `docs_versions.RETIRED` (WP-1986), and a stub drops a `#fragment`.
 - **A walkthrough has one authority, and it is `examples/`.** The manual `{literalinclude}`s those
   scripts and `tests/test_examples.py` runs them, so a worked example is code that ran. Never write
   a third copy. The tutorial notebooks are a generated projection of `examples/tutorials/NN_*.py`

@@ -59,7 +59,7 @@ fails before review reads it.
   bibliography entry is cited, and every displayed equation carries a
   source symbol that imports. A new public name fails the coverage
   partition until it is documented, excluded with a reason, or deferred.
-- The new manual (`docs/docs/`) is also read by Vale, in CI's lint job:
+- The manual (`docs/docs/`) is also read by Vale, in CI's lint job:
   British spelling, Microsoft's style guide as the base, and the house rules
   in `docs/vale/rietx/`. An error fails the job. Run it locally with
   `vale sync && vale docs/docs` (Vale 3.24, installed separately, e.g.

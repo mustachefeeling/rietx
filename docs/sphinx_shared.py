@@ -321,7 +321,7 @@ def copy_tutorials(destination: _Path) -> int:
 # ----------------------------------------------------------------------
 # The `{source}` role (WP-1408)
 #
-# Every displayed equation in Part 2 carries a *Source:* line naming the
+# Every displayed equation in the Theory tab carries a *Source:* line naming the
 # symbol its docstring was transcribed from.  The name resolving is the
 # manual's oldest guard (WP-0604), and the role turns the same resolution into
 # a link: `inspect` gives the file and the line, so a reader goes from the

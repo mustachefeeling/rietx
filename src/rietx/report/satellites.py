@@ -2,7 +2,7 @@
 
 The package already tells a user that the intensity its model puts nowhere
 *might* be magnetic — it is one of the causes ``HARMONIC_FRACTION`` names, and
-the manual repeats it in ``using/refining.md``.  Until this arm there was no
+the manual repeats it in ``reference/refinement.md``.  Until this arm there was no
 way to test that.  Here it is, and it costs the user nothing they do not
 already have: **a satellite is a position**, so the test needs a cell, a
 symmetry and a wavelength, and no moment, no magnetic form factor and no

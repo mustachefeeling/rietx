@@ -22,9 +22,9 @@ htmlcov/
 # why): the sphinx build stays seconds and stays offline, at the cost of a
 # figure that can go stale.  `*.png` above would have dropped them silently,
 # leaving a manual whose images are broken everywhere except this machine.
-# They moved into the new tree from the old one's `using/figures/` (WP-1986),
-# and `tests/test_manual_api.py` asks `git check-ignore` about every image a
-# page of either tree shows.
+# They moved here from the old tree's `using/figures/` (WP-1986), and
+# `tests/test_manual_api.py` asks `git check-ignore` about every image a page
+# shows.
 !docs/docs/figures/*.png
 # The GUI chapters' screenshots are committed for the same reason and were
 # dropped by the same rule (WP-1017) — the third time `*.png` above has

@@ -136,7 +136,7 @@ EXCLUSIONS: dict[str, str] = {
 
 # --- what is documented but not frozen, and why ---------------------------
 #
-# The third tier (WP-1078).  A name Part 1 documents is frozen from the
+# The third tier (WP-1078).  A name the manual documents is frozen from the
 # release that documents it, and for a subsystem still under active
 # development that is the wrong promise: `using/indexing.md` froze the whole
 # indexing surface the day it landed, and WP-1077 then had to change what one

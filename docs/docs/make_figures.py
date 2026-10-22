@@ -3,19 +3,18 @@
     .venv/bin/python docs/docs/make_figures.py
 
 They live in `figures/` beside this script, moved here from the old tree's
-`using/figures/` by WP-1986.  The old tree's chapters reference the same files
-until it retires.
+`using/figures/` by WP-1986.
 
 The figures are **committed**, not built.  Two reasons: the sphinx build stays
 seconds rather than minutes, and it stays offline and dependency-free — a docs
 build should not have to refine a real pattern.  The cost is that a figure can
 go stale, so this script is the one authority for how each was drawn, and
-``tests/test_manual_api.py`` checks that every figure a page of either tree
-references exists.
+``tests/test_manual_api.py`` checks that every figure a page references
+exists.
 
 Each figure is written twice, ``-light`` and ``-dark``, and the pages select
-between them with the ``only-light`` / ``only-dark`` classes both themes read
-(pydata-sphinx-theme here, furo in the old tree).  A single
+between them with the ``only-light`` / ``only-dark`` classes the theme reads
+(pydata-sphinx-theme).  A single
 white-ground figure on a dark page is the thing this avoids.
 
 **Every figure that shows a fit draws it from the case that is already

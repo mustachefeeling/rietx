@@ -488,7 +488,7 @@ def test_the_fit_renders(full, symmetric, held):
 
 
 # ------------------------------------------- the background-peak worked example ---
-# The manual's ``Explicit background peaks`` section (docs/manual/using/data.md)
+# The manual's hump comparison (docs/docs/concepts/parameters.md § Humps)
 # rests its headline on this pattern, and this is where that headline is
 # executable.  Same data, same protocol, one thing changed: the background is a
 # low-order Chebyshev rather than the P-spline above, which is the point — the
@@ -630,7 +630,7 @@ def cheb6():
 def cheb6_peak():
     """Chebyshev-6 + one background peak — the fourth table row.
 
-    Quoted in the manual (`using/data.md`), the ``HumpComponent`` docstring and
+    Quoted in the manual (`concepts/parameters.md` § Humps), the ``HumpComponent`` docstring and
     this module's `MANUAL_RWP`, and the arm the "relaxes to 5.245(41)°" caveat
     turns on; a fixture so all three are pinned to a refinement rather than to a
     number a solver change can silently move.

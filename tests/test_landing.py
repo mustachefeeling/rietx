@@ -19,9 +19,10 @@ as an artifact *fragment*, so without the document skeleton the site build
 rendered every `·` and `°C` as mojibake, and the payload fetch its own comments
 promised did not exist. Both are asserted on the assembled bytes.
 
-**A link that means the wrong page.** `/` is the landing page now and the manual
-is `/manual.html`, so a `https://rietx.org/` in the page that meant "the manual"
-silently points at the page itself.
+**A link that means the wrong page.** `/` is the landing page and the manual is
+`/docs/` (WP-1986), so a `https://rietx.org/` in the page that meant "the manual"
+silently points at the page itself, and a link into a chapter lands only if the
+page it names is built or stubbed.
 
 Everything here reads `docs/landing/build.py`'s own tables rather than restating
 them, so a new image or a new leak token is covered by adding it there.
@@ -320,16 +321,52 @@ def _links(page: str) -> list[str]:
     return re.findall(r'(?:href|src)="([^"]+)"', page)
 
 
+def _versions():
+    """`docs/docs_versions.py`, imported by path: its `RETIRED` table is where an
+    old-tree address is sent."""
+    spec = importlib.util.spec_from_file_location(
+        "_docs_versions", REPO_ROOT / "docs" / "docs_versions.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_no_link_means_the_manual_and_lands_on_this_page(any_page):
-    """`/` is the landing page since WP-1331 and the manual is `/manual.html`.
-    Three links in the page meant "the manual" and pointed at the site root."""
+    """`/` is the landing page since WP-1331 and the manual is `/docs/` since
+    WP-1986.  Three links in the page meant "the manual" and pointed at the site root."""
     name, page = any_page
     roots = [a for a in _links(page) if a.rstrip("/") == "https://rietx.org"]
     assert len(roots) == 1, (
         f"{name}: {len(roots)} links point at the site root; exactly one may (the brand, "
-        f"which does mean 'home').  A link meaning the manual is "
-        f"https://rietx.org/manual.html."
+        f"which does mean 'home').  A link meaning the manual is https://rietx.org/docs/."
     )
+
+
+def test_every_link_into_the_manual_lands_on_a_page(any_page):
+    """A chapter link is either a page of the manual under `/docs/<version>/` or an
+    old-tree address `docs_versions.RETIRED` stubs, which sends the reader to the
+    released tree once one carries the page and to `dev/` until then (WP-1986).  A
+    stub link carries no `#fragment`: the stub is a meta refresh, which drops it."""
+    name, page = any_page
+    retired = _versions().RETIRED
+    tree = REPO_ROOT / "docs" / "docs"
+    for link in _links(page):
+        path = link.removeprefix("https://rietx.org/")
+        if path == link or not path.partition("#")[0].endswith(".html"):
+            continue
+        if path.startswith("lite/"):
+            continue
+        target, _, fragment = path.partition("#")
+        target = target.removesuffix(".html")
+        version = re.match(r"docs/[^/]+/", target)
+        if version:
+            source = tree / target[version.end():]
+            notebook = REPO_ROOT / "examples" / "tutorials" / f"{source.name}.py"
+            assert source.with_suffix(".md").is_file() or notebook.is_file(), (
+                f"{name}: {link} names no page of docs/docs/")
+        else:
+            assert target in retired, f"{name}: {link} is neither a manual page nor a stub"
+            assert not fragment, f"{name}: {link} loses its #{fragment} in the stub's redirect"
 
 
 def test_the_landing_page_alone_is_written_at_the_site_root():
@@ -529,10 +566,7 @@ def test_every_read_link_is_a_page_the_manual_builds(site_html):
     through the redirect stub the retired old tree's address became
     (`docs/docs_versions.py`'s `RETIRED`, WP-1986), which must then send the
     reader to that same page."""
-    spec = importlib.util.spec_from_file_location(
-        "_docs_versions", REPO_ROOT / "docs" / "docs_versions.py")
-    versions = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(versions)
+    versions = _versions()
     index = (REPO_ROOT / "docs" / "docs" / "start" / "tutorials.md").read_text(encoding="utf-8")
     toctree = re.search(r"```\{toctree\}(.*?)```", index, re.S).group(1).split()
     reads = re.findall(r'href="https://rietx\.org/([^"]+)\.html">Read</a>', site_html)

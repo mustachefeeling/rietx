@@ -1909,7 +1909,7 @@ class HumpComponent(_InheritsDeclaredDefaults):
     cannot reach, which pulls the fitted centre to 4.18(9)° below the envelope's
     4.98°; at six terms it relaxes onto the envelope at 5.245(32)°.  Quote the
     envelope for where the halo is and the fit for the model that describes it.
-    ``docs/manual/using/data.md`` carries the long form and
+    ``docs/docs/concepts/parameters.md`` § Humps carries the long form and
     ``tests/data/README.md`` the provenance of every file named here.
 
     Fields, and the reason each bound is the bound it is:
