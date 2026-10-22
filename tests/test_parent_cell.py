@@ -218,6 +218,8 @@ SWEEP_ROWS = (
 FAST_ROWS = tuple(r for r in SWEEP_ROWS if r[0] in ("P 4 c c", "P 6 m m", "C m m 2"))
 GENERAL = (Fraction(11, 100), Fraction(13, 100), Fraction(17, 100))
 ORIGIN = (Fraction(0), Fraction(0), Fraction(0))
+#: a magnetic candidate needs its moment-bearing species named (#1077's refusal)
+MOMENT = {"magnetic_species": "Fe", "ion": "Fe3+"}
 
 
 def _sweep_children(rows):
@@ -234,11 +236,12 @@ def _sweep_children(rows):
         for cand in isotropy.candidates(setting, site, kk):
             for route in ("magnetic", "parent"):
                 try:
-                    ordinary = sc.magnetic_supercell(parent, cand, nuclear_group=route)
+                    ordinary = sc.magnetic_supercell(parent, cand, nuclear_group=route,
+                                                     **MOMENT)
                 except ValueError:
                     continue        # a route that does not reach this child at all
                 derived = sc.magnetic_supercell(parent, cand, nuclear_group=route,
-                                                parent_cell=True)
+                                                parent_cell=True, **MOMENT)
                 yield ordinary, derived
 
 
@@ -297,10 +300,18 @@ def test_strains_held_the_derived_cell_is_the_childs_own_and_spans_its_metrics()
 
 @pytest.mark.slow
 def test_the_whole_sweep_is_bit_identical_and_spans_the_childs_metrics():
-    """All 15 sweep rows × every candidate × both routes (365 children)."""
+    """All 15 sweep rows × every candidate × both routes (208 children).
+
+    The 215 candidates give 430 (candidate, route) pairs.  365 built while a
+    magnetic candidate could be stated with no moment; since #1077 it names its
+    moment-bearing species, and 157 more pairs are then refused for their
+    moments (a mixed-axis setting ``allowed_moment_basis`` cannot answer, a BNS
+    label, a site image) before any cell is built.  61 of the 208 have a
+    tabulated cell of their own, the rest need the parent's.
+    """
     worst = _check_sweep(SWEEP_ROWS)
     _assert_sweep(worst)
-    assert worst["children"] == 365, worst
+    assert worst["children"] == 208, worst
 
 
 #: One setting per ``cell_constraints`` branch: cubic, tetragonal, hexagonal,
@@ -383,7 +394,7 @@ def _blocks():
     hexagonal = _one_atom("P 6 m m", (6.0, 6.0, 9.0, 90.0, 90.0, 120.0), xyz=GENERAL)
     for cand in isotropy.candidates("P 6 m m", GENERAL, (0, 0, Fraction(1, 2))):
         st = sc.magnetic_supercell(hexagonal, cand, nuclear_group="magnetic",
-                                   parent_cell=True)
+                                   parent_cell=True, **MOMENT)
         if len(st.phase.parent_cell.strain) == 2:
             out.append(ParameterTable(Structure(phases=[st.phase]), INSTRUMENT).derived[0])
             break
@@ -639,3 +650,44 @@ def test_a_parent_cell_child_round_trips_through_json_to_the_bit():
     a = ParameterTable(structure, INSTRUMENT)
     b = ParameterTable(again, INSTRUMENT)
     assert [e.value for e in a.entries] == [e.value for e in b.entries]
+
+
+def test_the_drift_tolerance_refuses_any_edit_and_passes_round_off():
+    """``PARENT_CELL_DRIFT_TOL`` (1e-9 relative) from both sides.
+
+    A stored child cell is the derived one to the bit, so the tolerance only has
+    to sit above round-off and below any edit a person makes: a millionth of a
+    degree on γ is refused, a change at the 1e-13 level is not.
+    """
+    from rietx.params.vector import PARENT_CELL_DRIFT_TOL
+
+    base = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase
+    gamma = base.cell.gamma.value
+    assert 1e-6 / max(abs(gamma), 1.0) > PARENT_CELL_DRIFT_TOL
+    edited = base.model_copy(deep=True)
+    edited.cell.gamma.value = gamma + 1e-6
+    with pytest.raises(ValueError, match=r"phases\.0\.cell\.gamma is stored as"):
+        ParameterTable(Structure(phases=[edited]), INSTRUMENT)
+    rounded = base.model_copy(deep=True)
+    rounded.cell.gamma.value = gamma * (1.0 + 1e-13)
+    ParameterTable(Structure(phases=[rounded]), INSTRUMENT)
+
+
+def test_the_cosine_snap_removes_round_off_and_nothing_physical(monkeypatch):
+    """``COSINE_SNAP`` (1e-12 on a cosine) from both sides.
+
+    Pᵀ·G·P of a hexagonal cell gives cos γ = -0.49999999999999983.  Snapped, γ is
+    the angle of the exact cosine -½, the one every route to this metric
+    reports; unsnapped it is 119.99999999999999, one rounding away.  A real
+    departure, a cosine 1e-9 off -½ (6e-8°), is left alone.
+    """
+    exact = float(np.degrees(np.arccos(-0.5)))
+    g = metric.child_metric((3.2, 3.2, 5.2, 90.0, 90.0, 120.0), np.eye(3))
+    assert metric.cell_from_metric(g)[3:] == (90.0, 90.0, exact)
+    monkeypatch.setattr(metric, "COSINE_SNAP", 0.0)
+    assert metric.cell_from_metric(g)[5] != exact
+    monkeypatch.undo()
+    lengths = np.sqrt(np.diag(g))
+    off = np.array(g, dtype=np.float64)
+    off[0, 1] = off[1, 0] = (-0.5 + 1e-9) * lengths[0] * lengths[1]
+    assert metric.cell_from_metric(off)[5] != exact
