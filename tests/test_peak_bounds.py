@@ -17,7 +17,7 @@ Interpretation table, written before the tests were (each arm can fail):
 |---|---|---|
 | #916's flat Si (seed 1, 12.1–60°): census | 23 picked, 17 usable, ``[1,1,1,2,1,3,2,1,1,1,1]``, and the same flag counts as before this change (``position_at_bound`` 10, ``no_intensity`` 5, ``weak_line`` 6, ``width_capped`` 2) | a diagnostic change moved a flag or ``usable()`` |
 | the same: ``PEAK_POSITION_AT_BOUND`` | lists exactly the 10 flagged components, each with ±0.5 × its window's seed FWHM; ``info``, value 0 (every one is unusable or under the bar) | absent, a component missed, or a bound that is not its window's |
-| a position named one FWHM off a strong line (``fit_peaks``) | flagged, the bound from **its own** window (not detection's group of the same index), ``warning``, value 1 | the bound read from the wrong window, or the level blind to an offered line |
+| a position named one FWHM off a strong line (``fit_peaks``) | flagged, the bound from **its own** window (not detection's group of the same index), ``info`` (Yue's ruling: never a warning), value 1, the count still offered | the bound read from the wrong window, or the offered count lost |
 | the same position named on the line (control) | no flag, no diagnostic | a clean line reported at its bound |
 | ``PEAK_NO_INTENSITY``: an empty named position on its zero bound, one under 1σ, and the reproducer's five | each entry says which: ``I = …, at the zero bound`` or ``I/σ_I … < 1``; value = the count on the bound | the two causes conflated |
 | ``PEAK_WIDTH_CAPPED`` on the reproducer | the two humps, each with its FWHM and 5 × its window's seed FWHM | a value missing |
@@ -129,7 +129,7 @@ def test_a_named_position_off_a_line_is_a_bound_hit_and_on_it_is_not(tmp_path):
     d = _one(off, "PEAK_POSITION_AT_BOUND")
     assert d.where == [f"{p.two_theta:.4f}° (bound ±{r:.4f}°, "
                        f"I/σ_I {p.intensity / p.intensity_esd:.1f})"]
-    assert (d.level, d.value) == ("warning", 1.0)
+    assert (d.level, d.value) == ("info", 1.0)
 
 
 def test_no_intensity_says_whether_the_bound_or_the_floor_put_it_there(
@@ -236,3 +236,25 @@ def test_a_hand_set_no_intensity_does_not_print_a_false_comparison(flat_si):
     assert f"{strong.two_theta:.4f}° (I/σ_I {z:.2f}, marked by hand)" in d.where
     assert not any(f"I/σ_I {z:.2f} <" in e for e in d.where)
     assert "1 marked by hand" in d.message
+
+
+def test_the_bound_and_no_intensity_texts_say_only_what_holds(flat_si):
+    """Yue's #993 round 2: both texts must be true of every component they
+    list, including one under 1σ and one marked by hand, and the bound's
+    suggestion states the arithmetic and nothing of the line's position."""
+    _, _, pl, det = flat_si
+    b = _one(pl, "PEAK_POSITION_AT_BOUND")
+    assert "usually a seed" not in b.suggestion
+    assert "true optimum" not in b.suggestion
+    assert "σ(2θ) is a lower bound" in b.suggestion
+    assert "optimum lies past the bound" in b.suggestion
+    n = _one(pl, "PEAK_NO_INTENSITY")
+    for text in (n.message, n.suggestion):
+        assert "excluded from usable()" in text and "kept in peaks" in text
+    assert "carry no intensity" not in n.message
+    assert "there is no line" not in n.suggestion
+    # the three causes, each counted: the flat-Si census has the bound's and
+    # the floor's, and none by hand
+    assert "on the fit's zero-intensity bound" in n.message
+    assert "PEAK_NO_INTENSITY_SIGMA" in n.message and "marked by hand" in n.message
+    assert "marked by hand" in n.suggestion

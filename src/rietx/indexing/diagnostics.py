@@ -315,24 +315,22 @@ def _bound_diagnostics(peaks: PeakList,
         offered = [p for p in moved
                    if p.usable and "weak_line" not in p.flags]
         out.append(Diagnostic(
-            level="warning" if offered else "info",
+            level="info",
             code="PEAK_POSITION_AT_BOUND",
             message=(f"{len(moved)} component(s) ended on their position "
                      f"bound, {PEAK_POSITION_BOUND_FWHM:g} of the group's "
                      "seed FWHM from where they were seeded "
-                     "(PEAK_POSITION_BOUND_FWHM): the fit wanted to move "
-                     "further, so the reported 2θ is the bound's and not the "
-                     f"data's; {len(offered)} of them usable and above the "
+                     "(PEAK_POSITION_BOUND_FWHM): the fit's optimum lies "
+                     "past the bound, so the reported 2θ is the bound's; "
+                     f"{len(offered)} of them usable and above the "
                      "false-discovery bar"),
             where=[_at(p, (f"bound ±{PEAK_POSITION_BOUND_FWHM * s:.4f}°"
                            if (s := _seed_fwhm(p, windows)) else "at the bound")
                        + f", I/σ_I {_significance(p):.1f}")
                    for p in moved],
-            suggestion=("a component pressed against its bound is usually a "
-                        "seed on a strong line's tail or a Kα2 maximum; read "
-                        "its group's fit before indexing on it, and treat "
-                        "its σ(2θ) as a lower bound, since the true optimum "
-                        "lies beyond the reported position"),
+            suggestion=("the reported 2θ of a component on its bound is the "
+                        "bound's, its σ(2θ) is a lower bound, and the fit's "
+                        "optimum lies past the bound"),
             value=float(len(offered))))
 
     empty = [p for p in peaks.peaks if "no_intensity" in p.flags]
@@ -348,9 +346,9 @@ def _bound_diagnostics(peaks: PeakList,
                    and not math.isnan(_significance(p))]
         out.append(Diagnostic(
             level="info", code="PEAK_NO_INTENSITY",
-            message=(f"{len(empty)} component(s) carry no intensity the data "
-                     f"can tell from zero, excluded from usable(): {n_zero} "
-                     "on the fit's zero-intensity bound, "
+            message=(f"{len(empty)} component(s) excluded from usable() and "
+                     "kept in peaks so a report can say why: "
+                     f"{n_zero} on the fit's zero-intensity bound, "
                      f"{len(empty) - n_zero - len(by_hand)} under "
                      f"PEAK_NO_INTENSITY_SIGMA ({PEAK_NO_INTENSITY_SIGMA:g}) "
                      f"of their own esd and {len(by_hand)} marked by hand"),
@@ -361,11 +359,12 @@ def _bound_diagnostics(peaks: PeakList,
                        f"I/σ_I {_significance(p):.2f} < "
                        f"{PEAK_NO_INTENSITY_SIGMA:g}")
                    for p in empty],
-            suggestion=("such a component has no gradient on its own "
-                        "position, so its 2θ and σ(2θ) are not measurements. "
-                        "It stays in peaks so a report can say why the line "
-                        "went; on a named position (fit_peaks) it means "
-                        "there is no line there"),
+            suggestion=("these components are excluded from usable() and "
+                        "kept in peaks so a report can say why; a component "
+                        "on the zero bound or under its esd has a 2θ and "
+                        "σ(2θ) that are not measurements, and one marked by "
+                        "hand was withheld by the caller, whatever its "
+                        "intensity"),
             value=float(n_zero)))
     return out
 
