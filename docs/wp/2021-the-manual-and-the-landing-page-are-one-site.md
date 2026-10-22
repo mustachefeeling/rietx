@@ -145,9 +145,15 @@ Taken by the maintainer on 2026-10-22, in the session that filed this WP:
 3. The collapsed rail is too big.
 4. The title prefixes and the breadcrumb are to be looked at.
 5. **A: the manual takes the landing page's warm palette** (the maintainer, 2026-10-22).
-6. **B: as recommended** (left to the session by the maintainer, 2026-10-22): "About" goes
-   from the Concepts titles, and each Guides entry carries a short nav label while its H1
-   keeps "How to".
+6. **B: left to the session** (the maintainer, 2026-10-22), which took a narrower form than
+   it had recommended: **both tabs' menus drop the prefix, and every title keeps it.** Each
+   Concepts and Guides toctree entry is its page's H1 less "About" or "How to"; the H1,
+   `<title>`, prev/next, search and every link keep the full title.  Dropping "About" from
+   the H1s too was measured against the 66 places a concept title is quoted in prose, and
+   there the word does work: "[About the report](…) describes its three layers" names a
+   page, where "[The report](…) describes its three layers" reads as the `FitReport`
+   describing itself.  The menu is where the tab already says the type, which was the
+   maintainer's point.
 
 The two as they were put:
 - **A. Which way the palette moves.** Recommended: the manual takes the landing page's warm
@@ -297,3 +303,38 @@ refused direct fetches; re-read each before quoting it in the manual.
   whether a breadcrumb ends at the page or its parent, and whether a task title says "How
   to". Next: settle decisions A and B with the maintainer, then start at the house-style
   task, since every later task cites it.
+- **2026-10-22** (second session, paused for a context compaction) — A and B settled (Decisions
+  5 and 6). Landed and pushed, checked by eye in headless Chromium at 1440, 900 and 390 px
+  in both themes against a local copy of the site:
+  - `docs/landing/src/tokens.css`, inlined by `build.py` and loaded by `conf.py`;
+    `custom.css` maps `--pst-*` and spells no colour. Semantic colours: `--warn` ochre
+    (`#7d5f00` / `#e3c25b`, hue ~45° against the accent's ~26°), `--info` and `--danger`
+    new, `--faint` darkened to `#7a7167` / `#8c8277` (it was 2.89:1 on the light page), and
+    the two labels drawn on `--surface-2` take `--muted`, since no `--faint` near `--muted`
+    passes there.
+  - The fonts, the header (brand to `rietx_home`, `rietx-landing.html` deleted, a two-state
+    toggle in `_static/rietx-theme.js`), the sidebars (18rem, no collapse, the tab's name),
+    the breadcrumb, the footer, the banner (quiet for `dev`, `--warn` for an old release,
+    told apart by the footer's `data-docs-version` through `:has()`), and the article.
+  - The header measured 72 px against its declared 56 until `.bd-header__inner`'s padding
+    and the brand's went; pydata inverts mermaid SVGs under dark (`filter: invert(.82)`),
+    which `custom.css` undoes.
+  - **Two deviations from the tasks as written.** Mermaid is not `base` with theme
+    variables: the extension takes one init config for both themes and mermaid's
+    variables are literal colours, so the tokens reach the diagram through `custom.css`
+    over `neutral`/`dark`. The light figures are not transparent: `make_figures.py`'s
+    reason for an opaque light twin (dark type unreadable in a dark viewer) stands, so
+    they are saved on the light `--bg`, read from `tokens.css`.
+  - The front page's H1 is "The rietx manual"; every page's answer sentence is styled as
+    its lede.
+  - Menus per decision 6. An incremental build left old labels in the sidebar of unchanged
+    pages; `-E` showed them right, so judge a toctree change on a fresh build.
+
+  **Not yet done**, in order: the tests (the two brand tests still pin the old templates
+  and will fail; add the token, contrast, breadcrumb, credit/collapse and toctree-label
+  tests); `docs/landing/README.md` § House style plus its rows for `tokens.css` and the
+  favicon, and its "orange" non-converged line, now ochre; ATTRIBUTION.md rows for the
+  two faces; `page_shots.js`; `check_equations.py`; the acceptance commands; then
+  `/wp-handover`. Scratch tooling for the look (`shots.mjs`, `probe.mjs`, `assemble.sh`,
+  `rebuild.sh`, a local mermaid 11.12.1 routed in place of the CDN) is in the session
+  scratchpad, not the repo.
