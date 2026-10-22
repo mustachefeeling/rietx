@@ -3711,10 +3711,14 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         raise ValueError(
             f"window_area_tol is a fraction of a peak's area, strictly between 0 "
             f"and 1 (got {window_area_tol})")
-    # the closing stage's FCJ node rule, for every compile finer than the
-    # declared stages.  A declared stage keeps the rule it had, so a plan with
-    # closing_window_tol=None is the fit it was (the seventh round's Q2)
-    closing_precision = window_area_tol < WINDOW_AREA_TOL
+    # the closing stage's FCJ node rule, for every compile at its windows or
+    # tighter (the seventh round's Q2) and for every compile finer than the
+    # declared stages (2026-10-22).  The first clause keeps a converged
+    # reference accurate where a caller lowers WINDOW_AREA_TOL itself.  A
+    # declared stage keeps the rule it had, so a plan with
+    # closing_window_tol=None is the fit it was
+    closing_precision = (window_area_tol <= CLOSING_WINDOW_TOL
+                         or window_area_tol < WINDOW_AREA_TOL)
     mask = pattern.in_range_mask()
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
     if two_theta_limits is not None:
