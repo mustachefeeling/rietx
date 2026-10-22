@@ -58,7 +58,7 @@ stay exactly what the skill's `api.md` prints.
   `make_api_index`'s own builders; repeats `:no-index:`; conf sets the signature line length
 - [x] Tests: the generated body parses as directives and every signature equals the skill's;
   the manual builds `-W`; the twin reads cleanly
-- [ ] Skill: none — the skill's `api.md` is unchanged byte for byte, and no agent-facing rule moves
+- [x] Skill: none — the skill's `api.md` is unchanged byte for byte, and no agent-facing rule moves
 
 ## Acceptance
 
