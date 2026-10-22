@@ -484,7 +484,7 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
 })
 
 ROWS: tuple[Row, ...] = (
-    # code: 256
+    # code: 257
     Row("ABSORPTION_ESTIMATE_UNAVAILABLE", "code"),
     Row("ABSORPTION_MU_R_OUT_OF_RANGE", "code"),
     Row("ABSORPTION_PLATE_THICKNESS", "code"),
@@ -794,13 +794,13 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 19
+    # action: 22
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
                   "FullProf and TOPAS hold nothing by default, TOPAS's Remove_Phase is opt-in "
-                  "(Tech Ref V9 § 20.19); the collapse restore also appends here (B14 owes it a "
-                  "field)"),
+                  "(Tech Ref V9 § 20.19); the collapse restore also appends here, and "
+                  "StageResult.collapsed says which (B14)"),
         grounds=("No competent refiner lets a phase the data cannot see refine its cell, and the "
                  "hold touches only what the data cannot determine; on by default, which no "
                  "program does (B1, ruled 2026-10-19)."),
@@ -824,6 +824,18 @@ ROWS: tuple[Row, ...] = (
         grounds=("A refiner whose cell ran away puts it back and fixes it for the stage, through "
                  "the restore, hold and second solve the collapse already takes (B1); ordinary "
                  "fits do not change (B8, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.results.StageResult.collapsed", "action", tier=3, ambiguity=1,
+        evidence=("WP-1301/1523: a phase visible at stage start that fell under 3 sigma at the "
+                  "answer, or a moment direction gone flat, is restored to its stage start, held "
+                  "and the stage re-solved once; on the ramp's sub-onset patterns the CaF2 cell "
+                  "walked to 1.73-20.34 A unheld and -6.49 A under the start-only hold, and the "
+                  "restore leaves it exactly at its stage-start value "
+                  "(tests/test_held_phase.py collapsed_fit); until B14 the restore joined "
+                  "StageResult.held unmarked"),
+        grounds=("A cell chased into noise is no measurement, so a refiner puts it back where "
+                 "the data last constrained it; kept with the hold and the release (B1, ruled "
+                 "2026-10-19), and given its own field by B14's option 3 (ruled 2026-10-20)."),
         approved="2026-10-19"),
     Row("rietx.schemas.results.StageResult.moment_flat_axes", "action", tier=1, ambiguity=1,
         evidence=("physics: Shirane (1959) Acta Cryst. 12, 282: a powder cannot see a cubic "
@@ -849,7 +861,8 @@ ROWS: tuple[Row, ...] = (
                   "Pitschke's c: not start-invariant, from 0 CPD zincite lands in the turned-over "
                   "regime (scale x2.1, ROUGHNESS_OUTSIDE_REGIME) and corundum's Biso moves 0.26 "
                   "esd; no program supplies a Pitschke start (FullProf's examples start at "
-                  "1.2-1.5; docs/wp/2002-batch/practice.md)"),
+                  "1.2-1.5; docs/wp/2002-batch/practice.md). Since B14 the field also records "
+                  "Stage.strain_seed's Stephens rows, whose start is STRAIN_SEED_PPM's row"),
         grounds=("The seeding action is the stage's, recorded in the field; Suortti's start is "
                  "answer-invariant and Pitschke's is kept at 0.3 because from 0.3 the fit reaches "
                  "the switched-off branch inside the model's valid range, while from 0 the lower "
@@ -922,7 +935,7 @@ ROWS: tuple[Row, ...] = (
                  "textbook esd reported beside it for comparison with other codes (B4, ruled "
                  "2026-10-19)."),
         approved="2026-10-19"),
-    # constant: 546
+    # constant: 611
     Row("rietx.background.auto.AIR_SCATTER_TRIGGER", "constant", tier=3, value=0.3,
         evidence=("v0.2: 0.3 sits between 0.85 (synthetic air scatter) and 1e-4 (flat), "
                   "synthetics only; WP-1130 F7: a planted 900/(2θ) term reads 0.069, and #636: "
@@ -2633,7 +2646,7 @@ ROWS: tuple[Row, ...] = (
                  "zero; kept at 1000 ppm until a second dataset compares the starts (B3, ruled "
                  "2026-10-19); the second compared them on 2026-10-20 and favoured 1000 ppm."),
         approved="2026-10-19"),
-    # default: 109
+    # default: 117
     Row("rietx.schemas.instrument.ProfileTCHZ:shape", "default", tier=2, ambiguity=1, value="tchz_pv",
         evidence=("GSAS-II 5.8.4's constant-wavelength peak is the Thompson, Cox & Hastings (1987) "
                   "pseudo-Voigt with the FCJ asymmetry (GSASIIpwd.getFWHM :916, getFCJVoigt3 "
@@ -3018,7 +3031,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.SearchSpec:seed", "default", value=0),
     Row("rietx.indexing.engines.SearchSpec:prior_cells", "default", value=()),
     Row("rietx.indexing.engines.SearchSpec:prior_spacegroups", "default", value=()),
-    # suggestion: 196
+    # suggestion: 197
     Row("ABSORPTION_ESTIMATE_UNAVAILABLE.suggestion", "suggestion", value=1),
     Row("ABSORPTION_MU_R_OUT_OF_RANGE.suggestion", "suggestion", value=1),
     Row("ABSORPTION_THICKNESS_MATTERS.suggestion", "suggestion", value=1),

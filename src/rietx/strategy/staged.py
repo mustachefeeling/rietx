@@ -153,7 +153,8 @@ class Stage:
     #: microstrain (ppm of ΔM/M) to put a freed but still all-zero Stephens
     #: block on before solving.  ``seed`` cannot serve: the S_HKL DOFs are
     #: unbounded below, and their pathology at zero is the *exploding*
-    #: gradient of √Σ.  0 = no seed.
+    #: gradient of √Σ.  0 = no seed.  ``ParameterTable.seed_stephens``;
+    #: recorded in ``StageResult.seeded``, every DOF of the block at its seed.
     strain_seed: float = 0.0
     #: c_w of McCusker eq (7), S = S_y + c_w·S_G: how heavily this stage weights
     #: the geometric 'observations' (every soft restraint the phases declare)

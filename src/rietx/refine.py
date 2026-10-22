@@ -403,7 +403,7 @@ class _StageHold:
     unknown_paths: list[str] = dataclasses.field(default_factory=list)
     #: ``StageResult.seeded`` (WP-1930), riding here for the same reason:
     #: decided before the solve, and unrecoverable after it, when the seeded
-    #: row has moved.
+    #: row has moved.  ``Stage.seed``'s rows and ``Stage.strain_seed``'s.
     seeded: dict[str, float] = dataclasses.field(default_factory=dict)
     #: one :class:`CellReset`, ``(path, solved_value, start_value)``, for
     #: every free cell parameter :func:`reset_cell_runaway` put back this
@@ -416,6 +416,12 @@ class _StageHold:
     #: :attr:`cell_runaway` the stage did not hand to the collapse's hold,
     #: decided inside the stage beside ``held``.
     cell_reset: list[str] = dataclasses.field(default_factory=list)
+    #: ``StageResult.collapsed`` (WP-2002, B14): the free columns the answer
+    #: found unsupported or flat, restored to their stage-start values and
+    #: held for the second solve.  A subset of :attr:`held`, decided inside
+    #: the stage, where the start-of-stage hold and the collapse are still
+    #: two lists.
+    collapsed: list[str] = dataclasses.field(default_factory=list)
     #: ``(driver_path, [escaped_dependent_paths])`` per ``vars.*`` column
     #: :func:`_vars_driven_cell_escapes` found driving a cell outside the
     #: safety window this stage — named, never reset (review of #385
@@ -4019,6 +4025,11 @@ class Refinement:
         seeded_phases = (_phases_reached([*seeded, *strain_seeded],
                                          table.column_reach())
                          if seeded or strain_seeded else set())
+        # ``StageResult.seeded``'s second writer (WP-2002, B14): each DOF of
+        # the block at the value the seed wrote, read off the entry because
+        # the isotropic ray gives every DOF its own coefficient
+        seeded.update({p: table.entries[table._paths[p]].value
+                       for p in strain_seeded})
 
         # regenerate reflection list/windows/FCJ nodes with current values
         # (between-stage refresh; frozen within the stage); the free-path
@@ -4469,7 +4480,7 @@ class Refinement:
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
             seeded=seeded,
             cell_runaway=list(cell_runaway),
-            cell_reset=list(cell_reset),
+            cell_reset=list(cell_reset), collapsed=list(collapsed),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
             origin=model.origin,
             # Le Bail and Pawley read the screen alone, which the result
@@ -5085,7 +5096,7 @@ class Refinement:
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
                 seeded=hold.seeded,
-                cell_reset=hold.cell_reset,
+                cell_reset=hold.cell_reset, collapsed=hold.collapsed,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
                 moment_angle_tests=outcome.moment_angle_tests,
@@ -5384,6 +5395,7 @@ class Refinement:
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={},
                 seeded=hold.seeded, cell_reset=hold.cell_reset,
+                collapsed=hold.collapsed,
                 moment_angle_tests=outcome.moment_angle_tests)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and

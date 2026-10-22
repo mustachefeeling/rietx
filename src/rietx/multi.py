@@ -1457,6 +1457,10 @@ class MultiHistogramRefinement:
                     models, self.mtable, list(support_hold), start_values,
                     held_reach=held_reach, reach=reach, sigma=phase_support_sigma)
                 held_reach.update(_joint_reach_beyond_self(collapsed, reach))
+                # ``StageResult.collapsed``: the restored columns alone, taken
+                # before the late scale-B hold joins ``collapsed`` below, since
+                # that one holds a released phase's B where it stands
+                restored = list(collapsed)
                 if released:
                     # a phase the support hold released is asked before its second
                     # solve, or that solve runs on the ridge unflagged (the single
@@ -1475,6 +1479,7 @@ class MultiHistogramRefinement:
                     models, self.mtable, [p for p in held if p in moment_set],
                     start_values, moment_turned)
                 released, collapsed = released + m_released, collapsed + m_collapsed
+                restored = restored + m_collapsed
                 for site, axis in m_axes.items():
                     flat_axes.setdefault(site, axis)
                 moment_turned = moment_turned + m_turned
@@ -1568,7 +1573,7 @@ class MultiHistogramRefinement:
                     unknown_paths=unknown_paths, unreached_histograms=unreached,
                     seeded=seeded, blocked_by_hold=blocked_by_hold,
                     moment_angle_tests=outcome.moment_angle_tests,
-                    cell_reset=cell_reset))
+                    cell_reset=cell_reset, collapsed=restored))
                 if stream is not None:
                     rwp, rows = self._stage_end_rows(models, outcome.theta)
                     stream.emit("stage_end", stage=stage.name, status=outcome.status,

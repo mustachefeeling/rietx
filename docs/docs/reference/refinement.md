@@ -457,12 +457,13 @@ for stage in result.stages:
 | `StageResult.blocked_by_hold` | parameters the patterns matched and a `Refinement.hold` kept fixed ([How to keep a parameter fixed whatever the plan frees](../guides/hold.md)) |
 | `StageResult.unknown_paths` | literal names in `turn_on` that name no parameter of this model, and names under a retired spelling |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the patterns that freed parameters of another histogram and matched none of this one; `{}` on a single histogram |
-| `StageResult.seeded` | each parameter this stage lifted before solving, with the value it started from |
+| `StageResult.seeded` | each parameter this stage lifted before solving, with the value it started from, `Stage.strain_seed`'s Stephens DOFs included |
 | `StageResult.cell_reset` | the free cell parameters this stage put back at the values it started from, because their phase's cell left the safety window while it solved ([Parameter table](parameter-table.md#bounds-a-stage-adds); [`CELL_RUNAWAY`](diagnostics-refinement.md#cell_runaway) says more) |
+| `StageResult.collapsed` | the parameters in `held` put back at their starting values because the stage's first solve found them flat ([Held parameters](#held-parameters)) |
 | `StageResult.moment_flat_axes`, `StageResult.moment_turned` | magnetic sites whose moment direction the stage held about a flat axis ([Magnetic refinement](magnetic.md#directions-a-powder-cannot-see)) |
 | `StageResult.moment_angle_tests` | each round of the stationary-angle test, one `MomentAngleTest` per round; `None` when no test ran ([Magnetic refinement](magnetic.md#an-angle-at-a-symmetry-direction)) |
 
-`StageResult.scale_b_held`, `StageResult.unknown_paths`, `StageResult.unreached_histograms`, `StageResult.seeded` and `StageResult.cell_reset` are `None` on a result stored before the field existed, meaning that nothing looked.
+`StageResult.scale_b_held`, `StageResult.unknown_paths`, `StageResult.unreached_histograms`, `StageResult.seeded`, `StageResult.cell_reset` and `StageResult.collapsed` are `None` on a result stored before the field existed, meaning that nothing looked.
 The status type also admits `diverged`, which neither driver produces today.
 Both drivers accept a step only when it lowers the cost, so `cost_final` never exceeds `cost_initial`.
 

@@ -1152,15 +1152,23 @@ class StageResult(Base):
     #: reason.  It feeds ``STAGE_FREED_NOTHING``.
     unreached_histograms: dict[int, list[str]] | None = None
     #: each row this stage lifted before solving, and the value it started at
-    #: in column units (WP-1930).  One writer puts a row here: the stage's own
+    #: in column units (WP-1930).  Two writers put a row here.  The stage's own
     #: :attr:`~rietx.strategy.staged.Stage.seed`, through
-    #: :meth:`~rietx.params.vector.ParameterTable.seed_floored`, which starts a
-    #: freed row sitting exactly on a floor of 0 or above at the seed.
-    #: WP-1930's second writer, a floor seed sized by unit, went with WP-1938:
-    #: it existed because a softplus column at its floor was twelve orders below
-    #: its neighbours, and a row refined in its own units has its physical
-    #: column there.  ``None`` means a result stored before the field; all three
-    #: runners write a mapping, and an empty one is a stage that lifted nothing.
+    #: :meth:`~rietx.params.vector.ParameterTable.seed_floored`, starts a
+    #: freed row sitting exactly on a floor of 0 or above at the seed.  Its
+    #: :attr:`~rietx.strategy.staged.Stage.strain_seed`, through
+    #: :meth:`~rietx.params.vector.ParameterTable.seed_stephens`, puts a freed
+    #: all-zero Stephens block on the isotropic ray, and every DOF of that block
+    #: is here at the value the seed wrote, a zero coefficient of the ray
+    #: included (WP-2002, B14).  Those rows sit at zero rather than on a floor,
+    #: since a Stephens DOF is unbounded below.  The joint fit's runner seeds
+    #: no Stephens block, so its stages carry the first writer's rows alone.
+    #: WP-1930's floor seed sized by unit went with WP-1938: it existed because
+    #: a softplus column at its floor was twelve orders below its neighbours,
+    #: and a row refined in its own units has its physical column there.
+    #: ``None`` means a result stored before the field; all three runners write
+    #: a mapping, and an empty one is a stage that lifted nothing.  A result
+    #: stored before B14 lacks the Stephens rows of a stage that seeded them.
     seeded: dict[str, float] | None = None
     #: the stationary-angle test the stage's covariance ran (WP-1929), one
     #: :class:`MomentAngleTest` per round in the order they ran.  A round with
@@ -1190,6 +1198,27 @@ class StageResult(Base):
     #: field; every runner writes a list, and an empty one is a stage that put
     #: nothing back, which is every stage of an ordinary fit.
     cell_reset: list[str] | None = None
+    #: the free parameters this stage **restored** to the values it started
+    #: from and held, because the answer of its first solve found them flat
+    #: (WP-1301, B1; recorded since WP-2002, B14).  Two readings of the answer
+    #: put a column here, and both take the same restore, hold and one second
+    #: solve.  A column moving only phases whose scale is under the plan's
+    #: ``phase_support_sigma`` there collapsed with its phase.  A moment
+    #: direction whose turn no longer moves the pattern went flat while the
+    #: stage ran.  The first solve's values for them were the walk, not a
+    #: measurement, and are gone.
+    #:
+    #: A subset of :attr:`held`, which also carries the columns held at stage
+    #: start, so a column in ``held`` and not here was held before anything
+    #: solved.  Disjoint from :attr:`released`, from :attr:`freed` and from
+    #: :attr:`cell_reset`: a cell the runaway reset and the collapse both reach
+    #: is here.  Writers: the three runners that build a ``StageResult``,
+    #: ``Refinement.fit`` and ``Refinement.run_stage`` from
+    #: ``Refinement._run_stage``'s record, and ``MultiHistogramRefinement.fit``
+    #: from its own stage loop.  ``None`` means a result stored before the
+    #: field; every runner writes a list, and an empty one is a stage whose
+    #: answer restored nothing, which is every stage of an ordinary fit.
+    collapsed: list[str] | None = None
 
     @model_validator(mode="before")
     @classmethod
