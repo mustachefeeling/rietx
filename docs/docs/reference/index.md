@@ -21,6 +21,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Plan presets](plans.md) draws each preset's stages.
 - [The refinement](refinement.md) gives the calls that run a fit and where each setting goes, the fit modes, the plan and stage objects and their stored form, what each stage records, the guard findings, the event stream, cancellation and the provenance record.
 - [Magnetic refinement](magnetic.md) gives the satellite test for unexplained intensity, the moment and magnetic space group fields, what the report says about a moment, the magnetic peak width, and `solve_magnetic` with its answer types.
+- [Peak lists for indexing](peaks.md) gives what `pick_peaks` and `fit_peaks` return and refuse, the fields of a `PeakList` and an `ObservedPeak`, the peak flags, and whether a list can be indexed, with its systematic-shift screen.
 - [Sequential refinement](series.md) gives `refine_sequential` and `SequentialRefinement`: the arguments of a series, what crosses from one pattern to the next, the `SeriesResult` with its trajectories, the series diagnostics and the restart ladder.
 - [Joint refinement](joint.md) gives `refine_multi` and `MultiHistogramRefinement`: which parameters the patterns share, two radiations and a refinable wavelength, the per-pattern result, and a report per pattern.
 - [Parametric refinement](parametric.md) gives `CoordinateTable` and `ParametricEquation`, what a declaration refuses, the coefficients a fit reports, the test of the declared form and the equation at any coordinate.
@@ -65,6 +66,7 @@ settings
 plans
 refinement
 magnetic
+peaks
 series
 joint
 parametric
