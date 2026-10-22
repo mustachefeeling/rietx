@@ -534,6 +534,6 @@ The order leads with corroboration and moves a supercell by its checks, which is
 
 On the default corundum run above, the certified trigonal R lattice comes back first, found by two of the three engines, with a converged Le Bail fit.
 It grades `low`, so `best_or_none` returns `None`.
-`LeBailValidation.predicted_but_absent` counts the c-glide's reflections, the shape a space-group extinction takes when read against a lattice group that does not know about it; none of them is uncancellable, so the caveat is silent, and the extinction screen ([The extinction symbol](extinction.md)) is what names the glide.
+`LeBailValidation.predicted_but_absent` counts the c-glide's reflections, the shape a space-group extinction takes when read against a lattice group that does not know about it; none of them is a line no space group could extinguish, so the caveat is silent, and the extinction screen ([The extinction symbol](extinction.md)) is what names the glide.
 `geometric_ambiguity` is there on every candidate because the ceiling stopped the run before the ambiguity walk, and `fom_panel_disagrees` because the panel's members split.
 None of the caveats says the cell is wrong; they say what has not been established, which is the difference between this answer and a confident one.
