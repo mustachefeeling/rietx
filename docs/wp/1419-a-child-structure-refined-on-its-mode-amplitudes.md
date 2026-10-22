@@ -529,6 +529,29 @@ the reporter's fork.
   unit at raw-N ΔBIC and predates #680, and the new one is public and
   rerunnable.
 
+- **Decided 2026-10-22 (#286): chunk 3 splits in two, and 3a opens now.**
+  The reporter asked on 2026-10-21 to split chunk 3, neither half stacked.
+  **3a** is the amplitude block: `Phase.distortion_modes`, absolute
+  amplitudes driving the coordinates through C, the builder's seed, the
+  per-parent-site Biso ties, and `displacive_statement` of a *given* child
+  through `distortion_basis`. It opens off `main` now, beside #996 and
+  before chunk 2. **3b**, a small follow-up opening after #996 and chunk 2
+  merge, carries `displacive_statement` from a `DistortionCandidate` and the
+  derived cell's strains in the seed rule. The reason is chunk 4: its
+  reporting (A_τ with its esd, Hotelling's T², `DISTORTION_MODE_UNSUPPORTED`)
+  is designed by measuring on the block's API, so the block should be the
+  one that ships. The 2026-10-08 order was a sizing of the work, not a
+  dependency, and 3a needs nothing from #996 or chunk 2. Checked against the
+  tree at `4ca36160`: `distortion_basis` is on `main`
+  (`crystallography/representation/distortion.py`, from #950), and there is
+  no `distortion_modes`, `displacive_statement` or
+  `DISTORTION_MODE_UNSUPPORTED` under `src/` or `tests/`. Two costs to
+  expect. 3a carries chunk 3's `SCHEMA_VERSION` bump (main at 0.59), which
+  `/pr-review` step 4 syncs against whichever schema PR lands near it. And
+  #996 touches `representation/distortion.py`, `magnetic/isotropy.py`,
+  `_audit.py` and `references/api-magnetic.md`, files 3a will likely share,
+  so whichever merges second may need a sync or a rebase.
+
 ## Non-goals
 
 - Moment modes (SARAh-style basis-vector amplitudes): 1327 owns
