@@ -347,9 +347,8 @@ def test_a_variable_shared_with_a_separable_phase_is_not_held(pattern):
 # ----------------------------------------------------------------------
 #: 25–33° Cu Kα: fluorite keeps (111) and (200), two reflections for its
 #: scale, B(Ca) and B(F).  The uniform B is separable there, the block is not.
-#: Iron is left out: it has no reflection there, and its free scale walks a
-#: flat direction to 126 in a second scale-only stage at an unchanged Rwp,
-#: which predates this probe and is WP-1523's (its 2026-10-04 Inherited).
+#: Iron is left out of the block tests: it has no reflection there, and its
+#: scale is WP-1958's, tested below.
 TT_NARROW = np.arange(25.0, 33.0, 0.01)
 ADP = ["phases.*.atoms.*.adp.*"]
 
@@ -439,6 +438,116 @@ def test_an_anisotropic_site_is_probed(pattern):
     sr = res.stages[-1]
     assert list(sr.scale_b_held) == [FE]
     assert all(p.startswith(f"phases.{FE}.atoms.0.adp.") for p in sr.held)
+
+
+# ----------------------------------------------------------------------
+# WP-1958 (#954): a phase with no reflection in the fitted range
+# ----------------------------------------------------------------------
+SCALES_ONLY = [Stage("s", BIG), Stage("s2", BIG)]
+FE_SCALE = f"phases.{FE}.scale"
+
+
+@pytest.fixture(scope="module")
+def four_phase_narrow_pattern() -> PatternData:
+    """All four phases over 25–33°, where bcc Fe has no reflection."""
+    structure, instrument = _models(TRUE_SCALES, unbounded=False)
+    blank = PatternData(two_theta=TT_NARROW.tolist(),
+                        intensity=np.zeros_like(TT_NARROW).tolist())
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    assert int(model.phase_line_counts()[FE]) == 0
+    assert all(int(n) > 0 for n in model.phase_line_counts()[:FE])
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(3).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=np.asarray(model.tt).tolist(), intensity=y.tolist())
+
+
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_a_phase_with_no_reflection_keeps_its_scale_and_has_no_fraction(
+        four_phase_narrow_pattern, solver):
+    """The acceptance of WP-1958, as decided on #954: under both solvers the
+    scale is unchanged and the QPA carries no fraction for the phase.
+
+    Measured on ``main`` before it (the WP's repro, this fit): LM left the
+    scale at 1e-4 and read iron at 0.61 wt%, the start value; TRF walked it to
+    164.7 and read iron at 99.99 wt%.  Both now hold the scale at the 1e-4
+    handed in, and iron has no fraction.
+    """
+    ref = rx.Refinement(*_models(START_SCALES), solver=solver)
+    res = ref.fit(four_phase_narrow_pattern,
+                  plan=RefinementPlan(stages=SCALES_ONLY), telemetry=False)
+    # on the Refinement's own copy, the one the fit could move
+    assert ref.structure.phases[FE].scale.value == START_SCALES[FE]
+    assert all(FE_SCALE in sr.held and FE_SCALE not in sr.freed
+               for sr in res.stages)
+    assert FE_SCALE not in {p.path for p in res.parameters}
+    (iron,) = [q for q in res.qpa.phases if q.name == "iron"]
+    assert iron.weight_fraction is None and iron.weight_fraction_stderr is None
+    assert res.qpa.unmeasured_phases == ["iron"]
+    (finding,) = _findings(res, "PHASE_UNCONSTRAINED")
+    assert finding.where == [FE_SCALE]
+    assert "relative to the phases seen in range" in finding.message
+    # the unmeasured scale withholds no other esd: it left the sum
+    assert _findings(res, "QPA_ESD_UNAVAILABLE") == []
+
+
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_the_phases_seen_in_range_still_refine_and_are_quantified(
+        four_phase_narrow_pattern, solver):
+    """The positive arm: the three phases with reflections in range refine
+    their scales off the 1e-4 start towards the 2e-4 truth and carry fractions
+    with esds, which sum to 1 over the phases seen and match the three-phase
+    truth, the fixture's fluorite tolerance applied to each."""
+    ref = rx.Refinement(*_models(START_SCALES), solver=solver)
+    res = ref.fit(four_phase_narrow_pattern,
+                  plan=RefinementPlan(stages=SCALES_ONLY), telemetry=False)
+    truth = _narrow_models(TRUE_SCALES)
+    table = ParameterTable(*truth)
+    w = {p.name: p.weight_fraction
+         for p in compute_qpa(truth[0], table.decode(table.x0())).phases}
+    rows = {p.path: p for p in res.parameters}
+    seen = [q for q in res.qpa.phases if q.name != "iron"]
+    assert math.isclose(sum(q.weight_fraction for q in seen), 1.0, rel_tol=1e-12)
+    for ip, q in enumerate(seen):
+        scale = rows[f"phases.{ip}.scale"]
+        assert abs(scale.value - TRUE_SCALES[ip]) < 0.1 * TRUE_SCALES[ip]
+        assert all(f"phases.{ip}.scale" in sr.freed for sr in res.stages)
+        assert q.weight_fraction_stderr is not None
+        tol = 3.0 * scale.stderr / scale.value
+        assert abs(q.weight_fraction - w[q.name]) < tol * w[q.name]
+
+
+def test_iron_with_a_reflection_in_range_refines_its_scale_under_trf(pattern):
+    """The same phase and solver on 25–50°, where (110) is in range: nothing
+    of WP-1958's hold applies, iron's scale refines and it has a fraction."""
+    ref = rx.Refinement(*_models(START_SCALES), solver="trf")
+    res = ref.fit(pattern, plan=RefinementPlan(stages=SCALES_ONLY), telemetry=False)
+    assert all(FE_SCALE in sr.freed and FE_SCALE not in sr.held
+               for sr in res.stages)
+    assert ref.structure.phases[FE].scale.value != START_SCALES[FE]
+    (iron,) = [q for q in res.qpa.phases if q.name == "iron"]
+    assert iron.weight_fraction is not None and iron.weight_fraction > 0.0
+    assert res.qpa.unmeasured_phases == []
+
+
+@pytest.mark.parametrize("solver", ["lm", "trf"])
+def test_a_joint_fit_holds_each_histograms_unseen_scale(
+        four_phase_narrow_pattern, solver):
+    """The joint runner's half: each histogram's own Fe scale is held where
+    that histogram has no line of it.  Measured before the hold, TRF walked
+    the two to 214.1 and 2.3 on two copies of the 25–33° scan."""
+    from rietx.multi import MultiHistogramRefinement
+
+    structure, instrument = _models(START_SCALES)
+    multi = MultiHistogramRefinement(
+        structure, [instrument.model_copy(deep=True) for _ in range(2)],
+        solver=solver)
+    res = multi.fit([four_phase_narrow_pattern] * 2,
+                    plan=RefinementPlan(stages=SCALES_ONLY))
+    held = {f"hist.{h}.{FE_SCALE}" for h in range(2)}
+    assert all(held <= set(sr.held) for sr in res.stages)
+    assert [s.phases[FE].scale.value for s in multi.fitted_structures] == [
+        START_SCALES[FE]] * 2
 
 
 # ----------------------------------------------------------------------

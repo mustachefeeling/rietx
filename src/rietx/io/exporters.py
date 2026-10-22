@@ -248,6 +248,11 @@ def _qpa_caveats(qpa: QuantitativePhaseAnalysis) -> list[str]:
         "sum to 1.",
         f"method={qpa.method} crystalline_only={qpa.crystalline_only}",
     ]
+    if qpa.unmeasured_phases:
+        lines.append(
+            "Fractions are relative to the phases seen in range; "
+            f"{', '.join(qpa.unmeasured_phases)} not measured (no reflection "
+            "in the fitted range, so no weight_fraction).")
     if qpa.microabsorption is not None:
         m = qpa.microabsorption
         lines.append(
@@ -281,7 +286,7 @@ def qpa_table_csv(qpa: QuantitativePhaseAnalysis, *, delimiter: str = ",") -> st
     w.writerow(QPA_COLUMNS)
     for q in qpa.phases:
         w.writerow([
-            q.name, _g(q.weight_fraction),
+            q.name, "" if q.weight_fraction is None else _g(q.weight_fraction),
             "" if q.weight_fraction_stderr is None else _g(q.weight_fraction_stderr),
             "" if q.weight_fraction_corrected is None else _g(q.weight_fraction_corrected),
             _g(q.scale), _g(q.cell_mass), _g(q.cell_volume), _g(q.zmv),

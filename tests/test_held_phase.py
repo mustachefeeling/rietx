@@ -293,19 +293,25 @@ def test_the_zero_line_case_is_the_limit_of_support_not_a_second_test():
     assert int(seeing.phase_line_counts()[0]) > 0
 
 
-def test_the_blind_range_holds_everything_but_the_scale(no_reflection_fit):
+def test_the_blind_range_holds_everything_scale_included(no_reflection_fit):
     """Held, not refined: a single-phase model gets the rule too.
 
     The phase count never entered it — "the data cannot see this phase" is a
     measurement on the phase, and a lone phase under the noise is exactly as
-    unmeasurable as one of six.
+    unmeasurable as one of six.  With no line in range the scale is held as
+    well (WP-1958, #954): its column is zero at every value, so no climb is
+    possible, and its fraction is absent rather than the 100 % of a lone
+    phase, which would be a definition read as a measurement.
     """
     ref, result = no_reflection_fit
     held = {p for stage in result.stages for p in stage.held}
     assert "phases.0.cell.a" in held
-    assert not [p for p in held if p.endswith(".scale")]
+    assert "phases.0.scale" in held
     # the cell is the value the protocol declared, to the digit
     assert ref.structure.phases[0].cell.a.value == 4.1568
+    assert ref.structure.phases[0].scale.value == 1e-4
+    assert result.qpa.phases[0].weight_fraction is None
+    assert result.qpa.unmeasured_phases == ["LaB6"]
 
 
 # ----------------------------------------------------------------------

@@ -328,12 +328,21 @@ def compute_qpa(structure: Structure, values: dict[str, float],
                 scale_cov=None, multiplicities=None,
                 wavelength: float | None = None, *,
                 source_kind: str = "xray_cw",
+                unmeasured=(),
                 ) -> QuantitativePhaseAnalysis | None:
     """Assemble the per-phase QPA rows from a decoded parameter dict.
 
     ``values`` is the physical value dict from ``ParameterTable.decode`` (refined
     cell, occupancies and scales); ``scale_cov`` is the physical covariance of
-    the phase scales in phase order (``None`` when no esds were estimated).
+    the measured phases' scales in phase order (``None`` when no esds were
+    estimated).
+
+    ``unmeasured`` are the indices of phases with no reflection in the fitted
+    range (WP-1958).  Each keeps its row, with ``weight_fraction`` ``None``
+    rather than a number read off a scale the data never touched; the other
+    fractions are normalised over the measured phases alone, and
+    ``unmeasured_phases`` names the ones left out, so a reader knows the
+    fractions are relative to the phases seen in range.
     ``multiplicities`` (one list per phase, one entry per atom) should be the
     site multiplicities frozen on the compiled model, so QPA counts the same
     orbits the forward model did rather than re-deriving them from refined
@@ -383,20 +392,30 @@ def compute_qpa(structure: Structure, values: dict[str, float],
             cell, atoms, multiplicities=mult))
         scales.append(values[f"{base}.scale"])
 
-    if sum(z.zmv * s for z, s in zip(zmvs, scales)) <= 0.0:
-        if len(structure.phases) > 1:
+    skip = {int(ip) for ip in unmeasured}
+    measured = [ip for ip in range(len(structure.phases)) if ip not in skip]
+    w_of: dict[int, float] = {}
+    sigma_of: dict[int, float] = {}
+    if not measured:
+        pass   # no phase seen in range: every fraction is absent
+    elif sum(zmvs[ip].zmv * scales[ip] for ip in measured) <= 0.0:
+        if len(measured) > 1:
             return None
         # one phase is 100 % whatever its scale did; σ(W) is meaningless here
         # (the fraction is a definition, not a measurement), so it stays None
-        w, sigma_corr = np.array([1.0]), None
+        w_of = {measured[0]: 1.0}
     else:
-        w, sigma_corr, _ = weight_fractions([z.zmv for z in zmvs], scales, scale_cov)
+        w, sigma_corr, _ = weight_fractions([zmvs[ip].zmv for ip in measured],
+                                            [scales[ip] for ip in measured],
+                                            scale_cov)
+        w_of = {ip: float(w[k]) for k, ip in enumerate(measured)}
+        if sigma_corr is not None:
+            sigma_of = {ip: float(sigma_corr[k]) for k, ip in enumerate(measured)}
     rows = [
         PhaseQuantity(
             name=phase.name,
-            weight_fraction=float(w[ip]),
-            weight_fraction_stderr=(float(sigma_corr[ip]) if sigma_corr is not None
-                                    else None),
+            weight_fraction=w_of.get(ip),
+            weight_fraction_stderr=sigma_of.get(ip),
             scale=float(scales[ip]),
             z=zmvs[ip].z, molar_mass=zmvs[ip].molar_mass,
             cell_mass=zmvs[ip].cell_mass, cell_volume=zmvs[ip].cell_volume,
@@ -404,8 +423,14 @@ def compute_qpa(structure: Structure, values: dict[str, float],
         )
         for ip, phase in enumerate(structure.phases)
     ]
-    qpa = QuantitativePhaseAnalysis(phases=rows)
-    _apply_microabsorption(qpa, structure, zmvs, w, wavelength, source_kind)
+    qpa = QuantitativePhaseAnalysis(
+        phases=rows,
+        unmeasured_phases=[structure.phases[ip].name for ip in sorted(skip)
+                           if 0 <= ip < len(structure.phases)])
+    if w_of:
+        _apply_microabsorption(qpa, structure, zmvs,
+                               [w_of[ip] for ip in measured], wavelength,
+                               source_kind, measured=measured)
     return qpa
 
 
@@ -551,7 +576,8 @@ def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
 
 def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
                            zmvs: list[ZMV], w, wavelength: float | None,
-                           source_kind: str = "xray_cw") -> None:
+                           source_kind: str = "xray_cw",
+                           measured: list[int] | None = None) -> None:
     """Attach the Brindley correction to assembled QPA rows, in place.
 
     Fills the per-phase τ / µ / µR / corrected-fraction fields and the
@@ -562,11 +588,16 @@ def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
     that reason.  Until #543 this path read the X-ray table on every source,
     so on a neutron histogram a correction of well under 1 % rewrote the
     fractions by the X-ray µ, two to four orders of magnitude too large.
+
+    ``measured`` are the phases ``w`` holds fractions for, in order (every
+    phase when ``None``): a phase with no reflection in range has no fraction
+    and so no share of the mixture average µ̄ either (WP-1958).
     """
-    radii = [phase.particle_radius_um for phase in structure.phases]
+    idx = list(range(len(structure.phases))) if measured is None else list(measured)
+    radii = [structure.phases[ip].particle_radius_um for ip in idx]
     if all(r is None for r in radii):
         return
-    missing = [structure.phases[ip].name for ip, r in enumerate(radii) if r is None]
+    missing = [structure.phases[ip].name for ip, r in zip(idx, radii) if r is None]
     if missing:
         qpa.microabsorption_skipped = (
             "Brindley correction skipped: no particle_radius_um on phase(s) "
@@ -584,18 +615,19 @@ def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
             f"{source_kind!r} source.")
         return
     try:
-        mus = [attenuation(z, wavelength) for z in zmvs]
+        mus = [attenuation(zmvs[ip], wavelength) for ip in idx]
     except (KeyError, ValueError) as exc:
         qpa.microabsorption_skipped = (
             f"Brindley correction skipped: attenuation unavailable ({exc}).")
         return
     w_corr, taus, mu_bar = brindley_correction(
-        w, [z.density for z in zmvs], mus, radii)
-    for ip, row in enumerate(qpa.phases):
-        row.weight_fraction_corrected = float(w_corr[ip])
-        row.brindley_tau = float(taus[ip])
-        row.mu_cm = float(mus[ip])
-        row.mu_r = float(mus[ip] * radii[ip] * 1e-4)   # µm → cm
-        row.particle_radius_um = float(radii[ip])
+        w, [zmvs[ip].density for ip in idx], mus, radii)
+    for k, ip in enumerate(idx):
+        row = qpa.phases[ip]
+        row.weight_fraction_corrected = float(w_corr[k])
+        row.brindley_tau = float(taus[k])
+        row.mu_cm = float(mus[k])
+        row.mu_r = float(mus[k] * radii[k] * 1e-4)   # µm → cm
+        row.particle_radius_um = float(radii[k])
     qpa.microabsorption = MicroabsorptionCorrection(
         wavelength=float(wavelength), mu_mean_cm=float(mu_bar))

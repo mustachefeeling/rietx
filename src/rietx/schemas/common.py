@@ -537,6 +537,11 @@ from .._nearmiss import did_you_mean
 #: node ran at), the same rule.  And ``StageResult.n_lapack_fallbacks``, the
 #: decompositions a stage repeated with LAPACK's second driver, defaulting to
 #: 0, which every earlier stage took.
+#: Also in 0.59 (WP-1958, #954): ``QuantitativePhaseAnalysis.unmeasured_phases``,
+#: the phases with no reflection in the fitted range, and
+#: ``PhaseQuantity.weight_fraction`` widened to ``None`` for them, the others
+#: normalised over the phases seen.  Additive and defaulted to the empty list,
+#: the 0.25 → 0.26 rule; an older build refuses a row whose fraction is ``None``.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

@@ -434,10 +434,16 @@ class PhaseQuantity(Base):
     fine/medium powder regime µ·D ≤ 0.1 (D = 2R), i.e. µ·R ≤ 0.05 — beyond
     that the number travels with the answer so the fence diagnostic can point
     at it.
+
+    ``weight_fraction`` is ``None`` for a phase with no reflection in the
+    fitted range (WP-1958): its scale is the value handed in, so a number read
+    off it would be the caller's start.  Absent rather than zero, the rule its
+    esd already followed; :attr:`QuantitativePhaseAnalysis.unmeasured_phases`
+    names it.
     """
 
     name: str                                       # matches Phase.name / ticks key
-    weight_fraction: float                          # W, renormalised to sum to 1
+    weight_fraction: float | None                   # W over the measured phases; None: unmeasured (WP-1958)
     weight_fraction_stderr: float | None = None     # σ(W); None if scale esds absent
     scale: float                                    # S (refined phases.{i}.scale)
     z: int | None = None                            # formula units per cell (display)
@@ -544,11 +550,18 @@ class QuantitativePhaseAnalysis(Base):
     **crystalline** content.  An unmodelled amorphous fraction or a missing
     phase still makes them sum to 1.  Internal-standard / amorphous
     quantification is fenced to v2.
+
+    ``unmeasured_phases`` (WP-1958): the phases with no reflection in the
+    fitted range.  Each has no fraction, and the others sum to 1 over the
+    phases seen in range, so they are relative to those, not to the modelled
+    content; a specimen known to hold the unmeasured phase has no absolute
+    fractions from this range.  Empty when every phase was seen.
     """
 
     phases: list[PhaseQuantity]
     method: Literal["zmv"] = "zmv"
     crystalline_only: bool = True
+    unmeasured_phases: list[str] = Field(default_factory=list)
 
     # Brindley microabsorption: the mixture-level record when the correction
     # ran, or the reason it was skipped when radii were supplied but the

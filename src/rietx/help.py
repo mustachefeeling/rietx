@@ -3395,7 +3395,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "parameters were then either refined against nothing or held at the values "
             "you supplied. Neither kind of value is a result. Either the phase is not in "
             "the specimen and belongs out of the model, or the range must cover a "
-            "reflection of it."
+            "reflection of it. With no reflection in range, the scale is held too, the "
+            "phase has no weight fraction, and the other fractions are relative to the "
+            "phases seen in range."
         ),
     ),
     "QPA_ESD_UNAVAILABLE": HelpEntry(

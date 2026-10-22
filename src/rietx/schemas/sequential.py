@@ -838,7 +838,8 @@ class SeriesResult(Base):
             if e.qpa is None:
                 continue
             row = next((r for r in e.qpa.phases if r.name == phase), None)
-            if row is None:
+            # no fraction where no reflection of the phase lay in range (WP-1958)
+            if row is None or row.weight_fraction is None:
                 continue
             traj.x.append(xv)
             traj.value.append(100.0 * row.weight_fraction)

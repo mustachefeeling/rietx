@@ -93,6 +93,7 @@ from .refine import (
     _guard_diagnostics,
     _harmonic_diagnostics,
     _judge_magnetic_groups,
+    _lineless_phases,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
     _occupancy_flag_diagnostics,
@@ -422,30 +423,44 @@ def _joint_unsupported_phases(models, mtable,
             for support in per_model]
 
 
-def _unseen(mtable, name: str, absent: list[set[int]]) -> bool:
+def _joint_lineless_phases(models) -> list[set[int]]:
+    """Per histogram, the phases with no reflection in its fitted range
+    (``refine._lineless_phases``, WP-1958)."""
+    return [_lineless_phases(m) for m in models]
+
+
+def _unseen(mtable, name: str, absent: list[set[int]],
+            lineless: list[set[int]] | None = None) -> bool:
     """Whether ``name``, a reached entry as the joint table spells it, is
     structure of a phase below support wherever the entry lives.
 
     A ``hist.{h}.`` entry lives in histogram h, a bare (shared) one in every
-    histogram.  A phase's ``scale`` is never unseen, for
-    :func:`~rietx.refine._only_moves`' reason: it is the one direction that is
-    not flat.
+    histogram.  A phase's ``scale`` is unseen only where ``lineless`` puts the
+    phase out of range wherever the scale lives (WP-1958); otherwise never,
+    for :func:`~rietx.refine._only_moves`' reason: it is the one direction
+    that is not flat.
     """
     bare = _unscoped(name)
     m = _PHASE_PREFIX.match(bare)
-    if m is None or bare.endswith(".scale"):
+    if m is None:
         return False
+    if bare.endswith(".scale"):
+        if lineless is None:
+            return False
+        absent = lineless
     ip = int(m.group(1))
     owner = mtable._owner(name)
     return all(ip in a for a in (absent if owner is None else [absent[owner]]))
 
 
-def _only_unseen(mtable, reached: list[str], absent: list[set[int]]) -> bool:
+def _only_unseen(mtable, reached: list[str], absent: list[set[int]],
+                 lineless: list[set[int]] | None = None) -> bool:
     """:func:`~rietx.refine._only_moves` for joint entries: every model entry
     the column reaches is :func:`_unseen`.  All, never any; a variable is
     dropped before the test; a column reaching no model entry is not held."""
     moved = [q for q in reached if not is_variable_path(_unscoped(q))]
-    return bool(moved) and all(_unseen(mtable, q, absent) for q in moved)
+    return bool(moved) and all(_unseen(mtable, q, absent, lineless)
+                               for q in moved)
 
 
 def _joint_column_reach(mtable) -> dict[str, list[str]]:
@@ -491,7 +506,8 @@ def _joint_phases_reached(columns: list[str], reach: dict[str, list[str]]) -> se
 
 
 def _unsupported_paths_multi(mtable, absent: list[set[int]],
-                             reach: dict[str, list[str]] | None = None) -> list[str]:
+                             reach: dict[str, list[str]] | None = None,
+                             lineless: list[set[int]] | None = None) -> list[str]:
     """The joint columns that move nothing the data can see.
 
     ``absent`` is :func:`_joint_unsupported_phases`' answer, one set per
@@ -502,13 +518,15 @@ def _unsupported_paths_multi(mtable, absent: list[set[int]],
     prefix could neither hold it nor see it.  :func:`_only_unseen` decides
     over what each column reaches in **every** histogram, each entry judged
     where it lives: all, never any, the variable itself dropped first, and the
-    phase's scale never.
+    phase's scale only where ``lineless`` (one set per histogram) puts the
+    phase out of range wherever the scale lives (WP-1958).  ``absent``
+    already holds every ``lineless`` phase.
     """
     if not any(absent):
         return []
     reach = _joint_column_reach(mtable) if reach is None else reach
     return [p for p in mtable.free_paths
-            if _only_unseen(mtable, reach.get(p, [p]), absent)]
+            if _only_unseen(mtable, reach.get(p, [p]), absent, lineless)]
 
 
 def _hold_unsupported_phases_multi(models, mtable,
@@ -522,10 +540,14 @@ def _hold_unsupported_phases_multi(models, mtable,
     A caller recording the hold's reach reads :func:`_joint_column_reach`
     first and passes it in, because the reach is only readable while the
     columns are still free (``refine._hold_unsupported_phases``' rule).
-    ``sigma`` is :func:`_joint_unsupported_phases`' own.
+    ``sigma`` is :func:`_joint_unsupported_phases`' own.  A phase with no
+    reflection in a histogram's range is held there whatever ``sigma`` says,
+    its scale included (WP-1958, ``refine._unsupported_phase_paths``).
     """
-    absent = _joint_unsupported_phases(models, mtable, sigma)
-    held = _unsupported_paths_multi(mtable, absent, reach)
+    lineless = _joint_lineless_phases(models)
+    absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
+                                    lineless, strict=True)]
+    held = _unsupported_paths_multi(mtable, absent, reach, lineless)
     if held:
         mtable.set_vary(held, False)
     return held, absent
@@ -671,12 +693,18 @@ def _rehold_multi(models, mtable, held: list[str],
     # one measurement, two questions — the release and the collapse are
     # complementary readings of the same joint support test, at the plan's
     # threshold (``sigma``, WP-2002 B1; ``None`` releases and restores nothing)
-    absent = _joint_unsupported_phases(models, mtable, sigma)
+    # a phase with no line in range stays held whatever ``sigma`` says: its
+    # count is frozen with the stage's windows (WP-1958)
+    lineless = _joint_lineless_phases(models)
+    absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
+                                    lineless, strict=True)]
     held_set = set(held)
     held_reach = held_reach or {}
     released = [p for p in held
-                if not _only_unseen(mtable, [p, *held_reach.get(p, ())], absent)]
-    collapsed = [p for p in _unsupported_paths_multi(mtable, absent, reach)
+                if not _only_unseen(mtable, [p, *held_reach.get(p, ())], absent,
+                                    lineless)]
+    collapsed = [p for p in _unsupported_paths_multi(mtable, absent, reach,
+                                                     lineless)
                  if p not in held_set]
     if collapsed:
         for h, table in enumerate(mtable.tables):
@@ -1960,7 +1988,8 @@ class MultiHistogramRefinement:
             [_unscoped(p) for p in mt.free_paths],
             self.mtable.structures[0], stage_results,
             basis="with everything else held, in the histogram that shows it best",
-            decided=False, sigma=support_sigma)
+            decided=False, sigma=support_sigma,
+            quantified=models[0].mode == "rietveld")
         # a phase whose scales and B no histogram's range can separate, and
         # what its fraction is conditional on (WP-1534)
         diagnostics = diagnostics + _scale_b_ridge_diagnostics(
