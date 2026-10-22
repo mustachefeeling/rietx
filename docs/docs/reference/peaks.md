@@ -3,7 +3,7 @@
 This page gives the peak list an indexing search runs on: what `pick_peaks` and `fit_peaks` return and refuse, the fields of a `PeakList` and of each `ObservedPeak`, the flags that take a line out of the list, and the verdict `assess_peak_list` gives on whether a list can be indexed, with its systematic-shift screen.
 
 Indexing finds a lattice from line positions alone, for a specimen whose cell is unknown or only guessed.
-The search itself is `index_pattern` ([The indexing search and its result](indexing.md)) and the extinction screen after it is `determine_extinction_symbol`; this page covers what both take in.
+The search itself is `index_pattern` ([The indexing search and its result](indexing.md)) and the extinction screen after it is `determine_extinction_symbol` ([The extinction symbol](extinction.md)); this page covers what both take in.
 The quadratic form the search runs over, what a peak list can support and the shift measured before the cell are in [Indexing](../theory/indexing.md).
 
 :::{admonition} Provisional

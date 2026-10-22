@@ -462,7 +462,7 @@ A candidate outside that set, or one whose fit the clock stopped, keeps `lebail 
 `LeBailValidation.rwp` is not a panel member.
 It costs a refinement, so it is computed for a shortlist rather than for every candidate, and reading it as a rank would bring back the blind spot it exists to close, since a bigger cell with more free intensities fits better.
 Read `predicted_but_absent` as "this cell predicts lines the pattern lacks", never as "this cell is too big".
-It counts against the lattice group, so a space-group extinction (a glide plane, a screw axis) refutes a correct cell, and only the extinction screen afterwards separates the two.
+It counts against the lattice group, so a space-group extinction (a glide plane, a screw axis) refutes a correct cell, and only the extinction screen afterwards separates the two ([The extinction symbol](extinction.md)).
 A nonzero count raises [`INDEX_PREDICTED_BUT_ABSENT`](diagnostics-indexing.md#index_predicted_but_absent), and unmatched observed lines raise [`INDEX_IMPURITY_LINES`](diagnostics-indexing.md#index_impurity_lines).
 
 ### The confidence gate
@@ -516,6 +516,6 @@ The order leads with corroboration and moves a supercell by its checks, which is
 
 On the default corundum run above, the certified trigonal R lattice comes back first, found by two of the three engines, with a converged Le Bail fit at Rwp 0.28 that reads 11 of 85 reflections absent.
 It grades `low` on four caveats, so `best_or_none` returns `None`.
-`predicted_but_absent` has the shape a space-group extinction takes when read against a lattice group that does not know about it, and the extinction screen is what separates that from an oversized cell.
+`predicted_but_absent` has the shape a space-group extinction takes when read against a lattice group that does not know about it, and the extinction screen ([The extinction symbol](extinction.md)) is what separates that from an oversized cell.
 `geometric_ambiguity` is there on every candidate because the ceiling stopped the run before the ambiguity walk, and `fom_panel_disagrees` because the panel's members split.
 None of the four says the cell is wrong; they say what has not been established, which is the difference between this answer and a confident one.

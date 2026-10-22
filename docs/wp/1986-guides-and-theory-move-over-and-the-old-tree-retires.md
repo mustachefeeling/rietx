@@ -211,7 +211,9 @@ the tree that day.
   `quickstart` → `start/tutorials`; `compatibility` → `reference/compatibility`; `glossary`
   → `reference/settings`; `skill` → `reference/agents`; `gui-quickstart` →
   `start/gui-quickstart`; `gui-guide`, `gui-power` → their `reference/` namesakes;
-  `constraints` → `reference/parameter-table` (ties and § Restraints); `indexing` → not yet. Old labels other old pages cite and
+  `constraints` → `reference/parameter-table` (ties and § Restraints); `indexing` →
+  `reference/indexing` (2026-10-22; its peaks, evidence and extinction halves are
+  `reference/peaks`, `indexing-evidence` and `extinction`). Old labels other old pages cite and
   their new anchors: `a-phase-that-appears-part-way-through` →
   `series.md#a-phase-that-appears-part-way`, `a-refinable-wavelength-jointly` →
   `joint.md#wavelength-refinement`, `scanning-a-parameter` → `joint.md#profile-scan`,
@@ -297,12 +299,12 @@ the tree that day.
       (2026-10-17, map under Notes by task).
 - [x] GUI chapters moved with `test_gui_manual.py`. (2026-10-19; the old copies stay up,
       unguarded, until the tree retires. Notes under GUI chapters.)
-- [ ] Each chapter's reference and explanation re-homed (survey and retirement map under
+- [x] Each chapter's reference and explanation re-homed (survey and retirement map under
       Notes by task, Retirement). Done 2026-10-19: Start (install, a first fit in Python,
       the tutorial notebooks), Reference compatibility and the `help` arms (`settings.md`).
       Done 2026-10-20: every other chapter, as 27 Reference pages and `concepts/plans.md`
-      (8th session's entry). Left: indexing, whose 283 names are the only public names the
-      old tree still documents alone.
+      (8th session's entry). Done 2026-10-22: indexing, as `reference/peaks.md`,
+      `indexing.md`, `indexing-evidence.md` and `extinction.md`; the partition is 0.
 - [ ] The old tree's build, guards and `pages.yml` steps removed once no chapter is left; the
       landing page's link to `/manual.html` pointed at `/docs/`.
 - [ ] Skill: links into the manual updated to the new URLs.

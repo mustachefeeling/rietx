@@ -34,6 +34,7 @@ centring
 centrings
 centrosymmetric
 centrosymmetry
+chiral
 chirality
 CIF
 CIFs
@@ -52,6 +53,8 @@ displacive
 DOF
 DOFs
 electronegative
+enantiomorphic
+enantiopure
 esd
 esds
 Ewald
@@ -86,6 +89,7 @@ monatomic
 monochromated
 monochromator
 monoclinic
+multiplet
 nanocrystalline
 Niggli
 nonbonding
@@ -106,11 +110,13 @@ polycrystalline
 polyhedra
 polyimide
 pseudosymmetry
+pyroelectric
 rhombohedral
 rutile
 scatterer
 scatterers
 Shubnikov
+Sohncke
 spallation
 spinel
 structureless

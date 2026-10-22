@@ -24,6 +24,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Peak lists for indexing](peaks.md) gives what `pick_peaks` and `fit_peaks` return and refuse, the fields of a `PeakList` and an `ObservedPeak`, the peak flags, and whether a list can be indexed, with its systematic-shift screen.
 - [The indexing search and its result](indexing.md) gives what `index_pattern` takes and refuses, its engines, presets and search settings, and the fields of an `IndexingResult` and each `CellCandidate`, with the confidence gate and its caveats.
 - [Indexing evidence and the route to a phase](indexing-evidence.md) gives the evidence view of an indexing result, the figures drawn from it, and how a candidate cell becomes a phase to refine.
+- [The extinction symbol](extinction.md) gives `determine_extinction_symbol`: what it takes and refuses, the ranked extinction classes it returns with their space groups, when it answers, and the prior that declares what the chemistry rules out.
 - [Sequential refinement](series.md) gives `refine_sequential` and `SequentialRefinement`: the arguments of a series, what crosses from one pattern to the next, the `SeriesResult` with its trajectories, the series diagnostics and the restart ladder.
 - [Joint refinement](joint.md) gives `refine_multi` and `MultiHistogramRefinement`: which parameters the patterns share, two radiations and a refinable wavelength, the per-pattern result, and a report per pattern.
 - [Parametric refinement](parametric.md) gives `CoordinateTable` and `ParametricEquation`, what a declaration refuses, the coefficients a fit reports, the test of the declared form and the equation at any coordinate.
@@ -71,6 +72,7 @@ magnetic
 peaks
 indexing
 indexing-evidence
+extinction
 series
 joint
 parametric

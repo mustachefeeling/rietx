@@ -131,9 +131,8 @@ The GUI's `Adopt` button builds the same scaffold ([The GUI panel by panel](gui-
 ### The extinction symbol
 
 Once a lattice is established, which reflections are systematically absent is the next question.
-`determine_extinction_symbol` takes the pattern, a `CellCandidate` and the instrument, and answers with an `ExtinctionScreen`: ranked `ExtinctionCandidate` classes, each carrying a list of space groups, because the extinction symbol and not the space group is what a powder measures.
-An `ExtinctionPrior` declares what the chemistry already rules out.
-Each class is tested by its own Le Bail fit.
+`determine_extinction_symbol` takes the pattern, a `CellCandidate` and the instrument, and answers with ranked classes, each carrying a list of space groups, because the extinction symbol and not the space group is what a powder measures.
+[The extinction symbol](extinction.md) gives what it takes, returns and refuses.
 
 ### The way back from a refinement
 

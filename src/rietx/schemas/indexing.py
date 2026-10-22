@@ -2153,7 +2153,8 @@ class ExtinctionCandidate(Base):
     #: forbidden line coinciding with an allowed one never was an independently
     #: determined intensity, so removing it costs no parameter.
     #:
-    #: ``None`` until :attr:`screened`, and that is not bookkeeping.  The third
+    #: ``None`` until :attr:`screened` (and after a fit that raised, which
+    #: leaves no pattern to ask), and that is not bookkeeping.  The third
     #: clause is a question about the class's *fit* — a window filled by a
     #: neighbour's tail measures the profile model rather than the absence
     #: (WP-1077) — so before the fit the count is unknown rather than zero, and
@@ -2166,8 +2167,8 @@ class ExtinctionCandidate(Base):
     #: the refuting reflections, so the refutation can be checked in the pattern
     forbidden_hkl: list[tuple[int, int, int]] = Field(default_factory=list)
     forbidden_two_theta: list[float] = Field(default_factory=list)
-    #: whole-pattern Le Bail fit of this class; ``rwp`` is ``inf`` when the class
-    #: was refuted before it was fitted (:attr:`screened`)
+    #: whole-pattern Le Bail fit of this class; ``inf`` when the class was never
+    #: fitted (:attr:`screened` False) or its fit raised
     rwp: float = float("inf")
     gof: float = float("inf")
     chi2: float = float("inf")
@@ -2180,9 +2181,9 @@ class ExtinctionCandidate(Base):
     #: restoring the forbidden reflections is *justified*, i.e. the class's
     #: absences are contradicted by the fit
     absences_rejected: bool = False
-    #: was the Le Bail screen actually run for this class?  False when direct
-    #: absence evidence already refuted it (no fit can rescue a forbidden
-    #: position that carries intensity) or when ``max_classes`` truncated
+    #: was the Le Bail screen actually run for this class?  False only when
+    #: ``max_classes`` truncated the screen or ``cancel`` stopped it first; the
+    #: absence test reads this class's own fit, so it never runs before one
     screened: bool = False
     #: **One-sided by construction.** A class asserts *absences*, so intensity at
     #: a position it forbids contradicts it — while a class claiming too *few*
