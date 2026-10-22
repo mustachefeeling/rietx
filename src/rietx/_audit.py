@@ -2434,7 +2434,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.statistics.PINV_RCOND", "constant", tier=1, value=1e-15,
         evidence=("numerical floor: 1e-15 = 4.5 eps_fp64, numpy.linalg.pinv's own default (checked:"
                   " numpy 2.5.4 docstring)")),
-    Row("rietx.params.bodies.SITE_AXIS_TOL", "constant", value=0.0001),
     Row("rietx.params.bodies.TORSION_STILL_TOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: guards the division by the axis length and a zero Jacobian "
                   "column; 1e-6 A is far below any structural distance")),
@@ -4606,7 +4605,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.optimize.statistics.MAX_SHIFT_CONVERGED",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_MIN",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_PREFERRED",
-    "rietx.params.bodies.SITE_AXIS_TOL",
     "rietx.refine.AIR_SCATTER_UNDECLARED_FRACTION",
     "rietx.refine.AIR_SCATTER_UNDECLARED_SCORE",
     "rietx.refine.DISPERSION_NEGLECT_FRAC",

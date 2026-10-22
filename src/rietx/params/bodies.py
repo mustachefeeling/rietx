@@ -76,12 +76,6 @@ CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 _DEG = np.pi / 180.0
 #: a moved atom nearer its torsion's axis line than this (Å) does not move
 TORSION_STILL_TOL = 1e-6
-#: |n·R₀u| below this (unit vectors) puts a linear body's axis u perpendicular
-#: to its site's one allowed turn n; |u − (n·u)n| below it, along it.  The
-#: relation was checked by ``site_orbit``, which snaps a site within
-#: ``SITE_TOL``, so the axis is held to the same tolerance: at a tighter one a
-#: body typed at CIF precision passes the site check and is refused here
-SITE_AXIS_TOL = SITE_TOL
 
 
 def wrap_degrees(angle: float) -> float:
@@ -241,10 +235,13 @@ class RigidBodyBlock(DerivedBlock):
         if self.body_axes.shape[1] == 3:
             return n.reshape(3, 1)
         u = r0 @ np.cross(self.body_axes[:, 0], self.body_axes[:, 1])
+        # |n·R₀u| < SITE_TOL: u perpendicular to n; |u − (n·u)n| < SITE_TOL: along it.
+        # The axis is held to ``site_orbit``'s own snap tolerance, since a tighter one
+        # refuses a body typed at CIF precision that passed the site check
         c = abs(float(n @ u))
-        if c < SITE_AXIS_TOL:
+        if c < SITE_TOL:
             return n.reshape(3, 1)
-        if float(np.linalg.norm(u - (n @ u) * n)) < SITE_AXIS_TOL:
+        if float(np.linalg.norm(u - (n @ u) * n)) < SITE_TOL:
             return np.zeros((3, 0))
         raise ValueError(
             "RIGID_BODY_NOT_INVARIANT: a linear body on this site must lie "
