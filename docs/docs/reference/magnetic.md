@@ -90,7 +90,7 @@ It stays among the unexplained peaks and is scored like any other.
 The note then says how many unexplained peaks sit on such positions, out of how many such positions lie in range, and names the strongest by its height in σ, with its (h k l).
 It also lists the causes it cannot separate: a lattice less centred than the one assumed, λ/2 contamination when (2h 2k 2l) is a lattice vector, an impurity line, and on neutrons a magnetic structure whose propagation vector is such an integer vector.
 A lattice with no centring has no such positions, so the sentence never appears for one.
-On the GSAS-II *Magnetic-IV* (Pr,Sr)MnO<sub>3</sub> pattern (F m m m) the strongest residual peak sits on (1 0 0).
+On the GSAS-II *Magnetic-IV* (Pr,Sr)MnO<sub>3</sub> pattern (space group `F m m m`) the strongest residual peak sits on (1 0 0).
 
 ## Moments
 
