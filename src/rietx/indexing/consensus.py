@@ -653,6 +653,16 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
         fraction = cand.fom_value("indexed_fraction")
     if fraction is None or fraction < min_indexed_fraction:
         out.append("indexed_fraction_low")
+    else:
+        # the ruling on the superstructure dissenter (yue-here, #1042): a
+        # sub-cell missing a superlattice explains every strong line and leaves
+        # weak ones, so it can pass on intensity, and from the line list alone a
+        # superlattice line and an impurity line look the same.  A line count
+        # under the same bar therefore caps the grade at ``medium`` (GSAS-II
+        # scores cells by count only: M20, X20), without refuting the cell
+        lines = cand.fom_value("indexed_fraction")
+        if lines is not None and lines < min_indexed_fraction:
+            out.append("indexed_lines_low")
     if not search_complete.get(cand.system, True):
         out.append("search_incomplete")
     if shift_allowance_assumed:

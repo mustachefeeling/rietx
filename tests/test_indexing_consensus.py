@@ -233,25 +233,39 @@ def _fractions(by_line: float, by_intensity: float) -> list[FigureOfMerit]:
                           n_lines=53, n_possible=40, k_sigma=3.0)]
 
 
-@pytest.mark.parametrize("by_line,by_intensity,flagged", [
+@pytest.mark.parametrize("by_line,by_intensity,caveat,grade", [
     # #933's shape: weak foreign lines take the line count under the bar and
-    # leave the intensity the cell explains above it — not refuted
-    (0.68, 0.95, False),
+    # leave the intensity the cell explains above it — not refuted, but the
+    # count under the bar caps the grade (yue-here's ruling on #1042)
+    (0.68, 0.95, "indexed_lines_low", "medium"),
     # the reverse: every line but a strong one indexed — refuted, where the
     # line count alone would have passed it
-    (0.95, 0.80, True),
-    (0.95, 0.95, False),
-    (0.68, 0.80, True),
+    (0.95, 0.80, "indexed_fraction_low", "low"),
+    (0.95, 0.95, None, "high"),
+    # both under the bar: the refuting caveat says it, the cap is not stacked
+    (0.68, 0.80, "indexed_fraction_low", "low"),
 ])
 def test_indexed_fraction_low_reads_the_intensity_the_cell_explains(
-        by_line, by_intensity, flagged):
+        by_line, by_intensity, caveat, grade):
     """``indexed_fraction_low`` is read on the intensity-weighted fraction
     (WP-1969, issue #933), so a cell's own impurities do not refute it by
-    their count, and a missed strong line refutes it whatever the count."""
+    their count, and a missed strong line refutes it whatever the count.  A
+    line count under the same bar caps the grade at ``medium`` through
+    ``indexed_lines_low``, which names the shortfall the panel holds."""
     caveats, verdict = _gate(_candidate(TRUE_A,
                                         fom=_fractions(by_line, by_intensity)))
-    assert ("indexed_fraction_low" in caveats) is flagged, caveats
-    assert verdict == ("low" if flagged else "high"), caveats
+    assert [c for c in caveats if c.startswith("indexed_")] == (
+        [caveat] if caveat else []), caveats
+    assert verdict == grade, caveats
+
+
+def test_indexed_lines_low_caps_and_does_not_refute():
+    from typing import get_args
+
+    from rietx.schemas.indexing import INDEX_REFUTING_CAVEATS, IndexCaveat
+
+    assert "indexed_lines_low" in get_args(IndexCaveat)
+    assert "indexed_lines_low" not in INDEX_REFUTING_CAVEATS
 
 
 def test_indexed_fraction_low_falls_back_to_the_line_fraction():

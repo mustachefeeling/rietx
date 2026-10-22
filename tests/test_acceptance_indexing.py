@@ -2484,7 +2484,7 @@ def _contaminate(peaks, k: int, seed: int, allowed: np.ndarray, *,
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
-def test_weak_impurity_lines_cost_the_certificate_neither_its_rank_nor_its_grade(
+def test_weak_impurity_lines_cost_the_certificate_its_rank_never_and_its_grade_only_a_notch(
         lab6_peaks):
     """The contamination sweep: what k injected impurity lines actually break.
 
@@ -2501,8 +2501,10 @@ def test_weak_impurity_lines_cost_the_certificate_neither_its_rank_nor_its_grade
     lines charged twice, once in the search's acceptance and again in the gate
     (issue #933).  Since WP-1969 the caveat reads the share of the *intensity*
     the cell indexes, and these impurities, drawn from the weaker half of the
-    observed lines, leave it at 0.93-1.00 through k = 6, so the truth stays
-    ``high`` at every k while the line count drops below 0.9.
+    observed lines, leave it at 0.93-1.00 through k = 6, so the truth is never
+    refuted while the line count drops below 0.9.  That count caps the grade
+    at ``medium`` (``indexed_lines_low``, yue-here's ruling on #1042): ``high``
+    at k = 0 and 2, ``medium`` at k = 3 and 6, rank 1 throughout.
 
     **The caveat still fires where the impurity carries intensity, and that arm
     is the row's positive control.**  The same six lines drawn from the
@@ -2614,15 +2616,21 @@ def test_weak_impurity_lines_cost_the_certificate_neither_its_rank_nor_its_grade
         for r in runs:
             assert r["rank"] == 1, f"k={k} strong={strong}: truth ranked {r['rank']}"
 
-    # weak impurities: the grade no longer falls with the count (#933)…
+    # weak impurities: the count no longer refutes the truth (#933), but a line
+    # count under the bar caps it at ``medium`` through ``indexed_lines_low``
+    # (yue-here's ruling on #1042), so the grade steps at the 0.9 count bar
     for k in CONTAMINATION_KS:
+        count_ok = n_clean / (n_clean + k) >= 0.9
         for r in seen[(k, False)]:
             assert r["by_intensity"] >= 0.9, (k, r["by_intensity"])
             assert "indexed_fraction_low" not in r["caveats"], (k, r["caveats"])
-            assert r["confidence"] == "high", (
+            assert ("indexed_lines_low" in r["caveats"]) is not count_ok, (
+                k, r["caveats"])
+            assert r["confidence"] == ("high" if count_ok else "medium"), (
                 f"k={k}: confidence {r['confidence']} with caveats {r['caveats']}")
-    # …where the count alone would have refuted it
-    assert n_clean / (n_clean + max(CONTAMINATION_KS)) < 0.9
+    # the count bar is inside this grid, so the cap is exercised on both sides
+    assert n_clean / (n_clean + max(CONTAMINATION_KS)) < 0.9 <= (
+        n_clean / (n_clean + min(CONTAMINATION_KS)))
     # the positive arm: impurity carrying intensity still refutes the truth
     for r in seen[(CONTAMINATION_STRONG_K, True)]:
         assert r["by_intensity"] < 0.9, r["by_intensity"]

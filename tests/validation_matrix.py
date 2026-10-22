@@ -1622,11 +1622,12 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_indexing",
-        "test_weak_impurity_lines_cost_the_certificate_neither_its_rank_nor_its_grade",
+        "test_weak_impurity_lines_cost_the_certificate_its_rank_never_and_its_grade_only_a_notch",
         "srm660c", ("characterisation",),
         "the contamination curve: k weak injected impurity lines cost the "
-        "certified cell neither its RANK nor, since WP-1969, its GRADE; six at "
-        "the stronger half's intensities still cost it the grade",
+        "certified cell its RANK never and, since WP-1969, its GRADE only a notch "
+        "(medium by the line-count cap); six at the stronger half's "
+        "intensities still cost it the grade (low)",
         reference="Le Bail (2004) Powder Diffr. 19, 249 SS V states the "
                   "fractions -- under 35 % impurity lines by number the "
                   "correct cell is generally first, at 35-50 % it may be found "
@@ -1683,7 +1684,9 @@ CLAIMS: tuple[Claim, ...] = (
                  "in the list any more; it read 0.32).  Still low on "
                  "predicted_but_absent (1 of 29, the 6_3 screw); "
                  "indexed_fraction_low, 0.89 of the lines, cleared with "
-                 "WP-1969, which reads the 0.98 of the intensity; "
+                 "WP-1969, which reads the 0.98 of the intensity, and the "
+                 "line count under the bar is now the capping "
+                 "indexed_lines_low, so the grade is still low; "
                  "best_or_none() returns None.  RANK RE-MEASURED 2026-09-22 "
                  "(WP-1442): an a x 2 supercell had taken the rank on one extra "
                  "panel line, 34 against 33, and WP-1446 measured that the peak "
