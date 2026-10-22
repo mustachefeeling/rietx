@@ -1140,9 +1140,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "positions plus the sum of amplitude times mode vector over all modes, so the "
             "amplitude is absolute and those atoms have no coordinate parameters of their "
             "own. Unit: AMPLIMODES's, the mode normalised over a primitive cell of the "
-            "child in the unstrained parent metric. The sign of the driving mode is a "
-            "domain label; relative signs inside a basis are measured (Perez-Mato, "
-            "Orobengoa & Aroyo 2010, § 7). At the parent every amplitude outside the "
+            "child in the parent metric before any strain. The sign of the driving mode is a "
+            "domain label; relative signs inside a basis are measured (Perez-Mato et al. "
+            "2010, § 7). At the parent every amplitude outside the "
             "identity irrep has an exactly zero gradient, so a block freed there is "
             "refused: start from the statement's seed."
         ),
