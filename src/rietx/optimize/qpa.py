@@ -342,7 +342,10 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     rather than a number read off a scale the data never touched; the other
     fractions are normalised over the measured phases alone, and
     ``unmeasured_phases`` names the ones left out, so a reader knows the
-    fractions are relative to the phases seen in range.
+    fractions are relative to the phases seen in range.  A lone phase seen
+    is 100 % of them by definition and carries no esd, and the Brindley
+    correction is skipped with its reason, since its mixture-average µ̄
+    needs the unmeasured phase's fraction too.
     ``multiplicities`` (one list per phase, one entry per atom) should be the
     site multiplicities frozen on the compiled model, so QPA counts the same
     orbits the forward model did rather than re-deriving them from refined
@@ -398,6 +401,10 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     sigma_of: dict[int, float] = {}
     if not measured:
         pass   # no phase seen in range: every fraction is absent
+    elif skip and len(measured) == 1:
+        # the one phase seen is 100 % of the phases seen by definition, so
+        # it carries no esd (a zero one would read as a measurement)
+        w_of = {measured[0]: 1.0}
     elif sum(zmvs[ip].zmv * scales[ip] for ip in measured) <= 0.0:
         if len(measured) > 1:
             return None
@@ -427,10 +434,18 @@ def compute_qpa(structure: Structure, values: dict[str, float],
         phases=rows,
         unmeasured_phases=[structure.phases[ip].name for ip in sorted(skip)
                            if 0 <= ip < len(structure.phases)])
-    if w_of:
-        _apply_microabsorption(qpa, structure, zmvs,
-                               [w_of[ip] for ip in measured], wavelength,
-                               source_kind, measured=measured)
+    if skip:
+        # Brindley's τ compares each phase's µ with the mixture's volume-mean
+        # µ̄, which needs every phase's fraction, the unmeasured one's too
+        if any(p.particle_radius_um is not None for p in structure.phases):
+            qpa.microabsorption_skipped = (
+                "Brindley correction skipped: the mixture's mean attenuation "
+                "needs every phase's fraction, and "
+                f"{', '.join(qpa.unmeasured_phases)} has none (no reflection "
+                "in the fitted range).")
+    else:
+        _apply_microabsorption(qpa, structure, zmvs, [w_of[ip] for ip in measured],
+                               wavelength, source_kind)
     return qpa
 
 
@@ -576,8 +591,7 @@ def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
 
 def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
                            zmvs: list[ZMV], w, wavelength: float | None,
-                           source_kind: str = "xray_cw",
-                           measured: list[int] | None = None) -> None:
+                           source_kind: str = "xray_cw") -> None:
     """Attach the Brindley correction to assembled QPA rows, in place.
 
     Fills the per-phase τ / µ / µR / corrected-fraction fields and the
@@ -588,16 +602,11 @@ def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
     that reason.  Until #543 this path read the X-ray table on every source,
     so on a neutron histogram a correction of well under 1 % rewrote the
     fractions by the X-ray µ, two to four orders of magnitude too large.
-
-    ``measured`` are the phases ``w`` holds fractions for, in order (every
-    phase when ``None``): a phase with no reflection in range has no fraction
-    and so no share of the mixture average µ̄ either (WP-1958).
     """
-    idx = list(range(len(structure.phases))) if measured is None else list(measured)
-    radii = [structure.phases[ip].particle_radius_um for ip in idx]
+    radii = [phase.particle_radius_um for phase in structure.phases]
     if all(r is None for r in radii):
         return
-    missing = [structure.phases[ip].name for ip, r in zip(idx, radii) if r is None]
+    missing = [structure.phases[ip].name for ip, r in enumerate(radii) if r is None]
     if missing:
         qpa.microabsorption_skipped = (
             "Brindley correction skipped: no particle_radius_um on phase(s) "
@@ -615,19 +624,18 @@ def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
             f"{source_kind!r} source.")
         return
     try:
-        mus = [attenuation(zmvs[ip], wavelength) for ip in idx]
+        mus = [attenuation(z, wavelength) for z in zmvs]
     except (KeyError, ValueError) as exc:
         qpa.microabsorption_skipped = (
             f"Brindley correction skipped: attenuation unavailable ({exc}).")
         return
     w_corr, taus, mu_bar = brindley_correction(
-        w, [zmvs[ip].density for ip in idx], mus, radii)
-    for k, ip in enumerate(idx):
-        row = qpa.phases[ip]
-        row.weight_fraction_corrected = float(w_corr[k])
-        row.brindley_tau = float(taus[k])
-        row.mu_cm = float(mus[k])
-        row.mu_r = float(mus[k] * radii[k] * 1e-4)   # µm → cm
-        row.particle_radius_um = float(radii[k])
+        w, [z.density for z in zmvs], mus, radii)
+    for ip, row in enumerate(qpa.phases):
+        row.weight_fraction_corrected = float(w_corr[ip])
+        row.brindley_tau = float(taus[ip])
+        row.mu_cm = float(mus[ip])
+        row.mu_r = float(mus[ip] * radii[ip] * 1e-4)   # µm → cm
+        row.particle_radius_um = float(radii[ip])
     qpa.microabsorption = MicroabsorptionCorrection(
         wavelength=float(wavelength), mu_mean_cm=float(mu_bar))

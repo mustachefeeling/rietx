@@ -274,7 +274,9 @@ class PlanSpec(Base):
             "more solve.  The default cell window follows the same number.  "
             "null = no hold, no release, no restore and no window "
             "(PHASE_UNCONSTRAINED still reports a phase under the default 3); "
-            "WP-1301/1523, a caller's option since WP-2002 B1"))
+            "WP-1301/1523, a caller's option since WP-2002 B1.  A phase with no "
+            "reflection in the fitted range is held whole, scale included, at "
+            "any value here, null too (WP-1958)"))
 
     closing_window_tol: float | None = Field(
         CLOSING_WINDOW_TOL, description=(

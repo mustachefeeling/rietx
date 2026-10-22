@@ -191,6 +191,7 @@ Its scale's column is zero at every value, so the stage holds the scale at the v
 The other fractions are normalised over the phases seen in range, so they sum to 1 without it.
 They are relative to those phases, not to the crystalline content: a specimen known to hold the unmeasured phase has no absolute fractions from this range.
 [`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) says so, and so do the QPA table's caveats.
+The Brindley correction is skipped while a phase is unmeasured, with that reason in `microabsorption_skipped`, because its mixture-average µ needs every phase's fraction.
 Widen the range to cover a reflection of the phase, or take the phase out of the model.
 Internal-standard and amorphous quantification, spiking a known weight of a known phase and solving for the rest, is not implemented.
 

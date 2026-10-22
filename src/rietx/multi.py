@@ -108,6 +108,7 @@ from .refine import (
     _resolve_specimen_absorption,
     _resonant_absorber_diagnostics,
     _restore_phase_cells,
+    _restrained_scale_phases,
     _roughness_regime_diagnostics,
     _scale_b_ridge_diagnostics,
     _site,
@@ -429,6 +430,13 @@ def _joint_lineless_phases(models) -> list[set[int]]:
     return [_lineless_phases(m) for m in models]
 
 
+def _joint_flat_scales(models, lineless: list[set[int]]) -> list[set[int]]:
+    """Of ``lineless``, per histogram, the phases whose scale no
+    ``ValueRestraint`` pulls (``refine._restrained_scale_phases``)."""
+    return [n - _restrained_scale_phases(m)
+            for m, n in zip(models, lineless, strict=True)]
+
+
 def _unseen(mtable, name: str, absent: list[set[int]],
             lineless: list[set[int]] | None = None) -> bool:
     """Whether ``name``, a reached entry as the joint table spells it, is
@@ -547,7 +555,8 @@ def _hold_unsupported_phases_multi(models, mtable,
     lineless = _joint_lineless_phases(models)
     absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
                                     lineless, strict=True)]
-    held = _unsupported_paths_multi(mtable, absent, reach, lineless)
+    held = _unsupported_paths_multi(mtable, absent, reach,
+                                    _joint_flat_scales(models, lineless))
     if held:
         mtable.set_vary(held, False)
     return held, absent
@@ -698,13 +707,14 @@ def _rehold_multi(models, mtable, held: list[str],
     lineless = _joint_lineless_phases(models)
     absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
                                     lineless, strict=True)]
+    flat_scales = _joint_flat_scales(models, lineless)
     held_set = set(held)
     held_reach = held_reach or {}
     released = [p for p in held
                 if not _only_unseen(mtable, [p, *held_reach.get(p, ())], absent,
-                                    lineless)]
+                                    flat_scales)]
     collapsed = [p for p in _unsupported_paths_multi(mtable, absent, reach,
-                                                     lineless)
+                                                     flat_scales)
                  if p not in held_set]
     if collapsed:
         for h, table in enumerate(mtable.tables):

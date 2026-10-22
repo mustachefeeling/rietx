@@ -530,6 +530,52 @@ def test_iron_with_a_reflection_in_range_refines_its_scale_under_trf(pattern):
     assert res.qpa.unmeasured_phases == []
 
 
+def test_the_lineless_hold_does_not_wait_on_the_support_threshold(
+        four_phase_narrow_pattern):
+    """``phase_support_sigma=None`` switches the significance hold off, and a
+    phase with no line in range is held all the same: "no line" is a count."""
+    ref = rx.Refinement(*_models(START_SCALES), solver="trf")
+    res = ref.fit(four_phase_narrow_pattern,
+                  plan=RefinementPlan(stages=SCALES_ONLY, phase_support_sigma=None),
+                  telemetry=False)
+    assert all(FE_SCALE in sr.held for sr in res.stages)
+    assert ref.structure.phases[FE].scale.value == START_SCALES[FE]
+    assert [q.weight_fraction for q in res.qpa.phases if q.name == "iron"] == [None]
+
+
+def test_a_restrained_lineless_scale_is_left_to_its_restraint(
+        four_phase_narrow_pattern):
+    """A ``ValueRestraint`` on the scale gives it a column the data do not, so
+    the hold leaves it free and it goes to the target; its fraction stays
+    absent, the value being the caller's and not the data's."""
+    structure, instrument = _models(START_SCALES)
+    structure.phases[FE].restraints = [
+        rx.ValueRestraint(path=FE_SCALE, target=3.0e-4, sigma=1.0e-6)]
+    ref = rx.Refinement(structure, instrument, solver="trf")
+    res = ref.fit(four_phase_narrow_pattern,
+                  plan=RefinementPlan(stages=SCALES_ONLY), telemetry=False)
+    assert all(FE_SCALE not in sr.held for sr in res.stages)
+    assert math.isclose(ref.structure.phases[FE].scale.value, 3.0e-4, rel_tol=1e-3)
+    assert res.qpa.unmeasured_phases == ["iron"]
+
+
+def test_a_magnetic_window_in_range_counts_as_a_line(four_phase_narrow_pattern):
+    """A phase drawing its magnetic component on its own wider windows has a
+    column wherever either window reaches the range (WP-1343's ``win_mag``)."""
+    structure, instrument = _models(START_SCALES)
+    model = compile_model(structure, instrument, four_phase_narrow_pattern,
+                          mode="rietveld")
+    cp = model.phases[FE]
+    assert int(model.phase_line_counts()[FE]) == 0
+    # one reflection whose nuclear window is empty and whose wider magnetic
+    # one covers five points, in the frozen layout (n_lines, N, 2)
+    cp.win = np.zeros((cp.win.shape[0], 1, 2), dtype=np.int64)
+    cp.win_mag = cp.win.copy()
+    assert int(model.phase_line_counts()[FE]) == 0
+    cp.win_mag[0, 0] = (0, 5)
+    assert int(model.phase_line_counts()[FE]) == 1
+
+
 @pytest.mark.parametrize("solver", ["lm", "trf"])
 def test_a_joint_fit_holds_each_histograms_unseen_scale(
         four_phase_narrow_pattern, solver):

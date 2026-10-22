@@ -433,7 +433,6 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
     "rietx.schemas.results.RefinementResult.parametric_form_joint",
     "rietx.schemas.results.RefinementResult.phase_agreement",
     "rietx.schemas.results.RefinementResult.provenance",
-    "rietx.schemas.results.RefinementResult.qpa",
     "rietx.schemas.results.RefinementResult.restraints",
     "rietx.schemas.results.RefinementResult.sigma",
     "rietx.schemas.results.RefinementResult.stages",
@@ -794,7 +793,7 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 22
+    # action: 23
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
@@ -967,6 +966,13 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in: Geometry.mu_r/mu_t or capillary_radius_mm/thickness_mm, default None "
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "
                   "Acta Cryst. A26, 682 (docstring)")),
+    Row("rietx.schemas.results.RefinementResult.qpa", "action", tier=1, ambiguity=1,
+        evidence=("WP-1958 (#954, decided 2026-10-16): a phase with no reflection in the fitted "
+                  "range has no fraction (weight_fraction None, unmeasured_phases names it) and "
+                  "the others are normalised over the phases seen, absent rather than zero "
+                  "(WP-1072, WP-1110 item 14); before, TRF read 99.99 wt% iron off a walked "
+                  "scale and LM 0.61 wt%, the start; Brindley is skipped, its mean mu needing "
+                  "every fraction")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "

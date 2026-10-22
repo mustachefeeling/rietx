@@ -557,6 +557,7 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     """
     lineless = _lineless_phases(model)
     absent = set(lineless)
+    flat_scales = lineless - _restrained_scale_phases(model)
     if sigma is not None:
         if support is None:
             support = model.phase_support(table.decode(table.x0()))
@@ -564,7 +565,7 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     if not absent:
         return []
     prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
-    scales = tuple(f"phases.{ip}.scale" for ip in sorted(lineless))
+    scales = tuple(f"phases.{ip}.scale" for ip in sorted(flat_scales))
     reach = table.column_reach()
     return [p for p in table.free_paths
             if _only_moves(reach.get(p, [p]), prefixes, scales)]
@@ -578,6 +579,16 @@ def _lineless_phases(model: CompiledModel) -> set[int]:
     if model.mode != "rietveld":
         return set()
     return {ip for ip, n in enumerate(model.phase_line_counts()) if int(n) == 0}
+
+
+def _restrained_scale_phases(model: CompiledModel) -> set[int]:
+    """The phases whose ``scale`` a caller's ``ValueRestraint`` pulls: its row
+    gives the scale a column even with no line in range, so the WP-1958 hold
+    leaves that scale to the restraint (its fraction stays absent all the
+    same, the value being the caller's target and not the data's)."""
+    items = model.restraints.items if model.restraints is not None else []
+    return {int(m.group(1)) for it in items
+            if (m := _SCALE_PATH.match(getattr(it, "path", "") or ""))}
 
 
 #: Below this separation of a phase's scale column from its displacement

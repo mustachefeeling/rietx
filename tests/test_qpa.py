@@ -309,18 +309,27 @@ def test_an_unmeasured_phase_has_no_fraction_and_leaves_the_sum():
     assert full.phases[0].weight_fraction < qpa.phases[0].weight_fraction
 
 
-def test_an_unmeasured_phase_needs_no_radius_for_brindley():
-    """µ̄ is averaged over the phases with a fraction, so the correction runs
-    on the measured phases' radii alone and leaves the unmeasured row bare."""
-    structure, values, compute_qpa = _three_phase_decoded([0.4, 0.4, None])
+def test_brindley_is_skipped_with_an_unmeasured_phase():
+    """τ compares each phase's µ with the mixture's volume-mean µ̄, which
+    needs every phase's fraction: with one absent the correction cannot run,
+    and says so rather than averaging over the phases seen."""
+    structure, values, compute_qpa = _three_phase_decoded([0.4, 0.4, 0.4])
     qpa = compute_qpa(structure, values, wavelength=1.5406, unmeasured=[2])
-    seen, _, compute = _two_phase_decoded([0.4, 0.4])
-    two = compute(seen, values, wavelength=1.5406)
-    assert qpa.microabsorption_skipped is None
-    assert [r.weight_fraction_corrected for r in qpa.phases[:2]] == \
-           [r.weight_fraction_corrected for r in two.phases]
-    assert qpa.phases[2].weight_fraction_corrected is None
-    assert qpa.phases[2].brindley_tau is None
+    assert qpa.microabsorption is None
+    assert "CaF2_out" in qpa.microabsorption_skipped
+    assert all(r.weight_fraction_corrected is None for r in qpa.phases)
+    # the positive arm: every phase measured, the same radii run it
+    full = compute_qpa(structure, values, wavelength=1.5406)
+    assert full.microabsorption is not None and full.microabsorption_skipped is None
+
+
+def test_a_lone_phase_seen_is_whole_by_definition_with_no_esd():
+    structure, values, compute_qpa = _three_phase_decoded([None] * 3)
+    cov = np.diag([1e-10, 1e-10])
+    qpa = compute_qpa(structure, values, cov[:1, :1], unmeasured=[1, 2])
+    assert qpa.phases[0].weight_fraction == 1.0
+    assert qpa.phases[0].weight_fraction_stderr is None
+    assert qpa.unmeasured_phases == ["CaF2", "CaF2_out"]
 
 
 def test_an_unmeasured_row_round_trips_and_says_so_in_the_table():
