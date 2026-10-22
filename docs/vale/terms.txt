@@ -373,3 +373,6 @@ magnetons
 nm
 px
 ulp
+
+# People the manual names (start/this-manual.md).
+Yue

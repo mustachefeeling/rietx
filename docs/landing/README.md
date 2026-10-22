@@ -1,6 +1,6 @@
 # rietx.org landing page
 
-The page served at `https://rietx.org/`, beside the manual at `/manual.html`.
+The page served at `https://rietx.org/`, beside the manual at `/docs/`.
 Written 2026-09-02 with Claude Code; entered the repository in WP-1331.
 `python build.py` writes `dist/index.html`, the whole page in one file, which is
 also what the mockup artifact shows. Since 2026-10-03 a second page sits beside
@@ -35,16 +35,22 @@ Nothing is outstanding here; both items below are in.
 
 ## How it is built and served
 
-`.github/workflows/pages.yml` runs `python docs/landing/build.py --site`, then
-builds the manual with `html_extra_path = ["../landing/site"]` and
-`root_doc = "manual"`. The landing page lands at `/`, the manual at
-`/manual.html`, and no other URL moved. Everything the page needs is in the
-repository, so a fork builds the whole thing with no secret. The one fetch is
-the release tags, which the Jupyter quickstart reads (below).
+`.github/workflows/pages.yml` runs `python docs/landing/build.py --site` and
+copies `site/` into the site root, so the landing page lands at `/`. The manual
+builds under `/docs/` (`docs/docs_versions.py`), and no sphinx build writes
+outside it, which is what keeps `/` this page (`tests/test_landing.py`).
+Everything the page needs is in the repository, so a fork builds the whole
+thing with no secret. The one fetch is the release tags, which the Jupyter
+quickstart reads (below).
 
-- `docs/manual/conf.py` adds `html_extra_path` only when `docs/landing/site`
-  exists: `-W` makes a missing entry an error, and `tests/test_manual.py` builds
-  the manual on every run.
+- A link meaning "the manual" is `https://rietx.org/docs/`, which sends the
+  reader to the newest release's tree, or to `dev/` before a release carries
+  one. A chapter link uses the retired old tree's address (`/using/<x>.html`,
+  `/<theory>.html`), whose redirect stub (`docs_versions.RETIRED`) resolves the
+  same way per page, so the page needs no edit at a release. A stub carries a
+  `#fragment` over by script, but a chapter's sections took new heading ids on
+  their new pages, so a stub link carries none. A page the old tree never had
+  links `/docs/<version>/` directly.
 - `dist/`, `site/` and `preview.html` are gitignored — one page built three ways.
   `data/` is **not**, and § The payload says why.
 - The fluorapatite example is the first fit in
@@ -63,8 +69,9 @@ the release tags, which the Jupyter quickstart reads (below).
   at `HEAD`, because CI's shallow checkouts carry no tags. The JupyterLite links are
   the one exception: `/lite/` serves the Pages commit's notebooks with a wheel
   from that commit (WP-1966), and a link matches its row by file name only.
-- `rietx._about.DOCS_URL` stays `https://rietx.org`, and `help.py`'s anchors are
-  `page.html#id`, so neither moved.
+- `rietx._about.DOCS_URL` stays `https://rietx.org`, the site root. `help.py`'s
+  anchors are `page.html#id` under `_about.docs_base`, the installed version's
+  tree, so they do not pass through this page or the stubs.
 
 ## The payload
 

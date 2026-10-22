@@ -296,7 +296,7 @@ recipe (WP-1306). It lives here because it reads a file and is deliberately
 **outside `PATTERN_FORMATS`**: a recipe carries a structure, an instrument, a
 plan and refine flags too, so it returns a `Recipe`, nothing dispatches to it,
 and none of the sniffing, `scans`, `READER_OPTIONS` or σ policy above reaches
-it. Chapter: `docs/manual/using/recipe.md`; measured convention table:
+it. Chapter: `docs/docs/reference/recipe.md`; measured convention table:
 `tests/data/README.md` § v1.3. What generalises to the next foreign format:
 
 - **Measure its units against its own reference output before writing the

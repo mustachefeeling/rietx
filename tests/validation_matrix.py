@@ -2300,7 +2300,7 @@ CLAIMS: tuple[Claim, ...] = (
                  "differently; both positive and finite",
     ),
     # ---- the manual's background-peak worked example, on this same scan ----
-    # docs/manual/using/data.md rests its "Explicit background peaks" section on
+    # docs/docs/concepts/parameters.md rests its "Humps" comparison on
     # these two rows.  The specimen sits in a Kapton capillary and the container
     # has an amorphous halo near 5 deg 2theta; the protocol is the `full` fit
     # above with the P-spline swapped for a low-order Chebyshev.

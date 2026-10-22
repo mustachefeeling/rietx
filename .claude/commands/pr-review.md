@@ -268,7 +268,7 @@ line if the checkpoint ended it. Close with
    Fetch into `refs/pr/N`, never `FETCH_HEAD` (it is per worktree; the named
    ref is what the round-2 diff and `merge-tree` want). `reset --hard` is the
    whole reset — never `git clean -fdx`, which takes `gui/node_modules`,
-   `docs/manual/_generated`, `tests/output/`, any `*.rex/` and the venv. **The
+   `docs/docs/_generated`, `tests/output/`, any `*.rex/` and the venv. **The
    merged tree is the tree under test**: branch protection is `strict: false`,
    so nothing else ever tests it; a conflict here *is* the finding — report,
    ask for a rebase, stop. A conflict on bookkeeping alone is the exception,
@@ -347,7 +347,7 @@ line if the checkpoint ended it. Close with
    files.
 5. **Run the ladder the touched paths select**, every pytest with
    `-n auto --dist loadgroup`, from the bench:
-   - **docs/manual only** → `test_docs_consistency.py`, `test_manual.py`,
+   - **docs/docs only** → `test_docs_consistency.py`, `test_manual.py`,
      `test_manual_api.py`, the `-W` sphinx build.
    - **`gui/` only** → `npm --prefix gui ci && npm --prefix gui run build`,
      `git diff --exit-code src/rietx/gui/static`, `npm --prefix gui test`,
@@ -395,7 +395,7 @@ line if the checkpoint ended it. Close with
    as evidence, a reader repairing a file without a diagnostic, GPL-derived
    code, a diagnostic code or a measured operating rule with no agent-skill
    row (root CLAUDE.md § skill: the body, or the task shape's reference),
-   physics with Part 1 prose but no Part 2 equation, a skill row telling
+   physics with prose but no Theory-tab equation, a skill row telling
    agents to call a `caller` verb (it makes the verb a default path), a
    finding from one dataset written into a CLAUDE.md as a rule.
 6b. **The generality audit table** (WP-2014). Every decision the package

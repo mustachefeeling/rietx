@@ -3,19 +3,18 @@
     .venv/bin/python docs/docs/make_figures.py
 
 They live in `figures/` beside this script, moved here from the old tree's
-`using/figures/` by WP-1986.  The old tree's chapters reference the same files
-until it retires.
+`using/figures/` by WP-1986.
 
 The figures are **committed**, not built.  Two reasons: the sphinx build stays
 seconds rather than minutes, and it stays offline and dependency-free — a docs
 build should not have to refine a real pattern.  The cost is that a figure can
 go stale, so this script is the one authority for how each was drawn, and
-``tests/test_manual_api.py`` checks that every figure a page of either tree
-references exists.
+``tests/test_manual_api.py`` checks that every figure a page references
+exists.
 
 Each figure is written twice, ``-light`` and ``-dark``, and the pages select
-between them with the ``only-light`` / ``only-dark`` classes both themes read
-(pydata-sphinx-theme here, furo in the old tree).  A single
+between them with the ``only-light`` / ``only-dark`` classes the theme reads
+(pydata-sphinx-theme).  A single
 white-ground figure on a dark page is the thing this avoids.
 
 **Every figure that shows a fit draws it from the case that is already
@@ -76,8 +75,8 @@ def _save(fig, stem: str, style: str) -> None:
     path = FIGURES / f"{stem}-{style}.png"
     # 200 rather than the old 110: at 110 the type and the reflection marks
     # fringe on any retina display, which is where the manual is read.
-    # The dark twin is saved on a transparent ground: furo's dark page is
-    # #131416, not black, so an opaque figure sits on the page as a rectangle.
+    # The dark twin is saved on a transparent ground: the theme's dark page is
+    # not black, so an opaque figure sits on the page as a rectangle.
     # The light twin keeps its white ground, because its type is dark and a
     # transparent PNG opened anywhere dark would be unreadable.
     fig.savefig(path, dpi=200, bbox_inches="tight", transparent=style == "dark")
@@ -315,8 +314,8 @@ def hump() -> None:
     estimate would be claiming a truth it does not have.  Second, that fit is
     four minutes over 47 999 channels, and this script's own bargain (see the
     module docstring) is that regenerating a figure stays cheap.  The real
-    measurement is a **table**, in ``docs/manual/using/data.md``, where a number can carry
-    its own provenance.
+    measurement is a **table**, in ``docs/docs/concepts/parameters.md`` § Humps, where a
+    number can carry its own provenance.
 
     esd notation follows the decision on issue #166: ``rx.format_su``'s
     last-place digits below su = 1, decimal-in-parentheses at or above, where

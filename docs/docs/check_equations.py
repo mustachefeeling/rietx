@@ -110,7 +110,7 @@ def build(out: Path) -> None:
 def pages(out: Path) -> list[Path]:
     """Built pages that carry at least one numbered equation.
 
-    Derived from the output rather than listed: a chapter added to Part 2 is
+    Derived from the output rather than listed: a chapter added to the Theory tab is
     measured without anyone editing this file, and a page with no equation
     costs nothing to skip.
     """

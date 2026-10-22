@@ -22,9 +22,9 @@ htmlcov/
 # why): the sphinx build stays seconds and stays offline, at the cost of a
 # figure that can go stale.  `*.png` above would have dropped them silently,
 # leaving a manual whose images are broken everywhere except this machine.
-# They moved into the new tree from the old one's `using/figures/` (WP-1986),
-# and `tests/test_manual_api.py` asks `git check-ignore` about every image a
-# page of either tree shows.
+# They moved here from the old tree's `using/figures/` (WP-1986), and
+# `tests/test_manual_api.py` asks `git check-ignore` about every image a page
+# shows.
 !docs/docs/figures/*.png
 # The GUI chapters' screenshots are committed for the same reason and were
 # dropped by the same rule (WP-1017) — the third time `*.png` above has
@@ -86,9 +86,8 @@ eval-runs/
 # backend suites are compile-bound, and the cache is keyed by a content hash
 # of the computation, so it is safe to share between runs and xdist workers.
 tests/.jax_cache/
-# sphinx output for the theory manual (docs/manual/); note the !docs/**/*.html
+# sphinx output for the manual (docs/docs/); note the !docs/**/*.html
 # un-ignore above would otherwise commit every built page.
-docs/manual/_build/
 docs/docs/_build/
 .DS_Store
 
@@ -103,16 +102,13 @@ docs/docs/_build/
 # no test saw it and CI was green with it.
 /pr_body.md
 
-# Generated at Sphinx build time from rietx.help (docs/manual/conf.py).
-docs/manual/_generated/
 # Generated at Sphinx build time by docs/reference_pages.py (WP-1981).
 docs/docs/_generated/
 # The Microsoft style package, fetched by `vale sync` at the version .vale.ini
 # pins (WP-1982).
 docs/vale/Microsoft/
 # Copied at Sphinx build time from examples/tutorials/ (docs/sphinx_shared.py's
-# copy_tutorials, called by both conf.py files).
-docs/manual/using/tutorials/
+# copy_tutorials, called by docs/docs/conf.py).
 docs/docs/start/tutorials/
 
 # The landing page (docs/landing/, WP-1331).  Three rules, and they are here
