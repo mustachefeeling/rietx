@@ -97,9 +97,27 @@ texts in 61 files quote a title, so renaming a title means editing its link text
   `show_version_warning_banner`, `pygments_light_style`/`pygments_dark_style`.
 - **CSS variables:** `--pst-color-*` and `--pst-font-family-*`, on `html[data-theme]`. pydata
   always resolves `auto` to `light` or `dark` on that attribute, so the landing page's
-  `:root[data-theme="dark"]` selectors work unchanged on the manual.
+  `:root[data-theme="dark"]` selectors work unchanged on the manual. Four gotchas, read from
+  the theme's v0.23.0 source:
+  - The mapping goes on `html[data-theme="light"]` and `html[data-theme="dark"]`, where
+    pydata defines its own variables; a bare `:root` rule loses on specificity.
+  - The heading colour is `--pst-heading-color`, not `--pst-color-heading`. `_base.scss`
+    writes the fallback without `var()`, so overriding the second does nothing.
+  - `--pst-sidebar-primary-width` is a registered `@property` with `inherits: false`, set on
+    `.bd-sidebar-primary` from the `lg` breakpoint (992 px). Override it there, inside the
+    same media query.
+  - `--pst-color-link-hover` defaults to `--pst-color-secondary`, which is where the violet
+    comes from.
+- **The theme switcher** is a three-item dropdown (System, Light, Dark). It writes
+  localStorage `mode` (`auto`/`light`/`dark`) and `theme` (the resolved one) and mirrors them
+  to `html[data-mode]` and `html[data-theme]`; the first-visit default is
+  `html_context["default_mode"]`. It has no two-state option and exposes no `setTheme`, so a
+  toggle is our own component writing both keys and both attributes.
 - **A component is a template:** one named in `_templates/` shadows the theme's of the same
   name, as `rietx-brand.html` already does for the brand.
+- **Sphinx titles:** a toctree entry's explicit title (`Short label <doc>`) relabels the
+  sidebar and nothing else. The H1, `<title>`, the breadcrumb and a bare `{doc}` link keep
+  the page's own title. Checked on a two-page pydata 0.23 build, 2026-10-22.
 
 ### Tests that pin today's choices
 
@@ -133,7 +151,20 @@ Open, settled at the start of the first session with the maintainer:
   teal is pydata's default primary at 0.23. The cost is to re-choose the semantic colours
   (note, warning, danger, the dev banner) so that none is the accent. The landing page's own
   `--warn` (`#b5561b` / `#ffa25c`) is within a few degrees of `--accent`.
-- **B. The titles.** See the Titles task.
+- **B. The titles.** The sources split three ways:
+  - Diátaxis asks for a literal "How to …" on a how-to guide, calling a bare topic "very bad".
+    For an explanation, "About" is only a test the title must pass, so writing it out is
+    optional.
+  - Google's style guide titles a task with a bare infinitive ("Create an instance") and a
+    concept with a noun phrase, and uses neither prefix.
+  - Microsoft's guide does the same.
+
+  Docusaurus (`sidebar_label`) and Starlight (`sidebar.label`) both keep a page's title apart
+  from its nav label. The usual split gives the H1, `<title>` and search results the full
+  title, since they are read without the section, and gives the nav a short one, since the
+  tab already names the type. Recommended: drop "About" everywhere, and give every Guides
+  entry a short label without "How to" while its H1 keeps it. The alternative is Google's
+  bare infinitive in both places.
 
 ## Non-goals
 
@@ -158,37 +189,53 @@ Open, settled at the start of the first session with the maintainer:
       manual's `_static/fonts/`, with their OFL licence beside them, for body, headings and
       code; drop the Google Fonts subset link. A versioned tree is read for years, so it must
       not depend on an outside URL. Re-run `check_equations.py`.
-- [ ] **Header.** The brand links to `rietx_home`; `rietx-landing.html` and its CSS are
-      deleted. The theme control becomes the landing page's two-state toggle as a component,
-      and both pages read and write one storage key. The version switcher loses its box. In
-      the drawer: spacing above the controls, and the current tab marked.
-- [ ] **Sidebars.** Fix the left column's width, and drop the `sidebar-collapse` component
-      from `html_sidebars`; with the column narrowed there is nothing to collapse. Replace
-      "Section Navigation" with the tab's name in the label style, or nothing. Give both
-      sidebar headings that one label style, with no icons. Mark the current entry by colour
-      and bar only, with the bar on the rule. Replace "Show Source" with a quiet link to the
-      page's markdown twin (WP-1980), or drop it.
-- [ ] **Breadcrumb.** Parents only, never the current page; none on a tab's front page;
-      regular weight in `--muted`, so the H1 is the only heavy thing at the top of the article.
-- [ ] **Footer.** The landing page's line (licence, GitHub, Cite, Sources), with the
-      manual's version, in place of the theme's credit.
+- [ ] **Header.**
+      - The brand links to `rietx_home`, as NN/g's subsite rule asks: the top-left logo goes
+        to the main home. `rietx-landing.html` and its CSS are deleted.
+      - The theme control becomes the landing page's two-state toggle, as our own component
+        writing pydata's `mode` and `theme` keys and both `html` attributes. The landing page
+        moves from `rietx-theme` to those keys, so one choice holds across the origin.
+      - The version switcher loses its box.
+      - In the drawer: spacing above the controls, and the current tab marked.
+- [ ] **Sidebars.**
+      - Set `--pst-sidebar-primary-width` to a fixed width in the 17–19rem band that
+        Docusaurus (300 px) and Starlight (18.75rem) sit in. It is 25 % today, up to 22rem.
+      - Set `html_sidebars = {"**": ["sidebar-nav-bs"]}` to drop the collapse button. Its
+        state is not kept from page to page in 0.23, so it re-expands on every click through.
+      - Replace "Section Navigation" with the tab's name, since the `<nav>` label already
+        says what the column is.
+      - Give both sidebar headings one small label style, with no icons.
+      - Mark the current entry by colour and bar only, with the bar on the rule; a weight
+        change re-wraps the text.
+      - Replace "Show Source" (`secondary_sidebar_items`, `html_show_sourcelink`) with a quiet
+        link to the page's markdown twin (WP-1980), or drop it.
+- [ ] **Breadcrumb.** End the trail at the parent, never the page itself (GOV.UK's form).
+      Name its root in a word ("Manual") rather than a house icon, so on a tab's front page
+      it reads "Manual ›" above the H1 and repeats nothing. Every page but the front page
+      then links the manual's home, which NN/g's subsite rule wants once the logo goes to
+      `/`. Set it in regular weight and `--muted`, so the H1 is the only heavy thing at the
+      top of the article. This needs our own `breadcrumbs.html`.
+- [ ] **Footer and banner.**
+      - The landing page's line (licence, GitHub, Cite, Sources) and the manual's version, in
+        `footer_start`/`footer_end`, with `html_show_sphinx = False`.
+      - The dev banner becomes a quiet one-line tag in the manner of GOV.UK's phase banner.
+        The warning colour stays for an older release's banner, which pydata draws in the
+        same red today.
 - [ ] **Inside the article.**
       - Inline code is ink on a tint.
       - Links are `--accent-ink` with a tinted underline, and the violet hover goes.
       - Tab sets draw no border round the panel, only a rule under the tabs.
       - Previous/Next lose the underline.
       - The front page gets a real lede and no right column.
-      - The dev banner takes a semantic colour, not deep red.
       - Mermaid uses `base` with theme variables from the tokens.
       - The light figure twins are saved on a transparent ground; regenerate the 16 figures.
-- [ ] **Titles** (decision B). Recommended: drop "About" from the seven Concepts H1s, nav
-      labels and link texts, since Diátaxis itself treats it as implicit. For Guides, the
-      sidebar shows a short label with no "How to" (a toctree entry's explicit title), while
-      the H1 and the HTML title keep "How to …" for search results, `llms.txt` and prose
-      links read out of the tab. Update both front pages' sentence.
+- [ ] **Titles** (decision B). As recommended: drop "About" from the seven Concepts H1s and
+      their link texts. Give each Guides toctree entry an explicit short title without "How
+      to", while the H1 keeps it. Update both front pages' sentence.
 - [ ] **Tests.** Change the two brand tests above. Add:
       - the token-file test, and the contrast test;
-      - every built page's breadcrumb omits its own title;
+      - every built page's breadcrumb omits its own title, and every page but the front
+        page links the manual's home;
       - no page names a hex outside the token file;
       - every page is free of the theme credit and of the collapse control.
 
@@ -212,15 +259,37 @@ with no hue in the manual that the token file does not name.
 
 - pydata-sphinx-theme 0.23 user guide: branding, layout, theme variables.
   <https://pydata-sphinx-theme.readthedocs.io/en/stable/user_guide/index.html>
+  The claims above about its internals were read from the v0.23.0 tag's source.
 - Diátaxis, the how-to and explanation pages. <https://diataxis.fr/how-to-guides/>,
   <https://diataxis.fr/explanation/>
+- Google developer documentation style guide, headings.
+  <https://developers.google.com/style/headings>; Microsoft Writing Style Guide, headings.
+  <https://learn.microsoft.com/en-us/style-guide/scannable-content/headings>
+- Docusaurus `sidebar_label`, Starlight `sidebar.label`: a nav label apart from the title.
+  <https://docusaurus.io/docs/api/plugins/@docusaurus/plugin-content-docs>,
+  <https://starlight.astro.build/reference/frontmatter/>
+- Breadcrumbs. NN/g includes the current page, unlinked:
+  <https://www.nngroup.com/articles/breadcrumbs/>. GOV.UK ends at the parent:
+  <https://design-system.service.gov.uk/components/breadcrumbs/>. WCAG technique G65 accepts
+  both: <https://www.w3.org/TR/WCAG20-TECHS/G65.html>.
+- NN/g, subsites: the logo goes to the main home, and every subsite page links the subsite's
+  home. <https://www.nngroup.com/articles/the-rise-of-the-subsite/>
+- GOV.UK phase banner, a quiet "still being built" cue.
+  <https://design-system.service.gov.uk/components/phase-banner/>
+- Bold without layout shift. <https://css-tricks.com/bold-on-hover-without-the-layout-shift/>
 - WCAG 2.2, success criteria 1.4.3 and 1.4.11. <https://www.w3.org/TR/WCAG22/>
 - Instrument Sans and IBM Plex Mono, SIL Open Font License 1.1.
+
+The web sources were read from search extracts on 2026-10-22, since the session's proxy
+refused direct fetches; re-read each before quoting it in the manual.
 
 ## Handover log
 
 - **2026-10-22** — filed from the maintainer's review of the manual's look. No open WP owns
   it: WP-1986 is the guides and the old tree's retirement; WP-1443 is prose read by a
   newcomer; WP-1812 is the manual for rigid bodies. The measurements above are from that
-  session's screenshots of `main` 2330afc. Next: settle decisions A and B with the
-  maintainer, then start at the house-style task, since every later task cites it.
+  session's screenshots of `main` 2330afc. The breadcrumb, title, sidebar, logo and banner
+  tasks follow the sources under References, which disagree on two points, both recorded:
+  whether a breadcrumb ends at the page or its parent, and whether a task title says "How
+  to". Next: settle decisions A and B with the maintainer, then start at the house-style
+  task, since every later task cites it.
