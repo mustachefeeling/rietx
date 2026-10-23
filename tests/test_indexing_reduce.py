@@ -361,13 +361,17 @@ def test_the_reduced_cell_is_the_exact_image_of_its_input(centring, a, b, c,
     5.4e-8 on C, so a check of the signs alone kept it.  The primitive cell
     one angle 1e-5° from a right angle does the same through ξ (2.9e-7 on
     P): hypothesis's angles almost never land within ε of 90°."""
+    cell = (a, b, c, al, be, ga)
+    assume(_valid(cell))
+    _assert_exact_image(cell, centring)
+
+
+def _assert_exact_image(cell, centring):
     import gemmi
 
     from rietx.crystallography.lattice import direct_metric_tensor
     from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE, _basis_change
 
-    cell = (a, b, c, al, be, ga)
-    assume(_valid(cell))
     r = reduce_cell(cell, centring)
     m = _basis_change(r.change_of_basis)
     image = m @ np.asarray(direct_metric_tensor(*cell)) @ m.T
@@ -382,6 +386,28 @@ def test_the_reduced_cell_is_the_exact_image_of_its_input(centring, a, b, c,
     theirs = np.array([[A, zeta / 2, eta / 2], [zeta / 2, B, xi / 2],
                        [eta / 2, xi / 2, C]])
     assert np.max(np.abs(got - theirs)) <= eps
+
+
+_NEAR_RIGHT = st.tuples(st.floats(min_value=1e-7, max_value=1e-5),
+                        st.sampled_from([-1.0, 1.0]))
+
+
+@pytest.mark.parametrize("centring", ["P", "C", "I", "F", "R"])
+@settings(max_examples=40, deadline=None,
+          suppress_health_check=[HealthCheck.filter_too_much])
+@given(lengths, lengths, lengths, angles, angles, angles,
+       st.integers(0, 2), _NEAR_RIGHT)
+def test_the_exact_image_holds_with_one_angle_within_epsilon_of_90(
+        centring, a, b, c, al, be, ga, which, offset):
+    """WP-2035's sweep: one angle 1e-7–1e-5° either side of 90° puts a
+    Niggli parameter within the reduction's ε of zero, where gemmi's
+    ``normalize`` and Křivý–Gruber steps disagree on a sign.  On ``main``'s
+    sign-gated path about 30 % of such P cells left the exact image."""
+    angs = [al, be, ga]
+    angs[which] = 90.0 + offset[1] * offset[0]
+    cell = (a, b, c, *angs)
+    assume(_valid(cell))
+    _assert_exact_image(cell, centring)
 
 
 _SETTING_STEPS = st.sampled_from([(1, 0, 0, 1), (1, 0, 1, 1), (1, 0, -2, 1),
