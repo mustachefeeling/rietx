@@ -1080,6 +1080,26 @@ class StageResult(Base):
     #: Both single-histogram runners write a mapping on every stage, so an
     #: empty one is a stage that looked and held nothing on this test.
     scale_b_held: dict[int, float] | None = None
+    #: per instrument width column this stage **held** because a free specimen
+    #: width has its angular dependence (WP-2002), the specimen columns it
+    #: pairs with: U with ``gauss_strain`` (tan²θ in Γ_G²), Y with
+    #: ``lor_strain`` (tanθ in Γ_L), X with ``lor_size`` (1/cosθ in Γ_L).
+    #: The data see each pair only as a sum, so with both free the pair walks
+    #: along a flat direction.  The instrument half is held at the value the
+    #: stage started from, which is how every program that separates the two
+    #: does it (``docs/practice.md``), and the specimen value is then the width
+    #: the instrument does not account for.  The held columns are in
+    #: :attr:`held` too.
+    #:
+    #: Held only where the pair is exactly flat
+    #: (``refine._width_twin_flats``): one seen phase whose twin is held pins
+    #: the instrument width for every phase, and nothing is held.  A Stephens
+    #: block locks ``lor_strain``, so it never puts Y here.  Never released
+    #: inside the stage, since it rests on which columns are free.
+    #:
+    #: ``None`` means a result stored before the field.  Every runner writes a
+    #: mapping, and an empty one is a stage that held nothing on this test.
+    width_twins_held: dict[str, list[str]] | None = None
     #: paths held at stage start and **released within the same stage**: the
     #: phase rose above support while the stage solved, so the hold was lifted
     #: and the stage solved a second time (once — never a third) with them

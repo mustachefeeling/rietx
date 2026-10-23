@@ -809,6 +809,26 @@ ROWS: tuple[Row, ...] = (
         evidence=("numerical floor: under 2*sqrt(PINV_RCOND) the covariance's pinv cut cannot see "
                   "scale and B as two directions (WP-1534 derivation); measured cases read 1e-12 or"
                   " 0.19-0.40")),
+    Row("rietx.schemas.results.StageResult.width_twins_held", "action", tier=2, ambiguity=1,
+        evidence=("physics: U and gauss_strain both multiply tan^2(theta) in Gamma_G^2, Y and "
+                  "lor_strain tan(theta) in Gamma_L, X and lor_size 1/cos(theta) "
+                  "(CompiledModel._width_block), so a pattern sees each pair as a sum; held "
+                  "only where refine._width_twin_flats finds the move exactly flat on C, so one "
+                  "seen phase with its twin held, or a Stephens block, holds nothing "
+                  "(tests/test_width_twin_hold.py). Unheld and unfloored, CPD corundum walked "
+                  "y to -180 and lor_strain to +180.04 with their sum unchanged, then every "
+                  "residual went NaN (WP-2002 8th session). Practice (docs/practice.md "
+                  "§ Instrument and specimen widths refined together): FullProf's resolution "
+                  "file, BGMN's ray tracing, RIETAN-FP's advised protocol and GSAS-II's "
+                  "defaults all separate the pair by fixing the instrument; none holds a twin "
+                  "automatically. Cost on CPD brucite, where the plan fits U, X and Y on the "
+                  "specimen first: Rwp 0.186391 -> 0.186423 isotropic, 0.179951 -> 0.181008 "
+                  "with a Stephens block, the specimen twins ending on their 0 floor"),
+        grounds=("Every program that separates instrument from specimen width does it by "
+                 "fixing the instrument, and the split of an exact sum is no measurement; the "
+                 "hold names itself on the stage record. Option (b) of the width-floor ruling "
+                 "(decision 1, 2026-10-23), confirmed by the maintainer 2026-10-23."),
+        approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.released", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: a held phase reading >= 3 sigma at the answer is released and the "
                   "stage re-solved once; one that fell under it is restored to its stage start and "

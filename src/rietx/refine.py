@@ -443,6 +443,10 @@ class _StageHold:
     #: ``StageResult.scale_b_held`` (WP-1534): per phase whose displacement
     #: columns :func:`_hold_scale_b_ridges` held, the separation it measured
     scale_b_held: dict[int, float] = dataclasses.field(default_factory=dict)
+    #: ``StageResult.width_twins_held`` (WP-2002): per instrument width column
+    #: :func:`_hold_width_twins` held, the specimen twin columns it pairs with
+    width_twins_held: dict[str, list[str]] = dataclasses.field(
+        default_factory=dict)
     #: each phase's :func:`_answer_significance` at the stage's answer
     #: (WP-1523), written by ``_run_stage`` alone.  Carried so the result's
     #: ``PHASE_UNCONSTRAINED`` reads the number the hold was decided on: a
@@ -771,6 +775,133 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
     held_reach = _reach_beyond_self(table, held, reach)
     table.set_vary(held, False)
     return held, held_reach, ridged
+
+
+#: Each instrument width coefficient and the specimen width with its angular
+#: dependence (``CompiledModel._width_block``): U and ``gauss_strain`` both
+#: multiply tan²θ in Γ_G², Y and ``lor_strain`` tanθ in Γ_L, X and
+#: ``lor_size`` 1/cosθ in Γ_L.  A pattern sees each pair only as a sum.
+#: ``lor_size`` carries a factor λ_h/λ₀ per histogram of a joint fit (WP-1131),
+#: which **C** holds, so the test below reads it without naming it.
+WIDTH_TWINS: tuple[tuple[str, str], ...] = (
+    ("instrument.profile.u", "gauss_strain"),
+    ("instrument.profile.y", "lor_strain"),
+    ("instrument.profile.x", "lor_size"),
+)
+
+
+def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
+                      n_columns: int) -> dict[int, list[int]]:
+    """The instrument width columns on a flat direction with their specimen
+    twins (:data:`WIDTH_TWINS`), each with the twin columns it pairs with.
+
+    ``parts`` holds one ``(table, col_map, unseen)`` per pattern: the table,
+    the θ column each of its free columns is (the identity for a single fit),
+    and the phases its data cannot see.  Columns are θ indices.
+
+    **Columns, never names** (WP-1342), and exact.  Each seen phase of each
+    pattern sees one sum per pair, so a move of the free columns is flat when
+    it changes none of those sums and no other entry.  That is the null space
+    of a matrix read off **C**, so a tie, a ``vars.X`` and a joint fit's λ
+    factor all enter as coefficients.  Two consequences follow without a
+    rule of their own.  One seen phase whose twin is held pins the instrument
+    width for every phase, so nothing is flat.  A pattern whose instrument
+    width is held pins the shared specimen width, and every other pattern's
+    instrument width with it.  An unseen phase's sums are left out, because
+    its peaks pin nothing; its own columns are the support hold's.
+
+    A Stephens block (``Phase.microstrain``) locks ``lor_strain``, so Y has
+    no twin here: the block's isotropic direction matches Y only while the
+    strain is isotropic.
+    """
+    def row(C, col_map: np.ndarray, i: int) -> np.ndarray:
+        out = np.zeros(n_columns, dtype=np.float64)
+        sl = slice(C.indptr[i], C.indptr[i + 1])
+        np.add.at(out, col_map[C.indices[sl]], C.data[sl])
+        return out
+
+    sums: list[np.ndarray] = []
+    couples: list[tuple[set[int], set[int]]] = []
+    families: list[set[int]] = []
+    for table, col_map, unseen in parts:
+        C = table._C.tocsr()
+        pos = table._paths
+        family: set[int] = set()
+        families.append(family)
+        for inst, twin in WIDTH_TWINS:
+            i_inst = pos.get(inst)
+            if i_inst is None:
+                continue
+            family.add(i_inst)
+            r_inst = row(C, col_map, i_inst)
+            ip = 0
+            while (i_twin := pos.get(f"phases.{ip}.{twin}")) is not None:
+                family.add(i_twin)
+                if ip not in unseen:
+                    r_twin = row(C, col_map, i_twin)
+                    sums.append(r_inst + r_twin)
+                    couples.append((set(np.flatnonzero(r_inst).tolist()),
+                                    set(np.flatnonzero(r_twin).tolist())))
+                ip += 1
+    inst_cols = set().union(*(a for a, _ in couples))
+    if not inst_cols:
+        return {}
+    # the columns a family entry reaches; a move of any other is no twin's
+    cand = sorted(inst_cols.union(*(b for _, b in couples)))
+    in_cand = np.zeros(n_columns, dtype=bool)
+    in_cand[cand] = True
+    # every other entry those columns move must stay still too: a column
+    # driving a twin and a cell is pinned by the cell
+    others = []
+    for (table, col_map, _), family in zip(parts, families, strict=True):
+        C = table._C.tocsr()
+        touched = np.flatnonzero(in_cand[col_map])
+        for i in np.unique(C[:, touched].nonzero()[0]):
+            if int(i) not in family:
+                others.append(row(C, col_map, int(i)))
+    A = np.array([r[cand] for r in (*sums, *others) if r[cand].any()],
+                 dtype=np.float64).reshape(-1, len(cand))
+    if A.shape[0]:
+        _, s, vt = np.linalg.svd(A)
+        rank = int(np.sum(s > s[0] * len(cand) * np.finfo(np.float64).eps))
+        null = vt[rank:].T
+    else:
+        null = np.eye(len(cand))
+    on_flat = {c for c, r in zip(cand, null, strict=True)
+               if r.size and np.abs(r).max() > 1e-8}
+    out: dict[int, list[int]] = {}
+    for c in sorted(inst_cols & on_flat):
+        twins = {k for a, b in couples if c in a
+                 for k in b if k in on_flat and k not in inst_cols}
+        if twins:
+            out[c] = sorted(twins)
+    return out
+
+
+def _hold_width_twins(table: ParameterTable, unseen: set[int]
+                      ) -> tuple[list[str], dict[str, list[str]],
+                                 dict[str, list[str]]]:
+    """Hold every instrument width column :func:`_width_twin_flats` puts on a
+    flat direction with a free specimen twin (WP-2002).
+
+    Returns the held columns, their reach (:func:`_reach_beyond_self`) and,
+    per held column, the twin columns it pairs with — the record
+    ``StageResult.width_twins_held`` carries.  The instrument half is the one
+    held because every program that separates the two does it by fixing the
+    instrument from a standard (``docs/practice.md`` § Instrument and
+    specimen widths refined together), and the specimen value is then the
+    width the instrument does not account for.
+    """
+    names = table.free_paths
+    flats = _width_twin_flats([(table, np.arange(len(names)), unseen)],
+                              len(names))
+    if not flats:
+        return [], {}, {}
+    held = [names[c] for c in flats]
+    reach = _reach_beyond_self(table, held)
+    table.set_vary(held, False)
+    return held, reach, {names[c]: [names[k] for k in ks]
+                         for c, ks in flats.items()}
 
 
 # ``MOMENT_DIRECTION_SUPPORT`` is defined in
@@ -1211,11 +1342,14 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
                              prior: np.ndarray | None = None,
                              seeded_phases: Iterable[int] = (), *,
                              sigma: float | None = PHASE_SUPPORT_SIGMA,
-                             ) -> tuple[list[str], dict[str, list[str]]]:
-    """Apply :func:`_unsupported_phase_paths`; returns what it held and its reach.
+                             ) -> tuple[list[str], dict[str, list[str]], set[int]]:
+    """Apply :func:`_unsupported_phase_paths`; returns what it held, its reach
+    and the phases it judged unseen.
 
-    Both halves, because the reach is only readable while the columns are
-    still free — see :func:`_reach_beyond_self`.
+    The first two, because the reach is only readable while the columns are
+    still free — see :func:`_reach_beyond_self`.  The third is what
+    :func:`_hold_width_twins` leaves out: an unseen phase's peaks pin no
+    instrument width.
 
     ``prior`` is the previous stage's :func:`_answer_significance` in a plan
     (WP-1523), read beside the screen: a phase under the threshold by either
@@ -1250,7 +1384,7 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     holds nothing and measures nothing.
     """
     if sigma is None:
-        return [], {}
+        return [], {}, set()
     support = np.asarray(model.phase_support(table.decode(table.x0())),
                          dtype=np.float64)
     if prior is not None:
@@ -1262,7 +1396,7 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     reach = _reach_beyond_self(table, held)
     if held:
         table.set_vary(held, False)
-    return held, reach
+    return held, reach, {ip for ip, z in enumerate(support) if z < sigma}
 
 
 def _escaped_cell_paths(table: ParameterTable, start_values: dict[str, float]
@@ -4104,7 +4238,7 @@ class Refinement:
         # values the stage starts from, and all go into ``StageResult.held``
         # so the report can say which and why.  The phase hold also reads the
         # previous answer's significance where a plan hands one in (WP-1523).
-        held, held_reach = _hold_unsupported_phases(
+        held, held_reach, unseen = _hold_unsupported_phases(
             model, table, prior_significance, seeded_phases,
             sigma=phase_support_sigma)
         # kept apart, because the release below judges each hold by its own
@@ -4121,8 +4255,12 @@ class Refinement:
         # it for being visible.  The one later question is the converse: a
         # phase the support hold released below, whose B was never probed.
         ridge_hold, ridge_reach, scale_b_held = _hold_scale_b_ridges(model, table)
-        held = held + moment_hold + ridge_hold
+        # and an instrument width whose specimen twin is free (WP-2002): a
+        # fact about which columns are free, so it is never asked again
+        twin_hold, twin_reach, width_twins_held = _hold_width_twins(table, unseen)
+        held = held + moment_hold + ridge_hold + twin_hold
         held_reach.update(ridge_reach)
+        held_reach.update(twin_reach)
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -4209,10 +4347,10 @@ class Refinement:
         # phase hold takes an invisible phase's moment DOFs too, and read by
         # name those went to the direction probe, which skips ``dof0`` and so
         # released the modulus of a phase the data still could not see.
-        moment_set, ridge_set = set(moment_hold), set(ridge_hold)
+        moment_set = set(moment_hold)
+        apart = moment_set | set(ridge_hold) | set(twin_hold)
         moment_held = [p for p in held if p in moment_set]
-        phase_held = [p for p in held
-                      if p not in moment_set and p not in ridge_set]
+        phase_held = [p for p in held if p not in apart]
         # one measurement, two questions — the release and the collapse are
         # complementary readings of the same significance vector (WP-1523):
         # a held phase measured with its held columns free, every other phase
@@ -4477,6 +4615,7 @@ class Refinement:
             moment_turned=[b for b in kept_axes if b in moment_turned],
             reach={c: list(v) for c, v in held_reach.items()},
             scale_b_held=dict(scale_b_held),
+            width_twins_held=width_twins_held,
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
             seeded=seeded,
             cell_runaway=list(cell_runaway),
@@ -5091,6 +5230,7 @@ class Refinement:
                 held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 scale_b_held=hold.scale_b_held,
+                width_twins_held=hold.width_twins_held,
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
@@ -5390,6 +5530,7 @@ class Refinement:
                 held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 scale_b_held=hold.scale_b_held,
+                width_twins_held=hold.width_twins_held,
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
