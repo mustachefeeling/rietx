@@ -548,9 +548,14 @@ def _read_bank(p: Path, lines: list[str],
 
     body: list[str] = []
     for line in lines[data_start:]:
-        # the next bank ends this one, commented or not: a bank record is
-        # never data
-        if _BANK_COMMENT_RE.sub("", line, count=1).startswith("BANK"):
+        # the next record header ends this bank, and the manual has two: a
+        # BANK record, commented or not, and a TIME_MAP record.  A file's
+        # header-plus-records sets "may be repeated in any order", the time
+        # map only "usually" heading the file (GSAS Technical Manual p. 219),
+        # so a map may follow a bank's rows; read on, it was refused as a
+        # malformed data record of this bank.
+        if (_BANK_COMMENT_RE.sub("", line, count=1).startswith("BANK")
+                or line.startswith("TIME_MAP")):
             break
         # A ``#`` in column 1 is a comment, not a datum, and Mantid's SaveGSS
         # writes one *between* banks — an ISIS GEM file puts "# Total flight

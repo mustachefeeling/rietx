@@ -606,19 +606,18 @@ class IncidentSpectrum(_InheritsDeclaredDefaults):
         # imports ``crystallography.neutron``, and the schemas are what the
         # model layer imports, not the other way round.
         from ..model.tof_spectrum import (
-            COEFFICIENT_COUNTS,
+            SPECTRUM_TYPES,
+            _coefficient_count,
             _type_zero_message,
-            _unknown_type_message,
         )
 
-        want = COEFFICIENT_COUNTS.get(self.itype)
-        if want is None:
-            raise ValueError(_unknown_type_message(self.itype))
+        want = _coefficient_count(self.itype)
         if want == 0 and self.coefficients:
             raise ValueError(_type_zero_message(len(self.coefficients)))
         if len(self.coefficients) != want:
             raise ValueError(
-                f"IncidentSpectrum: ITYP {self.itype} uses {want} coefficients "
+                f"IncidentSpectrum: ITYP {self.itype} "
+                f"({SPECTRUM_TYPES[self.itype]}) uses {want} coefficients "
                 f"and {len(self.coefficients)} were given. GSAS writes ICOFF as "
                 f"three records of four numbers whatever the type, so a file "
                 f"using fewer writes zeros into the rest; a list of the wrong "
