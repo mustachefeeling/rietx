@@ -32,12 +32,6 @@ import rietx as rx
 from rietx import runs
 from rietx.history.events import KIND_SINCE, EventKind, EventRecord, read_events
 from rietx.optimize.cancel import CancelToken
-from rietx.solve.solution import (
-    SOLVE_REFUTING_CAVEATS,
-    SolutionResult,
-    SolveCaveat,
-    SolveSpecSpec,
-)
 from rietx.solve import cluster as cl
 from rietx.solve import engines as en
 from rietx.solve import workflow as wf
@@ -45,6 +39,12 @@ from rietx.solve.chemistry import PriorWeights, SolvePriors
 from rietx.solve.cost import SolveCost
 from rietx.solve.engines import SolveSpec
 from rietx.solve.moves import FragmentUnit, SearchSpace
+from rietx.solve.solution import (
+    SOLVE_REFUTING_CAVEATS,
+    SolutionResult,
+    SolveCaveat,
+    SolveSpecSpec,
+)
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_acceptance_nac import build_nac_inputs  # noqa: E402
@@ -324,7 +324,7 @@ def test_read_events_validates_the_version_against_the_kind(tmp_path, acr_run):
     EventRecord.model_validate({"v": "2", "t": 1.0, "kind": "fit_start"})   # older logs read
     bad = tmp_path / "old.jsonl"
     bad.write_text(json.dumps({"record": "event", "v": "3", "t": 1.0, "kind": "solve_end",
-                               "data": {}}) + "\n")
+                               "data": {}}) + "\n", encoding="utf-8")
     with pytest.raises(ValueError):
         read_events(bad)
 
@@ -390,7 +390,7 @@ def test_an_interrupted_run_resumes_byte_identical(acr, acr_run, tmp_path, unit,
     assert cut.status == "cancelled" and cut.partial
     assert any(r.stopped == "cancelled" for r in cut.records)
     assert all("partial" in c.confidence_caveats for c in cut.candidates)
-    saved = json.loads(ck.read_text())
+    saved = json.loads(ck.read_text(encoding="utf-8"))
     assert saved["current"]["unit"] == target
     assert saved["current"]["state"]["done"] == (sweep // 1000) * 1000
     again = acr.solve(checkpoint=ck)
@@ -433,9 +433,9 @@ def test_a_mismatched_checkpoint_is_refused_by_name(acr, tmp_path):
     assert err.value.field == "spec"
     # the version
     bumped = tmp_path / "v.ckpt"
-    payload = json.loads(ck.read_text())
+    payload = json.loads(ck.read_text(encoding="utf-8"))
     payload["package_version"] = "0.0.0-other"
-    bumped.write_text(json.dumps(payload))
+    bumped.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(wf.CheckpointMismatch) as err:
         acr.solve(spec, checkpoint=bumped)
     assert err.value.field == "version"
@@ -484,7 +484,7 @@ def test_the_assignment_race_resumes_byte_identical(nac, tmp_path):
     cut = nac.solve(spec, checkpoint=ck, cancel=token,
                     events=_cancel_at(token, target, 3500))
     assert cut.status == "cancelled" and cut.races[0].winner is None
-    assert json.loads(ck.read_text())["current"]["state"]["done"] == 3000
+    assert json.loads(ck.read_text(encoding="utf-8"))["current"]["state"]["done"] == 3000
     again = nac.solve(spec, checkpoint=ck)
     assert again.comparable_json() == whole.comparable_json()
 
@@ -499,7 +499,7 @@ def test_merged_seed_results_equal_the_in_process_run(acr, acr_run, tmp_path):
         r = acr.solve(SolveSpec(seeds=seeds, control_seeds=controls, sweeps=2000,
                                 heartbeat_sweeps=250, checkpoint_every_s=0.0))
         p = tmp_path / f"part{len(paths)}.json"
-        p.write_text(r.model_dump_json())
+        p.write_text(r.model_dump_json(), encoding="utf-8")
         paths.append(p)
     merged = wf.merge_seed_results(paths)
     assert merged.comparable_json() == whole.comparable_json()
