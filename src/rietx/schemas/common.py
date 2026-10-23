@@ -574,6 +574,12 @@ from .._nearmiss import did_you_mean
 #: cannot be rebuilt as every step, so a document's ``discontinuities`` key is
 #: dropped at read (``SeriesResult``'s ``mode="before"`` validator) and its
 #: ``steps`` reads ``None``, "not recorded".
+#: Also in 0.60 (WP-2030): ``IndexingResult.formula`` and ``.temperature``, the
+#: formula and temperature the Z check read, and ``PeakList.instrument_undeclared``,
+#: the instrument blocks the picker found at default on a lab source.  Additive
+#: and defaulted to ``None``, "not recorded", the 0.25 → 0.26 rule;
+#: ``index_pattern`` writes the first two on every result, ``pick_peaks`` and
+#: ``fit_peaks`` the third on every list.
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
