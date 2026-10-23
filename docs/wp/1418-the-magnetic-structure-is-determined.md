@@ -82,11 +82,11 @@ tree depends on, plus tests.
   the published group of ≥ 10 MAGNDATA parents is in the list with its
   label; Pnma at Γ gives four maximal candidates; Shirane's cubic collinear
   degeneracy comes out as one class.
-- **M-8 — the k-search beyond {0, ½}³.** 1326's arm with a pluggable
-  candidate generator (issue #257 A1): every special point and line of the
-  zone, labelled, then a general-k grid, an incommensurate k admitted as a
-  *position* hypothesis and reported as such. Same files as 1326, so after
-  it lands.
+- **M-8 — the k-search beyond {0, ½}³.** 1326's arm takes a pluggable
+  candidate generator (`generator=`, issue #257 A1, landed with 1326's close).
+  M-8 adds a generator with every special point and line of the zone,
+  labelled, then a general-k grid, with an incommensurate k admitted as a
+  *position* hypothesis and reported as such.
 - **M-9 — the determination verb.** k candidates → M-7 candidates → one
   trial refinement per class under 1327's hold → ranking by ΔBIC at equal
   parameter count (with 1417's caveat on N) and a magnetic-only R over the
@@ -125,6 +125,17 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-23, from [1326](1326-satellites-without-a-moment.md)'s close
+  (originally WP-1541, 2026-10-03): the satellite types have no provisional
+  declaration a test can see.** `SatelliteEvidence` and `SatelliteCandidate`
+  are still defined in `rietx.report.schemas` (`:610`, `:649` at `12f459e`).
+  That module defines stable names too, so no `PROVISIONAL_MODULES` prefix can
+  cover them, and only prose in the compatibility page and the 1.6.0 notes
+  calls them provisional. The proposed fix is to move both into
+  `rietx.report.satellites`, re-export them from `rietx.report.schemas`, and
+  declare that prefix with a reason. M-8's decision 3 (new fields on
+  `SatelliteCandidate`, or a `KSearchResult` beside `SatelliteEvidence`) is
+  where they change, so it moves here.
 - **2026-10-22, from WP-2002 (PR #1085): `solve_magnetic`'s winner ends in a closing stage.**
   When the package chose the plan, the trials and the nuclear reference still
   run no closing stage and are ranked there, and the winner then runs one from
@@ -298,9 +309,9 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
      position half out of #678 for this.
   3. Schema: new fields on `SatelliteCandidate` with a schema and
      `REPORT_THRESHOLDS` bump, or a `KSearchResult` beside
-     `SatelliteEvidence`. 1326's Inherited entry from WP-1541 already
-     proposes moving both satellite types into `rietx.report.satellites` as
-     provisional.
+     `SatelliteEvidence`. WP-1541's proposal to move both satellite types
+     into `rietx.report.satellites` as provisional is in this WP's Inherited
+     (2026-10-23, from 1326's close).
   4. Which of K3, K4, K6 and K7 this WP takes, and which wait behind the
      fence or another WP. K4's complex S_k is M-11a's object.
 
@@ -782,8 +793,8 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
       only; the Pnma 4b/4c checks and the 230-group intertwiner test.
 - [x] M-7: isotropy subgroups → operator lists, absences, powder-equivalence
       classes; ≥ 10 MAGNDATA parents recover their published group.
-- [ ] M-8: 1326's candidate generator made pluggable and the zone's special
-      points and lines added, labelled.
+- [ ] M-8: the zone's special points and lines as a generator for 1326's
+      arm (`generator=`, already pluggable), labelled.
 - [ ] M-9: the verb, the ranking, the abstention, the magCIF per candidate;
       `capabilities()` feature flag; `help.py` entries.
 - [ ] Manual Part 2: the projection operator, the return-vector phase, the

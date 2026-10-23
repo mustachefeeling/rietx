@@ -37,7 +37,7 @@ test, and nothing joins a feature to its claims.
 (`cr2wo6_hb2a`, `lamno3_bt1`), and neither tutorial quotes a moment, so every magnetic
 claim is `characterisation`. Magnetic refinement is declared not yet validated unless a
 published moment for one of those compounds is found and made a reference (not checked at
-filing). The magnetic milestone is open (1326, 1327, 1329, 1343, 1418 and 1419 in flight)
+filing). The magnetic milestone is open (1327, 1329, 1343, 1418, 1419 and 2034 in flight)
 and its WPs edit the help entries and manual chapters this WP labels. Merge main before the
 label commit. 1327's `### Inherited` already carries a note from 2001 (2026-10-19) saying
 what the label will say and what would lift it; update it with the label's final wording.

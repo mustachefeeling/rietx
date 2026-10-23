@@ -487,6 +487,14 @@ class Moment(_InheritsDeclaredDefaults):
 #: and a fourth spelling of the same list is a fourth place to forget one.
 MOMENT_COMPONENTS = ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")
 
+#: The Biso, in Å², a site starts at when nothing states one: an :class:`Atom`
+#: built without ``biso``, and a CIF, recipe or TOPAS site with no ADP.  No
+#: stated source.  Behind the closing stage a start of 1.5 lands within 0.07
+#: plain esd of it on FAP, cpd-1a and 11-BM NAC, while LaB6's two starts reach
+#: mirrored axial minima (``tests/test_staged_start_invariance.py``, WP-2002).
+BISO_SEED = 0.5
+
+
 class Atom(_InheritsDeclaredDefaults):
     """One site in the asymmetric unit.
 
@@ -512,7 +520,7 @@ class Atom(_InheritsDeclaredDefaults):
     y: Parameter
     z: Parameter
     occ: Parameter = Field(default_factory=lambda: Parameter(value=1.0, min=0.0))
-    biso: Parameter = Field(default_factory=lambda: Parameter(value=0.5, unit="A^2"))
+    biso: Parameter = Field(default_factory=lambda: Parameter(value=BISO_SEED, unit="A^2"))
     aniso: AnisoU | None = None
     # Optional magnetic moment, opt-in per atom exactly as ``aniso`` is
     # (WP-1327).  ``None`` — the default — is exactly off: a phase whose atoms

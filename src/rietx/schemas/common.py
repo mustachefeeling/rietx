@@ -505,6 +505,12 @@ from .._nearmiss import did_you_mean
 #: parameters a stage put back at its starting values after their phase's cell
 #: left the safety window.  Additive and defaulted to ``None``, the 0.25 → 0.26
 #: rule; all three runners write a list on every stage.
+#: Also in 0.59 (WP-2002, B14): ``StageResult.collapsed``, the free parameters
+#: a stage restored to its starting values and held after its first solve found
+#: them flat (WP-1301's collapse restore).  Additive and defaulted to ``None``,
+#: the 0.25 → 0.26 rule; all three runners write a list on every stage.  And
+#: ``StageResult.seeded`` gains a second writer, ``Stage.strain_seed``'s
+#: Stephens rows, with no change of type.
 #: Also in 0.59 (WP-2002, B2): ``RefinedParameter.interval``, the profile
 #: interval of a moment angle the stationary-angle test left out of the
 #: covariance.  Additive and defaulted to ``None``, "not computed", the

@@ -711,6 +711,8 @@ def test_a_seed_one_histogram_cannot_hold_is_written_in_none():
     """
     instruments = [Instrument.debye_scherrer(wavelength=lam)
                    for lam in (0.41390, 0.71070)]
+    for ins in instruments:     # Y's own box has no floor since WP-2002
+        ins.profile.y.min = 0.0
     instruments[0].profile.y.max = 1.5e-3
     instruments[1].profile.y.max = 5e-4
     mt = MultiParameterTable(make_lab6(), instruments,
@@ -1116,7 +1118,7 @@ def _joint_cubic_pair_fit(monkeypatch, stages, script, *, full=False, log=None):
 
     monkeypatch.setattr(multi_module, "run_multi_least_squares", solve)
     monkeypatch.setattr(multi_module, "_hold_unsupported_phases_multi",
-                        lambda *a, **k: [])
+                        lambda models, *a, **k: ([], [set() for _ in models]))
     monkeypatch.setattr(multi_module, "_rehold_multi", lambda *a, **k: ([], []))
     instruments = []
     for lam in (0.41390, 0.71070):

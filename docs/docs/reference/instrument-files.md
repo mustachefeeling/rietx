@@ -269,6 +269,7 @@ Several banks are what a time-of-flight instrument is, so none is picked.
 |---|---|
 | `ICONS`: DIFC, DIFA, ZERO | `TOFSource.difc`, `TOFSource.difa`, `TOFSource.tzero`; `TOFSource.difb` is 0, GSAS-I having no such field |
 | `BNKPAR`: DIST, TTHETA | `TOFSource.l2_m` and `TOFSource.two_theta_bank_deg`; TTHETA is required |
+| `FPATH1`, one number for the file | `TOFSource.l1_m` on every bank. The manual does not list this record; SNS files write it, so it is read as one number and anything else on it is refused |
 | `I ITYP`: ITYP, TMIN, TMAX | `IncidentSpectrum.itype` and its window, converted from ms to µs |
 | `ICOFF` and `IECOF` | `IncidentSpectrum.coefficients`, with the esds on `stderr` |
 | `PRCF` set 1 | `ProfileTOF` |

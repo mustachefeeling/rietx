@@ -432,6 +432,31 @@ def test_seed_puts_a_freed_zero_block_on_the_isotropic_ray():
     assert np.allclose(got, isotropic_coefficients(CELLS[1], 1200.0), rtol=1e-9)
 
 
+def test_the_strain_seed_is_recorded_in_the_stage_result():
+    """``Stage.strain_seed`` is ``StageResult.seeded``'s second writer
+    (WP-2002, B14): every DOF of the block, at the value the seed wrote,
+    which is the isotropic ray at that microstrain."""
+    truth, inst = _injection_state(_brucite_coef(600.0))
+    data = _synthetic(truth, inst)
+    start, start_inst = _injection_state(_brucite_coef(600.0))
+    start.phases[0].microstrain = StephensStrain.from_values([0.0] * 15)
+    dofs = [f"phases.0.microstrain.dof.{k}" for k in range(4)]
+    expected = table_for(start.phases[0].model_copy(deep=True))
+    expected.set_vary(dofs, True)
+    assert expected.seed_stephens(dofs, 1000.0) == dofs
+    want = {p: expected.entries[expected._paths[p]].value for p in dofs}
+
+    result = Refinement(start, start_inst, history=False).fit(
+        data, plan=RefinementPlan(stages=[
+            Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+            Stage("microstrain", ["phases.*.microstrain.dof.*"],
+                  strain_seed=1000.0),
+        ], closing_window_tol=None))
+    assert result.stages[0].seeded == {}
+    assert result.stages[1].seeded == want
+    assert any(v != 0.0 for v in want.values())
+
+
 def test_seed_never_overwrites_a_deliberate_starting_model():
     t = table_for(brucite(StephensStrain.isotropic(300.0, make_cell(CELLS[1]))))
     before = t.decode(t.x0())

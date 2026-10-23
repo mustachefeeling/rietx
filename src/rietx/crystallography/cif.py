@@ -12,6 +12,7 @@ import numpy as np
 
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import (
+    BISO_SEED,
     AnisoU,
     Atom,
     Cell,
@@ -759,7 +760,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             # by the metric — adp.u_equivalent); it only feeds the isotropic
             # fallback, where the tensor is being discarded anyway
             u_eq = (site.aniso.u11 + site.aniso.u22 + site.aniso.u33) / 3.0
-            u_iso = u_eq if u_eq > 0 else 0.5 / (8.0 * math.pi ** 2)
+            u_iso = u_eq if u_eq > 0 else BISO_SEED / (8.0 * math.pi ** 2)
         b_iso = b_from_u(u_iso)
         raw = site.type_symbol or site.element.name
         species, note = normalize_cif_species(raw)
@@ -772,7 +773,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             y=Parameter(value=site.fract.y),
             z=Parameter(value=site.fract.z),
             occ=Parameter(value=(site.occ if site.occ or said.get("occ")
-                                 else 1.0), min=0.0, max=1.5),
+                                 else 1.0), min=0.0),
             biso=Parameter(value=b_iso, unit="A^2"),
             aniso=(AnisoU.from_values([site.aniso.u11, site.aniso.u22, site.aniso.u33,
                                        site.aniso.u12, site.aniso.u13, site.aniso.u23])

@@ -134,6 +134,12 @@ _Q_TRIGGER = 5               # … and λ/10 fires only above this
 #: a step tried at most 6 trials, and a stage's last iteration up to 9 (WP-2002,
 #: tests/test_budget_and_tolerance_invariance.py).
 _INNER_MAX = 18
+#: The default ``ftol``: the relative decrease in S under which an iteration
+#: counts towards convergence, here and in both of
+#: :mod:`~rietx.optimize.least_squares`' drivers.  It is the final stage's
+#: tolerance, the plan's earlier stages taking ``INTERMEDIATE_FTOL`` (WP-1123).
+#: One decade under SciPy's own 1e-8; no stated source.
+FTOL = 1e-9
 #: consecutive outer iterations below ``ftol`` that count as converged.  One
 #: small step is a small step; three running is convergence (Coelho's rule).
 _CONVERGED_RUNS = 3
@@ -220,9 +226,10 @@ class LinearInequality:
     measured (Pawley, Rwp 3.901 in 16 iterations against 4.351 in 84), and
     WP-1938 D8 closed it for the rows a box cannot express.
 
-    Two builders make them, both in :mod:`.least_squares`:
-    ``strain_cone_inequalities`` and ``gaussian_width_inequalities``.  A row
-    the starting point violates is left out by both, since the step keeps
+    Four builders make them, all in :mod:`.least_squares`:
+    ``strain_cone_inequalities``, ``texture_positivity_inequalities``,
+    ``gaussian_width_inequalities`` and ``lorentzian_width_inequalities``.  A
+    row the starting point violates is left out by each, since the step keeps
     feasibility and cannot restore it: at an iterate a row's slack is never
     asked to grow, only not to fall below ``min(slack, 0)``.
 
@@ -360,7 +367,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
              x0: np.ndarray, *,
              lo: np.ndarray, hi: np.ndarray,
              max_nfev: int = 400,
-             ftol: float = 1e-9,
+             ftol: float = FTOL,
              inequalities: list[LinearInequality] | None = None,
              callback: Callable[[np.ndarray, float], None] | None = None,
              on_trial: Callable[[np.ndarray, float, bool, float, float],
