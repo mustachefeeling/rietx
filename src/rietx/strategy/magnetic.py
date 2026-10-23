@@ -229,8 +229,11 @@ SOLVE_SEED_TILT = _moments.SEED_TILT
 #: shapes, so a pattern sees only each pair's sum.  Freed together they are
 #: what WP-2002's width twin hold holds U and X against, leaving the ranking's
 #: widths on the instrument the caller handed in plus a specimen term floored
-#: at 0; freed alone, the instrument carries the whole width, the reading
-#: GSAS-II and FullProf give without a standard (``docs/practice.md``).
+#: at 0; freed alone, the instrument carries the whole width.  GSAS-II leaves
+#: its sample size and microstrain flags off by default (``docs/practice.md``),
+#: so its fits read their widths this way too.  A calibrated instrument is
+#: moved off its calibration here; whether that changes a ranking is
+#: unmeasured (the generality judge, WP-2002 9th session).
 #:
 #: **Coordinates are deliberately absent.**  Freeing them lets each candidate's
 #: *nuclear* model absorb a different amount of the magnetic intensity, which

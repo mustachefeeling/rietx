@@ -778,22 +778,26 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
 
 
 #: What a pattern sees of the peak widths (``CompiledModel._width_block``): per
-#: angular term, the instrument coefficient and the specimen width that adds to
-#: it, Γ_G² = (U + ``gauss_strain``)·tan²θ + … and Γ_L = (X + ``lor_size``)/cosθ
-#: + (Y + ``lor_strain``)·tanθ.  A joint fit's λ factor on ``lor_size``
-#: (WP-1131) is in **C**, so the test below reads it without naming it.
+#: angular term, the instrument coefficient, the specimen widths that add to it,
+#: and whether the hold may take the instrument side.  Γ_G² = U·tan²θ + V·tanθ +
+#: W + ``gauss_size``/cos²θ + ``gauss_strain``·tan²θ, and 1/cos²θ = 1 + tan²θ, so
+#: ``gauss_size`` adds to the tan²θ and the constant terms; Γ_L = (X +
+#: ``lor_size``)/cosθ + (Y + ``lor_strain``)·tanθ.  A joint fit's λ factors on
+#: the size terms (WP-1131) are in **C**, so the test below reads them without
+#: naming them.
 #:
-#: ``gauss_size`` is left out on purpose.  Its 1/cos²θ is 1 + tan²θ, so with U
-#: and W free beside it (δU, δW, δsize) = (−1, −1, 1) is exactly flat too, but
-#: the floors this WP kept bound it both ways (W ≥ ``_MIN_GAMMA_G2``, the size
-#: ≥ 0), so it cannot walk, and ``FLAT_DIRECTION`` reports it.  The hold stops
-#: the walks the U and Y floors' removal opened.  Held anyway, W went with it
-#: and three acceptance answers moved (WP-2002 9th session, the code review's
-#: third finding).
-WIDTH_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("instrument.profile.u", ("gauss_strain",)),     # tan²θ in Γ_G²
-    ("instrument.profile.x", ("lor_size",)),         # 1/cosθ in Γ_L
-    ("instrument.profile.y", ("lor_strain",)),       # tanθ in Γ_L
+#: **W is never held.**  It is the constant width every fit needs and has no
+#: specimen twin of its own: with U and W free beside ``gauss_size``,
+#: (δU, δW, δsize) = (−1, −1, 1) is flat, and holding U alone removes it, since
+#: δW + δsize·(1 + tan²θ) = 0 at every angle forces both to zero.  W's total
+#: stays a row of the test, so a held W pins the size and nothing is held.
+#: Holding W as well moved three acceptance answers (the generality judge,
+#: WP-2002 9th session).
+WIDTH_TERMS: tuple[tuple[str, tuple[str, ...], bool], ...] = (
+    ("instrument.profile.u", ("gauss_strain", "gauss_size"), True),  # tan²θ in Γ_G²
+    ("instrument.profile.w", ("gauss_size",), False),                # 1 in Γ_G²
+    ("instrument.profile.x", ("lor_size",), True),                   # 1/cosθ in Γ_L
+    ("instrument.profile.y", ("lor_strain",), True),                 # tanθ in Γ_L
 )
 
 
@@ -812,7 +816,9 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     null space of a matrix read off **C**, so a tie, a ``vars.X`` and a joint
     fit's λ factor all enter as coefficients.  The pairs U with
     ``gauss_strain``, X with ``lor_size`` and Y with ``lor_strain`` are flat
-    this way.  Two consequences follow without a rule of their own.
+    this way, and ``gauss_size`` with U and W together, of which only U is
+    held (:data:`WIDTH_TERMS`).  Two consequences follow without a rule of
+    their own.
     One seen phase whose specimen width is held pins the instrument term for
     every phase, so nothing is flat.  A pattern whose instrument width is held
     pins the shared specimen width, and every other pattern's instrument width
@@ -838,18 +844,22 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
 
     sums: list[np.ndarray] = []
     couples: list[tuple[set[int], set[int]]] = []
+    # the instrument columns the hold may take: W's total is a row, never a hold
+    holdable: set[int] = set()
     families: list[set[int]] = []
     Cs = [table.constraint_block()[0].tocsr() for table, _, _ in parts]
     for (table, col_map, unseen), C in zip(parts, Cs, strict=True):
         pos = table._paths
         family: set[int] = set()
         families.append(family)
-        for inst, names in WIDTH_TERMS:
+        for inst, names, may_hold in WIDTH_TERMS:
             i_inst = pos.get(inst)
             if i_inst is None:
                 continue
             family.add(i_inst)
             r_inst = row(C, col_map, i_inst)
+            if may_hold:
+                holdable.update(np.flatnonzero(r_inst).tolist())
             ip = 0
             while f"phases.{ip}.scale" in pos:
                 idx = [pos[f"phases.{ip}.{n}"] for n in names
@@ -872,7 +882,7 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
                                     set(np.flatnonzero(r_phase).tolist())))
                 ip += 1
     inst_cols = set().union(*(a for a, _ in couples))
-    if not inst_cols:
+    if not inst_cols & holdable:
         return {}
     # the columns a family entry reaches; a move of any other is no twin's
     cand = sorted(inst_cols.union(*(b for _, b in couples)))
@@ -897,7 +907,7 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     on_flat = {c for c, r in zip(cand, null, strict=True)
                if r.size and np.abs(r).max() > 1e-8}
     out: dict[int, list[int]] = {}
-    for c in sorted(inst_cols & on_flat):
+    for c in sorted(inst_cols & holdable & on_flat):
         twins = {k for a, b in couples if c in a
                  for k in b if k in on_flat and k not in inst_cols}
         if twins:

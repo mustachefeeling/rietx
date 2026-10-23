@@ -65,7 +65,7 @@ The first half is the blind answer.
 <!-- output of examples/guides/moment.py -->
 ```text
 solved 58.395
-|m| = 2.04 ± 0.05 μB
+|m| = 2.03 ± 0.05 μB
 Biso of Cr1 = -1.4 Å²
 ```
 
@@ -96,8 +96,8 @@ Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit dep
 
 ## Read the result
 
-On this pattern the three answers are 2.04 ± 0.05 μ<sub>B</sub> blind, 2.09 ± 0.03 with the reference and 2.12 ± 0.04 with the moment present.
-The blind moment is 0.05 and 0.09 μ<sub>B</sub> below the other two, one and two esds, and those two agree within their esds.
+On this pattern the three answers are 2.03 ± 0.05 μ<sub>B</sub> blind, 2.09 ± 0.03 with the reference and 2.12 ± 0.04 with the moment present.
+The blind moment is 0.06 and 0.09 μ<sub>B</sub> below the other two, one and two esds, and those two agree within their esds.
 This is one specimen with a k = 0 collinear moment, so it shows the effect and does not size it.
 
 The two printed checks say where the intensity went.

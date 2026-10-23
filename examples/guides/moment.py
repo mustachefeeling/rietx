@@ -98,7 +98,7 @@ assert abs(shift) < scale.stderr
 assert abs(solution.best.moments[0].magnitude - 2.038) < 0.005 and abs(solution.best.moments[0].esd - 0.05) < 0.005
 assert abs(reference.best.moments[0].magnitude - 2.09) < 0.005 and abs(reference.best.moments[0].esd - 0.03) < 0.005
 assert abs(row.magnitude - 2.12) < 0.01 and abs(row.magnitude_esd - 0.04) < 0.006
-# "the blind moment is 0.05 and 0.09 μB below the other two, which agree within their esds"
+# "the blind moment is 0.06 and 0.09 μB below the other two, which agree within their esds"
 blind_m, ref_m = solution.best.moments[0].magnitude, reference.best.moments[0]
 assert 0.04 < ref_m.magnitude - blind_m < 0.07 and 0.07 < row.magnitude - blind_m < 0.11
 assert abs(row.magnitude - ref_m.magnitude) < row.magnitude_esd + ref_m.esd

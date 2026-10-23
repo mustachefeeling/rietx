@@ -812,9 +812,10 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.results.StageResult.width_twins_held", "action", tier=3, ambiguity=1,
         evidence=("physics: a pattern sees each angular term of the widths as one total "
                   "(CompiledModel._width_block): U with gauss_strain in tan^2, X with lor_size in "
-                  "1/cos, Y with lor_strain in tan; gauss_size is flat with U and W together but "
-                  "bounded both ways by the kept W and size floors, so it is reported, not held "
-                  "(holding it held W and moved three acceptance answers, WP-2002 9th session); "
+                  "1/cos, Y with lor_strain in tan; gauss_size (1/cos^2 = 1 + tan^2) is flat with "
+                  "U and W together and holding U alone removes it, so W, the constant width, is "
+                  "never held (holding W too moved three CPD acceptance answers; the generality "
+                  "judge, WP-2002 9th session); "
                   "refine._width_twin_flats holds the instrument "
                   "terms on the null space of those totals read off C, so one seen phase with its "
                   "specimen width held holds nothing; a free Stephens block is Y's twin by rule "
