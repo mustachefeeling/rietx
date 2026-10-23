@@ -39,7 +39,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-21 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 2026-10-17 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 2026-10-22 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-16 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-23 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 2026-10-21 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
@@ -712,7 +712,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1984](1984-the-switching-tab.md) | The Switching tab | ✅ 2026-10-17 | — | [1978](1978-the-new-manual-tree-and-its-page-contract.md) ([1981](1981-the-reference-pages-generated-from-their-authorities.md) soft) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 🔄 2026-10-22 | P2 | [1978](1978-the-new-manual-tree-and-its-page-contract.md), [1985](1985-report-and-diagnostic-text-in-one-voice.md), [1979](1979-the-manual-at-docs-one-tree-per-version.md) |
 | [1987](1987-the-kernel-gate-on-the-macos-intel-runner.md) | The kernel gate on the macOS Intel runner | ⬜ | P3 | — |
-| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 🔄 2026-10-16 | P4 | — |
+| [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 🔄 2026-10-23 | P4 | — |
 | [1994](1994-a-note-into-a-closed-wp-is-caught-at-handover.md) | A note written into a closed WP is caught at handover | ✅ 2026-10-16 | — | — |
 | [1996](1996-the-switching-tab-says-only-what-its-tests-show.md) | The Switching tab says only what its tests show | ✅ 2026-10-17 | — | [1984](1984-the-switching-tab.md) |
 | [2013](2013-stale-text-in-the-code-the-manual-move-found.md) | Stale text in the code that the manual move found | ⬜ | P3 | — |
