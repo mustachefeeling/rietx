@@ -1117,6 +1117,24 @@ Their numbers are as reported and were not re-measured here.
   closed). A parametric equation exists only in the joint fit, which has no
   carry step.
 
+### Inherited
+
+- **2026-10-23, from [1322](1322-events-aggregator.md) (closed): `rietx events`
+  could print one line per parametric equation of a joint fit.** This is
+  @mustachefeeling's point from the PR #977 comments, which this WP sent to
+  1322 on 2026-10-15. 1322 closed without it. A joint fit keeps no history
+  (`multi.py`), but it has emitted events since #926, and `rietx events`
+  (`history.aggregate.summarize_events`) shipped in PR #902. The line would
+  carry the subset size, the form verdict, and whether a detector fired inside
+  the subset (the subset boundary and the detectors are
+  [1965](1965-a-law-declared-by-formula-condition-and-glob.md)'s). Two rules
+  for whoever builds it:
+  - Pair events in file order, never by `(series_index, series_pass)`, since
+    indices recur on reseeds and restarted segments. The aggregator already
+    clears its open stages at each `fit_start` (`aggregate.py:185`).
+  - A segmented chain's summed fit time is not its wall time: 700 s against
+    148 s on one chain, as reported and not re-measured.
+
 ## Non-goals
 
 - A library of physical models: here the caller supplies the basis, or names
