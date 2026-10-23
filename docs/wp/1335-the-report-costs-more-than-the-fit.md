@@ -122,6 +122,7 @@ choice.
 
 ### Inherited
 
+- **2026-10-23, from [1341](1341-a-joint-fit-has-no-report.md) (closed): a joint fit has a report, so this WP's Non-goals line about it is stale.** The line "Reporting for joint fits, which has no cost because it does not exist — 1341" predates `MultiHistogramRefinement.report(h)` (2026-10-12), which builds one histogram's Layer 0-2 report and pays the same per-report cost this WP cuts. The Inherited bullet from 1341 dated 2026-10-12 (offering `stage_reports=` on a joint fit once the cost is cut) still holds. The joint report's remaining gaps are [2028](2028-a-joint-fits-guards-see-every-histogram.md)'s.
 - **2026-10-02, from the issue triage (issue #245): the cost to cut is a fixed
   ~0.36 s per stage report, and a docstring still quotes the old ratio.** The
   reporter re-measured on `3d1a6feb` (2026-09-29; `11BM_NAC.fxye`, 5 stages,
