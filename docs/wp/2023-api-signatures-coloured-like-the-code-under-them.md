@@ -1,9 +1,8 @@
 # WP-2023 — API signatures coloured like the code under them
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-23 — every API signature in the code blocks' Pygments colours; twins byte-identical, contrast ≥ 6.65:1
 Track: The repo's own process
 Depends on: —
-Priority: P3 2026-10-23 — was P4 (presentation, no number moves), up a rung: the finishing rung of WP-2022's reading of the API pages, small against what that WP paid
 
 ## Goal
 
@@ -72,14 +71,14 @@ No colour value is added to the site.
 
 ## Tasks
 
-- [ ] The transform: `highlight` token classes on every Python-domain signature on the three
+- [x] The transform: `highlight` token classes on every Python-domain signature on the three
   API pages (name, parameter name, annotation, built-in, return type, default by literal kind),
   the `:target` tint kept, parameter names upright
-- [ ] Tests: the built HTML of the three pages carries the expected class on each token of a
+- [x] Tests: the built HTML of the three pages carries the expected class on each token of a
   few pinned signatures (`Refinement.fit`, a classmethod, a `py:fields` line, a `**kw`); the
   contrast of every token colour on `--bg` and `--accent-soft`, both themes, ≥ 4.5:1; the
   twins unchanged; looked at in chromium at 1400 px and 390 px, light and dark
-- [ ] Skill: none. The skill's `api.md` is plain text and is untouched (`make_api_index.py --check`)
+- [x] Skill: none. The skill's `api.md` is plain text and is untouched (`make_api_index.py --check`)
 
 ## Acceptance
 
@@ -99,6 +98,71 @@ No colour value is added to the site.
 - WCAG 2.2, success criterion 1.4.3 (contrast, minimum).
 
 ## Handover log
+
+- **2026-10-23** — closed in one session. The API reference's signatures are now coloured the
+  way the Python code blocks on the same pages are. The call's name, a type, a built-in, `None`
+  and a default each take the code blocks' own colour, in both themes. A signature reached by
+  its permalink keeps its highlight, and parameter names are upright. Nothing else about the pages
+  changed: the markdown twins, `llms.txt` and the skill's API index are byte-identical, and the
+  site gained no colour value of its own. Every colour clears WCAG AA on the page and on the
+  permalink tint by a wide margin. The one judgement left for the maintainer is that a linked
+  type now reads in the type colour, with an underline, rather than in the link accent (below).
+
+  *Done.* `docs/py_highlight.py` (new, registered in `conf.py`) runs on `doctree-resolved`
+  ahead of the twin (priority 900). It puts `highlight` on every Python-domain `desc_signature`
+  and adds Pygments classes. A function's name gets `nf`, a class's `nc`. A type in an
+  annotation gets `nc`, a `builtins` class `nb` and `None` `kc`. This holds for a link (class on
+  the `<a>`) and for bare text (wrapped in an `inline`). A parameter's default gets
+  `ast.literal_eval`'s kind (`s`, `mi`, `mf`, `kc`; bytes `s`), and anything else (`-inf`, a
+  factory) stays as it was. A `py:fields` line's `: type` and `= value` go through the same
+  two classifiers. `custom.css` gains selectors only: `dt.sig.highlight` transparent, `:target`
+  back to `--pst-color-target`, and `em.sig-param` upright.
+
+  *Measured* (Linux x86-64, worktree venv `[dev]` + playwright, the latter installed this
+  session for the browser look).
+  - Twins: a full `-W` build before and after the change. All 121 twins, `llms.txt` and
+    `llms-full.txt` are byte-identical, and the build stays warning-free.
+  - Contrast: the lowest is 6.65:1 (light `nf`/`nc` on `--accent-soft`), every token ≥ 4.5:1
+    on `--bg` and `--accent-soft` in both themes. pydata's muted `.default_value` colour, which
+    a non-literal default keeps, measures 5.33 / 5.51 on the tint.
+  - Chromium at 1400 and 390 px, light and dark, plain and `#rx.Refinement.fit`: ground
+    transparent, and `rgb(253,240,227)` / `rgb(44,31,18)` when targeted. No horizontal
+    overflow at 390 px.
+  - Acceptance selection (`test_reference_pages`, `test_manual`, `test_landing`): 127 passed.
+  - Three tests added in `tests/test_manual.py`, all in the fast tier. A two-build test pins
+    each token's class on a page of signatures and holds its twin equal to the page built
+    without the extension. A built-manual test checks the three API pages. A contrast test
+    reads the colours through pydata's own `get_pygments_stylesheet`. The class test was made
+    to fail once on purpose (`mi`→`m`) and failed on exactly that fragment.
+  - Fast suite (`[dev]`, playwright removed again, Linux x86-64, 4-core container, alone):
+    11152 passed, 203 skipped, 27 xfailed in 32:38, one run. The three added tests are 2.16 s
+    together (two-build test 1.91 s), all passes. No local baseline on `main`: that is CI's job.
+    A first run with playwright installed hit the 30-minute background limit unfinished. It was
+    slow, not hung: the second run's process list showed the example scripts CPU-bound on four
+    cores.
+
+  *Review* (`/code-review high --fix`, 8 findings, 4 fixed in their own commit).
+  - Fixed: a parameter list Sphinx cannot parse arrives as one bare `Text` and crashed the
+    handler on `.get` (regression case added to the test page). A keyword name inside
+    `Annotated[..., Call(kw=…)]` was coloured `nc`. `literal_eval` printed a SyntaxWarning on
+    `'\d'`, and bytes were uncoloured. The contrast list missed Sphinx's own `m`/`kt`/`sc`.
+  - Declined: the contrast test assumes a token with no rule shows the base colour (exact for
+    today's styles). The twin is not compared on the real pages in a test, which would mean two
+    full builds; the session's before/after build did it once. Finding 8 was measured (above)
+    and passes.
+  - Left to the maintainer: a linked type in the type colour rather than the accent. The WP
+    asked for the annotation's colour; the underline still marks the link.
+
+  *Generality:* not dispatched. `_audit.py` is untouched, and the change is a docs-build
+  presentation rule, not a heuristic deciding on a caller's behalf.
+
+  *Forward:* WP-2024's `### Inherited` gets a note. Its parameter lists are field lists, which
+  this transform does not touch; if their types should match, they reuse `_annotation`.
+
+  *Next:* nothing owed here. If the maintainer wants links back in the accent, it is one CSS
+  selector (`dt.sig.highlight a.reference { color: var(--pst-color-link) }`, after the
+  Pygments rules by specificity). If they want the site's own palette in code and signatures
+  alike, that is the separate Pygments-style WP the Non-goals name.
 
 - **2026-10-23** — created. No open WP owns the API pages' rendering: WP-2022, which drew the
   signatures, is closed, and its `Next` named only the parameter descriptions (WP-2024).
