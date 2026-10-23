@@ -134,8 +134,12 @@ No colour value is added to the site.
     without the extension. A built-manual test checks the three API pages. A contrast test
     reads the colours through pydata's own `get_pygments_stylesheet`. The class test was made
     to fail once on purpose (`mi`→`m`) and failed on exactly that fragment.
-  - Fast-suite counts: in the PR body. A baseline on `main` was not measured: that is CI's job,
-    and the extra playwright makes this venv's skips differ from `[dev]`'s.
+  - Fast suite (`[dev]`, playwright removed again, Linux x86-64, 4-core container, alone):
+    11152 passed, 203 skipped, 27 xfailed in 32:38, one run. The three added tests are 2.16 s
+    together (two-build test 1.91 s), all passes. No local baseline on `main`: that is CI's job.
+    A first run with playwright installed hit the 30-minute background limit unfinished. It was
+    slow, not hung: the second run's process list showed the example scripts CPU-bound on four
+    cores.
 
   *Review* (`/code-review high --fix`, 8 findings, 4 fixed in their own commit).
   - Fixed: a parameter list Sphinx cannot parse arrives as one bare `Text` and crashed the
