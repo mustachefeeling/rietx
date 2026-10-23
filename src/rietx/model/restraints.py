@@ -38,6 +38,7 @@ import numpy as np
 
 from ..backend import get_backend
 from ..crystallography.lattice import direct_metric_tensor
+from ..optimize import lapack
 from ..params.derived import cartesian_frame
 from ..schemas.structure import (
     AngleRestraint,
@@ -229,7 +230,7 @@ def _resolve_plane(phase, ip, sites, cell, g, r) -> _Plane:
                     in zip(r.atoms, Rs, ts, ns, strict=True)])
     cart = pts @ np.asarray(cartesian_frame(cell), dtype=np.float64).T
     d = cart - cart.mean(axis=0)
-    lam, vec = np.linalg.eigh(d.T @ d)
+    lam, vec = lapack.eigh(d.T @ d)
     if lam[1] - lam[0] <= PLANE_DEGENERATE_REL * max(lam[2], 1e-300):
         labels = [phase.atoms[j].label for j in r.atoms]
         raise ValueError(
@@ -500,7 +501,7 @@ def _plane_geometry_np(it: _Plane, values: dict):
                      in zip(it.atoms, it.R, it.t, it.n, strict=True)])
     d = frac @ amat.T
     d = d - d.mean(axis=0)
-    lam, vec = np.linalg.eigh(d.T @ d)
+    lam, vec = lapack.eigh(d.T @ d)
     normal = vec[:, 0] * (1.0 if float(vec[:, 0] @ it.normal) >= 0.0 else -1.0)
     return d @ normal, dict(cell=cell, amat=amat, frac=frac, d=d, lam=lam,
                             vec=vec, normal=normal)
