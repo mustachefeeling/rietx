@@ -2240,12 +2240,14 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
             ticks = np.asarray([t for positions in
                                 refinement.result_.ticks.values()
                                 for t in positions], dtype=np.float64)
+            resid = _resid_norm(refinement.result_)
+            peak_idx = residual_peak_indices(resid, min_peak_sigma=5.0)
             evidence = analyse_satellites(
                 refinement._model, values,
-                residual_two_theta=tt[residual_peak_indices(
-                    _resid_norm(refinement.result_), min_peak_sigma=5.0)],
+                residual_two_theta=tt[peak_idx],
                 ticks=ticks, structure=structure,
                 generator=generator or zone_boundary_candidates,
+                residual_height_over_sigma=resid[peak_idx],
             )[phase]
         ks, route, reason = _k_from_the_report(evidence, top_k)
     else:
