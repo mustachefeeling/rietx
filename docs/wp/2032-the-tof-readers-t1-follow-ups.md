@@ -127,7 +127,9 @@ WP-2006 (the dead surface) tiers such names, so tell it if 4 or 5 removes one.
   default, a module-level number or a record field.
   *Gate* (Mac, worktree `.venv`, Python 3.12, `-n 4`; pearl offline): the
   acceptance selection `tests/test_tof*.py tests/test_project*.py -m "not
-  slow"` 1167 passed; `ruff check src tests examples` clean.
+  slow"` 1167 passed; `ruff check src tests examples` clean; the fast
+  selection on the final tree 11 261 passed, 265 skipped, 27 xfailed, 0
+  failed (`--junitxml`: 11 553 tests, 292 skipped, 0 failures, 0 errors).
   *Not done*: real SNS `.prm` files still do not read end to end. Their
   `ICONS` records write `0.000    0     0.000` in the POLA/IPOLA/KRATIO
   columns, which the reader refuses as non-blank. With those columns blanked
