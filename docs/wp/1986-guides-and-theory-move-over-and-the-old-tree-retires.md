@@ -130,7 +130,7 @@ the tree that day.
   Left: 18, 24.
   Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
   fluorapatite pattern it would otherwise document; item 24 on the magnetic WPs in flight
-  (1326, 1327, 1418). Item 10 has the spike's page to start from, but no
+  (1327, 1418; 1326 closed 2026-10-23). Item 10 has the spike's page to start from, but no
   LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
   guide needs rather than ship it: `rietx.examples.fetch` downloads a `REMOTE_FILES` entry from
   `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
