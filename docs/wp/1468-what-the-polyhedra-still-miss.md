@@ -167,6 +167,14 @@ replays the rules over the committed payloads and never rebuilds them, since
 file by itself. A change to `build()` that adds no field does not, so delete
 the file and run the test to refresh the payloads.
 
+### Inherited
+
+- **2026-10-23, from [1504](1504-the-figure-surface-measured-with-real-agents.md) (closed): `view="auto"` ranks by `hidden`, stacking included, so it prefers an oblique view to an axis projection.** `FigureReport.stacked` (WP-1533) is the part of `hidden` that sits behind an atom of the same site, within a quarter of its drawn radius. One cell down a cell axis reads 0.53 hidden and 0.53 stacked on HKUST-1, 0.52 and 0.50 on ZSM-5, and 1.00 and 1.00 on YBa₂Cu₃O₇; NAC's opening view reads 0.18 and 0.00. The skill's rule already reads `hidden - stacked`. The evidence for ranking by occlusion is WP-1957's Context 4: three blind reviewers ranked 15 renderings of refined fluorapatite, and the view down c (`hidden` 0.45, nearly all of it stacking) was first for two and second for the third, while `auto` picked about [2 0 1] (`hidden` 0.024) and all three called it "a tangle". The change moves every default `auto` pick, so it is an agent question before it is a code change.
+- **2026-10-23, from [1504](1504-the-figure-surface-measured-with-real-agents.md) (closed): the darker shade on images outside the cell reads as a second species.** `scene.DIM_BOUNDARY` (0.62, `viz/figure3d/scene.py:45`) dims every image outside the cell. All three of WP-1957's reviewers read one element as two species, and took the shade for a depth cue. Unchanged in the tree on 2026-10-23.
+- **2026-10-23, from [1504](1504-the-figure-surface-measured-with-real-agents.md) (closed): `atom_labels=True` prints a stacked pair twice.** WP-1957's reviewers saw `F4 F4` at one corner of fluorapatite down c. `FigureReport.stacked` already finds such pairs, but nothing in `viz/figure3d/` merges their labels (checked 2026-10-23).
+- **2026-10-23, from [1504](1504-the-figure-surface-measured-with-real-agents.md) (closed): the a and b letters sit under atoms or bonds in a view down c.** WP-1957's reviewers, on fluorapatite.
+- **2026-10-23, from [1504](1504-the-figure-surface-measured-with-real-agents.md) (closed): at the default probability, `mode="ellipsoid"` draws the atoms as pinpricks.** That is physically right at Biso ≈ 1 Å² (`structure3d.DEFAULT_PROBABILITY` is 0.50), but WP-1957's reviewers read it as a wire model.
+
 ## Non-goals
 
 - The octant cut-out, Voronoi solid angles, effective coordination numbers
