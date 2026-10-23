@@ -1,6 +1,6 @@
 # WP-1326 — satellites at G ± k, with no moment model: is it magnetic?
 
-Milestone: magnetic · Status: 🔄 2026-10-21 — the satellites and their report arm landed from outside (PR #468), and the public k ≠ 0 pattern `Magnetic-III` with its ranking test (PR #1069); the PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-22 — the satellites and their report arm landed from outside (PR #468), the public k ≠ 0 pattern `Magnetic-III` with its ranking test (PR #1069), and the candidate set as the k ≡ −k points of the phase's own lattice with `Magnetic-IV` vendored (PR #1071); the PNGs remain
 Depends on: — (first rung of the magnetic scattering track; 1327 builds on
 its reflection list)
 Priority: P2 2026-09-23 — the open milestone's first rung, nothing blocks it
@@ -229,6 +229,44 @@ not both be declared on one phase.
   the fence this track opens.
 
 ## Handover log
+
+### 2026-10-22 — the candidate set follows the phase's own lattice
+
+PR #1071 (head `97b417fe`) merged as `dbe8b38f` by `/pr-review`, after #1086
+in the same gate. It answers option (a) of issue #795.
+
+*Done.* The enumerated candidate set is now every k with k ≡ −k on the
+phase's own reciprocal lattice (2k a lattice vector), one per star, plus the
+two hexagonal and trigonal third-order points. It used to be the literal
+{0, ½}³ without the origin, which § Context above still describes. On a
+primitive lattice the two sets are identical, and a test holds them
+bit-identical on every primitive setting. A centred lattice gets its own
+points: F adds the X points (1 0 0), (0 1 0) and (0 0 1), and on C the
+set no longer holds (½ 0 0). The enumeration takes H/2 for H in [−N, N]³,
+where N is the centring's order, and checks that seven classes and their
+stars cover L*/2L*. `Magnetic-IV` is now vendored as
+`tests/data/gsas2_llb3t2_prsrmno_10K.gda` ((Pr,Sr)MnO₃, LLB 3T2, 10 K), with
+a `tests/data/README.md` row and the licence the other `gsas2_*` fixtures
+ship under. Its slow test ranks (1 0 0) first, matching every unexplained
+peak and more than twice the runner-up, and it draws the fit.
+*What the review established.* N·Z³ ⊆ L* holds for every centring, so the
+search box is complete. `magnetic_supercell` refuses the X point, because
+|det P| = ½ needs #612's child-cell route. That refusal is pinned as a strict
+xfail, so it shows when the route lands. The manual's `reference/magnetic.md`
+and the old tree's `using/refining.md` both state the new set.
+*Tasks.* The sourcing task now covers `Magnetic-IV` too. The tests task
+stays open: the published structure behind each pattern is still uncited,
+and no k ≠ 0 moment has been refined. #1102, which names unexplained peaks on
+centring-forbidden positions, is the other half of #795 and is in review.
+*Gate:* stacked with #1086 on `main` `1661895e` as `3b5e015a`, macOS arm64,
+`[dev,jax]`, nothing else running: fast 11 159 passed, 121 skipped,
+3 xfailed and 1 failed; `-m slow` 326 passed, 12 skipped, 1 xfailed. The
+failure is `test_examples.py`'s `next` guide row (ΔBIC printed -1.798
+against -1.799), and it fails identically on pristine `main` on this
+machine. `main` after both merges (`dbe8b38f`) is content-identical to the
+gated tree.
+*Next:* the moment refinement on `Magnetic-III` or `-IV` once the published
+structure is cited.
 
 ### 2026-10-21 — the first real k ≠ 0 pattern landed from outside
 
