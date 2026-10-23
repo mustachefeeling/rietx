@@ -27,16 +27,16 @@ class PyFields(_PyAttribute):
     has_content = True
 
     def run(self):
-        signatures = [line for line in self.content if line.strip()]
-        self.get_signatures = lambda: signatures
+        self._fields = [line for line in self.content if line.strip()]
         self.content = _StringList()
         # A model's twenty fields would bury the page's sections in its contents.
         self.options.setdefault("no-contents-entry", True)
         return super().run()
 
+    def get_signatures(self) -> list[str]:
+        return self._fields
+
     def handle_signature(self, sig, signode):
-        # Indexed as the attribute it is, so `{py:attr}` resolves to it.
-        self.objtype = "attribute"
         name, _, rest = sig.partition(":")
         annotation, equals, default = rest.partition(" = ")
         self.options["type"] = annotation.strip()
@@ -45,6 +45,15 @@ class PyFields(_PyAttribute):
         else:
             self.options.pop("value", None)
         return super().handle_signature(name.strip(), signode)
+
+    def add_target_and_index(self, name_cls, sig, signode):
+        # Registered as the attribute it is, so `{py:attr}` resolves to it:
+        # the domain declares no "fields" object type.
+        objtype, self.objtype = self.objtype, "attribute"
+        try:
+            super().add_target_and_index(name_cls, sig, signode)
+        finally:
+            self.objtype = objtype
 
 
 def setup(app):

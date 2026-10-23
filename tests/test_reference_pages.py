@@ -263,7 +263,10 @@ def test_every_export_has_one_tier_in_the_api_reference():
 
 #: A Python-domain directive's opening line: its kind, then its argument.
 _PY_DIRECTIVE = re.compile(r"^`{3,}\{py:(\w+)\} (\S+?)(\(.*)?$", re.M)
-#: A `py:fields` body (docs/py_fields.py): one `name: annotation = default` a line.
+#: Its module, the option every entry opens with.
+_PY_MODULE = re.compile(r"^`{3,}\{py:\w+\} \S+.*\n:module: (\S+)$", re.M)
+#: A `py:fields` body (docs/py_fields.py): one `name: annotation = default` a
+#: line, after any option line.
 _PY_FIELDS = re.compile(r"^```\{py:fields\}\n(.*?)\n```$", re.M | re.S)
 _FIELD = re.compile(r"^(\w+): (.*?)(?: = (.*))?$")
 
@@ -273,33 +276,61 @@ def _api_bodies() -> str:
                                    reference_pages.api_everything_else))
 
 
+def _api_names() -> list[tuple[str, str | None]]:
+    """(dotted name, technique) for every entry, in reading order."""
+    return [(n, technique) for _, sections, technique in reference_pages.api_tiers()
+            for _, names in sections for n in names]
+
+
 def test_every_api_name_is_a_python_object_with_the_skills_signature():
-    """Each name is a `py:` directive (WP-2022), and its signature is the
-    one `docs/skill/make_api_index.py` prints for it: the manual and the
-    skill's index read one builder, so they cannot disagree."""
+    """Each name is a `py:` directive (WP-2022) under its own module, and its
+    signature is the one `docs/skill/make_api_index.py` prints for it: the
+    manual and the skill's index read one builder, so they cannot disagree."""
     index = reference_pages._api_index()
-    found = {m[2]: (m[1], m[3] or "") for m in _PY_DIRECTIVE.finditer(_api_bodies())}
-    names = {n for _, sections, _ in reference_pages.api_tiers() for _, ns in sections for n in ns}
+    text = _api_bodies()
+    modules = [m[1] for m in _PY_MODULE.finditer(text)]
+    directives = list(_PY_DIRECTIVE.finditer(text))
+    assert len(modules) == len(directives)
+    found = {("rx." if module == "rx" else module + ".") + m[2]: (m[1], m[3] or "")
+             for module, m in zip(modules, directives, strict=True)}
+    names = {n for n, _ in _api_names()}
     assert set(found) == names, sorted(set(found) ^ names)
     bullet = re.compile(r"^- `([^`]+)`")
+    compared = 0
     for name, (kind, signature) in found.items():
         if kind in ("function", "method") or (kind == "class" and signature):
             assert f"{name}{signature}" == bullet.match(index._entry(name))[1], name
+            compared += 1
+    assert compared > 50
 
 
-@pytest.mark.parametrize("name", ["rx.Parameter", "rx.Phase", "rx.Stage"])
-def test_a_models_fields_are_its_attributes(name):
-    """The fields `make_api_index` lists for a model or a dataclass are the
+def test_every_models_fields_are_its_attributes():
+    """The fields `make_api_index` lists for each model and dataclass are the
     lines of the `py:fields` the page nests under it, with the same annotation
     and default, and a technique's fields left to the technique's tier."""
     index = reference_pages._api_index()
-    body = _PY_FIELDS.search(reference_pages._api_entry(index, name))[1]
-    fields = [_FIELD.match(line).groups() for line in body.splitlines()]
-    obj = index._resolve(name)
-    parts = (index.model_field_parts(obj, index.TECHNIQUE_FIELDS.get(name, frozenset()))
-             if hasattr(obj, "model_fields") else index.dataclass_field_parts(obj))
-    assert fields == parts
-    assert len(fields) > 1
+    checked = 0
+    for name, technique in _api_names():
+        found = _PY_FIELDS.search(reference_pages._api_entry(index, name, technique))
+        if not found:
+            continue
+        fields = [_FIELD.match(line).groups() for line in found[1].splitlines()
+                  if not line.startswith(":")]
+        obj = index._resolve(name)
+        skip = index.TECHNIQUE_FIELDS.get(name, frozenset()) if technique is None else frozenset()
+        parts = (index.model_field_parts(obj, skip) if hasattr(obj, "model_fields")
+                 else index.dataclass_field_parts(obj))
+        assert fields == parts, name
+        checked += 1
+    assert checked > 100
+
+
+def test_a_classmethod_says_it_is_one():
+    """`Structure.from_cif` is called on the class, `Refinement.fit` on an
+    instance, and the page tells them apart."""
+    index = reference_pages._api_index()
+    assert ":classmethod:" in reference_pages._api_entry(index, "rx.Structure.from_cif")
+    assert ":classmethod:" not in reference_pages._api_entry(index, "rx.Refinement.fit")
 
 
 def test_a_name_described_twice_is_indexed_once(monkeypatch):

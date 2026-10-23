@@ -77,8 +77,9 @@ def _normalise(doctree: _nodes.document) -> None:
         if "only-dark" in node["classes"]:
             node.parent.remove(node)
     # An API signature's bare `*` carries a tooltip (PEP 3102); the `*` stays.
-    for node in list(doctree.findall(_nodes.abbreviation)):
-        node.replace_self(_nodes.Text(node.astext()))
+    for signature in list(doctree.findall(_addnodes.desc_signature)):
+        for node in list(signature.findall(_nodes.abbreviation)):
+            node.replace_self(_nodes.Text(node.astext()))
     # A model's fields (`py:fields`, docs/py_fields.py) are a list, where the
     # translator writes every signature as a heading of its own.
     for node in list(doctree.findall(_addnodes.desc)):

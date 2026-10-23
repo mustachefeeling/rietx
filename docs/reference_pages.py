@@ -759,16 +759,21 @@ def _api_entry(index, dotted: str, technique: str | None = None, *,
     from pydantic import BaseModel
 
     obj = index._resolve(dotted)
-    doc = _notation(index._doc_line(obj))
+    module, name = _api_module(dotted)
+    # The module is the object's own, so a contents entry reads `Refinement.summary()`
+    # where the bare name would be one of several `summary()`s.
+    options = {"module": module}
     if inspect.isclass(obj) and issubclass(obj, BaseException):
-        return _directive("exception", dotted, f"An exception. {doc}".rstrip(),
-                          no_index=no_index)
+        doc = f"An exception. {_notation(index._doc_line(obj))}".rstrip()
+        return _directive("exception", name, doc, options=options, no_index=no_index)
     if isinstance(obj, dict):
         keys = ", ".join(f"`{k}`" for k in obj)
-        return _directive("data", dotted, f"A dict. Keys: {keys}.", no_index=no_index)
-    if not (inspect.isclass(obj) or callable(obj)):
-        return _directive("data", dotted, "A constant.", options={"value": repr(obj)},
+        return _directive("data", name, f"A dict. Keys: {keys}.", options=options,
                           no_index=no_index)
+    if not (inspect.isclass(obj) or callable(obj)):
+        return _directive("data", name, "A constant.", options={**options, "value": repr(obj)},
+                          no_index=no_index)
+    doc = _notation(index._doc_line(obj))
     if inspect.isclass(obj) and (issubclass(obj, BaseModel) or _dataclasses.is_dataclass(obj)):
         if issubclass(obj, BaseModel):
             skip = (index.TECHNIQUE_FIELDS.get(dotted, frozenset()) if technique is None
@@ -777,17 +782,44 @@ def _api_entry(index, dotted: str, technique: str | None = None, *,
         else:
             parts = index.dataclass_field_parts(obj)
         # `py:fields` (docs/py_fields.py): one signature line a field.
-        lines = [f"{name}: {ann}" + (f" = {default}" if default is not None else "")
-                 for name, ann, default in parts]
+        lines = [f"{field}: {ann}" + (f" = {default}" if default is not None else "")
+                 for field, ann, default in parts]
         fields = [_directive("fields", "", "\n".join(lines), no_index=no_index)] if parts else []
-        return _directive("class", dotted, doc, children=fields, no_index=no_index)
-    if inspect.isclass(obj):
-        return _directive("class", dotted + index._signature(obj, drop_self=False), doc,
+        return _directive("class", name, doc, options=options, children=fields,
                           no_index=no_index)
-    is_method = "." in dotted[3:] and inspect.isclass(index._resolve(dotted.rsplit(".", 1)[0]))
-    return _directive("method" if is_method else "function",
-                      dotted + index._signature(obj, drop_self=is_method), doc,
-                      no_index=no_index)
+    if inspect.isclass(obj):
+        return _directive("class", name + index._signature(obj, drop_self=False), doc,
+                          options=options, no_index=no_index)
+    owner, _, attr = dotted.rpartition(".")
+    owner = index._resolve(owner) if "." in dotted[3:] else None
+    if not inspect.isclass(owner):
+        return _directive("function", name + index._signature(obj, drop_self=False), doc,
+                          options=options, no_index=no_index)
+    # Called on the class, so it says so: `Structure.from_cif`, `Project.open`.
+    kind = inspect.getattr_static(owner, attr)
+    if isinstance(kind, classmethod):
+        options["classmethod"] = ""
+    elif isinstance(kind, staticmethod):
+        options["staticmethod"] = ""
+    return _directive("method", name + index._signature(obj, drop_self=True), doc,
+                      options=options, no_index=no_index)
+
+
+def _api_module(dotted: str) -> tuple[str, str]:
+    """(module, name within it): `rx` for a name reached as `rx.`, else the
+    longest importable prefix, as `make_api_index._resolve` walks it."""
+    import importlib
+
+    if dotted.startswith("rx."):
+        return "rx", dotted[3:]
+    parts = dotted.split(".")
+    for n in range(len(parts) - 1, 0, -1):
+        try:
+            importlib.import_module(".".join(parts[:n]))
+        except ModuleNotFoundError:
+            continue
+        return ".".join(parts[:n]), ".".join(parts[n:])
+    raise ValueError(f"{dotted}: no importable module prefix")
 
 
 def api_tiers() -> list[tuple[str, list[tuple[str, list[str]]], str | None]]:
