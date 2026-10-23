@@ -91,6 +91,40 @@ their manuals discusses it.
 | EasyDiffraction | none | H_G² floored at machine ε; a negative H_L passes | none |
 | BGMN | no Caglioti widths | fatal error | Profex writes B1 ≤ 0.01 and k2 ≤ 1e-4 into the files it creates |
 
+## Instrument and specimen widths refined together
+
+Read 2026-10-23 (WP-2002, 8th session), after removing rietx's U and Y floors exposed the
+degeneracy those floors had been breaking. An instrument width coefficient and a specimen
+broadening term with the same angular shape are exactly degenerate when both are free: the data
+fix only their sum. The pairs, in each program's own letters, follow from the formulas cited
+below. Gaussian, in the variance: the instrument's tan²θ term (U) and the specimen's Gaussian
+microstrain; and where a program has a 1/cos²θ instrument term (FullProf's IG, TOPAS's Z), the
+Gaussian size. Lorentzian, in the width: the instrument's tanθ term and the specimen's Lorentzian
+microstrain, and the instrument's 1/cosθ term and the Lorentzian size. FullProf and
+EasyDiffraction call the tanθ Lorentzian term X and the 1/cosθ one Y; GSAS-II, RIETAN-FP and
+rietx call them the other way round, Y and X. In GSAS-II a microstrain's Gaussian part enters
+the variance squared, so it goes as tan²θ like U.
+
+| Program | Positivity enforced on | Both twins refined together | Instrument function alone kept positive |
+|---|---|---|---|
+| GSAS-II 5.8.4 | the total width, `max(0.001, …)` per reflection (`GSASIIstrMath.py:3900-3903`) | no check pairs instrument and sample flags (grep of five modules); size and mustrain refine flags off by default (`GSASIImath.py:6295-6298`), `.instprm` widths off (`GSASIIfiles.py:531`); singular parameters dropped and pairs above 0.95 listed after the fit (`GSASIIstrMain.py:54-139`) | no |
+| FullProf 8.20 | the user's | structural: with a resolution file (IRF, `Res=`) the instrument lives there and the `.pcr` terms "have a meaning" as sample size and strain, V and W to be fixed at zero (manual p. 21, p. 51); the shipped `cuf1k.pcr` holds U, V, W, X at 0 and refines Y with the Stephens terms; without an IRF, only the general advice to refine correlated parameters separately (p. 14); size and strain last in the advised order (p. 13) | no |
+| RIETAN-FP 3.12 | refuses a negative width | manual: U, V, W do not converge stably together and adding P makes the matrix singular; fix V and W from a well-crystallised standard with P = 0, then subtract the standard's U and Y by hand to read strain (manual pp. 35, 106-107; paraphrased, its licence forbids copying) | no |
+| TOPAS v9 | opt-in `force_positive_fwhm`, on the convolution widths (§7) | nothing in the reference; no default limits on u-z (Table 2-1); the `CS_*`/`Strain_*` macros are exact twins of the TCHZ terms (§7.2, §22.1); nothing refines unless marked (§2.1) | no |
+| BGMN 4.2 | B1 cannot be negative; bounds by `start_lower^upper` (§4.2, App. A.4) | impossible by design: the instrument function is ray-traced or learnt from a standard (`STANDARDPAR`, §10.3) and has no refinable width, which the manual calls the reason the refinement is robust (§5.5) | not refinable |
+| MAUD 3.07 | the total half-width, floored at 1e-7° (`InstrumentBroadening.java:45-46`) | nothing (grep of the tree; `FilePar.checkBound` is a stub); help text says free U, V, W by hand after one cycle; Delft strain is Gaussian in tanθ, so it twins the instrument's tan²θ variance term (`SizeStrainDelf.java:57-65`) | no |
+| EasyDiffraction 0.21.1 | H_G² floored at machine ε; H_L unfloored (`cryspy/.../powder_diffraction_const_wavelength.py:122-123`) | no constant-wavelength sample term to pair (`easydiffraction/analysis/calculators/cryspy.py:849-854`); cryspy's own per-phase terms add to the instrument's and are degenerate by construction; correlations shown on request only; every parameter starts fixed (`core/variable.py:46-49`) | no |
+
+**The practice.** No program floors an instrument coefficient, and none keeps the instrument
+function alone positive; positivity, where enforced, is on the total width. None refuses, warns
+about or automatically holds a twin pair. Every program that separates instrument from specimen
+does it by holding the instrument from a standard: FullProf (the IRF) and BGMN (ray tracing) by
+design, RIETAN-FP by its advised protocol, GSAS-II through defaults that leave the sample terms
+off. Readers' full tables, with every citation marked checked or inferred, are in the WP-2002
+8th-session scratchpad and summarised here; the few inferred claims are TOPAS's quadrature/linear
+combination rule (not stated in the reference), the scope of `force_positive_fwhm`, and
+FullProf's constant-wavelength combination rule with an IRF.
+
 ## The tier-2 rows resting on a program default
 
 | Row | Programs that agree | Dissent |
