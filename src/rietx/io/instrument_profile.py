@@ -191,9 +191,11 @@ def load_instrument_profile(path: str | Path, *,
     # A profile file holding a bank (written by a version that did not refuse
     # one) is refused by name: ``_iter_parameters`` lists constant-wavelength
     # parameters, and a bank's ``difc`` and ``profile_tof.*`` would stay free.
+    # The file leads the message, as every other refusal here does: a reader
+    # raises naming the file (CLAUDE.md § Invariants, WP-1047).
     from ..schemas.pattern import require_two_theta
 
-    require_two_theta(None, "load_instrument_profile()", instrument=ins)
+    require_two_theta(None, f"{path}: load_instrument_profile()", instrument=ins)
     for p in _iter_parameters(ins):
         p.vary = False
     return ins

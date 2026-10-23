@@ -1,9 +1,8 @@
 # WP-2032 — the TOF readers' T-1 follow-ups: a time map read as data, and names with no writer
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-10-23 — a `TIME_MAP` after a bank's rows ends the bank, every refusal names its file, a project records the bank it opened, and `FPATH1` and `SPECTRUM_TYPES` each have a writer and a reader (PR #1122)
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (1927 soft, closed: the T-1 cut these come from)
-Priority: P3 2026-10-23 — defects in shipped T-1 readers on a path nothing refines yet; one reads a record as data rows silently, the rest are a refusal that names no file and declared names with no writer
 
 ## Goal
 
@@ -53,15 +52,15 @@ WP-2006 (the dead surface) tiers such names, so tell it if 4 or 5 removes one.
 
 ## Tasks
 
-- [ ] `TIME_MAP` after data: a fixture with the record after a bank's rows,
+- [x] `TIME_MAP` after data: a fixture with the record after a bank's rows,
       then the reader stops at it or refuses by name.
-- [ ] `load_instrument_profile`'s refusal names the file. Test the message.
-- [ ] `Project.open` writes the chosen bank into `DataRef`, and a reopen reads
+- [x] `load_instrument_profile`'s refusal names the file. Test the message.
+- [x] `Project.open` writes the chosen bank into `DataRef`, and a reopen reads
       the same bank. Test with a two-bank file.
-- [ ] `TOFSource.l1_m`: written from `FPATH1` by the `.iparm` reader, or
+- [x] `TOFSource.l1_m`: written from `FPATH1` by the `.iparm` reader, or
       removed (a schema bump if removed).
-- [ ] `SPECTRUM_TYPES`: read where the type is validated, or removed.
-- [ ] Skill: none expected, since nothing here changes what an agent calls.
+- [x] `SPECTRUM_TYPES`: read where the type is validated, or removed.
+- [x] Skill: none expected, since nothing here changes what an agent calls.
       Say why at handover.
 
 ## Acceptance
@@ -76,8 +75,93 @@ WP-2006 (the dead surface) tiers such names, so tell it if 4 or 5 removes one.
 ## References
 
 - WP-1927 (T-1) and its 2026-10-13 handover entry's *Not done*; PR #911, #961.
+- #1120: taken by @mustachefeeling, with the plan this WP's handover follows.
+- Larson & Von Dreele (2004), *GSAS Technical Manual*, LAUR 86-748, p. 217
+  (comment records precede a `BANK` or `TIME_MAP` header) and p. 219 (the
+  header-and-records sets "may be repeated in any order").
 
 ## Handover log
+
+- **2026-10-23 (closed)** — PR #1122 by @mustachefeeling merged as
+  `e6e97630`, after one review round (`/pr-review`, at `049d1097`). It lands
+  all five tasks, so this WP closes. The review read every source hunk.
+  Refusals now name their file, including the `.iparm` reader's wrap of
+  `_coefficient_count`. `Project.open` writes the fallback bank into
+  `DataRef.options` in memory, only after the fingerprint check passes, so
+  opening still writes nothing a save did not. `SPECTRUM_TYPES` is checked
+  before `COEFFICIENT_COUNTS` is indexed, so an unknown type cannot raise
+  `KeyError`. No `_audit` row was needed.
+  *Gate*: the branch already contained main `12f459e5`, so the merged tree
+  was the PR's head tree, and CI's fast jobs ran it green. The full suite
+  with `-m slow` on that tree (darwin/arm64, `[dev,jax]`, nothing else
+  running) gave 404 passed, 12 skipped, 14 xfailed and 4 failed in 18-19
+  min. All 4 fail the same way on main `12f459e5` alone on that machine:
+  three in `test_staged_start_invariance.py` (cpd1a, LaB6) and
+  `test_acceptance_magnetic.py::test_the_150k_null_finds_no_moment`. The
+  Linux nightly's full job passed on `d01ae735` (2026-10-22) and was
+  cancelled on `3e0dc6f7`, so whether they fail on Linux is not known. The
+  maintainer merged on "no new failures".
+  *Follow-ups asked on the PR, not blocking*: name `FPATH1`'s token read
+  as a deviation in `src/rietx/io/CLAUDE.md` § `instrument_tof.py`, the way
+  `BNKPAR`'s is named; and trim the bug's history from the `gsas` row's
+  `TIME_MAP` sentence. The real SNS `.prm` files whose `ICONS` records
+  write explicit zeros still do not read end to end, and no WP owns that
+  yet.
+
+- **2026-10-23** — built all five, as planned on #1120 (taken by
+  @mustachefeeling). Each item has a test that fails on `main` `12f459e5` and
+  passes here, all in `tests/test_tof_axis.py` § WP-2032; 12 of the 15 new
+  items fail on `main`, and the other three are controls that pass on both.
+  *Done*: (1) a `TIME_MAP` header ends a bank's rows as a `BANK` record does
+  (`formats/gsas.py`, the body loop). The manual allows it: the sets "may be
+  repeated in any order" and a map is only "usually" at the head (p. 219).
+  *Measured on `main`* it was not silent but refused with the wrong cause
+  ("characters 1-8 of data record 3 of the ESD bank hold 'TIME_MAP'"), in
+  ESD and STD alike; the Priority line's "silently" overstates it. The
+  fixture is `time_map_bank`'s own file with the map moved after the rows;
+  here it reads channel for channel as the map-first file does, and a map
+  between two banks belongs to neither. A line that is no header still
+  refuses by name (the control). (2) `load_instrument_profile`'s bank refusal
+  now starts with the path. (3) `Project.open` writes the bank its
+  old-project fallback read into `DataRef.options`, after the fingerprint
+  vouches for it, so the next save records it. The test swaps the two banks'
+  order after the save and the reopen still reads bank 1; with the record
+  removed, the same swap is refused by the fingerprint (the control).
+  `Project.create` still records no `bank` for a one-bank file, as before:
+  the open backfills it. (4) `FPATH1` is read as `TOFSource.l1_m` on every
+  bank (`instrument_tof._primary_flight_path`): one number after the key,
+  since the manual lists no such record and real files place it in columns
+  13-22 (NOMAD) or 13-26 (POWGEN). That it is L₁ rests on SNS NOMAD's data
+  header: "Primary flight path 19.5m" beside `FPATH1 19.50`, and per bank a
+  "Total flight path" equal to 19.5 m plus `BNKPAR` DIST (five of six banks
+  to the written digit, the sixth 0.02 m off). Wired, not removed, so no
+  schema bump and nothing for WP-2006. (5) `model.tof_spectrum._coefficient_count`
+  validates an ITYP against `SPECTRUM_TYPES` and only then reads
+  `COEFFICIENT_COUNTS`; the schema validator and the `.iparm` reader both
+  call it, the refusal lists the defined types from the table, and the count
+  refusal names the function. A test removes a type from the table and
+  watches both refuse it; another holds the two tables' keys equal. Nothing
+  was removed, so nothing for WP-2006.
+  *Skill*: one reference row corrected, nothing added. The
+  `GSAS_IPARM_FIELD_DROPPED` row in `references/diagnostics-gsas.md` said
+  "L₁ stays unset", which item 4 made false; it now lists `FPATH1` (L₁)
+  among what the banks carry, shorter than before. No new name an agent
+  calls. The manual's `.iparm` table has the `FPATH1` row, and the 1.10.0
+  staging file has four notes under `## Changed`.
+  *Generality*: no `_audit` row. Nothing here adds a diagnostic code, a
+  default, a module-level number or a record field.
+  *Gate* (Mac, worktree `.venv`, Python 3.12, `-n 4`; pearl offline): the
+  acceptance selection `tests/test_tof*.py tests/test_project*.py -m "not
+  slow"` 1167 passed; `ruff check src tests examples` clean; the fast
+  selection on the final tree 11 261 passed, 265 skipped, 27 xfailed, 0
+  failed (`--junitxml`: 11 553 tests, 292 skipped, 0 failures, 0 errors).
+  *Not done*: real SNS `.prm` files still do not read end to end. Their
+  `ICONS` records write `0.000    0     0.000` in the POLA/IPOLA/KRATIO
+  columns, which the reader refuses as non-blank. With those columns blanked
+  in a scratch copy, two NOMAD files read L₁ 19.5 m and a POWGEN 2013B file
+  60.0 m on every bank. Whether explicit zeros there are "absent" is a
+  separate decision, left to a WP of its own.
+  Next: review on the PR; closing moves this narrative to the release record.
 
 - **2026-10-23** — created by the chain audit of WP-1927's close. 1927's close
   had left all seven review follow-ups for the T-2 cut. Five of them are

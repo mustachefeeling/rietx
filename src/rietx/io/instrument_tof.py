@@ -25,6 +25,10 @@ bank number ``bb`` in columns 5-6.
   scattering angle 2Θ in degrees and is required (DIFC alone cannot give it
   back), DIST is carried as ``l2_m`` — the field's name is its only
   definition, so that mapping is an inference and is metadata only.
+* ``INS   FPATH1`` — not in the manual's list, written by SNS files — is the
+  primary flight path L₁ in metres, carried as ``l1_m`` on every bank; read
+  as one number, its layout being only observed (:func:`_primary_flight_path`
+  holds the evidence that it is L₁).
 * ``INS bbI ITYP`` (I5,2F10.4,I10) — ITYP, TMIN, TMAX, CHKSUM.  TMIN/TMAX are
   in **milliseconds** (p. 223) and are carried in µs.  CHKSUM's algorithm is
   not published: it is read and never recomputed or checked, and since the
@@ -138,10 +142,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from ..model.tof_spectrum import (
-    COEFFICIENT_COUNTS,
-    _unknown_type_message,
-)
+from ..model.tof_spectrum import _coefficient_count
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.instrument import IncidentSpectrum, Instrument, ProfileTOF, TOFSource
 from .projects.gsas import split_records
@@ -388,9 +389,10 @@ def _spectrum(path: Path, bank: int, ityp_rec: _Record | None,
     tmax = ityp_rec.number(28, 37, "TMAX")
     ityp_rec.integer(38, 47, "CHKSUM")       # read, carried nowhere, never checked
     dropped.append("CHKSUM")
-    if itype not in COEFFICIENT_COUNTS:
-        raise ValueError(f"{path}: bank {bank}: {_unknown_type_message(itype)}")
-    want = COEFFICIENT_COUNTS[itype]
+    try:
+        want = _coefficient_count(itype)
+    except ValueError as exc:
+        raise ValueError(f"{path}: bank {bank}: {exc}") from None
     lo = tmin * 1000.0 if tmin > 0.0 else None
     hi = tmax * 1000.0 if tmax > 0.0 else None
     if want == 0:
@@ -561,6 +563,7 @@ def _banks_from_records(path: Path, records: list[tuple[str, str]],
     """
     nbank: int | None = None
     htype: str | None = None
+    l1_m: float | None = None
     whole_dropped: list[str] = []
     banks: dict[int, dict] = {}
 
@@ -578,6 +581,11 @@ def _banks_from_records(path: Path, records: list[tuple[str, str]],
                 nbank = rec.integer(13, 17, "NBANK")
             elif key == "HTYPE":
                 htype = rec.cols(15, 18).strip()
+            elif key == "FPATH1":
+                if l1_m is not None:
+                    raise rec.fail("a second FPATH1 record; the primary flight "
+                                   "path is one number for the whole file")
+                l1_m = _primary_flight_path(rec)
             elif key not in whole_dropped:
                 whole_dropped.append(key)
             continue
@@ -664,7 +672,7 @@ def _banks_from_records(path: Path, records: list[tuple[str, str]],
         profile = _profile(path, b, bank["prcf"], bank["prcf_c"], diagnostics)
         try:
             source = TOFSource(difc=difc, difa=difa, tzero=zero,
-                               two_theta_bank_deg=ttheta,
+                               two_theta_bank_deg=ttheta, l1_m=l1_m,
                                l2_m=dist if dist > 0.0 else None,
                                profile_tof=profile, incident_spectrum=spectrum)
         except ValidationError as exc:
@@ -678,6 +686,39 @@ def _banks_from_records(path: Path, records: list[tuple[str, str]],
               f"{path.name}: {', '.join(dropped_all)} have no slot in the "
               f"schema and were not carried.", where=dropped_all)
     return out
+
+
+def _primary_flight_path(rec: _Record) -> float:
+    """``INS   FPATH1``: the primary flight path L₁ in metres, for every bank.
+
+    **Not a record the manual lists** (GSAS Technical Manual p. 221-223), so
+    there is no FORTRAN layout to read it at: the layout is the one observed,
+    a single number after the key, and real files place it differently —
+    NOMAD writes ``     19.50`` in columns 13-22, POWGEN ``     60.000000``
+    across 13-26.  So it is read as one token, and anything else on the
+    record is refused rather than guessed between.
+
+    That it is L₁ is established by the files, not by its name alone: SNS
+    NOMAD's own data file states "Primary flight path 19.5m" beside an
+    ``.prm`` writing ``FPATH1 19.50``, and per bank a "Total flight path"
+    equal to 19.5 m plus that bank's ``BNKPAR`` DIST (21.510 m against DIST
+    2.010 on bank 1; five of six banks to the written digit, the sixth to
+    0.02 m).  Metadata, as :attr:`TOFSource.l1_m` says: DIFC is the refined
+    authority on the geometry.
+    """
+    payload = rec.cols(13, 80).split()
+    if len(payload) != 1:
+        raise rec.fail(
+            f"columns 13-80 hold {rec.cols(13, 80).strip()!r}; FPATH1 is one "
+            f"number, the primary flight path in metres")
+    try:
+        value = float(payload[0].replace("D", "E").replace("d", "e"))
+    except ValueError:
+        raise rec.fail(f"FPATH1 is {payload[0]!r}, which is not a number") from None
+    if not value > 0.0:
+        raise rec.fail(f"FPATH1 is {value!r}; a flight path in metres must be "
+                       f"positive")
+    return value
 
 
 # ---------------------------------------------------------------------------
