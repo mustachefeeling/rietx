@@ -399,7 +399,7 @@ own view (1503), the surface measured with real agents before more is added
 (1504), and the code leaving as `rietview` when a named trigger fires
 (1505). The name was chosen on 2026-09-27; the survey and the trigger are in
 1505. The maintainer asked on 2026-10-02 for an SVG (1536), POV-Ray and glTF
-(1537), and ambient occlusion (1538). It opens when 1504's first round is costed, or earlier by the maintainer's word.
+(1537), and ambient occlusion (1538). 1504 is costed and closed (2026-10-23, 40 of 42 on the fixed surface), so it opens by the maintainer's word.
 
 The WPs are in [the index](wp/README.md#rietview).
 
@@ -424,7 +424,7 @@ first, a gate after 2004; 2010 audits features against Rule 2; 2008 slims the sk
 
 #### The registry and the guard
 
-2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. [The WP](wp/README.md#generality-the-registry-and-the-guard).
+2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. 2014: that review on every other path into main, outside PRs and unwatched directories included. 2019: opt-in sets of bounds and defaults for one scenario, tested on the datasets they name, where a default too narrow for the package goes. [The WPs](wp/README.md#generality-the-registry-and-the-guard).
 
 #### The audits
 
@@ -559,8 +559,8 @@ scope creep. Each item names what fenced it.
   without one); neutron **TOF** (CW landed in 1134; issue #193; the energy-dependent
   resonant absorption at S(Q), #113) — **built through rather than deferred**: the
   fork's branch is visible (`tof-cleanroom-20260923`); **decided 2026-09-24: held until magnetic
-  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) taken now as
-  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, the rest still waiting, with #442 (a bank's CW
+  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) cut as
+  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, closed 2026-10-23 with T-2's inheritance in its Context; the rest still waiting, with #442 (a bank's CW
   width rows) decided inside T-1, and #618 (Mantid's instrument values: with provenance,
   never the files) — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and

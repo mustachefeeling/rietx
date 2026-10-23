@@ -3,8 +3,8 @@
     .venv/bin/python docs/skill/make_api_index.py
     .venv/bin/rietx skill --install . --copy      # then re-sync the committed copies
 
-The index is **generated and committed**, the way Part 1's figures are
-(``docs/manual/make_figures.py``): committed so that it ships in the wheel and
+The index is **generated and committed**, the way the manual's figures are
+(``docs/docs/make_figures.py``): committed so that it ships in the wheel and
 in the two committed copies with no build step, generated so that no signature
 in it was typed by hand.  WP-1304's brief for this file is the document three
 "explore the library" runs (114 calls) wrote from source during the 2026-08
@@ -250,7 +250,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "at `size=400` and render the final size once. A look costs "
                 "about width × height / 750 tokens, 213 at 400 px and 1333 at "
                 "1000 px, and a turn besides (Hypothesis: WP-1503, the usual "
-                "image-token rule; WP-1504 measures it with agents). "
+                "image-token rule; WP-1504 logged each look's size but priced none). "
                 "`stacked` is the part of `hidden` behind a copy of the same "
                 "site, which a view down an axis does by construction; "
                 "`hidden - stacked` is what the view occludes. Keep a view the "
@@ -425,11 +425,11 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "converged **neutron** fit and proposes a propagation vector, "
                 "candidate models per k, one trial refinement per class the "
                 "powder cannot separate, and a ranked list with a stated "
-                "criterion: ΔBIC against a nuclear reference, then a "
-                "magnetic-only R, then parsimony, and never Rwp, since more "
-                "amplitudes always fit better. Classes inside the tie width that "
-                "neither the magnetic-only R nor parsimony separates "
-                "abstain together rather than name a winner, and a class with no "
+                "criterion: ΔBIC against a nuclear reference, which charges "
+                "each extra amplitude, and never Rwp, since more "
+                "amplitudes always fit better. Classes inside the tie width "
+                "abstain together rather than name a winner, listed fewest "
+                "moment parameters first, and a class with no "
                 "supported moment cannot win. A non-neutron histogram is refused "
                 "by name; everything else, \"nothing to solve\" included, is "
                 "reported. Read `MagneticSolution.verdict` before `.best`, and "
@@ -458,6 +458,20 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                  "rietx.crystallography.representation.distortion.ModeDecomposition",
                  "rietx.crystallography.representation.distortion.ModeAmplitude",
                  "rietx.crystallography.representation.distortion.distortion_basis"),
+            ),
+            (
+                "Displacive candidates of a parent",
+                "`distortion_candidates(parent, k, sites=None)` from "
+                "`rietx.crystallography.magnetic.isotropy` lists every child a "
+                "displacement at `k` can give: one per (irrep, direction) of "
+                "`candidates(kind=\"displacive\")` over the named sites (all "
+                "by default), the child `Phase` in a standard setting with "
+                "(P, p), and its `distortion_basis`, every irrep the child "
+                "admits, in Å. `driving` is the candidate's own irrep, "
+                "`rest` the others. The k fence (2k in the reciprocal "
+                "lattice) is `candidates`'.",
+                ("rietx.crystallography.magnetic.isotropy.distortion_candidates",
+                 "rietx.crystallography.magnetic.isotropy.DistortionCandidate"),
             ),
         ),
     ),
@@ -661,7 +675,9 @@ def _doc_line(obj) -> str:
     return text
 
 
-def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
+def model_field_parts(cls, skip: frozenset[str] = frozenset()) -> list[tuple[str, str, str | None]]:
+    """(name, annotation, default or None) per field: what `_model_fields`
+    prints, and what the manual's API reference renders as attributes."""
     from pydantic_core import PydanticUndefined
 
     out = []
@@ -671,28 +687,44 @@ def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
         ann = _ann(info.annotation)
         for member in TECHNIQUE_MEMBERS:
             ann = ann.replace(f" | {member}", "")
-        text = f"{name}: {ann}"
         if info.default_factory is not None:
-            text += f" = {_default(info.default_factory())}"
+            default = _default(info.default_factory())
         elif info.default is not PydanticUndefined:
-            text += f" = {_default(info.default)}"
-        out.append(f"`{text}`")
+            default = _default(info.default)
+        else:
+            default = None
+        out.append((name, ann, default))
     return out
 
 
-def _dataclass_fields(cls) -> list[str]:
+def dataclass_field_parts(cls) -> list[tuple[str, str, str | None]]:
+    """`model_field_parts` for a dataclass."""
     out = []
     for f in dataclasses.fields(cls):
         if f.name.startswith("_"):
             # private, as a pydantic private attribute is, which model_fields omits
             continue
-        text = f"{f.name}: {_ann(f.type)}"
         if f.default_factory is not dataclasses.MISSING:
-            text += f" = {_default(f.default_factory())}"
+            default = _default(f.default_factory())
         elif f.default is not dataclasses.MISSING:
-            text += f" = {_default(f.default)}"
-        out.append(f"`{text}`")
+            default = _default(f.default)
+        else:
+            default = None
+        out.append((f.name, _ann(f.type), default))
     return out
+
+
+def _field_spans(parts) -> list[str]:
+    return [f"`{name}: {ann}" + (f" = {default}`" if default is not None else "`")
+            for name, ann, default in parts]
+
+
+def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
+    return _field_spans(model_field_parts(cls, skip))
+
+
+def _dataclass_fields(cls) -> list[str]:
+    return _field_spans(dataclass_field_parts(cls))
 
 
 def _entry(dotted: str, technique: str | None = None) -> str:

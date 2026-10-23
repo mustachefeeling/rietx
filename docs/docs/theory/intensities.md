@@ -416,7 +416,8 @@ and the arithmetic is {eq}`int-Fmag`'s single pass. They are only
 *identifiable* where the magnetic-to-nuclear intensity ratio differs across
 reflections, so a $\mathbf{k} \neq 0$ structure with magnetic-only
 satellites measures them and a $\mathbf{k} = 0$ collinear one generally
-cannot; the report says which happened rather than quoting a number for both.
+cannot; the report says which happened rather than quoting a number for both
+({ref}`sec-magnetic-width`).
 
 {source}`rietx.model.forward` (`phase_peaks`, `_width_block`)
 

@@ -40,6 +40,7 @@ from pydantic import Field
 from scipy.ndimage import median_filter
 from scipy.signal import find_peaks, peak_prominences, peak_widths
 
+from ..optimize import lapack
 from ..schemas.common import Base
 from ..schemas.pattern import PatternData, require_two_theta
 from .models import chebyshev_design_matrix
@@ -1516,10 +1517,10 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
 
     # nested envelope fits: cubic, then cubic + 1/(2θ) air-scatter column
     design = chebyshev_design_matrix(tt, 4, float(tt[0]), float(tt[-1]))
-    coef, *_ = np.linalg.lstsq(design.T, env, rcond=None)
+    coef, *_ = lapack.lstsq(design.T, env, rcond=None)
     r_cubic = env - coef @ design
     design_air = np.vstack([design, 1.0 / np.maximum(tt, 1e-3)])
-    coef_air, *_ = np.linalg.lstsq(design_air.T, env, rcond=None)
+    coef_air, *_ = lapack.lstsq(design_air.T, env, rcond=None)
     r_air = env - coef_air @ design_air
     rss_cubic = float(r_cubic @ r_cubic)
     air_gain = float(1.0 - (r_air @ r_air) / rss_cubic) if rss_cubic > 0 else 0.0

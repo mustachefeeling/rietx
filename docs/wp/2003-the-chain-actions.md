@@ -86,7 +86,13 @@ the bar.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-21, 5th session, PR #1085).** Every plan now ends in a closing stage, and a series' warm refit carries it (`sequential._collapse` passes `closing_window_tol`), so every pattern pays it: 1.05-2.05× a single fit's time on four protocols. Its cost along a chain and its effect on the chain's path dependence are unmeasured. `closing_window_tol=None` is the bit-identical way back.
+- **From WP-2002 (2026-10-21, 4th session): tier 2 names seven programs.** `docs/milestones/generality.md` § The rule's tier 2 now reads "by default in an established Rietveld program": GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, the list rietx-bench runs (the maintainer's instruction). A row resting on a program default names the programs it checked and what each does; a program doing otherwise by default is a dissenter, one without the feature is neither. What each does on peak windows, staging, roughness starts, width limits, dispersion, solver, mode and background seed is in `docs/wp/2002-batch/practice.md`; where each program's manual or source sits is in the maintainer's memory (`foreign-code-sources-on-disk`), and rietx-bench's `tools/` holds BGMN, MAUD, RIETAN-FP and EasyDiffraction's environment beside GSAS-II and FullProf.
+- **From WP-2002 (2026-10-20, PR #1050): a series pays the automatic moment-angle interval on fits it discards.** A moment angle the stationary-angle test leaves out of the covariance now gets its profile interval after every single-pattern fit (`strategy/parameter_interval.attach_stationary_intervals`, gated by `Refinement._auto_intervals`). Each pattern of a chain computes its own, and so do rejected ladder rungs and `_verify_discontinuities`' cold refits, whose results the chain throws away: 20-32 refits an angle, 2.6-16.7 s on test fits of 0.2-1.2 s. Gate them (set `_auto_intervals = False` on an attempt until it is accepted) when auditing the rungs.
+- **From WP-2002 (2026-10-20, PR #1050): the joint runner names no `vars.X`-driven cell escape.** `multi.py` (~line 1480, `_cell_runaway_diagnostic(cell_runaway)`) never calls `refine._vars_driven_cell_escapes`, which the single runner folds into `CELL_RUNAWAY`. The cell runaway itself now resets the phase's cell to the stage start and holds it in both runners (`StageResult.cell_reset`).
 - **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2003, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand. From the generality judge's first run: the series floor-reseed of an unsupported moment (`sequential.py`, near the `SEQUENTIAL_MOMENT_HOLD` raise) has no record field, only that code's message, so it has no action row; `SeriesEntry.rungs_raised` and `rungs_tried` now do. `SequentialRefinement.fit` is a seat, since `refine_sequential` reaches its `reseed`, `refit`, `on_error` and `direction` defaults through `**kw`.
+
+- **From WP-2002 (2026-10-19, PR #1050).** 2002 named the held-out family at its open: the Nd₂Ru₂O₇ pair (`tests/data/mg090*`), which no audit may use as evidence. Two of 2002's clash candidates reach the chain (`2002-batch/clashes.md`): `multi.py`'s parametric test holds at-bound columns through `staged.bound_findings`, whose esd threshold carries the Bérar-Lelann factor, so its margin falls to 13/f if 2002's batch class B4 lands (B16). The 0.03-esd bound on `intermediate_ftol` is a one-fit bound, and a chain's effect is yours (B7).
 
 ## Non-goals
 
@@ -114,7 +120,8 @@ the bar.
       on and off, on two chain families), replacing the comment's claim.
 - [ ] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
       orderings where order matters.
-- [ ] The batch to the maintainer; rulings dated into the table.
+- [ ] The batch to the maintainer, each brief opening with its stakes line (the record
+      § The rule, 2026-10-20); rulings dated into the table.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
       `info` record of the largest steps, if the batch agrees; the release notes staged.
 - [ ] Goldens re-pinned only if no further from reference. A series golden's first
@@ -149,6 +156,23 @@ summary).
 
 ## Handover log
 
+- **2026-10-21** — the repair itself: WP-2019's session, started under this
+  WP's `repair first` flag, wrote the reconstructed entry below (f036bf9, on
+  #1095's branch). No work on this WP's tasks, and Next is unchanged.
+- **2026-10-20** (reconstructed post hoc, 2026-10-21, from 5c88100 / #1084) — a
+  process edit, not work on this WP's tasks: the brief this WP sends the maintainer now
+  opens with a stakes line, and a measured-consequence column was weighed and declined.
+  - **What the commit shows.** `docs/milestones/generality.md` § The rule gains the
+    paragraph "A brief opens with its stakes": the reported quantity the action can move,
+    the case on disk and its distance from reference, the dissenter or `none found`;
+    context, never a filter. A kept guard no ordinary fit reaches is kept on an injected
+    case its row names (`test_cell_runaway_safety`'s escape for the cell clamp). § Decisions
+    gains the declined consequence axis with its three reasons. This file's and 2004's
+    batch task each carry the stakes line.
+  - **What it does not show.** The session's branch carried this one commit and no
+    handover entry; the record names a planning session and the maintainer's note of
+    that date as the source. No checklist item moved, and no test or count.
+  - **Next** is unchanged: the inventory, after 2002's holds settle.
 - **2026-10-18** — created, from the milestone's opening session. 1317 (the series
   scrubber) and 1325 (parametric series) are open and adjacent; neither owns the fences,
   and this WP changes no view.

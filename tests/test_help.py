@@ -50,7 +50,7 @@ from rietx.help import (
     plan_help,
 )
 from rietx.io.formats.base import READER_OPTIONS
-from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, ParameterTable
+from rietx.params.vector import ParameterTable
 from rietx.refine import SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.schemas.common import Parameter
 from rietx.schemas.indexing import IndexingControls, ObservedPeak, PeakFlag
@@ -81,7 +81,7 @@ from rietx.schemas.structure import (
     Structure,
 )
 from rietx.strategy.staged import PLAN_INFO
-from tests.test_manual import built_manual  # noqa: F401  (fixture, shared build)
+from tests.test_manual import built_docs_tree  # noqa: F401  (fixture, shared build)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -661,11 +661,9 @@ def test_defaults_are_the_schemas_own():
 #: ``help.py``'s module docstring instead, but a number can be and is.
 #:
 #: The converters are the units the sentence chose, not the code's: a crystallite
-#: floor is stored in Å and read by people in nm.  Retuning a constant therefore
+#: size is stored in Å and read by people in nm.  Retuning a constant therefore
 #: fails here until the sentence is rewritten, which is the whole point.
 _QUOTED_THRESHOLDS = (
-    ("phases.0.lor_size", "SIZE_CAP_MIN_SIZE_A", SIZE_CAP_MIN_SIZE_A / 10.0, "2 nm"),
-    ("phases.0.gauss_size", "SIZE_CAP_MIN_SIZE_A", SIZE_CAP_MIN_SIZE_A / 10.0, "2 nm"),
     ("phases.0.lor_size", "SIZE_FLAG_SIZE_A", SIZE_FLAG_SIZE_A / 10.0, "5 nm"),
     ("phases.0.lor_strain", "STRAIN_FLAG_WIDTH", STRAIN_FLAG_WIDTH, "1.5 deg"),
 )
@@ -682,7 +680,7 @@ def test_quoted_thresholds_are_the_codes_own():
     were, and nothing else would notice a retune.
 
     Two directions, as everywhere in this file.  The sentence must spell the
-    constant, so retuning ``SIZE_CAP_MIN_SIZE_A`` to 30 Å fails until the
+    constant, so retuning ``SIZE_FLAG_SIZE_A`` to 30 Å fails until the
     description says 3 nm.  And the spelling must be *derived* from the constant
     rather than asserted flat, so a row whose converter is wrong fails here
     rather than certifying its own arithmetic.
@@ -773,7 +771,9 @@ def test_the_help_route_serves_the_registry_and_the_manual_s_address():
     client can only build a link if it is also told where the manual lives.
     ``docs_url`` rides beside the arms rather than in one because it is not a
     name anything looks up, and it is served rather than spelled in TypeScript
-    for the reason ``_about`` exists at all.
+    for the reason ``_about`` exists at all.  It is the running version's manual
+    (WP-1986), the tree :func:`test_every_anchor_resolves_in_the_built_manual`
+    checks the anchors against.
     """
     from rietx.gui.server import ROUTES
     from rietx.gui.session import GuiSession
@@ -781,7 +781,8 @@ def test_the_help_route_serves_the_registry_and_the_manual_s_address():
     assert ("GET", "/api/help") in ROUTES
     served = GuiSession().help()
     assert {k: v for k, v in served.items() if k != "docs_url"} == help_registry()
-    assert served["docs_url"] == _about.DOCS_URL
+    assert served["docs_url"] == _about.docs_base(rx.__version__)
+    assert served["docs_url"].startswith(f"{_about.DOCS_URL}/docs/")
 
 
 # -------------------------------------------------------------------- the prose
@@ -813,7 +814,7 @@ def test_every_entry_has_a_title_and_a_description():
 
 
 @pytest.mark.xdist_group("manual-build")
-def test_every_anchor_resolves_in_the_built_manual(built_manual):  # noqa: F811
+def test_every_anchor_resolves_in_the_built_manual(built_docs_tree):  # noqa: F811
     """An ``anchor`` is the page and heading the popover links to, so both must exist.
 
     Checked against the **built** HTML rather than the Markdown sources, for
@@ -827,8 +828,11 @@ def test_every_anchor_resolves_in_the_built_manual(built_manual):  # noqa: F811
     a rendered link needs, so this checks the pair: an id found on some *other*
     page used to pass, and would now send a reader to a page that does not
     carry the heading.
+
+    The manual is the new tree's, `docs/docs/` (WP-1986): the GUI joins an
+    anchor to that tree's versioned base, so its build is the one asked.
     """
-    out, result = built_manual
+    out, result = built_docs_tree
     assert result.returncode == 0, "manual did not build — see test_manual.py"
     ids: dict[str, set[str]] = {}
     for page in out.rglob("*.html"):

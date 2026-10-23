@@ -639,8 +639,8 @@ def _read_instrument(payload: dict, pattern: PatternData,
     shl = _iparm(iparm, "SH/L")
     if shl:
         half = 0.5 * float(shl)
-        geometry.axial_sl = Parameter(value=half, min=0.0, max=0.2)
-        geometry.axial_hl = Parameter(value=half, min=0.0, max=0.2)
+        geometry.axial_sl = Parameter(value=half, min=0.0)
+        geometry.axial_hl = Parameter(value=half, min=0.0)
         diags.append(Diagnostic(
             level="info", code="RECIPE_CONVENTION_ASSUMED",
             message=(
@@ -1285,9 +1285,9 @@ def _read_plan(payload: dict, structure: Structure, instrument: Instrument,
     """One stage freeing every flagged path — the recipe's own semantics.
 
     PowderLine runs a single refinement pass over everything flagged, so the
-    faithful translation is a one-stage plan, and a one-stage plan is all
-    endpoint: :meth:`RefinementPlan.stage_ftols` loosens nothing, which is the
-    right reading of a recipe that declares no order.
+    faithful translation is a one-stage plan.  It carries the package's
+    closing stage like any plan a caller runs (WP-2002), which recompiles at
+    the answer and solves once more with the same globs.
 
     ``refinement_cycles`` is **not** translated.  It is GSAS-II's cycle count,
     and this package's :attr:`Stage.max_iter` is a runaway guard rather than a

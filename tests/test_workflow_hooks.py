@@ -1229,7 +1229,7 @@ def test_a_citation_is_the_number_with_a_boundary() -> None:
         (["docs/wp/1416-x.md", "docs/ROADMAP.md", "tests/test_docs_consistency.py"], True),
         (["gui/CLAUDE.md", ".claude/commands/pr-review.md"], True),
         (["docs/wp/1416-x.md", "src/rietx/io/formats/xy.py"], False),
-        (["docs/manual/using/parameters.md"], False),  # for a docs issue, the fix
+        (["docs/docs/reference/parameters.md"], False),  # for a docs issue, the fix
         ([], False),  # a merge commit lists no files and is no evidence
     ],
 )

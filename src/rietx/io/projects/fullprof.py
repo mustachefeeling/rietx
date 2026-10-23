@@ -2845,7 +2845,7 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                         z=_p(atom.values["z"], f"atom {atom.label!r}'s z"),
                         # Fully occupied, verified above; the file's own Occ is a
                         # multiplicity-scaled quantity and stays on the model.
-                        occ=rx.Parameter(value=1.0, min=0.0, max=1.5),
+                        occ=rx.Parameter(value=1.0, min=0.0),
                         biso=_p(atom.values["biso"],
                                 f"atom {atom.label!r}'s Biso"),
                         moment=_moment(atom_index))

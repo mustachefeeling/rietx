@@ -74,10 +74,12 @@ MAGNETIC_STAGES = [
 ]
 
 
-def _plan(stages) -> rx.RefinementPlan:
+def _plan(stages, closing_window_tol: float | None = 1e-3) -> rx.RefinementPlan:
     return rx.RefinementPlan(
         stages=[rx.Stage(name=n, turn_on=list(t), max_iter=200) for n, t in stages],
-        intermediate_ftol=1e-6)
+        intermediate_ftol=1e-6,
+        # WP-2002: the shipped closing stage, named rather than inherited
+        closing_window_tol=closing_window_tol)
 
 
 def _p(value: float, **kw) -> Parameter:
@@ -118,9 +120,9 @@ def _with_moment(structure: rx.Structure, seed) -> rx.Structure:
     return rx.Structure.model_validate(s.model_dump())
 
 
-def _fit(structure, instrument, data, stages):
+def _fit(structure, instrument, data, stages, closing_window_tol: float | None = 1e-3):
     ref = rx.Refinement(structure, instrument, history=False)
-    result = ref.fit(data, plan=_plan(stages))
+    result = ref.fit(data, plan=_plan(stages, closing_window_tol))
     return ref, result
 
 

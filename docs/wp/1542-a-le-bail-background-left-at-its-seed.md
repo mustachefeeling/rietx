@@ -165,6 +165,8 @@ here (2026-10-03, at the maintainer's request).
   width's floor is an ordinary bound of 0 with its physical column, which
   ended the LaB₆ + cBN split, so this one may be gone too; unmeasured.
 
+- **From WP-2002 (2026-10-19, PR #1050).** Batch class B11. GSAS-II's stand-alone `DoLeBail` runs 10 cycles by default (`GSASIIstrMain.py:761`), and FullProf's manual says "a few cycles (say 10)". On #740's pattern the Le Bail fit plateaus at Rwp 1.62 % from 100 to 400 cycles, against 1.09 % for the true structure (`2002-batch/i740.json`). More cycles close the 4.56 % to 1.62 % gap and not the rest. The batch proposes a converge-with-cap cycle rule inside this WP, pending the ruling.
+
 ## Non-goals
 
 - The alternation's stop rule and keep-best (WP-1323, shipped).

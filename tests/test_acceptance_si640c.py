@@ -219,6 +219,7 @@ def _plan(*, asymmetric: bool) -> rx.RefinementPlan:
     # user's own run does.  ``None`` would converge every stage and move the
     # numbers in the module docstring.
     plan.intermediate_ftol = 1e-6
+    plan.closing_window_tol = 1e-3   # WP-2002: the shipped closing stage, named rather than inherited
     return plan
 
 
@@ -488,7 +489,7 @@ def test_the_fit_renders(full, symmetric, held):
 
 
 # ------------------------------------------- the background-peak worked example ---
-# The manual's ``Explicit background peaks`` section (docs/manual/using/data.md)
+# The manual's hump comparison (docs/docs/concepts/parameters.md § Humps)
 # rests its headline on this pattern, and this is where that headline is
 # executable.  Same data, same protocol, one thing changed: the background is a
 # low-order Chebyshev rather than the P-spline above, which is the point — the
@@ -585,6 +586,7 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool = False,
                                 "instrument.background.c*"]))
     plan = rx.RefinementPlan(stages=stages)
     plan.intermediate_ftol = 1e-6
+    plan.closing_window_tol = 1e-3   # WP-2002: the shipped closing stage, named rather than inherited
 
     data = rx.read_pattern(PATTERN)
     ref = rx.Refinement(_structure(), ins, history=False)
@@ -630,7 +632,7 @@ def cheb6():
 def cheb6_peak():
     """Chebyshev-6 + one background peak — the fourth table row.
 
-    Quoted in the manual (`using/data.md`), the ``HumpComponent`` docstring and
+    Quoted in the manual (`concepts/parameters.md` § Humps), the ``HumpComponent`` docstring and
     this module's `MANUAL_RWP`, and the arm the "relaxes to 5.245(41)°" caveat
     turns on; a fixture so all three are pinned to a refinement rather than to a
     number a solver change can silently move.

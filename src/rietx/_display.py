@@ -291,13 +291,18 @@ def refined_parameter_text(p) -> str:
     """A ``RefinedParameter`` on one line, as a ``ParameterRow`` prints:
     ``path  value(esd)  state``.  The state is ``vary``, or ``tied`` for a row
     that did not vary, since a result lists only rows that varied or were
-    tied.  ``at_bound`` follows when the bound guard found the row there, and
-    the equations that set it when any did."""
+    tied.  ``at_bound`` follows when the bound guard found the row there, the
+    equations that set it when any did, and the profile interval's ends when
+    the row carries one (WP-2002), ``?`` for an end its side did not find."""
     cells = [p.path, _number(p.value, p.stderr), "vary" if p.vary else "tied"]
     if p.at_bound:
         cells.append("at_bound")
     if p.equations:
         cells.append("equations: " + ", ".join(p.equations))
+    if p.interval is not None:
+        ends = ["?" if v is None else f"{v:.6g}"
+                for v in (p.interval.lower, p.interval.upper)]
+        cells.append(f"interval [{ends[0]}, {ends[1]}]")
     return "  ".join(cells)
 
 

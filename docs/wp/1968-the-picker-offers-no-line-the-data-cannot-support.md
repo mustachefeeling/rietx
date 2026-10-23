@@ -1,6 +1,6 @@
 # WP-1968 — the picker offers no line the data cannot support
 
-Milestone: unscheduled · Status: 🔄 2026-10-15 — both PRs merged (#947 part b, #948 part a); open: the driven-set follow-up after WP-1969
+Milestone: unscheduled · Status: 🔄 2026-10-21 — both PRs merged (#947 part b, #948 part a), and the driven-set follow-up (#1048); open: the PNG and skill tasks
 Track: What fires, and what stays silent
 Depends on: 1909 soft (the 1σ floor this bar succeeds, and its census)
 Priority: P2 2026-10-14 — a defect that fires wrongly: off-lattice components reach every engine as usable lines, and every benchmark harness filters them by hand
@@ -75,6 +75,8 @@ close, since the peak list feeds every engine.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-22, 6th session, PR #1085): #934 (c)'s flat-silicon control rests on a 2 % draw.** `tests/test_indexing_driven_set.py::test_916s_flat_silicon_is_driven_by_its_own_lines` draws silicon with `predict`, which since WP-2002 evaluates at the closing stage's windows (1e-3 of each peak's area). Drawn there, the picker flags 4 `weak_line` components, the flagged driven set is still 11 and the truth still ranks first, but the stripped control drives 15 lines rather than 18 and indexes (4 candidates), so the control no longer shows the rule is needed. The test now draws at `WINDOW_AREA_TOL` (2 %) and says why. Whether the three extra weak components at 2 % come from the truncated tails rather than from anything a measured pattern has is this WP's to decide, since it is the evidence the driven-set exclusion was shown on.
+
 - **2026-10-16, from the issue triage (#934): PR #993 (theirs, head
   `d34597c9`, opened 2026-10-15 13:32) is part (c)'s diagnostics, and WP-1968
   does not name it.** Part (c) asked for three filters as flags with a
@@ -120,9 +122,10 @@ close, since the peak list feeds every engine.
       a free hand beyond (Context).*
 - [x] Review and merge PR #947 (part b).
 - [x] Review and merge PR #948 (part a).
-- [ ] Follow-up, after WP-1969: keep `weak_line` and the other reported
+- [x] Follow-up, after WP-1969: keep `weak_line` and the other reported
       flags in the list, and leave them out of the search's driven set, as
-      the issue's (c) asks.
+      the issue's (c) asks. *PR #1048, `weak_line` only; why
+      `position_at_bound` stays driven is in the 2026-10-21 entry.*
 - [ ] Tests, with obs/calc/diff PNGs to `tests/output/`, and
       `tests/test_acceptance_indexing.py` green.
 - [ ] Skill: the new flags' and code's `help.py` entries (both PRs add
@@ -154,6 +157,35 @@ name.
 
 ## Handover log
 
+- **2026-10-21** — PR #1048 (outside contributor, #934 part (c)) merged as
+  `7c177d01`. A line flagged `weak_line` stays in `usable()` and is still
+  scored, but `engines.search_line_order` no longer draws it into the lines
+  a search is driven by, which are the lines an accepted cell must index.
+  The set of such flags is `schemas.indexing.PEAK_UNDRIVEN_FLAGS`. Below
+  `engines.DRIVEN_MIN_LINES` (6, the triclinic metric's parameter count)
+  unflagged lines, the strongest flagged ones are driven again. On #916's
+  flat synthetic silicon the driven set falls from 17-18 lines to the 11
+  silicon lines. A cubic search with a declared `n_unindexed=2` goes from no
+  cell to the truth first, and an all-systems search moves the truth from
+  sixth (or absent) to fourth or fifth. No indexing-acceptance list drives a
+  `weak_line` line, so none moved. It rides the 1.11
+  `INDEXING_THRESHOLDS_VERSION` already staged. `position_at_bound` stays
+  driven: on the real acceptance lists 2-10 usable components carry it alone,
+  at I/σ_I up to 29, so leaving them out would be a guess.
+  **Known limit, ruled 2026-10-21 (no opt-out for now).** A superstructure
+  whose extra lines are all flagged `weak_line` now indexes as its subcell,
+  with those lines listed in the candidate's `unindexed_two_theta`. No trial
+  cell is generated from them. The ruling rests on practice: indexers are fed
+  the most reliable lines, and a superstructure is indexed by its subcell
+  first. A real list that loses its supercell this way reopens it.
+  Follow-up from the review: `search_line_order` casts its index array to
+  `int64` where the wasm32 rule asks for `intp`; harmless today.
+  Gated on `main` `5a99ba92` with the PR merged (`a513c4f0`, content-identical
+  to `main` after the merge): fast suite 11051 passed, 120 skipped,
+  3 xfailed. A superset tree with #1086's test files gave 324 passed,
+  12 skipped, 1 xfailed on the whole `-m slow` suite, `test_acceptance_indexing.py`
+  included (macOS arm64, `[dev,jax]`, Python 3.12.10). *Next:* the PNG and
+  skill tasks, then close; #934 is the maintainer's to close.
 - **2026-10-15** — PR #948 (part a) merged as `54526f82`. Both parts of #934
   are now in. `pick_peaks` merges two comparable components closer than
   Sparrow's limit (`unresolved_split`), and flags a group whose width runs into

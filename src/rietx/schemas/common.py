@@ -501,6 +501,36 @@ from .._nearmiss import did_you_mean
 #: rule replaces the absolute ``n_unindexed`` cap, which a ``SearchSpecSpec``
 #: still accepts as a declared int, its default now ``None``).  Additive and
 #: defaulted to ``None``, "not computed", the 0.25 → 0.26 rule.
+#: Also in 0.59 (WP-2002, B8): ``StageResult.cell_reset``, the free cell
+#: parameters a stage put back at its starting values after their phase's cell
+#: left the safety window.  Additive and defaulted to ``None``, the 0.25 → 0.26
+#: rule; all three runners write a list on every stage.
+#: Also in 0.59 (WP-2002, B2): ``RefinedParameter.interval``, the profile
+#: interval of a moment angle the stationary-angle test left out of the
+#: covariance.  Additive and defaulted to ``None``, "not computed", the
+#: 0.25 → 0.26 rule; a single fit writes it on exactly those rows.
+#: Also in 0.59 (WP-2002, B1): ``PlanSpec.phase_support_sigma``, the
+#: absent-phase hold's threshold, defaulting to the 3σ every fit used, so a
+#: stored plan loads and runs as before; ``None`` switches the hold off.  An
+#: older build refuses a plan carrying it.
+#: Also in 0.59 (WP-2002, B4): ``RefinedParameter.stderr_uncorrected``, the
+#: esd without the Bérar-Lelann factor, as GSAS-II and FullProf print it.
+#: Additive and defaulted to ``None``, the 0.25 → 0.26 rule; both fit
+#: builders write it on every row that has an esd.
+#: Also in 0.59 (WP-2002, B1): ``NodeAction.phase_support_sigma`` and
+#: ``.correlation_guard``, the two plan settings a stage ran at, so a
+#: cherry-pick replays them.  Additive and defaulted to the 3σ and 0.98 the
+#: package defaulted to before them (a plan's own guard went unrecorded), the
+#: 0.4 → 0.5 rule for ``NodeAction.ftol``; both stage runners write them on
+#: every stage node.
+#: Also in 0.59 (WP-2002, the sixth round's Q1 and Q2):
+#: ``PlanSpec.closing_window_tol``, the closing stage's window area fraction,
+#: defaulting to 1e-3, so a stored plan gains a closing stage on its next run;
+#: ``None`` runs as before.  And ``NodeAction.window_area_tol``, the fraction a
+#: stage ran at, defaulting to ``None`` (the compiler default every earlier
+#: node ran at), the same rule.  And ``StageResult.n_lapack_fallbacks``, the
+#: decompositions a stage repeated with LAPACK's second driver, defaulting to
+#: 0, which every earlier stage took.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
@@ -787,7 +817,7 @@ class _InheritsDeclaredDefaults(Base):
     ``Parameter`` inherits what it left out.
 
     A field declares its physical range and unit in its ``default_factory``
-    (``Atom.occ``: min 0, max 1.5; ``Phase.lor_size``: min 0, degrees) rather
+    (``Atom.occ``: min 0; ``Phase.lor_size``: min 0, degrees) rather
     than as a field constraint, so before this the range applied only when the
     field was omitted entirely.  A caller supplying
     ``Parameter(value=..., vary=...)`` — the natural way to set a start or hold

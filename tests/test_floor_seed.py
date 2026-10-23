@@ -61,7 +61,7 @@ def test_a_fit_records_what_each_stage_seeded(pattern):
     floor; what it may not do is leave its box."""
     structure, ins = perturbed_models()
     result = rx.Refinement(structure, ins, history=False).fit(pattern, plan=PROFILE)
-    assert [s.seeded for s in result.stages] == [{}, {}]
+    assert [s.seeded for s in result.stages] == [{}] * len(PROFILE.run_stages())
     assert 0.0 <= result.parameter("instrument.profile.y").value <= ins.profile.y.max
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / "floor_seed_profile.png"))

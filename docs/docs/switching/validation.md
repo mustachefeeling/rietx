@@ -53,7 +53,10 @@ The offsets on the two axes differ by 2.7×10<sup>−7</sup> in relative terms, 
 An offset equal on both axes is a difference in the d-scale convention, and a structural difference would not be equal.
 The test allows 300 ppm on the cell and 10 % on the R-factors.
 
-rietx's esds carry the Bérar–Lelann inflation and GSAS's do not, so the esds are not compared.
+rietx's `stderr` carries the Bérar–Lelann factor, 2.14 on this fit, and GSAS's esds do not.
+`stderr_uncorrected` leaves the factor out.
+It is 4.1×10<sup>−5</sup> Å on *a* and 3.8×10<sup>−5</sup> Å on *c*, against GSAS's 3.6×10<sup>−5</sup> and 3.7×10<sup>−5</sup> Å, measured on 2026-10-20.
+No test compares the esds.
 
 GSAS's file frees 28 parameters, and the plan used here frees 20.
 The plan leaves out the 12 coordinate parameters.

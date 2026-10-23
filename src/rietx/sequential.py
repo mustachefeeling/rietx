@@ -505,15 +505,21 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
                       strain_seed=max((s.strain_seed for s in plan.stages),
                                       default=0.0))],
         correlation_guard=plan.correlation_guard,
-        # inert while the collapse is one stage — a lone stage is the last one
-        # and takes the solver's own tolerance — and carried anyway, because
-        # this is the compressed plan rather than a different protocol, and a
-        # collapse that ever produced two stages would otherwise drop the
-        # schedule silently (WP-1123)
+        # the warm stage's own tolerance when the plan has a closing stage,
+        # which then takes the solver's; inert without one, a lone stage being
+        # the last, and carried anyway, because this is the compressed plan
+        # rather than a different protocol (WP-1123)
         intermediate_ftol=plan.intermediate_ftol,
+        # and the closing stage itself, the protocol's like the two below
+        # (WP-2002, the sixth round's Q1 and Q2)
+        closing_window_tol=plan.closing_window_tol,
         # the alternation is the protocol's, not a stage's: a collapsed warm
         # refit under mode="lebail" would otherwise run one pass (WP-1323)
-        lebail_passes=plan.lebail_passes)
+        lebail_passes=plan.lebail_passes,
+        # the absent-phase hold is the protocol's too: a collapsed warm refit
+        # would otherwise hold at the default a phase the caller set free
+        # (WP-2002, B1)
+        phase_support_sigma=plan.phase_support_sigma)
 
 
 def _unseeded(plan: RefinementPlan) -> RefinementPlan:

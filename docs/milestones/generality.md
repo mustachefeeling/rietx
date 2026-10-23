@@ -24,7 +24,8 @@ agents or humans"; DESIGN.md § History records how that became the purpose.
 Ten WPs, 2001 to 2010. 2001 is the rule written down, the audit table and the guard, and
 it lands first. 2002 to 2007 are audits, one per seam. 2010 audits features rather than
 decisions: each names what verifies its code and what validates its physics (Rule 2). 2008 slims the agent skill to the
-API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. Each WP file states
+API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. 2014, filed
+2026-10-20, carries 2001's guard to outside PRs, unwatched directories and fixes made after the handover. Each WP file states
 its own context; nothing is restated here except the rule, which every WP applies.
 
 **Not in scope.** No new physics, no new correction, no new plan preset. A heuristic the
@@ -46,9 +47,25 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
 
 1. **Physics or arithmetic.** Deterministic from the model: a symmetry-fixed angle, a
    column with zero gradient, σ withheld because the scale is unknown. Kept. A numerical
-   floor such as `rcond` belongs here.
-2. **Established practice.** A citation that validated it, or the same action taken *by
-   default* in GSAS-II, FullProf or TOPAS. Computing a statistic is not acting on it: every
+   floor such as `rcond` belongs here. So does a numerical setting, which controls how
+   accurately rietx computes something rather than what it decides (a quadrature node
+   count, how far a peak's tails are computed), once a test shows its error stays under a
+   stated bar over every input it claims to handle (B10, ruled 2026-10-19). So does a cap
+   on what a report lists, once a test shows the report is complete inside the cap and
+   its notes count what lies outside it, or for a cap on distance the report states the
+   distance (WP-2002's fifth round, Q6, 2026-10-21; confirmed in the sixth round, Q4).
+2. **Established practice.** Something a known code has already validated: a citation
+   that validated it, or the same choice made *by default* in an established Rietveld
+   program. The programs are the seven rietx-bench runs: GSAS-II, FullProf, TOPAS,
+   RIETAN-FP, BGMN, MAUD and EasyDiffraction (widened from the first three on
+   2026-10-21). A row resting on a program default names the programs it checked and what
+   each does by default. The programs disagree, and a program that does otherwise by
+   default (a dissenter) does not move a statistic, threshold or default off tier 2.
+   Where they differ, rietx chooses by its design rules from inside the range of existing
+   practice, and a choice outside that range names its reason in the row (WP-2002's sixth
+   round, Q5, ruled 2026-10-21). A value between two programs' values is inside the range.
+   A default that switches on an action still faces the action's judgement ground below,
+   where a dissent counts. Computing a statistic is not acting on it: every
    code reports R_Bragg and WP-1069 rejects it as evidence; GSAS-II concatenates multi-range
    scans and rietx refuses to. A statistic or threshold here is kept, and the registry
    entry names the source. An action here still faces the judgement ground under tier 3.
@@ -92,7 +109,7 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    seeding its successors, and Rule 1 names it as a protection of expensive work; the
    earlier visibility wording had marked it contested.
 
-   **Tier 2 will rarely cover an action.** GSAS-II, FullProf and TOPAS take almost no
+   **Tier 2 will rarely cover an action.** The established programs take almost no
    automatic actions; the person at the GUI decides. So nearly every action in 2002 and
    2003 is tier 3. The judgement ground decides every action whatever its tier, and its
    wording carries the audit. A tier-2 *statistic* under a tier-3 *action* is the common
@@ -113,6 +130,19 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    the fourth review over demoting by construction, which would strip every rare feature
    of its one unanimous action; the maintainer may reverse it.
 
+   **A brief opens with its stakes, and a guard the ordinary fits never trigger names the
+   case that does** (2026-10-20). Each class's brief to the maintainer begins with one
+   line: the reported quantity the action can move, the case on disk where it did and
+   that answer's distance from the family's reference (or `none on disk`), and the
+   dissenter named or `none found`. The line is context for the ruling and never a
+   filter on it: no measured figure shortens a brief, since every such figure comes from
+   the data the item was tuned on. A one-line brief is earned by `none found` alone. And
+   a kept guard that no ordinary fit in the suites reaches (the cell clamp fired in none
+   of WP-1523's 104) is kept on the strength of an injected case the row names
+   (`test_cell_runaway_safety`'s escape), since a guard the goldens never exercise is one
+   they cannot see regress; where none exists the batch builds it before the row is
+   recorded kept. Why not a measured consequence column: § Decisions, 2026-10-20.
+
    **A caller pays in tokens and a fit in seconds**, so the default is the one that
    reaches a right answer in the fewest calls (DESIGN.md § Rules, 1). Where a rerun is
    expensive (an hour-long indexing search, a 200-pattern batch, a write into a project's
@@ -127,6 +157,26 @@ measured bit-identical on two chains (0 of 1030 and 0 of 392 accepted values mov
 the budget, so the invariance is a measured margin, not a construction, and its own
 docstring calls it a bet. Such an item needs an invariance test that also asserts the
 margin, and nothing else; the audit classifies it and moves on.
+
+**Caller** is a fifth class with no tier, and it is not an evidence grade. It marks a row
+the audit has no question about, because the choice that moves the answer was the
+caller's. The test is the milestone's question: did the package decide anything here on the
+caller's behalf? A row is caller only when both conditions hold.
+
+1. The caller asked for it by name: a flag or field whose default is off, or a verb no
+   default path calls. `fit`, `refine`, `index_pattern`, `build_report`, the readers and the
+   GUI routes are default paths. The evidence names the switch and its off default.
+2. The package chose nothing inside it that moves the answer. A code or record field that
+   reports the requested act qualifies, as do the switch's own off default and a number the
+   caller must supply. A number with a default used once the switch is on does not, and is
+   tiered on its own (1, 2, 3 or invariant). Nor does a verdict an opt-in verb adds beside
+   its number, or anything justified by "no default path calls this module yet".
+
+A caller row holds only while condition 1 does. Its evidence is a dated grep, and no test
+yet fails when a default path reaches the switch. Ruled 2026-10-21 from the `/pr-review` of
+#1013, #1016 and #1043, and applied in WP-2002's eighth round: `GTOL` and `XTOL`, defaulted
+inside the opt-in TRF solver, moved to tier 3, and a harmonic's order lost its default of 2,
+since which orders a monochromator passes depends on its crystal.
 
 **Demotion** moves an item to the kind of DESIGN.md § Rules, 1 its ambiguity belongs to.
 Where the alternatives are enumerable and the data score them, the result is a ranking with
@@ -251,20 +301,24 @@ sharpens its own row here.
   constant with its tier, its evidence and, for tier 3, the two grounds and the approval
   date. Each code and action row also states the kind of ambiguity DESIGN.md § Rules, 1
   assigns it. A meta-test holds the table equal to the tree both ways.
-- **No tier-2 or tier-3 action runs by default without its approval** (2002, 2003, 2004).
+- **No tier-2 or tier-3 action runs by default without its approval** (2002, 2003, 2004;
+  2017 measures the single-fit thresholds' three families, 2018 the clash table).
   Every hold, carry, refit, fence and always-on correction that survives names its
   evidence (the families, or for tier 2 the citation or program), the record field that
   says it fired, and the maintainer's dated approval; every other one is
   demoted to a ranking or a number by its kind, or made opt-in. No default path calls a
   pick verb (§ A pick on top of a ranking).
-- **A new heuristic cannot land unaudited** (2001). A diff that adds a diagnostic code, a
+- **A new heuristic cannot land unaudited** (2001, 2014). A diff that adds a diagnostic code, a
   record field on `StageResult`/`SeriesEntry`/`RefinementResult`, a module-level numeric
   constant in a directory the table's walk declares, a new or changed default at a seat it
   declares, or a `suggestion=` string trips a
-  test until the table has its row; the names allowed at `unaudited` are a committed list
-  that only shrinks, so the test needs no git; and `/wp-handover` dispatches a
-  fresh-context review that drafts the case against it whenever the diff touches the table
-  or that list.
+  test until the table has its row; the names still at `unaudited` are a committed list
+  that only shrinks, so the test needs no git; CI's lint job reads the base and fails a
+  name new to the table that arrives at `unaudited`; every top-level module is walked or
+  declared out with its reason; and a fresh-context review weighs the case against each
+  row, and the case for any action the change removes, whenever the diff touches the table
+  or that list. `/wp-handover` dispatches it on a WP branch, `/pr-review` on an outside
+  pull request, and `/steward` before a fix to a row is pushed.
 - **The goldens hold or improve** (every audit). The acceptance suites pass on the final
   tree; every re-pinned number is recorded with its reference distance, none further
   from its reference than before.
@@ -282,7 +336,9 @@ sharpens its own row here.
   close). One or two families named at 2002's open and used as evidence by no audit; at
   close the standards' acceptance protocol is run on them and every number with a
   reference is no further from it than at the open. The one row that measures generality
-  rather than the audit (fourth review).
+  rather than the audit (fourth review). Named at 2002's open (2026-10-19): the Nd₂Ru₂O₇
+  pair (`tests/data/mg090*`, 11-BM X-ray and NCNR BT-1 neutron, a published joint
+  refinement), WP-2002 § The batch giving the reason.
 - **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
   demoted class the harness is run once (twice where the explanation is reworked),
   registered first and approved per session, and
@@ -473,6 +529,43 @@ reverse it knowing what it would be giving up.
   esd inflation unexamined although GSAS-II does not apply it. The cost measured at the
   ruling: two or three of the ten behavioural defaults cite a paper or a program, plus the
   always-on corrections 2002 now lists.
+- **The guard reaches every path into main** (2026-10-20, a planning session; WP-2014).
+  The maintainer asked whether the tooling could now carry the rule forward. Measured: the
+  judge ran only at a WP's handover, while twelve open outside PRs had added 38 rows and
+  26 allow-list names with no judge, and `solve/` sat outside the walk. Three rulings.
+  **Outside PRs are tiered at review before they merge**; their author is informed and
+  agrees with the demotions. **WP-2007 owns `solve/`.** **The judge argues both sides
+  without manufacturing fairness**: it also asks, of an action a branch removes or leaves
+  to the caller, whether every competent refiner would act anyway and what leaving it
+  costs, and a side with no evidence reads `none found` in one line. In the maintainer's
+  words, "I don't want a system in which a weak case given representation seems stronger
+  than it is." Chosen over the judge drafting only the case against, which made deciding
+  less the cheap path for an author; a WP-2002 lane's over-reach on the peak-position
+  bounds (11-BM NAC's cell 5129 ppm off against 1117 ppm) is the measured cost. The
+  priority rubric stays with 2009.
+- **A consequence axis beside the tier was considered and not taken** (2026-10-20, a
+  planning session; the maintainer's note of that date, outside the repository). The
+  proposal: refit each tier-3 item with the choice a dissenting refiner would make, record
+  the shift per reported quantity in physical units with its esd, sort the batch by it
+  and give a class near zero a one-line brief. Three reasons against, each read off the
+  WP-2002 batch (PR #1050). A guard exists for its tail and reads zero on three quiet
+  standards: the cell clamp fired in none of 104 fits and hands back a cell 15 % off when
+  it does, so the column would have filed the one B8 item whose brief proposed changing
+  the action under "who cares". Sixty-eight of the batch's 75 tier-3 rows are constants,
+  for which a dissenter's alternative is a second number nobody has chosen, so the column
+  adds about that many untiered factors to a table built so that none enters. And "near
+  zero" is a threshold with no source, so the column is the "within uncertainty" class
+  with its bar unspoken; a default-minus-alternative figure also reads small where both
+  are wrong the same way (11-BM's displacement: 1117 ppm with its bounds, 5129 without,
+  the right answer being not to free it). What the discussion kept is the paragraph in
+  § The rule: the stakes line, which gives the maintainer what the B5 ruling asked for
+  ("don't spend too much effort on this") without a number deciding it, and the injected
+  case for an unexercised guard. An on/off refit against reference stays the right
+  evidence for an always-on correction (the Bérar-Lelann inflation, the √y fallback,
+  dispersion on by default), where nothing fires and only a refit can show what moves; it
+  is that brief's content, not a process. Reopened by a batch whose `none found` classes
+  still cost real ruling time, or by a tier-3 item shown to move a reported quantity past
+  its reference on a family where its brief read `none on disk`.
 
 ## The two reviews at the open
 

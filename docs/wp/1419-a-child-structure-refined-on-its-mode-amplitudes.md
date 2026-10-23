@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: 🔄 2026-10-15 — C1's mode basis landed from outside (PR #950), on C0a #842 and C0b #889; task 2 is next
+Milestone: magnetic · Status: 🔄 2026-10-22 — C1's mode basis (PR #950) and C2's `distortion_candidates` (PR #996) landed from outside, on C0a #842 and C0b #889, with #1002's `primary` fix (PR #1022); task 2 is next
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -529,6 +529,29 @@ the reporter's fork.
   unit at raw-N ΔBIC and predates #680, and the new one is public and
   rerunnable.
 
+- **Decided 2026-10-22 (#286): chunk 3 splits in two, and 3a opens now.**
+  The reporter asked on 2026-10-21 to split chunk 3, neither half stacked.
+  **3a** is the amplitude block: `Phase.distortion_modes`, absolute
+  amplitudes driving the coordinates through C, the builder's seed, the
+  per-parent-site Biso ties, and `displacive_statement` of a *given* child
+  through `distortion_basis`. It opens off `main` now, beside #996 and
+  before chunk 2. **3b**, a small follow-up opening after #996 and chunk 2
+  merge, carries `displacive_statement` from a `DistortionCandidate` and the
+  derived cell's strains in the seed rule. The reason is chunk 4: its
+  reporting (A_τ with its esd, Hotelling's T², `DISTORTION_MODE_UNSUPPORTED`)
+  is designed by measuring on the block's API, so the block should be the
+  one that ships. The 2026-10-08 order was a sizing of the work, not a
+  dependency, and 3a needs nothing from #996 or chunk 2. Checked against the
+  tree at `4ca36160`: `distortion_basis` is on `main`
+  (`crystallography/representation/distortion.py`, from #950), and there is
+  no `distortion_modes`, `displacive_statement` or
+  `DISTORTION_MODE_UNSUPPORTED` under `src/` or `tests/`. Two costs to
+  expect. 3a carries chunk 3's `SCHEMA_VERSION` bump (main at 0.59), which
+  `/pr-review` step 4 syncs against whichever schema PR lands near it. And
+  #996 touches `representation/distortion.py`, `magnetic/isotropy.py`,
+  `_audit.py` and `references/api-magnetic.md`, files 3a will likely share,
+  so whichever merges second may need a sync or a rebase.
+
 ## Non-goals
 
 - Moment modes (SARAh-style basis-vector amplitudes): 1327 owns
@@ -584,6 +607,53 @@ every shipped fixture are bit-identical.
 
 ## Handover log
 
+- **2026-10-22** — PR #996 (outside contributor, chunk C2 of #286's proposal)
+  merged as `d01ae735`. `magnetic.isotropy.distortion_candidates(parent, k,
+  sites=None)` lists each displacive candidate of `candidates(kind="displacive")`
+  once per (irrep, direction) across the parent's sites, each with its child
+  `Phase` in a spglib-standard setting, (P, p) in #950's convention, and #950's
+  `distortion_basis` of that child (`driving` is the built-from irrep, `rest`
+  the secondaries). `ModeBasis` gains `parent_atoms`; `distortion.py` memoises
+  the small irreps and site representations. It does not tick a task here: it
+  is what `displacive_statement` (task 2, chunk 3) takes. Multi-k children
+  (Pnma) are out: `candidates` intersects no isotropy groups across k. The
+  child's setting is spglib's; the PR body flags that a caller wanting Pbnm or
+  ISODISTORT's setting re-sets it from (P, p), and leaves to the maintainer
+  whether the setting should be the caller's to name. Gotchas the review
+  found. The setting is reached by a symmetrised random probe read by spglib
+  and checked back operation by operation. One draw keeps an accidental
+  operation now and then (at R on O, seeds 142, 146, 190, 194 of 0-199; at M,
+  seed 41 of 0-79), which raised a false `DISTORTION_CHILD_LARGER`. So the
+  probe takes up to `_PROBE_DRAWS = 3` independent draws, the first being the
+  old single draw bit for bit. `_PROBE_SYMPREC`/`_PROBE_RMS` (tier 1),
+  `_PROBE_SEED` (`invariant`) and `_PROBE_DRAWS` (tier 1) carry tests. Left
+  for the contributor's follow-up PR: `DISTORTION_CHILD_LARGER` fires on `!=`,
+  so fewer operations read as more; one refusal aborts every other candidate
+  of the call; when every draw fails only the last draw's refusal is
+  reported; neither refusal has an audit row (raise prefixes, not codes);
+  `_refuse_shared_sites` runs again per child. Gated on `main` `4ca36160`
+  with the PR merged (`f639ecbf`, content-identical to `main` after the
+  merge). The fast suite gave 11121 passed, 133 skipped, 2 xfailed, and the
+  whole `-m slow` suite gave 322 passed, 14 skipped, 1 xfailed (Linux x86-64,
+  `[dev,jax]`, Python 3.12, `-n 3`). *Next:* task 2, on these candidates.
+- **2026-10-21** — PR #1022 (outside contributor) merged as `ad72b3d5`. It
+  fixes the defect § Inherited carries from issue #1002, which it closed.
+  `IrrepModes.primary` now holds only when a component's isotropy group has
+  the child's space-group number *and* its in-cell operation count. The
+  child's own number and count come from spglib on the sum of every
+  component's probe, which is a generic field invariant under H. On the
+  I4/mmm child of the cubic perovskite, S4 (Fm-3m) now reads `False` and S6
+  (I4/mmm) `True`, and the new test fails on the old code. `mode_amplitudes`
+  copies the flag, so `ModeAmplitude.primary` changes the same way, and the
+  1.10.0 release note says so. It costs one extra spglib call per
+  `distortion_basis`. It does not tick a task here. What it does not do: it
+  compares the number and the count, never the operations themselves, so a
+  group of the child's type in another orientation would still read `True`
+  (read off the code, not measured). Gated in a stack with #1072
+  and #1030 on `main` `355a57dd` (tree `1f5d2647`, content-identical to `main`
+  after the three merges). The fast suite gave 11042 passed, 120 skipped,
+  3 xfailed; a five-PR superset of it gave 324 passed, 12 skipped, 1 xfailed
+  on the whole `-m slow` suite (macOS arm64, `[dev,jax]`, Python 3.12.10).
 - **2026-10-15** — PR #950 (outside contributor, chunk C1 of #286's proposal)
   merged as `e517bb64`. A child structure can now be read as a displaced parent.
   `crystallography.representation.distortion` builds the symmetry-adapted mode

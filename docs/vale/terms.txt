@@ -34,6 +34,7 @@ centring
 centrings
 centrosymmetric
 centrosymmetry
+chiral
 chirality
 CIF
 CIFs
@@ -52,9 +53,12 @@ displacive
 DOF
 DOFs
 electronegative
+enantiomorphic
+enantiopure
 esd
 esds
 Ewald
+ferritic
 fluorapatite
 Friedel
 goniometer
@@ -85,6 +89,7 @@ monatomic
 monochromated
 monochromator
 monoclinic
+multiplet
 nanocrystalline
 Niggli
 nonbonding
@@ -105,11 +110,13 @@ polycrystalline
 polyhedra
 polyimide
 pseudosymmetry
+pyroelectric
 rhombohedral
 rutile
 scatterer
 scatterers
 Shubnikov
+Sohncke
 spallation
 spinel
 structureless
@@ -151,14 +158,17 @@ Altomare
 Borda
 Brentano
 Brindley
+Brunner
 Bunge
 Caglioti
 Chebyshev
 Coelho
 Cracknell
+Daams
 de
 Debye
 Deslattes
+Doebelin
 Dollase
 Dreele
 Faddeeva
@@ -169,21 +179,27 @@ Guinier
 Hofmann
 Jacobian
 Jacobians
+Kass
 Kessler
 Kirfel
 Kissel
+Kleeberg
 Kovalev
 Landé
 Langford
+Lelann
 Levenberg
 Lindemann
 Lorentzian
 Madsen
+Maier
 Marquardt
 Maxwellian
+Olds
 Pawley
 Pitschke
 Rachinger
+Raftery
 Rietveld
 Rodrigues
 Scherrer
@@ -191,6 +207,7 @@ Schwarzenbach
 Shirane
 Suortti
 Thomlinson
+Villars
 Voigt
 Von
 Waasmaier
@@ -291,10 +308,13 @@ unscaled
 untransposed
 
 # Programs, libraries and formats.
+bintype
+bintypes
 Bruker
 cctbx
 codeword
 codewords
+Colab
 Conograph
 Fortran
 FullProf
@@ -307,6 +327,7 @@ Kapton
 Mantid
 matplotlib
 numpy
+PANalytical
 pydantic
 pytest
 rietx
@@ -314,6 +335,7 @@ Rigaku
 SARAh
 scipy
 spglib
+Stoe
 TOPAS
 
 # Words a reader of software documentation meets.
@@ -329,6 +351,7 @@ frontend
 lookups
 recurses
 refinable
+renderer
 rietview
 roadmap
 selectable
@@ -352,3 +375,6 @@ magnetons
 nm
 px
 ulp
+
+# People the manual names (start/this-manual.md).
+Yue

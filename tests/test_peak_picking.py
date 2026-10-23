@@ -1050,8 +1050,16 @@ def test_a_named_position_with_no_peak_comes_back_flagged_not_dropped():
     position wearing an ordinary esd: the component has no gradient on its own
     position, so the number it comes back with means nothing and its esd says
     so in the only way it can.
+
+    The lines are Gaussian so that 35° holds nothing.  A prediction draws a
+    Lorentzian's whole tail at the closing windows (WP-2002), and the lab
+    profile's ``x`` left 0.8 counts of the 30.39° and 37.44° lines there on a
+    background of 209.7: the component then came back at I = 3.8e-3 ± 376,
+    off its zero bound and flagged by the 1σ rule alone, with a position esd
+    of 0.83°.
     """
     ins = _instrument()
+    ins.profile.x.value = 0.0
     y, grid, _truth = _forward(ins)
     data = _noisy(y, grid, seed=7)
 

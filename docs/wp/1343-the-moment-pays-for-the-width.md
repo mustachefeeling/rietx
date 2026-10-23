@@ -1,6 +1,6 @@
 # WP-1343 — the magnetic peaks are broader, and the moment pays for it
 
-Milestone: magnetic · Status: 🔄 2026-10-15 — 9 of 12 tasks done; PR #943 merged (acceptance 4's synthetic k ≠ 0 fallback); open: a synthetic k = 0 no-esd case with its PNGs, and the width diagnostic's self-inflated noise
+Milestone: magnetic · Status: 🔄 2026-10-21 — 10 of 12 tasks done; PR #1087 merged (the width diagnostic's noise is the nuclear-only scatter); open: a synthetic k = 0 no-esd case with its PNGs, and the identifiability row
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
 Priority: P2 2026-10-05 — was P3: `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit under `fit` (#729), a flag firing wrongly whose workaround is `run_stage`
@@ -371,7 +371,7 @@ the cheaper of the two at the time; the skill row is required either way.
       measurable. Paid for by a named cut if the body moves at all.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`, magnetic-only
       reflections zoomed.
-- [ ] `MAGNETIC_WIDTH_UNMODELLED` divides its statistic by a pooled scatter
+- [x] `MAGNETIC_WIDTH_UNMODELLED` divides its statistic by a pooled scatter
       that the misfit itself inflates, so its evidence shrinks as the problem
       grows. *Decided 2026-10-15 (from PR #943): a task here, with no change
       in #943.* On #943's synthetic CrSBr (k = (0, 0, ½), 5 000 counts on the
@@ -452,6 +452,31 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ## Handover log
 
+- **2026-10-21** — PR #1087 (outside contributor) merged as `f0c7285b`. It
+  lands the last Tasks row. `MAGNETIC_WIDTH_UNMODELLED` now divides its
+  statistic by the weighted residual's s.d. over the nuclear-only channels it
+  read, where it used the s.d. over the magnetic-only channels too. The
+  docstring grounds this in the F test's rule (Hamilton 1965, eq. 20): the
+  error variance comes from residuals the tested effect does not enter. On
+  #943's CrSBr arm (seed 1343) the scatter is 0.99 against 2.57 before, and
+  z reads 7.76 against 2.99 (6.9-8.2 on seeds 1343 and 1346-1352, the
+  contributor's measurement). The A2 arm is an ordinary pass, and the 4x arm
+  reads 17.0. `THRESHOLDS_VERSION` moves 1.12 → 1.13, because z's meaning
+  changed although no number did. A new planted-residual test pins z as linear
+  in the planted misfit with the noise unchanged.
+  The review established one thing the
+  merge does not do: a non-width misfit on the magnetic channels no longer
+  damps z through the noise, so the false-fire guard is now only the
+  differencing against the nuclear-only split. The tests that the nuclear-only
+  control and the C1 sharp-width arm stay silent still pass. Gated on the merged tree
+  `51b94dae` (main `37d087a5` + the PR; macOS arm64, `[dev,jax]`, nothing
+  else running): fast suite 11 053 passed, 120 skipped, 2 xfailed; whole
+  `-m slow` 323 passed, 12 skipped, 1 xfailed; main after the merge is
+  content-identical to that tree. Two follow-ups left on the PR: the skill
+  row in `references/magnetic.md` still says "its own noise", and no
+  release note says the diagnostic now fires where it was silent. *Next:* the
+  Tests row's synthetic k = 0 no-esd case with its PNGs, and the
+  identifiability row.
 - **2026-10-15** — PR #943 (outside contributor) merged as `2e5b5eb8`.
   It adds `tests/test_magnetic_width_k_half.py`, acceptance 4's synthetic
   fallback: CrSBr at k = (0, 0, ½), from a published structure, with a

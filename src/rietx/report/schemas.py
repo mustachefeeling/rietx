@@ -267,7 +267,16 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   family).  New types a consumer enumerates, on 1.7 → 1.8's precedent.
 #   Report-only: no threshold, no gate, no verdict field, and no field added
 #   to ``FitReport``.
-THRESHOLDS_VERSION = "1.12"
+# 1.12 → 1.13 (WP-1343, from #943): no number moved, but the noise
+#   ``MAGNETIC_WIDTH_UNMODELLED`` divides by did.  It is the weighted
+#   residual's scatter over the nuclear-only channels read, where it was the
+#   pooled scatter over the magnetic-only channels too, which the misfit under
+#   test inflates (2.57 against 0.99 on #943's CrSBr arm).  On a fit whose
+#   magnetic misfit is not width-shaped the two agree to a few per cent, so
+#   z moves little there; where the width is the misfit, z grows by the ratio
+#   of the two scatters.  A consumer comparing z against a number sees the
+#   change, on 1.10 → 1.11's precedent.
+THRESHOLDS_VERSION = "1.13"
 
 #: WP-1343.  How far the moment must move when a magnetic width is released
 #: before the release is called a *measurement of the correlation*, in units
@@ -313,8 +322,10 @@ MAGNETIC_WIDTH_PURITY = 0.05
 #: How many times its own noise the differential split must exceed before the
 #: diagnostic fires.  3.0 is this package's standing significance bar
 #: (``MIN_COEF_SIGNIFICANCE`` one layer over) and the noise is *measured* —
-#: the pooled scatter of the channels actually read — so a fit with GoF 3 is
-#: judged against its own residual rather than an assumed unit variance.
+#: the scatter of the nuclear-only channels actually read, which the magnetic
+#: misfit under test cannot inflate (``magnetic_width_findings``; 1.13 in
+#: the version history above) — so a fit with GoF 3 is judged against its
+#: own residual rather than an assumed unit variance.
 MAGNETIC_WIDTH_SIGMA = 3.0
 #: Magnetic-only reflections needed before the statistic is quoted at all.
 #: Two, because one reflection's centre-vs-tails split is one number with no

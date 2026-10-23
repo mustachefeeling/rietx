@@ -58,7 +58,7 @@ from ..params.vector import (
     strain_cap,
 )
 from ..schemas.results import MomentAngleTest
-from . import blocked
+from . import blocked, lapack
 from .blocked import BlockJacobian
 from .cancel import RefinementCancelled
 
@@ -259,6 +259,10 @@ class LSQOutcome:
     #: ``StageResult.n_degenerate_cell_probes``, carried by
     #: ``SCHEMA_VERSION`` 0.19 → 0.20 (see ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: decompositions this solve and its esds repeated with LAPACK's
+    #: QR-iteration driver because the divide-and-conquer one did not converge
+    #: (:mod:`.lapack`), copied onto ``StageResult.n_lapack_fallbacks``
+    n_lapack_fallbacks: int = 0
     #: cos of the angle between the residual and each Jacobian **column**,
     #: ``gₖ / (‖J:,ₖ‖·‖r‖)`` with ``g = Jᵀr`` the gradient of ½‖r‖²; signed,
     #: in [−1, 1], **table columns only**, so it indexes like :attr:`theta`.
@@ -312,6 +316,12 @@ class LSQOutcome:
     #: points reach ``covariance_estimates`` through; ``refine`` turns it into
     #: ``COVARIANCE_UNAVAILABLE`` naming the stage.
     covariance_error: str | None = None
+    #: the Bérar-Lelann factor :attr:`stderr_internal` was multiplied by,
+    #: measured on this solve's own last residual (WP-2002, B4).  Written by
+    #: :func:`_guarded_covariance` beside the esds, so it is ``None`` exactly
+    #: where :attr:`stderr_internal` is.  ``refine`` and ``multi`` divide each
+    #: row's esd by it for ``RefinedParameter.stderr_uncorrected``.
+    esd_inflation: float | None = None
     #: the stationary-angle test's rounds (WP-1929,
     #: :func:`stationary_angle_test`), the record ``StageResult`` copies.  A
     #: round with ``zeroed`` set names the angles whose columns this outcome's
@@ -506,10 +516,12 @@ def _rechart_matrix(outcome: LSQOutcome, theta: np.ndarray,
 
 def _guarded_covariance(jac, fun, n_free: int, n_data: int
                         ) -> tuple[np.ndarray | None, np.ndarray | None,
-                                   str | None]:
+                                   float | None, str | None]:
     """:func:`covariance_estimates`, with an eigensolver failure made absent.
 
-    Returns ``(stderr, corr, None)``, or ``(None, None, repr(exc))`` when
+    Returns ``(stderr, corr, factor, None)``, ``factor`` the Bérar-Lelann
+    factor ``stderr`` carries (:func:`_covariance_and_inflation`), or
+    ``(None, None, None, repr(exc))`` when
     ``np.linalg.LinAlgError`` escapes the pseudo-inverse.  Issue #225 met it
     at a converged fit, pattern 78 of a 182-pattern chain, as ``Eigenvalues
     did not converge`` out of ``eigh``, and the raise discarded the answer the
@@ -521,10 +533,11 @@ def _guarded_covariance(jac, fun, n_free: int, n_data: int
     non-convergence with; anything else is a defect and stays loud.
     """
     try:
-        stderr, corr = covariance_estimates(jac, fun, n_free, n_data=n_data)
+        stderr, corr, factor = _covariance_and_inflation(jac, fun, n_free,
+                                                         n_data=n_data)
     except np.linalg.LinAlgError as exc:
-        return None, None, repr(exc)
-    return stderr, corr, None
+        return None, None, None, repr(exc)
+    return stderr, corr, factor, None
 
 
 def _residual_cosine(jac, fun) -> np.ndarray | None:
@@ -713,7 +726,7 @@ def _joint_newton(resid, x: np.ndarray, r_stop: np.ndarray, idx: list[int],
             curvature_stop = m
         # block a of the stacked system is column a's rows: C[:, a] against
         # M[:, a, :], so C.T flattened and M with its first two axes swapped
-        step = -np.linalg.lstsq(m.transpose(1, 0, 2).reshape(k * len(r0), k),
+        step = -lapack.lstsq(m.transpose(1, 0, 2).reshape(k * len(r0), k),
                                 c.T.reshape(-1), rcond=None)[0]
         trial = th.copy()
         trial[idx] += step
@@ -756,7 +769,7 @@ def _refitted_increase(jac_data: np.ndarray, angles: list[int],
     live = np.isfinite(d) & (d > 0.0)
     if live.any():
         j_o = j_o[:, live] / d[live]
-        rhs = rhs - j_o @ np.linalg.lstsq(j_o, rhs, rcond=None)[0]
+        rhs = rhs - j_o @ lapack.lstsq(j_o, rhs, rcond=None)[0]
     return float(rhs[:, 1] @ rhs[:, 1] - rhs[:, 0] @ rhs[:, 0])
 
 
@@ -2174,7 +2187,8 @@ def _final_shift_over_esd_multi(mtable: "MultiParameterTable",
     return max(ratios) if ratios else None
 
 
-def _freeze_cell_windows(model: CompiledModel, table: ParameterTable) -> None:
+def _freeze_cell_windows(model: CompiledModel, table: ParameterTable,
+                         sigma: float | None = PHASE_SUPPORT_SIGMA) -> None:
     """Declare which phases' cells take the default window for this stage.
 
     Only the phases the data cannot see (WP-1110).  A window is not free — TRF
@@ -2188,11 +2202,17 @@ def _freeze_cell_windows(model: CompiledModel, table: ParameterTable) -> None:
 
     Read at the values the stage *starts* from, which is the whole point of
     doing it here: the same place every other per-stage freeze happens.
+
+    ``sigma`` is the plan's ``phase_support_sigma``, the threshold of the hold
+    this window backs (WP-2002, B1).  ``None`` judges no phase unseen, so the
+    claim made is that no cell needs a window, and nothing is measured.
     """
+    if sigma is None:
+        table.freeze_cell_windows(set())
+        return
     values = table.decode(table.x0())
     support = model.phase_support(values)
-    table.freeze_cell_windows({ip for ip, s in enumerate(support)
-                               if s < PHASE_SUPPORT_SIGMA})
+    table.freeze_cell_windows({ip for ip, s in enumerate(support) if s < sigma})
 
 
 def _freeze_strain_cap(model: CompiledModel, table: ParameterTable) -> None:
@@ -2236,53 +2256,36 @@ def _freeze_strain_cap_multi(models: list[CompiledModel],
 def _longest_line_wavelength(model: CompiledModel) -> float | None:
     """The source's **longest** emission line (Å), or ``None`` if it has none.
 
-    The one selector both size surfaces read λ through — the tier-1 bound here
-    (:func:`_model_size_cap`) and the tier-2 flag in
-    :func:`rietx.refine._size_flag_diagnostics`, which imports it rather than
-    repeating these two lines.  **Longest** because the 2 nm floor and the
-    Scherrer size are both per wavelength and a longer λ implies a *larger*
-    crystallite for the same coefficient: the most permissive attribution, and
-    therefore the one that can never trip a genuine fit on account of a Kα2
-    offset.
+    The one selector every reading of a size coefficient as a crystallite goes
+    through: the ``SIZE_UNUSUALLY_SMALL`` flag in
+    :func:`rietx.refine._size_flag_diagnostics`, the microstructure block and
+    the joint fit's size sharing, which import it rather than repeating these
+    two lines.  **Longest** because the Scherrer size is per wavelength and a
+    longer λ implies a *larger* crystallite for the same coefficient: the most
+    permissive attribution, and therefore the one that can never trip a
+    genuine fit on account of a Kα2 offset.
 
-    **The empty state is one answer here and two at the callers, deliberately.**
-    ``None`` is "this source states no wavelength", which is a fact about the
-    model; what to *do* about it is not, and the two callers legitimately
-    disagree.  A bound has to be some number, so :func:`_model_size_cap` reads
-    it as 0.0, which :func:`~rietx.params.vector.size_cap` turns into no physics
-    floor — the range backstop still speaks.  A flag reading a size out of a
-    coefficient has nothing to read it with, so it returns no diagnostic at all.
-    Folding either answer in here would impose it on the other caller.
+    ``None`` is "this source states no wavelength", a fact about the model.
+    What to do about it is each caller's: the flag has nothing to read a size
+    with, so it returns no diagnostic.  The solver's size bound
+    (:func:`~rietx.params.vector.size_cap`) needs no wavelength since the 2 nm
+    floor went (WP-2002), so it does not call this.
     """
     lams = [lam for lam in getattr(model, "line_wavelengths", ()) or ()
             if lam > 0.0]
     return max(lams) if lams else None
 
 
-def _model_size_cap(model: CompiledModel) -> float:
-    """:func:`~rietx.params.vector.size_cap` for one histogram.
-
-    The 2 nm floor is per wavelength, read through
-    :func:`_longest_line_wavelength`.  A source with no positive wavelength (a
-    seam not yet wired) leaves the floor at ``inf``, and the range backstop
-    still speaks — that function's docstring says why the no-λ answer is decided
-    here rather than there.
-    """
-    lam = _longest_line_wavelength(model)
-    return size_cap(model.tt_min, model.tt_max, 0.0 if lam is None else lam)
-
-
 def _freeze_size_cap(model: CompiledModel, table: ParameterTable) -> None:
     """Declare the sample-size cap for this stage — the strain-cap freeze's twin.
 
-    Off the same fitted 2θ extent and the pattern's wavelength
-    (:func:`_model_size_cap`), read where every other per-stage freeze happens,
-    and armed inside ``bounds()`` only on a term that has already driven its
-    crystallite down to the 2 nm floor — so a fit whose size stays in the range
-    real specimens occupy gets no bound at all and is bit-identical to an
-    uncapped build, the identity that makes it landable.
+    Off the same fitted 2θ extent (:func:`~rietx.params.vector.size_cap`), read
+    where every other per-stage freeze happens, and armed inside ``bounds()``
+    only on a term that has already made a line wider than the fitted range.
+    So a fit whose size stays where the data can express it gets no bound at
+    all and is bit-identical to an uncapped build.
     """
-    table.freeze_size_cap(_model_size_cap(model))
+    table.freeze_size_cap(size_cap(model.tt_min, model.tt_max))
 
 
 def _freeze_size_cap_multi(models: list[CompiledModel],
@@ -2290,26 +2293,26 @@ def _freeze_size_cap_multi(models: list[CompiledModel],
     """The freeze above for a joint refinement, where a phase is *shared*.
 
     ``lor_size`` is a phase parameter, so the **widest** cap is the one declared
-    to every table, for the strain reason one function up: a crystallite only
-    has to clear 2 nm for *some* histogram's wavelength, and a joint fit is
-    entitled to whichever line can express it.
+    to every table, for the strain reason one function up: a line only has to
+    fit inside *some* histogram's range, and a joint fit is entitled to
+    whichever pattern can express it.
 
     Since WP-1131 the caps do not merely overwrite one another.
     ``MultiParameterTable`` **intersects** each histogram's bounds onto the
     shared column, and each table divides its physical cap by its own value
-    scale — so the binding bound is the widest cap expressed in the reference
-    histogram's units, which is the 2 nm floor read at the reference λ. Only
-    the histogram whose λ carries the cap arms it, and the arming asymmetry is
-    exactly what makes the intersection land there.
+    scale, so the binding bound is the widest cap expressed in the reference
+    histogram's units.  Only a histogram whose copy has reached its cap arms
+    it, and the arming asymmetry decides where the intersection lands.
     """
-    caps = [_model_size_cap(m) for m in models]
+    caps = [size_cap(m.tt_min, m.tt_max) for m in models]
     cap = max(caps) if caps else None
     for table in mtable.tables:
         table.freeze_size_cap(cap)
 
 
 def _freeze_cell_windows_multi(models: list[CompiledModel],
-                               mtable: "MultiParameterTable") -> None:
+                               mtable: "MultiParameterTable",
+                               sigma: float | None = PHASE_SUPPORT_SIGMA) -> None:
     """The freeze above for a joint refinement, where a cell can be *shared*.
 
     A phase invisible in one histogram may be plain in another, and if its cell
@@ -2317,13 +2320,17 @@ def _freeze_cell_windows_multi(models: list[CompiledModel],
     can see it. So a phase is windowed only when it is below support in **every**
     histogram, and the same set is frozen on every sub-table: the combined bound
     vectors write shared columns once per histogram and keep the last, which is
-    only harmless while they agree.
+    only harmless while they agree.  ``sigma`` is :func:`_freeze_cell_windows`'
+    own, and ``None`` windows nothing.
     """
-    per_model = [m.phase_support(t.decode(t.x0()))
-                 for m, t in zip(models, mtable.tables, strict=True)]
-    n_phases = min((len(s) for s in per_model), default=0)
-    windowed = {ip for ip in range(n_phases)
-                if all(s[ip] < PHASE_SUPPORT_SIGMA for s in per_model)}
+    if sigma is None:
+        windowed: set[int] = set()
+    else:
+        per_model = [m.phase_support(t.decode(t.x0()))
+                     for m, t in zip(models, mtable.tables, strict=True)]
+        n_phases = min((len(s) for s in per_model), default=0)
+        windowed = {ip for ip in range(n_phases)
+                    if all(s[ip] < sigma for s in per_model)}
     for table in mtable.tables:
         table.freeze_cell_windows(windowed)
     mtable.refresh_bounds()
@@ -2377,20 +2384,25 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       events=None, stage: str = "",
                       backend: str = "numpy",
                       solver: str = DEFAULT_SOLVER,
-                      cancel=None) -> LSQOutcome:
+                      cancel=None,
+                      phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
+                      ) -> LSQOutcome:
     """Solve one stage.  ``cancel`` — a :class:`~.cancel.CancelToken`, read
     between residual evaluations; a set token raises
     :class:`~.cancel.RefinementCancelled` out of this call, leaving the model
-    and table exactly as the last accepted evaluation found them."""
+    and table exactly as the last accepted evaluation found them.
+    ``phase_support_sigma`` is the plan's, which decides the default cell
+    window (:func:`_freeze_cell_windows`); ``None`` windows no cell."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    lapack_start = lapack.retries()
     # A free λ beside a free cell is an exactly flat direction.  Asked here
     # rather than at table build because a cumulative plan can free the two in
     # different stages, and rather than in ``_rebuild`` because a diagnostic
     # probe frees parameters without intending to fit them.
     table.check_wavelength_against_cell()
     _check_magnetic_width_compiled(model, table)
-    _freeze_cell_windows(model, table)
+    _freeze_cell_windows(model, table, phase_support_sigma)
     _freeze_strain_cap(model, table)
     _freeze_size_cap(model, table)
     residual = _make_residual(model, table)
@@ -2465,8 +2477,9 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           track=tracker, table=table)
         n_truncated, truncated_by = res.n_truncated, res.truncated_by
     else:
-        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
+        with lapack.scipy_trf():
+            res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                                ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -2475,7 +2488,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # feeds the table esds too), then split: table columns stay in the outcome,
     # the intensity tail lands on the model's Pawley block.
     stderr = corr = stderr_full = None
-    covariance_error = None
+    covariance_error = esd_inflation = None
     moment_angle_tests = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
         # a moment angle at a direction the symmetry fixes leaves the
@@ -2484,7 +2497,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
             probe, res.x, res.jac, len(model.tt), table.free_paths,
             _column_entries([table], [np.arange(n_table)], len(res.x)),
             len(res.x))
-        stderr_full, corr_full, covariance_error = _guarded_covariance(
+        stderr_full, corr_full, esd_inflation, covariance_error = _guarded_covariance(
             _without_columns(res.jac, stationary), res.fun, len(res.x),
             n_data=len(model.tt))
     if stderr_full is not None:
@@ -2511,7 +2524,9 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      n_lapack_fallbacks=lapack.retries() - lapack_start,
                       covariance_error=covariance_error,
+                      esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests)
 
 
@@ -2608,7 +2623,9 @@ def run_multi_least_squares(models: list[CompiledModel],
                             backend: str = "numpy",
                             solver: str = DEFAULT_SOLVER,
                             events=None, stage: str = "",
-                            cancel=None) -> LSQOutcome:
+                            cancel=None,
+                            phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
+                            ) -> LSQOutcome:
     """Joint solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
@@ -2646,7 +2663,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     ``events``, ``stage`` and ``cancel`` are :func:`run_least_squares`' own
     (WP-1341).  An ``eval`` is one evaluation of the *stacked* residual, so
     its ``cost`` and its ``values`` are the joint solve's, aligned with
-    ``mtable.free_paths``.
+    ``mtable.free_paths``.  ``phase_support_sigma`` is
+    :func:`run_least_squares`' own too (WP-2002, B1).
 
     The stacked Jacobian is held one of two ways (WP-1325), chosen by
     :func:`.blocked.choose_layout` and recorded on
@@ -2658,6 +2676,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     """
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    lapack_start = lapack.retries()
     # dense below a size, blocked above it (WP-1325, ``blocked.choose_layout``)
     layout = blocked.choose_layout(_stacked_rows(models)[1], len(mtable.free_paths),
                                    solver)
@@ -2697,7 +2716,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     # combined bound vectors
     _freeze_strain_cap_multi(models, mtable)
     _freeze_size_cap_multi(models, mtable)
-    _freeze_cell_windows_multi(models, mtable)
+    _freeze_cell_windows_multi(models, mtable, phase_support_sigma)
     x0 = mtable.x0()
     lo, hi = mtable.bounds()
     x0 = _feasible_start(x0, lo, hi, solver)
@@ -2717,13 +2736,14 @@ def run_multi_least_squares(models: list[CompiledModel],
                           ftol=ftol, inequalities=[], events=events, stage=stage,
                           track=tracker, table=mtable)
     else:
-        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
+        with lapack.scipy_trf():
+            res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                                ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
 
-    stderr = corr = covariance_error = moment_angle_tests = None
+    stderr = corr = covariance_error = moment_angle_tests = esd_inflation = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
         # the single-histogram rule (WP-1929) on the stacked residual: a
         # moment angle's column is every histogram's rows of it, and a shared
@@ -2734,7 +2754,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                            [mtable.col_map(h) for h in range(len(mtable.tables))],
                            len(res.x)),
             len(res.x))
-        stderr, corr, covariance_error = _guarded_covariance(
+        stderr, corr, esd_inflation, covariance_error = _guarded_covariance(
             _without_columns(res.jac, stationary), res.fun, len(res.x),
             n_data=n_data_total)
     if isinstance(res.jac, BlockJacobian):
@@ -2751,7 +2771,9 @@ def run_multi_least_squares(models: list[CompiledModel],
                           mtable, tracker.step(), stderr, corr),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      n_lapack_fallbacks=lapack.retries() - lapack_start,
                       covariance_error=covariance_error,
+                      esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests,
                       jacobian_layout=layout)
 
@@ -2796,6 +2818,28 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     correlation is always a valid one.  Note the clip is *not* the fix —
     clipping a 2.75 to 1.0 would report a degeneracy that the arithmetic, not
     the data, invented.
+
+    :func:`_covariance_and_inflation` returns the same pair with the factor
+    beside it.
+    """
+    stderr, corr, _ = _covariance_and_inflation(jac, fun, n_free, n_data)
+    return stderr, corr
+
+
+def _covariance_and_inflation(jac: np.ndarray, fun: np.ndarray, n_free: int,
+                              n_data: int | None = None
+                              ) -> tuple[np.ndarray, np.ndarray, float]:
+    """:func:`covariance_estimates`' esds and correlation, and the Bérar-Lelann
+    factor those esds were multiplied by.
+
+    The factor is returned rather than recomputed by a caller because it is
+    measured on the solve's own last residual, and the residual a result's
+    ``Statistics.esd_inflation`` is measured on is another one, built at the
+    result's own compile.  Measured on 11-BM NAC (2-24°), the two differ by
+    0.07 % on a Rietveld fit and 0.75 % on a Le Bail fit; on a joint fit
+    weighted 1:4 they differ by 4 %, since the solve's residual carries the
+    weights (WP-2002, B4).  ``RefinedParameter.stderr_uncorrected`` divides
+    by this one.
     """
     from .statistics import (
         berar_lelann_factor,
@@ -2845,5 +2889,5 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
             corr[:, wide] = k_corr[:, wide]
     corr = np.clip(corr, -1.0, 1.0)
     np.fill_diagonal(corr, np.where(sqrt > 0.0, 1.0, 0.0))
-    diag = sqrt * berar_lelann_factor(data)
-    return diag, corr
+    factor = berar_lelann_factor(data)
+    return sqrt * factor, corr, factor

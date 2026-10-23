@@ -115,7 +115,7 @@ import numpy as np
 from scipy.optimize import lsq_linear, nnls
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
-from . import bccg
+from . import bccg, lapack
 from .blocked import BlockJacobian
 
 #: λ schedule constants, Coelho (2018) equation (9).  λ starts at 0 (pure
@@ -127,9 +127,12 @@ _Q_WINDOW = 10               # Q_u sums the last ten overshoot signs …
 _Q_TRIGGER = 5               # … and λ/10 fires only above this
 
 #: inner (Levenberg-Marquardt) iterations per outer iteration before giving up.
-#: λ grows by 10× per failure from a floor of 0.1, so this reaches λ ≈ 1e14 —
-#: far into steepest-descent territory; if nothing downhill exists there, none
-#: exists.
+#: A failure sets λ ← 10·max(λ, 0.1), so from λ = 0 the 18th trial would run
+#: at λ = 1e16, far into steepest-descent territory, though at λ ≥ 100 the
+#: curvature gate can reset λ to its start-of-iteration value, so 18 trials
+#: need not reach it.  A cap that fires reads as convergence (``no_descent``).  On nine acceptance configurations an iteration that took
+#: a step tried at most 6 trials, and a stage's last iteration up to 9 (WP-2002,
+#: tests/test_budget_and_tolerance_invariance.py).
 _INNER_MAX = 18
 #: consecutive outer iterations below ``ftol`` that count as converged.  One
 #: small step is a small step; three running is convergence (Coelho's rule).
@@ -744,7 +747,7 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     if n > BVLS_MAX_COLUMNS:
         y, side = bccg.projected_cg(A_s, b_s, (lo - x) * d, (hi - x) * d)
         return y * inv_d, side
-    w, V = np.linalg.eigh(A_s)
+    w, V = lapack.eigh(A_s)
     w_max = float(w[-1]) if n else 0.0
     keep = w > _EIGEN_CUT_PER_ROW * max(n_rows, n) * w_max
     side = np.zeros(n, dtype=np.int8)
@@ -813,7 +816,7 @@ def _solve_constrained_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndar
     H = A * np.outer(inv_d, inv_d)
     H[np.diag_indices(n)] += lam
     g = b * inv_d
-    w, V = np.linalg.eigh(H)
+    w, V = lapack.eigh(H)
     w_max = float(w[-1]) if n else 0.0
     side = np.zeros(n, dtype=np.int8)
     if w_max <= 0.0:
@@ -911,7 +914,7 @@ def _equality_step(H: np.ndarray, g: np.ndarray, G: np.ndarray, h: np.ndarray,
     n = H.shape[0]
     if not len(G):
         return np.linalg.solve(H, g)
-    U, sv, Wt = np.linalg.svd(G)
+    U, sv, Wt = lapack.svd(G)
     rank = int(np.count_nonzero(sv > max(G.shape) * eps * sv[0]))
     s = Wt[:rank].T @ ((U[:, :rank].T @ h) / sv[:rank])
     Z = Wt[rank:].T

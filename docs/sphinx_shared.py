@@ -1,8 +1,9 @@
-# What both manual trees configure the same way: the old one in docs/manual/
-# and the new one in docs/docs/ (WP-1978).  Each conf.py imports this module
-# rather than copying it, so one change reaches both trees.  It is not a
-# conf.py itself, because importing docs/manual/conf.py would also write the
-# glossary, copy the tutorials and set that tree's whole Sphinx config.
+# The manual's build settings that the tests read too (WP-1978): the fenced
+# constants, the citation style, the diagram theme, the tutorial copy and the
+# `{source}` role.  `docs/docs/conf.py` imports this module.  It is not a
+# conf.py itself, because importing a conf.py would also write the Reference
+# bodies, copy the tutorials and set the tree's whole Sphinx config.  (It
+# served two trees until WP-1986 retired the old one in docs/manual/.)
 #
 # Anti-divergence rule (WP-0604): a threshold or fenced constant is never
 # typed into a chapter.  It is imported here from the live package and exposed
@@ -13,9 +14,11 @@
 
 import dataclasses as _dataclasses
 import importlib as _importlib
+import importlib.util as _importlib_util
 import inspect as _inspect
 import os as _os
 import re as _re
+import shutil as _shutil
 from pathlib import Path as _Path
 
 import sphinxcontrib.bibtex.plugin as _bibtex_plugin
@@ -50,7 +53,12 @@ from rietx.model.geometry import (
     VARIANCE_CANCELLATION_FLOOR,
 )
 from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
-from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
+from rietx.model.profiles.fcj import (
+    CLOSING_NODES_PER_FWHM,
+    CLOSING_SKIP_EXTENT_FWHM_RATIO,
+    NODES_PER_FWHM,
+    SKIP_EXTENT_FWHM_RATIO,
+)
 from rietx.optimize.least_squares import STATIONARY_ANGLE_LEVEL
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
 from rietx.optimize.statistics import (
@@ -61,9 +69,9 @@ from rietx.optimize.statistics import (
     PINV_RCOND,
 )
 from rietx.params.parametric import FORM_TEST_LEVEL
-from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
+from rietx.params.vector import SIZE_CAP_RANGE_FRACTION, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SCALE_B_SEPARATION_FLOOR, SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
-from rietx.report.layer0 import build_layer0
+from rietx.report.layer0 import LAYER0_MATCH_TOL_DEG, build_layer0
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import (
     MATURITY_MAX_RWP,
@@ -77,17 +85,18 @@ from rietx.report.schemas import (
     THRESHOLDS_VERSION,
     VALIDITY_RADIUS_FWHM,
 )
-from rietx.schemas.fraction import FRACTION_PROFILE_DCHI2, FRACTION_PROFILE_EXCESS
+from rietx.schemas.fraction import FRACTION_PROFILE_DCHI2
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.interval import PARAMETER_INTERVAL_MAX_REFITS
+from rietx.schemas.plan import CLOSING_WINDOW_TOL
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
 
 #: The repository root, which is what a blob URL's path is relative to.
 REPO_ROOT = _Path(__file__).resolve().parents[1]
 
-#: The one bibliography both trees cite from.
-BIBFILE = REPO_ROOT / "docs" / "manual" / "references.bib"
+#: The bibliography the manual cites from.
+BIBFILE = REPO_ROOT / "docs" / "docs" / "references.bib"
 
 MYST_EXTENSIONS = ["dollarmath", "amsmath", "substitution", "colon_fence", "deflist"]
 
@@ -95,12 +104,18 @@ MYST_EXTENSIONS = ["dollarmath", "amsmath", "substitution", "colon_fence", "defl
 # time).  The extension detects the active theme itself and re-renders on a
 # MutationObserver when the toggle moves, so these two names are the whole
 # light/dark story.  It reads a `dark`/`light` class or `data-theme` on *either*
-# `html` or `body` and falls back to `prefers-color-scheme`, which is wider than
-# furo's own `body[data-theme]`: WP-1412 drove all four of its spellings and the
-# diagrams followed every one.  mermaid.js itself comes from a CDN when the page
+# `html` or `body` and falls back to `prefers-color-scheme`, which covers
+# pydata-sphinx-theme's `html[data-theme]`: WP-1412 drove all four of its
+# spellings and the diagrams followed every one.  mermaid.js itself comes from a CDN when the page
 # is *viewed*; set `mermaid_use_local` if a built copy of the manual has to
 # render diagrams offline.
-MERMAID_LIGHT_THEME = "default"
+#
+# The colours are the site's tokens, set by the manual's `custom.css` over
+# whatever mermaid draws (WP-2021): mermaid's `base` theme takes its variables
+# as literal colours, one set for both themes, which cannot follow a toggle.
+# `neutral` is the light theme so a part the stylesheet misses is grey rather
+# than the stock theme's lilac.
+MERMAID_LIGHT_THEME = "neutral"
 MERMAID_DARK_THEME = "dark"
 # Without the title margin, a subgraph label is drawn on the cluster border and
 # collides with the first node inside it.
@@ -165,8 +180,9 @@ _bibtex_plugin.register_plugin(
 # ----------------------------------------------------------------------
 # The fenced constants, as MyST substitutions
 #
-# Each tree adds its own `release` (and the old one its `N_TUTORIALS`), since
-# those are facts about the build rather than about the package.
+# The conf.py adds `release` and `N_TUTORIALS` (the count
+# `copy_tutorials` below returns), since those are facts about the build
+# rather than about the package.
 # ----------------------------------------------------------------------
 
 MYST_SUBSTITUTIONS = {
@@ -175,9 +191,11 @@ MYST_SUBSTITUTIONS = {
     # still derived, and a retuned clamp still moves the printed number.
     "ANGLE_LINEARISATION_LIMIT_DEG": f"{ANGLE_LINEARISATION_LIMIT_DEG:.1e}",
     "HUMP_MIN_WIDTH_MULT": HUMP_MIN_WIDTH_MULT,
+    # a declared peak this close to a predicted position sits on it, and the
+    # report matches an observed peak to a tick by the same distance
+    "LAYER0_MATCH_TOL_DEG": LAYER0_MATCH_TOL_DEG,
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "FRACTION_PROFILE_DCHI2": FRACTION_PROFILE_DCHI2,
-    "FRACTION_PROFILE_EXCESS": FRACTION_PROFILE_EXCESS,
     "PARAMETER_INTERVAL_MAX_REFITS": PARAMETER_INTERVAL_MAX_REFITS,
     "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
     "EFFECTIVE_OBS_ALPHA": EFFECTIVE_OBS_ALPHA,
@@ -253,11 +271,14 @@ MYST_SUBSTITUTIONS = {
     "Y3_HANDOVER_STOL": f"{_itc_handover('Y3+'):.3f}",
     "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,
+    "CLOSING_NODES_PER_FWHM": CLOSING_NODES_PER_FWHM,
+    "CLOSING_SKIP_EXTENT_FWHM_RATIO": CLOSING_SKIP_EXTENT_FWHM_RATIO,
+    "CLOSING_WINDOW_TOL": CLOSING_WINDOW_TOL,
     "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,
     "SKIP_EXTENT_FWHM_RATIO": SKIP_EXTENT_FWHM_RATIO,
     "STRAIN_CAP_RANGE_FRACTION": STRAIN_CAP_RANGE_FRACTION,
     "STRAIN_FLAG_WIDTH": STRAIN_FLAG_WIDTH,
-    "SIZE_CAP_MIN_SIZE_NM": SIZE_CAP_MIN_SIZE_A / 10.0,
+    "SIZE_CAP_RANGE_FRACTION": SIZE_CAP_RANGE_FRACTION,
     "SIZE_FLAG_SIZE_NM": SIZE_FLAG_SIZE_A / 10.0,
     "SUGGEST_MIN_GAIN": SUGGEST_MIN_GAIN,
     "SUPERCELL_CHANCE_ALPHA": SUPERCELL_CHANCE_ALPHA,
@@ -269,9 +290,53 @@ MYST_SUBSTITUTIONS = {
 
 
 # ----------------------------------------------------------------------
+# The tutorial notebooks (WP-1916, WP-1986)
+#
+# The notebooks live in `examples/tutorials/`, beside the scripts they are
+# built from, and Sphinx reads only its own source tree.  So the build copies
+# them into the gitignored `start/tutorials/`.  The set is `build.py`'s own
+# glob, so a new tutorial needs no edit here, and a copy whose source is gone
+# is deleted.  The page-globbing tests read `*.md` only, so the copies do not
+# make the suite depend on whether a build has run.
+# ----------------------------------------------------------------------
+
+#: Where the tutorial scripts and their committed notebooks live.
+TUTORIALS_SRC = REPO_ROOT / "examples" / "tutorials"
+
+
+def tutorial_notebooks() -> list[_Path]:
+    """The committed notebook of each tutorial script, in `build.py`'s order."""
+    spec = _importlib_util.spec_from_file_location("_tutorials_build", TUTORIALS_SRC / "build.py")
+    build = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    return [s.with_suffix(".ipynb") for s in build.sources(TUTORIALS_SRC)]
+
+
+def copy_tutorials(destination: _Path) -> int:
+    """Copy every committed notebook into `destination`, and return how many.
+
+    The count is what a tree's index page quotes as `N_TUTORIALS`.
+    """
+    notebooks = tutorial_notebooks()
+    missing = [nb.name for nb in notebooks if not nb.is_file()]
+    if missing:
+        raise RuntimeError(
+            f"tutorial scripts with no committed notebook: {missing} -- run "
+            "examples/tutorials/build.py")
+    destination.mkdir(exist_ok=True)
+    for stale in set(destination.glob("*.ipynb")) - {destination / nb.name for nb in notebooks}:
+        stale.unlink()
+    for nb in notebooks:
+        # copy2 keeps the mtime, so Sphinx rereads a page only when its
+        # notebook changed.
+        _shutil.copy2(nb, destination / nb.name)
+    return len(notebooks)
+
+
+# ----------------------------------------------------------------------
 # The `{source}` role (WP-1408)
 #
-# Every displayed equation in Part 2 carries a *Source:* line naming the
+# Every displayed equation in the Theory tab carries a *Source:* line naming the
 # symbol its docstring was transcribed from.  The name resolving is the
 # manual's oldest guard (WP-0604), and the role turns the same resolution into
 # a link: `inspect` gives the file and the line, so a reader goes from the

@@ -15,6 +15,8 @@ computed.
 
 ### Inherited
 
+- **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: the second `diverged`.** `RefinementResult.status` (`schemas/results.py:1436`) declares the same member as `StageResult.status`, and no writer exists for either: the LM driver returns 0 or 1, scipy's TRF 0 to 4, and the mapping gives `diverged` only below 0 (`optimize/least_squares.py:2470,2722`). The new manual now lists `converged` and `max_iter` (`docs/docs/concepts/fit.md` § Outputs) and says the type admits a third value nothing writes (`reference/refinement.md` § Stage results). Retiring the member changes those two lines with it; `strategy/magnetic.py:393` names it too.
+
 - **2026-10-16, from the issue triage (#538): option (1) is mostly on main,
   from WP-1937, so the task is smaller than the entry says.** `614f24a8`
   (2026-10-10) documents `StageResult.n_iterations` as residual evaluations

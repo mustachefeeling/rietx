@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from .._about import DIST_NAME
 from .common import Base, Diagnostic, Mode, Provenance
+from .interval import ParameterInterval
 from .parametric import (
     ParametricCoefficient,
     ParametricFormReading,
@@ -78,14 +79,45 @@ class RefinedParameter(Base):
     recorded it: a hand-built row, or a result written before schema 0.57,
     when 1.9.0's parametric fits already carried equation-set rows that an empty
     list would have called measured.
+
+    **``interval`` is the profile interval of a moment angle the fit left out
+    of its covariance** (WP-2002, B2).  The stationary-angle test
+    (``StageResult.moment_angle_tests``, WP-1929) takes such an angle's column
+    out, so its ``stderr`` stays ``None``.  The data still determine the angle
+    through curvature, so the fit computes its 95 % profile interval
+    (:class:`~rietx.schemas.interval.ParameterInterval`, the answer
+    ``Refinement.profile_interval`` returns) and stores it here.  One writer:
+    ``parameter_interval.attach_stationary_intervals``, which ``fit`` and
+    ``run_stage`` call for every angle the answer-producing stage left out.
+    ``None`` says no interval was computed: any other row, a joint fit (which
+    has no profile verb), a package-internal trial, a fit cancelled while its
+    intervals ran, or a result stored before the field.
+
+    **``stderr_uncorrected`` is the esd other programs print** (WP-2002, B4).
+    ``stderr`` carries the Bérar-Lelann factor f for serially correlated
+    residuals (``optimize.statistics.berar_lelann_factor``); this is the same
+    esd without it, √(χ²_red·(JᵀJ)⁻¹) carried to the row, which is what
+    GSAS-II and FullProf report.  It is ``stderr`` divided by the f the solve
+    multiplied it by (``LSQOutcome.esd_inflation``), so one fit's rows share
+    one ratio and the identity is exact to rounding.  That f is measured on
+    the solve's own last residual, and :attr:`Statistics.esd_inflation`
+    re-measures it at the result's compile: on 11-BM NAC the two differ by
+    0.07 % (Rietveld) and 0.75 % (Le Bail), and by 4 % on a joint fit
+    weighted 1:4.  So ``stderr / Statistics.esd_inflation`` is close to this
+    and not equal to it.  Two writers, each beside ``stderr``:
+    ``refine._build_result`` and ``MultiHistogramRefinement._parameters``; a
+    series copies its fits' rows.  ``None`` wherever ``stderr`` is, and on a
+    result stored before the field.
     """
 
     path: str
     value: float
     stderr: float | None = None
+    stderr_uncorrected: float | None = None
     vary: bool = True
     at_bound: bool | None = None
     equations: list[str] | None = None
+    interval: ParameterInterval | None = None
 
     def __str__(self) -> str:
         """``path  value(esd)  state`` on one line, so a list of rows reads as
@@ -113,7 +145,12 @@ class Statistics(Base):
     neighbours (``optimize.statistics.berar_lelann_factor``), so a value near
     that is no evidence of correlation; lab data with unmodelled profile
     detail lands near 2-3 (1.93 on the FAP tutorial fit, 2.82 on SRM 660c).
-    Divide it out for raw χ²·(JᵀJ)⁻¹ esds.
+    It is measured on the residual at the values this result reports, while
+    the esds carry the factor the solve measured on its own last residual,
+    so the two can differ slightly (WP-2002, B4, measured on 11-BM NAC:
+    0.07 % on a Rietveld fit, 0.75 % on a Le Bail fit, 4 % on a joint fit
+    weighted 1:4).  The raw χ²·(JᵀJ)⁻¹ esd of a row is
+    :attr:`RefinedParameter.stderr_uncorrected`.
 
     ``max_shift_over_esd`` is McCusker et al. (1999) §7's convergence
     quantity: the largest |Δθᵢ|/esd(θᵢ) over the final accepted step of the
@@ -737,7 +774,7 @@ class GeometryTable(Base):
     #: the listing criteria actually used, so a row can be read without
     #: knowing which version of the module produced it
     bond_slack: float = 0.0           # Å, added to the covalent-radius sum
-    contact_max: float = 0.0          # Å, the nonbonding search radius
+    contact_max: float = 0.0          # Å, the nonbonding listing radius; bonds are not bounded by it
     notes: list[str] = Field(default_factory=list)
 
     @property
@@ -887,7 +924,9 @@ class MomentAngleTest(Base):
     χ²_red·f².  The angles pass when it is at most ``cut``, the 95 % point of
     the χ̄² mixture for ``len(paths)`` one-sided directions (Self & Liang,
     1987; Shapiro, 1985).  Their columns then leave the covariance, so each
-    has no esd, and their values stand.
+    has no esd, and their values stand.  On a single fit each such angle's
+    row carries its profile interval instead (``RefinedParameter.interval``,
+    WP-2002).
 
     ``paths`` are free columns.  A caller's ``vars.X`` driving only moment
     angles is one of them.  The angles it drives share its verdict.
@@ -947,6 +986,18 @@ class StageResult(Base):
     #: fits' parameter shifts needs to know whether they were converged the
     #: same way.
     ftol: float | None = None
+    #: the fraction of each peak's area this stage's windows dropped, or
+    #: ``None`` for ``forward.WINDOW_AREA_TOL`` — what every declared stage
+    #: takes.  A plan's closing stage runs at ``closing_window_tol`` (WP-2002,
+    #: the sixth round's Q1 and Q2), a stage run by hand at the fraction it
+    #: ran at, and the result's curves and statistics are measured at the last
+    #: stage's.  So a reader rebuilding the model from
+    #: ``RefinementResult.parameters`` passes
+    #: ``forward.recorded_window_tol(this)`` to ``compile_model`` to reproduce
+    #: them, ``compile_model``'s own default being the closing stage's
+    #: fraction: the 2 % and 0.1 % windows of one answer differ by up to 0.6 %
+    #: in χ².
+    window_area_tol: float | None = None
     #: steps the bounded-LM driver held on a linear-inequality constraint (the
     #: Stephens strain cone, or the Γ_G² floor of WP-1938 D7) during this
     #: stage: the step for the box alone crossed a row, and the step solved
@@ -969,6 +1020,14 @@ class StageResult(Base):
     #: bumped with this change, ``SCHEMA_VERSION`` 0.19 → 0.20 (see the
     #: changelog entry in ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: decompositions this stage's solve and esds repeated with LAPACK's
+    #: QR-iteration driver because the divide-and-conquer driver stopped
+    #: without converging (``optimize.lapack``): the same decomposition by
+    #: another route, so the answer is the one a converging build computes.
+    #: Met on macOS's system LAPACK, whose ``gesdd`` failed on a TRF step on
+    #: CPD brucite that OpenBLAS's decomposed (WP-2002).  0 means no
+    #: decomposition needed it.
+    n_lapack_fallbacks: int = 0
     #: paths this stage **held** although the plan had freed them: the
     #: structural parameters of a phase the data could not see at stage start
     #: (the screen ``CompiledModel.phase_support`` below
@@ -1112,6 +1171,25 @@ class StageResult(Base):
     #: beside its free modulus, the stage computed no covariance, or the result
     #: was stored before the field.  It feeds ``MOMENT_ANGLE_STATIONARY``.
     moment_angle_tests: list[MomentAngleTest] | None = None
+    #: the free cell parameters this stage **put back** at the values it
+    #: started from, because a cell parameter of their phase left the safety
+    #: window while the stage solved (±15 % on a length, ±6° on an angle:
+    #: ``params.vector.CELL_SAFETY_FRACTION``; WP-2002, B8).  The phase's whole
+    #: free cell goes back, a parameter that stayed inside the window included.
+    #: Found after the stage's first solve, the cell is held and the stage
+    #: solves once more without it, the collapse's path (WP-1301), and the next
+    #: stage frees it again.  Found after that second solve, there is no third:
+    #: the value goes back, the column stays free in the answer, and its esd is
+    #: withheld.  ``CELL_RUNAWAY`` names the paths and says which happened.
+    #:
+    #: Disjoint from :attr:`freed` and from :attr:`held`: a path the collapse
+    #: also holds is in ``held``.  Writers: the three runners that build a
+    #: ``StageResult``, ``Refinement.fit`` and ``Refinement.run_stage`` from
+    #: ``Refinement._run_stage``'s record, and ``MultiHistogramRefinement.fit``
+    #: from its own stage loop.  ``None`` means a result stored before the
+    #: field; every runner writes a list, and an empty one is a stage that put
+    #: nothing back, which is every stage of an ordinary fit.
+    cell_reset: list[str] | None = None
 
     @model_validator(mode="before")
     @classmethod

@@ -434,12 +434,12 @@ def test_a_comment_that_mentions_a_bank_does_not_claim_an_ascii_file(tmp_path):
 _PAST_180 = {
     "xy": "5000.0 1000.0\n6000.0 1010.0\n7000.0 990.0\n8000.0 1005.0\n",
     "gsas": "past\nBANK 1 8 1 CONST 17000.0 200.0 0 0 STD\n"
-            "  100  110  120  130  140  150  160  170\n",
+            "     100     110     120     130     140     150     160     170\n",
 }
 _AT_OR_BELOW_0 = {
     "xy": "-2.0 100.0\n-1.0 110.0\n0.0 120.0\n1.0 130.0\n",
     "gsas": "through zero\nBANK 1 4 1 CONST -200.0 100.0 0 0 STD\n"
-            "  100  110  120  130\n",
+            "     100     110     120     130\n",
 }
 _SUFFIX = {"xy": ".xy", "gsas": ".gsas"}
 

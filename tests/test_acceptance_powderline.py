@@ -51,7 +51,7 @@ import pytest
 
 import rietx as rx
 from rietx.io.recipe import read_recipe, write_recipe_tables
-from rietx.strategy.staged import INTERMEDIATE_FTOL
+from rietx.strategy.staged import CLOSING_WINDOW_TOL, INTERMEDIATE_FTOL
 
 DATA = Path(__file__).parent / "data" / "powderline"
 pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("powderline")]
@@ -103,6 +103,8 @@ def _fit(name: str):
     # affect how the intermediate stages hand over, which is exactly the thing
     # a user would meet.
     assert recipe.plan.intermediate_ftol == INTERMEDIATE_FTOL
+    # and the shipped closing stage, for the same reason (WP-2002)
+    assert recipe.plan.closing_window_tol == CLOSING_WINDOW_TOL
 
     ref = rx.Refinement(recipe.structure, recipe.instrument, history=False)
     result = ref.fit(recipe.pattern, plan=recipe.plan,
@@ -304,8 +306,10 @@ def test_lab6_hump_is_the_degenerate_direction_both_engines_found(
 
     GSAS-II's peak ran to 8.77e10 °2θ with esd 0 — off the pattern entirely —
     and TOPAS's sits at 1.63° with an esd 188× its own value.  Here it
-    correlates with the low-order background at |ρ| = 1 and the stage spends
-    its budget, which is the same statement in this package's vocabulary.
+    correlates with the low-order background at |ρ| = 1 and the last stage
+    freeing it spends its budget, which is the same statement in this package's
+    vocabulary.  That is the closing stage since WP-2002: the declared
+    ``extra_components`` stage stops at the intermediate tolerance first.
     """
     _, _, result = lab6
     pairs = {frozenset(d.where) for d in result.diagnostics
@@ -313,8 +317,9 @@ def test_lab6_hump_is_the_degenerate_direction_both_engines_found(
     hump_pairs = [p for p in pairs
                              if any("extra_components" in w for w in p)]
     assert hump_pairs
-    assert any(s.status == "max_iter" and s.name == "extra_components"
-               for s in result.stages)
+    last = next(s for s in reversed(result.stages)
+                if any("extra_components" in p for p in s.freed))
+    assert last.status == "max_iter", (last.name, last.status)
 
     gsas = {r["descriptive_name"]: (float(r["value"]), float(r["esd"]))
             for r in csv.DictReader(

@@ -165,6 +165,12 @@ def _plan(*, texture: bool, stephens: bool) -> rx.RefinementPlan:
     # ones the package actually produces.  None here would converge every
     # stage; measured cost of the schedule on this protocol is <= 0.02 esd.
     plan.intermediate_ftol = 1e-6
+    # No closing stage here (WP-2002), declared rather than inherited.  The
+    # suite pins TRF's unconstrained answer, and under TRF the closing stage
+    # stops brucite where one S_HKL's esd collapses (t = -268 against -1.22),
+    # while LM is unaffected; the iso/aniso comparison needs both fits on one
+    # window setting, so the whole module declines it.
+    plan.closing_window_tol = None
     return plan
 
 

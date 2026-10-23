@@ -102,6 +102,33 @@ def test_the_map_shows_every_entry_once_with_its_unit():
 
 
 # ----------------------------------------------------------------------
+# The other vocabularies
+# ----------------------------------------------------------------------
+
+
+def test_every_help_arm_has_exactly_one_reference_page():
+    """An arm added to `rietx.help` renders on one page, or the build raises."""
+    shared = {key for key, _, _ in reference_pages._VOCABULARIES}
+    assert not shared & reference_pages._OWN_PAGE
+    assert set(help_registry()) == shared | reference_pages._OWN_PAGE
+
+
+def test_an_arm_on_no_page_raises(monkeypatch):
+    monkeypatch.setattr(reference_pages, "_VOCABULARIES", reference_pages._VOCABULARIES[1:])
+    with pytest.raises(RuntimeError, match="stage_fields"):
+        reference_pages.vocabularies()
+
+
+def test_the_settings_page_shows_every_entry_of_its_arms():
+    text = reference_pages.vocabularies()
+    registry = help_registry()
+    for key, heading, _ in reference_pages._VOCABULARIES:
+        assert f"\n## {heading}\n" in text, heading
+        for name, entry in registry[key].items():
+            assert f"\n`{name}`\n: {entry['title']}. " in text, (key, name)
+
+
+# ----------------------------------------------------------------------
 # The plan ladder
 # ----------------------------------------------------------------------
 
@@ -232,6 +259,90 @@ def test_every_export_has_one_tier_in_the_api_reference():
     assert set(rietx.__all__) <= set(heads), sorted(set(rietx.__all__) - set(heads))
     third = [n for _, names in tiers[-1][1] for n in names]
     assert not set(third) & {n for _, s, _ in tiers[:-1] for _, ns in s for n in ns}
+
+
+#: A Python-domain directive's opening line: its kind, then its argument.
+_PY_DIRECTIVE = re.compile(r"^`{3,}\{py:(\w+)\} (\S+?)(\(.*)?$", re.M)
+#: Its module, the option every entry opens with.
+_PY_MODULE = re.compile(r"^`{3,}\{py:\w+\} \S+.*\n:module: (\S+)$", re.M)
+#: A `py:fields` body (docs/py_fields.py): one `name: annotation = default` a
+#: line, after any option line.
+_PY_FIELDS = re.compile(r"^```\{py:fields\}\n(.*?)\n```$", re.M | re.S)
+_FIELD = re.compile(r"^(\w+): (.*?)(?: = (.*))?$")
+
+
+def _api_bodies() -> str:
+    return "\n".join(f() for f in (reference_pages.api_everyday, reference_pages.api_techniques,
+                                   reference_pages.api_everything_else))
+
+
+def _api_names() -> list[tuple[str, str | None]]:
+    """(dotted name, technique) for every entry, in reading order."""
+    return [(n, technique) for _, sections, technique in reference_pages.api_tiers()
+            for _, names in sections for n in names]
+
+
+def test_every_api_name_is_a_python_object_with_the_skills_signature():
+    """Each name is a `py:` directive (WP-2022) under its own module, and its
+    signature is the one `docs/skill/make_api_index.py` prints for it: the
+    manual and the skill's index read one builder, so they cannot disagree."""
+    index = reference_pages._api_index()
+    text = _api_bodies()
+    modules = [m[1] for m in _PY_MODULE.finditer(text)]
+    directives = list(_PY_DIRECTIVE.finditer(text))
+    assert len(modules) == len(directives)
+    found = {("rx." if module == "rx" else module + ".") + m[2]: (m[1], m[3] or "")
+             for module, m in zip(modules, directives, strict=True)}
+    names = {n for n, _ in _api_names()}
+    assert set(found) == names, sorted(set(found) ^ names)
+    bullet = re.compile(r"^- `([^`]+)`")
+    compared = 0
+    for name, (kind, signature) in found.items():
+        if kind in ("function", "method") or (kind == "class" and signature):
+            assert f"{name}{signature}" == bullet.match(index._entry(name))[1], name
+            compared += 1
+    assert compared > 50
+
+
+def test_every_models_fields_are_its_attributes():
+    """The fields `make_api_index` lists for each model and dataclass are the
+    lines of the `py:fields` the page nests under it, with the same annotation
+    and default, and a technique's fields left to the technique's tier."""
+    index = reference_pages._api_index()
+    checked = 0
+    for name, technique in _api_names():
+        found = _PY_FIELDS.search(reference_pages._api_entry(index, name, technique))
+        if not found:
+            continue
+        fields = [_FIELD.match(line).groups() for line in found[1].splitlines()
+                  if not line.startswith(":")]
+        obj = index._resolve(name)
+        skip = index.TECHNIQUE_FIELDS.get(name, frozenset()) if technique is None else frozenset()
+        parts = (index.model_field_parts(obj, skip) if hasattr(obj, "model_fields")
+                 else index.dataclass_field_parts(obj))
+        assert fields == parts, name
+        checked += 1
+    assert checked > 100
+
+
+def test_a_classmethod_says_it_is_one():
+    """`Structure.from_cif` is called on the class, `Refinement.fit` on an
+    instance, and the page tells them apart."""
+    index = reference_pages._api_index()
+    assert ":classmethod:" in reference_pages._api_entry(index, "rx.Structure.from_cif")
+    assert ":classmethod:" not in reference_pages._api_entry(index, "rx.Refinement.fit")
+
+
+def test_a_name_described_twice_is_indexed_once(monkeypatch):
+    """A second description of one object fails a `-W` build, so a name an
+    earlier tier already described renders with `:no-index:`."""
+    tiers = [("Everyday calls", [("Reading data", ["rx.read_pattern"])], None),
+             ("A technique", [("Its calls", ["rx.read_pattern", "rx.diagnose"])], None),
+             ("Everything else in rx", [("", ["rx.capabilities"])], None)]
+    monkeypatch.setattr(reference_pages, "api_tiers", lambda: tiers)
+    assert ":no-index:" not in reference_pages.api_everyday()
+    blocks = [b for b in reference_pages.api_techniques().split("\n\n") if "{py:" in b]
+    assert [":no-index:" in b for b in blocks] == [True, False]
 
 
 # ----------------------------------------------------------------------

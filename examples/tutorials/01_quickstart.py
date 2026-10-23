@@ -1,11 +1,11 @@
 # %% [markdown]
 # # Quickstart: look at a pattern, then fit it with Le Bail
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # We read a laboratory powder pattern, look at it, and fit its cell and peak shapes.
 # The fit uses no atomic positions.
 # By the end you can read a fit's summary in the order rietx prints it, and keep the best of several Le Bail passes.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **You need** Python 3.11 or later and rietx 1.10 or later, which the next cell installs.
 # You should be comfortable running a Jupyter cell.
@@ -71,7 +71,7 @@ diag
 #
 # The background is a six-term Chebyshev polynomial, its constant term started at the floor of the data.
 # Left at zero, the first pass hands the whole pedestal to the peaks.
-# `rx.auto_background(data)` would size a penalised spline instead.
+# `rx.auto_background(data).background` would size a penalised spline instead.
 # On this pattern the spline reports hundreds of correlated coefficient pairs.
 # They would crowd the diagnostics below.
 

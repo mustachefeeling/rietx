@@ -212,6 +212,8 @@ a `tests/data/README.md` row.
 
 ### Inherited
 
+- **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: a tied TOPAS write its own reader refuses.** `write_topas_inp(structure, path, free=ref)` with a structure whose values break one of `ref`'s `tie_equal` groups writes one shared name at two values, and rietx's `.inp` reader then refuses the file (`TopasInpError ... is stated at two values`, `io/projects/topas_ties.py:345`; writer `topas_input.py` through `from_structure_refined`). Reproduced by a WP-1986 lane and not re-run by its parent. `src/rietx/io/CLAUDE.md` asks a writer to refuse what its reader refuses. `docs/docs/reference/foreign-writers.md`'s example sidesteps it by passing `ref.fitted_structure`.
+
 - **2026-10-17, from [1996](1996-the-switching-tab-says-only-what-its-tests-show.md):
   FullProf applies the Laue-class cell constraints itself, and it runs on this
   machine.** `~/Code/rietx-bench/tools/fullprof/files/fp2k` (FullProf.2k 8.20,

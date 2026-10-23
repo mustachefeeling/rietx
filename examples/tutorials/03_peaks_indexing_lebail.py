@@ -1,12 +1,12 @@
 # %% [markdown]
 # # Peaks, indexing and a Le Bail check
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # When the phase is unknown there is no CIF to start from, and the cell has to come from the peak positions alone.
 # We pick the peaks of a synthetic pattern whose answer we know, index them, and read why rietx declines to name a single cell.
 # Then we check the best candidate with a Le Bail fit.
 # By the end you can pick and fit peaks, run an indexing search, and test a candidate cell against the whole pattern.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 01 introduces Le Bail fitting.
@@ -125,7 +125,7 @@ chosen
 #
 # The same tab runs the indexing search, draws a candidate's predicted lines over the pattern, and adopts a candidate as the starting point of a Le Bail fit.
 # Every gesture also has a typed equivalent in the panel.
-# The [GUI guide](https://rietx.org/using/gui-guide.html#peaks) covers the tab in full.
+# [The GUI panel by panel](https://rietx.org/docs/stable/reference/gui-guide.html#peaks) covers the tab in full.
 #
 # ## Index
 #

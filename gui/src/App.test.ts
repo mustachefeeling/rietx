@@ -52,7 +52,7 @@ const HELP = {
     { paths: ["phases.*.cell.a", "phases.*.cell.b", "phases.*.cell.c"],
       title: "Cell edge", description: "A unit-cell edge length.",
       unit: "Å", default: null, typical: "3-40 Å for an inorganic phase",
-      anchor: "peak-positions.html#lattice-metric-and-bragg-s-law" },
+      anchor: "theory/peak-positions.html#lattice-metric-and-bragg-s-law" },
   ],
   // a flag and an origin with the label a chip carries (WP-1209): the chip says
   // the label and the popover restores the name behind it
@@ -75,7 +75,7 @@ const HELP = {
   instrument_fields: {},
   search_fields: {},
   plans: {},
-  docs_url: "https://rietx.org",
+  docs_url: "https://rietx.org/docs/dev",
 };
 
 const PROJECT = {
@@ -5321,7 +5321,7 @@ describe("the help popover", () => {
     // the anchor is a page and a heading, joined to the base the same payload
     // carries — nothing in the frontend knows where the manual lives
     expect(link.href).toBe(
-      "https://rietx.org/peak-positions.html#lattice-metric-and-bragg-s-law");
+      "https://rietx.org/docs/dev/theory/peak-positions.html#lattice-metric-and-bragg-s-law");
   });
 
   it("says so rather than inventing one when the key names nothing", async () => {

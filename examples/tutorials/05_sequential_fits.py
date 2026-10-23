@@ -1,13 +1,13 @@
 # %% [markdown]
 # # Sequential fits
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # An in-situ experiment measures one specimen many times while something changes, such as temperature, time, pressure or gas.
 # rietx fits such a series pattern by pattern, and starts each fit from the answer before it.
 # We load a synthetic heating ramp from files, fit it and grade the result against the truth.
 # Then we break one pattern twice to see what the series reports.
 # By the end you can load and fit a series, read a parameter's trajectory, and check that the trajectory does not depend on the fitting order.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces plans and a single refinement.

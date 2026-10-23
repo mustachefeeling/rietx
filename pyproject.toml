@@ -117,16 +117,15 @@ docs = [
     # The tutorial notebooks as manual pages (WP-1916), with execution off.
     "myst-nb>=1.1",
     "sphinxcontrib-bibtex>=2.6",
-    # Part 1's diagrams.  >=2.1 because that is where the extension's own
-    # theme detection reads `body[data-theme]` and re-renders on a
-    # MutationObserver — which is exactly how furo signals its light/dark
-    # toggle, so the diagrams follow the toggle with no custom JS here.
+    # The manual's diagrams.  >=2.1 because that is where the extension's own
+    # theme detection reads `data-theme` and re-renders on a MutationObserver,
+    # which is how the theme signals its light/dark toggle, so the diagrams
+    # follow the toggle with no custom JS here.
     "sphinxcontrib-mermaid>=2.1",
-    # Part 1's installation tabs (WP-1126): one chapter, three operating
+    # The install page's tabs (WP-1126): one chapter, three operating
     # systems, two installers.
     "sphinx-design>=0.6",
-    "furo>=2024.1",
-    # The new manual's theme (docs/docs/, WP-1978), chosen over furo in the
+    # The manual's theme (docs/docs/, WP-1978), chosen over furo in the
     # WP-1975 spike for its six-tab header, version switcher and dev banner.
     # The floor is the release the spike was measured on.
     "pydata-sphinx-theme>=0.23",
@@ -166,7 +165,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/yue-here/rietx"
-Documentation = "https://rietx.org/manual.html"
+Documentation = "https://rietx.org/docs/"
 
 [project.scripts]
 rietx = "rietx.cli:main"
