@@ -88,6 +88,7 @@ from scipy.optimize import linear_sum_assignment
 from ..crystallography.site_classes import GRID
 from ..crystallography.symmetry import _group_arrays, group_key
 from ..crystallography.wyckoff import floating_origin_basis
+from ..optimize import lapack
 
 #: Two solutions within this RMSD (Å) after alignment are one cluster.
 #: Declared: half the 0.7 Å single-site bar of #677's archive run, and above
@@ -319,7 +320,7 @@ def align(eq: Equivalence, xa: np.ndarray, xb: np.ndarray, species) -> Alignment
         if len(fl):
             for _ in range(4):
                 # the shift along the floating directions only
-                coef, *_ = np.linalg.lstsq(fl.T, shift, rcond=None)
+                coef, *_ = lapack.lstsq(fl.T, shift, rcond=None)
                 y = y + fl.T @ coef
                 ss, dev, shift = _match(eq, xa, y, species)
         rmsd = float(np.sqrt(ss / len(xa)))
