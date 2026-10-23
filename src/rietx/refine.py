@@ -778,17 +778,22 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
 
 
 #: What a pattern sees of the peak widths (``CompiledModel._width_block``): per
-#: angular term, the instrument coefficient and the specimen widths that add to
-#: it.  Γ_G² = U·tan²θ + V·tanθ + W + ``gauss_size``/cos²θ + ``gauss_strain``·tan²θ,
-#: and 1/cos²θ = 1 + tan²θ, so ``gauss_size`` adds to two terms; Γ_L =
-#: (X + ``lor_size``)/cosθ + (Y + ``lor_strain``)·tanθ.  V has no specimen term.
-#: A joint fit's λ factors on the size terms (WP-1131) are in **C**, so the test
-#: below reads them without naming them.
+#: angular term, the instrument coefficient and the specimen width that adds to
+#: it, Γ_G² = (U + ``gauss_strain``)·tan²θ + … and Γ_L = (X + ``lor_size``)/cosθ
+#: + (Y + ``lor_strain``)·tanθ.  A joint fit's λ factor on ``lor_size``
+#: (WP-1131) is in **C**, so the test below reads it without naming it.
+#:
+#: ``gauss_size`` is left out on purpose.  Its 1/cos²θ is 1 + tan²θ, so with U
+#: and W free beside it (δU, δW, δsize) = (−1, −1, 1) is exactly flat too, but
+#: the floors this WP kept bound it both ways (W ≥ ``_MIN_GAMMA_G2``, the size
+#: ≥ 0), so it cannot walk, and ``FLAT_DIRECTION`` reports it.  The hold stops
+#: the walks the U and Y floors' removal opened.  Held anyway, W went with it
+#: and three acceptance answers moved (WP-2002 9th session, the code review's
+#: third finding).
 WIDTH_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("instrument.profile.u", ("gauss_strain", "gauss_size")),    # tan²θ in Γ_G²
-    ("instrument.profile.w", ("gauss_size",)),                   # 1 in Γ_G²
-    ("instrument.profile.x", ("lor_size",)),                     # 1/cosθ in Γ_L
-    ("instrument.profile.y", ("lor_strain",)),                   # tanθ in Γ_L
+    ("instrument.profile.u", ("gauss_strain",)),     # tan²θ in Γ_G²
+    ("instrument.profile.x", ("lor_size",)),         # 1/cosθ in Γ_L
+    ("instrument.profile.y", ("lor_strain",)),       # tanθ in Γ_L
 )
 
 
@@ -807,8 +812,7 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     null space of a matrix read off **C**, so a tie, a ``vars.X`` and a joint
     fit's λ factor all enter as coefficients.  The pairs U with
     ``gauss_strain``, X with ``lor_size`` and Y with ``lor_strain`` are flat
-    this way, and so is ``gauss_size`` with U and W together (code review of
-    the 9th session).  Two consequences follow without a rule of their own.
+    this way.  Two consequences follow without a rule of their own.
     One seen phase whose specimen width is held pins the instrument term for
     every phase, so nothing is flat.  A pattern whose instrument width is held
     pins the shared specimen width, and every other pattern's instrument width

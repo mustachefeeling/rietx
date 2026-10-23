@@ -112,22 +112,12 @@ def test_a_free_stephens_block_is_ys_twin():
         p for p in table.free_paths if ".microstrain.dof." in p)
 
 
-def test_a_gaussian_size_is_flat_with_u_and_w_together():
-    """1/cos²θ = 1 + tan²θ, so ``gauss_size`` moves the tan²θ and the constant
-    terms of Γ_G² at once: with U and W free beside it, (δU, δW, δsize) =
-    (−1, −1, 1) is flat, and both instrument terms are held (code review of
-    the 9th session)."""
+def test_a_gaussian_size_is_left_to_its_floors():
+    """1/cos²θ = 1 + tan²θ, so with U and W free beside ``gauss_size``,
+    (δU, δW, δsize) = (−1, −1, 1) is flat; the kept floors on W and the size
+    bound it both ways, so it is reported rather than held (``WIDTH_TERMS``)."""
     table = _table(make_lab6(), ["instrument.profile.u", "instrument.profile.w",
                                  "phases.*.gauss_size"])
-    held, _, twins = _hold_width_twins(table, set())
-    assert sorted(held) == ["instrument.profile.u", "instrument.profile.w"]
-    assert twins == {"instrument.profile.u": ["phases.0.gauss_size"],
-                     "instrument.profile.w": ["phases.0.gauss_size"]}
-
-
-def test_a_gaussian_size_with_only_w_free_is_measured():
-    """With U held the tan²θ term pins the size, and W with it."""
-    table = _table(make_lab6(), ["instrument.profile.w", "phases.*.gauss_size"])
     assert _hold_width_twins(table, set()) == ([], {}, {})
 
 

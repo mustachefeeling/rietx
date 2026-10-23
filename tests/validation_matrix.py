@@ -2120,11 +2120,12 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_wavelength",
-        "test_a_width_on_its_floor_leaves_one_esd_at_every_start",
+        "test_the_neutron_widths_leave_one_esd_at_every_start",
         "ndruo_joint", ("prediction", "identity"),
-        "issue #831's platform split, reproduced on one machine: with the "
-        "neutron fit's Lorentzian y on 0, x's esd is one number however the "
-        "start is nudged at the size of two platforms' arithmetic",
+        "issue #831's platform split, reproduced on one machine: x's esd is "
+        "one number however the start is nudged at the size of two "
+        "platforms' arithmetic, with y on its old floor of 0 and since "
+        "WP-2002 with y free",
         reference="the esd the width column gives when taken in physical "
                   "units and chained by dp/du, computed by WP-1929 at three "
                   "softplus stopping points before WP-1938 refined in those "
@@ -2132,13 +2133,16 @@ CLAIMS: tuple[Claim, ...] = (
                   "four nudged starts under 1e-6 relative",
         measured="0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread "
                  "4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. "
-                 "The pre-1938 tree gives 0.00322, Linux's figure",
+                 "The pre-1938 tree gives 0.00322, Linux's figure. Since "
+                 "WP-2002: 0.0102922 at four starts, spread 1.5e-9, y = "
+                 "-0.0210949(191) off any bound",
     ),
     Claim(
         "test_acceptance_wavelength",
         "test_a_width_on_its_floor_has_a_one_sided_profile_interval",
         "ndruo_joint", ("characterisation",),
-        "the neutron fit's Lorentzian y on its floor of 0 gets a one-sided "
+        "the neutron fit's Lorentzian y on a floor of 0 (the caller's since "
+        "WP-2002) gets a one-sided "
         "profile interval: the bound is one end, and the other lies where "
         "the data's chi2 has risen by chi2_1(0.90) x chi2_red x f^2, inside "
         "the sqrt(2.706) esd a stationary floor would give, because the "
@@ -2152,7 +2156,8 @@ CLAIMS: tuple[Claim, ...] = (
         measured="upper end 0.0166098 (0.558 of 0.0298), Delta chi2 there "
                  "0.0044 under a cut of 21.343, 19 refits, 3 s; the same to "
                  "5e-10 relative at six starts nudged by 1e-14 (macOS "
-                 "arm64)",
+                 "arm64); 0.0164535 at a cut of 21.048 since WP-2002 left U "
+                 "and V unfloored",
     ),
     Claim(
         "test_acceptance_wavelength", "test_the_fits_render",

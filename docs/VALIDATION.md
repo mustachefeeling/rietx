@@ -1283,25 +1283,25 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 
 **Measured:** +257.6 ppm holding the X-ray against -256.7 ppm holding the neutron -- 0.9 ppm apart on an effect of 257 (0.34 %); both Rwp identical to 5 decimals, x(O) to 1.2e-6
 
-#### `test_a_width_on_its_floor_leaves_one_esd_at_every_start`
+#### `test_the_neutron_widths_leave_one_esd_at_every_start`
 
 `prediction` `identity` · dataset `ndruo_joint`
 
-**Claims:** issue #831's platform split, reproduced on one machine: with the neutron fit's Lorentzian y on 0, x's esd is one number however the start is nudged at the size of two platforms' arithmetic
+**Claims:** issue #831's platform split, reproduced on one machine: x's esd is one number however the start is nudged at the size of two platforms' arithmetic, with y on its old floor of 0 and since WP-2002 with y free
 
 **Referenced to:** the esd the width column gives when taken in physical units and chained by dp/du, computed by WP-1929 at three softplus stopping points before WP-1938 refined in those units (0.0098437, 1e-4 relative), and the spread across four nudged starts under 1e-6 relative
 
-**Measured:** 0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread 4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. The pre-1938 tree gives 0.00322, Linux's figure
+**Measured:** 0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread 4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. The pre-1938 tree gives 0.00322, Linux's figure. Since WP-2002: 0.0102922 at four starts, spread 1.5e-9, y = -0.0210949(191) off any bound
 
 #### `test_a_width_on_its_floor_has_a_one_sided_profile_interval`
 
 `characterisation` · dataset `ndruo_joint`
 
-**Claims:** the neutron fit's Lorentzian y on its floor of 0 gets a one-sided profile interval: the bound is one end, and the other lies where the data's chi2 has risen by chi2_1(0.90) x chi2_red x f^2, inside the sqrt(2.706) esd a stationary floor would give, because the data press y against the floor
+**Claims:** the neutron fit's Lorentzian y on a floor of 0 (the caller's since WP-2002) gets a one-sided profile interval: the bound is one end, and the other lies where the data's chi2 has risen by chi2_1(0.90) x chi2_red x f^2, inside the sqrt(2.706) esd a stationary floor would give, because the data press y against the floor
 
 **Referenced to:** the threshold itself for where the end lies (1 % of it), and the stationary-floor end sqrt(2.706) x 0.018101 = 0.0298 as a ceiling that LM's active set (the gradient at 0 points out of the range) says the end must sit under; the value is pinned at ten times its own solve tolerance, 1e-3 esd
 
-**Measured:** upper end 0.0166098 (0.558 of 0.0298), Delta chi2 there 0.0044 under a cut of 21.343, 19 refits, 3 s; the same to 5e-10 relative at six starts nudged by 1e-14 (macOS arm64)
+**Measured:** upper end 0.0166098 (0.558 of 0.0298), Delta chi2 there 0.0044 under a cut of 21.343, 19 refits, 3 s; the same to 5e-10 relative at six starts nudged by 1e-14 (macOS arm64); 0.0164535 at a cut of 21.048 since WP-2002 left U and V unfloored
 
 #### `test_the_fits_render`
 

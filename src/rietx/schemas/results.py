@@ -1082,8 +1082,7 @@ class StageResult(Base):
     scale_b_held: dict[int, float] | None = None
     #: per instrument width column this stage **held** because free specimen
     #: widths have its angular dependence (WP-2002), the specimen columns it
-    #: pairs with: U with ``gauss_strain`` and ``gauss_size`` (tan²θ in Γ_G²),
-    #: W with ``gauss_size`` (whose 1/cos²θ is 1 + tan²θ), X with ``lor_size``
+    #: pairs with: U with ``gauss_strain`` (tan²θ in Γ_G²), X with ``lor_size``
     #: (1/cosθ in Γ_L), Y with ``lor_strain`` (tanθ in Γ_L).  The data see each
     #: angular term only as a total, so with both sides free it walks along a
     #: flat direction.  The instrument side is held at the value the stage

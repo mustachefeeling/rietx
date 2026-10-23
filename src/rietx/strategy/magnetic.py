@@ -224,6 +224,14 @@ SOLVE_SEED_TILT = _moments.SEED_TILT
 #: TRF reached 2555.8.  Freed modulus-only first, the same start reached
 #: 2556.06 under LM.
 #:
+#: **The widths are the instrument's alone.**  The stage frees U and X and not
+#: the specimen's ``gauss_strain`` and ``lor_size``, which share their angular
+#: shapes, so a pattern sees only each pair's sum.  Freed together they are
+#: what WP-2002's width twin hold holds U and X against, leaving the ranking's
+#: widths on the instrument the caller handed in plus a specimen term floored
+#: at 0; freed alone, the instrument carries the whole width, the reading
+#: GSAS-II and FullProf give without a standard (``docs/practice.md``).
+#:
 #: **Coordinates are deliberately absent.**  Freeing them lets each candidate's
 #: *nuclear* model absorb a different amount of the magnetic intensity, which
 #: is precisely the confound a ranking must not have; and for a supercell
@@ -237,8 +245,7 @@ SOLVE_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
      "instrument.background.c*"),
     ("phases.*.atoms.*.moment.dof*", "phases.*.scale",
      "instrument.background.c*", "phases.*.cell.*", "instrument.zero_shift",
-     "phases.*.atoms.*.biso", "phases.*.gauss_strain", "phases.*.lor_size",
-     "instrument.profile.u", "instrument.profile.x"),
+     "phases.*.atoms.*.biso", "instrument.profile.u", "instrument.profile.x"),
 )
 
 #: The names of :data:`SOLVE_STAGE_PATHS`' stages, in order.
