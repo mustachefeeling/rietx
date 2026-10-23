@@ -2578,26 +2578,18 @@ class ParameterTable:
         edit never stops a build).
         """
         derived = self.derived_paths()
-
-        def kind(path: str) -> str | None:
-            j = self._paths.get(path)
-            if j is None:
-                return None
-            if path in derived:
-                return "derived"
-            return "locked" if self.entries[j].locked else None
-
         for src, _ in tie.terms:
-            if (k := kind(src)) is not None:
-                return src, f"{k} row"
-            j = self._paths.get(src)
-            if j is None or self.entries[j].tie is None:
+            if src not in self._paths:
                 continue
-            terms, _ = self._flatten(self.entries[j].tie, (src,))
-            for i, _ in terms:
-                leaf = self.entries[i].path
-                if (k := kind(leaf)) is not None:
-                    return src, f"row tied to the {k} row {leaf!r}"
+            # an untied source is its own one leaf
+            leaves, _ = self._flatten(AffineTie.identity(src))
+            for i, _ in leaves:
+                e = self.entries[i]
+                k = ("derived" if e.path in derived
+                     else "locked" if e.locked else None)
+                if k is not None:
+                    return src, (f"{k} row" if e.path == src
+                                 else f"row tied to the {k} row {e.path!r}")
         return None
 
     def set_tie(self, path: str, tie: AffineTie | None) -> None:
