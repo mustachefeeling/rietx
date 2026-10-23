@@ -22,6 +22,7 @@ variant (the handover records which and how each failed):
 """
 
 import json
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -525,29 +526,53 @@ def test_an_ion_of_unknown_coordination_takes_the_smallest_tabulated_radius():
 
 
 def test_the_inventory_tolerance_scales_with_the_part_occupied_multiplicity():
-    """A 192-fold site at occupancy 0.333 (⅓ printed to three decimals) holds
-    63.936 atoms against 64: 0.064 off, which a flat 0.05 refused."""
+    """A part occupancy is read as written, or as the p/q (q ≤ 12) it rounds
+    (#1016, review round 4).  On a 192-fold site, ⅓ printed to two, three or
+    four decimals holds 64 atoms; 0.5 is ½ and holds 96, never 87 or 90."""
     def cu(occ):
         return _phase("cu", "F m -3 m", (12.0, 12.0, 12.0, 90, 90, 90),
                       [_atom("Cu", "Cu", 0.11, 0.23, 0.37, occ=occ)])
     comp = ch.Composition("Cu", z=64)
-    check = comp.require(cu(0.333))
-    assert check.found["Cu"] == pytest.approx(192 * 0.333)
-    assert abs(check.expected["Cu"] - check.found["Cu"]) > 0.05
-    assert check.tolerance["Cu"] == pytest.approx(0.0005 * 192)
-    with pytest.raises(ch.CompositionMismatch):                    # a real shortfall
-        comp.require(cu(0.32))
-    # the value says its own precision: ⅓ printed as 0.33 is 0.64 short of 64,
-    # inside 0.005 × 192 = 0.96; 0.34 is 1.28 over, outside it
-    two = comp.require(cu(0.33))
-    assert two.tolerance["Cu"] == pytest.approx(0.005 * 192)
-    with pytest.raises(ch.CompositionMismatch):
-        comp.require(cu(0.34))
-    # 0.3333 carries four decimals, so only 0.00005 per atom; ⅓ itself none
-    assert comp.check(cu(0.3333)).tolerance["Cu"] == pytest.approx(0.00005 * 192)
-    assert comp.check(cu(1 / 3)).tolerance["Cu"] < 1e-9
-    # a full site has no rounding to forgive: one atom short is still short
+    for occ in (0.33, 0.333, 0.3333, 1 / 3):
+        check = comp.require(cu(occ))
+        assert check.found["Cu"] == pytest.approx(192 * occ)
+        assert check.found_as_fraction["Cu"] == pytest.approx(64.0, abs=1e-9)
+        assert check.read_as == {"Cu": "1/3"}
+    # the same site written as Cu2 at Z = 32: 0.33 is 0.02 short per formula
+    # unit, which checkCIF's fixed 0.01 would refuse; read as ⅓ it holds 64
+    assert ch.Composition("Cu2", z=32).require(cu(0.33)).inventory_matches
+    # 0.34 and 0.32 round no fraction with q ≤ 12: a real excess and shortfall
+    for occ, found in ((0.34, 65.28), (0.32, 61.44)):
+        check = comp.check(cu(occ))
+        assert check.read_as == {} and check.found_as_fraction["Cu"] == pytest.approx(found)
+        assert check.missing == {"Cu": pytest.approx(64 - found)}
+        with pytest.raises(ch.CompositionMismatch):
+            comp.require(cu(occ))
+    # review round 4's rows: 0.5 read as 0.45-0.55 passed formula × Z from 87 to
+    # 105; read as ½ it holds 96 and nothing else.  0.1 is 1/10 and holds 19.2.
+    assert ch.Composition("Cu", z=96).require(cu(0.5)).read_as == {"Cu": "1/2"}
+    for n, occ in ((90, 0.5), (87, 0.5), (105, 0.5), (15, 0.1)):
+        with pytest.raises(ch.CompositionMismatch):
+            ch.Composition("Cu", z=n).require(cu(occ))
+    # as written still counts: a formula that really says 0.17 per site holds
+    # 0.17 × 192 = 32.64, though 0.17 also rounds ⅙ (which would hold 32)
+    check = ch.Composition("Cu0.17", z=192).require(cu(0.17))
+    assert check.read_as == {"Cu": "1/6"} and check.inventory_matches
+    assert ch.Composition("Cu", z=32).require(cu(0.17)).inventory_matches
+    # a full site has nothing to read: one atom short is still short
     full = _cdoh2(H_TRUE).phases[0]
     full.atoms = full.atoms[:2]
-    assert ch.Composition("CdO2H2", z=1).check(full).tolerance == {}
+    assert ch.Composition("CdO2H2", z=1).check(full).read_as == {}
     assert not ch.Composition("CdO2H2", z=1).check(full).inventory_matches
+
+
+def test_an_occupancy_reads_as_the_fraction_inside_its_printed_rounding():
+    f = ch.occupancy_fraction
+    assert ch.OCCUPANCY_MAX_DENOMINATOR == 12
+    assert f(0.33) == f(0.333) == f(0.3333) == f(1 / 3) == Fraction(1, 3)
+    assert f(0.5) == Fraction(1, 2) and f(0.1) == Fraction(1, 10)
+    assert f(0.17) == f(0.167) == Fraction(1, 6) and f(0.083) == Fraction(1, 12)
+    assert f(0.125) == Fraction(1, 8) and f(0.9) == Fraction(9, 10)
+    assert f(0.34) is None and f(0.32) is None and f(0.3334) is None
+    assert f(0.0769) is None                                      # 1/13 is past q ≤ 12
+    assert f(1.0) is None and f(0.0) is None

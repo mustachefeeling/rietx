@@ -74,6 +74,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from fractions import Fraction
 
 import numpy as np
 
@@ -95,6 +96,12 @@ _CELL = ("a", "b", "c", "alpha", "beta", "gamma")
 # ----------------------------------------------------------------------
 # composition: the gate
 # ----------------------------------------------------------------------
+#: The largest denominator a part occupancy is read as a fraction of (#1016,
+#: review round 4): q ≤ 12 holds ½, ⅓, ¼, ⅙, ⅛ and 1/12.  A chosen number,
+#: with its row in :data:`rietx._audit.ROWS`.
+OCCUPANCY_MAX_DENOMINATOR = 12
+
+
 def _rounding(occ: float) -> float:
     """Half the last decimal the occupancy carries: 0.5·10⁻ᵈ for the fewest d
     reproducing it to 1e-12, and 0 for a value with no short decimal form."""
@@ -104,22 +111,42 @@ def _rounding(occ: float) -> float:
     return 0.0
 
 
+def occupancy_fraction(occ: float) -> Fraction | None:
+    """The simple fraction a printed occupancy rounds, or ``None``.
+
+    The nearest p/q with q ≤ :data:`OCCUPANCY_MAX_DENOMINATOR`
+    (:meth:`fractions.Fraction.limit_denominator`), kept only if it lies inside
+    the value's printed rounding, ±0.5·10⁻ᵈ with d the fewest decimals that
+    reproduce the value (1e-12 for one with no short decimal form, so ⅓ itself
+    reads as ⅓).  0.33, 0.333 and 0.3333 read as ⅓; 0.34 and 0.32 have no
+    fraction; 0.5 reads as ½ and nothing else.  Only a part occupancy,
+    0 < occ < 1, is read.
+    """
+    occ = float(occ)
+    if not 0.0 < occ < 1.0:
+        return None
+    frac = Fraction(occ).limit_denominator(OCCUPANCY_MAX_DENOMINATOR)
+    if abs(float(frac) - occ) <= _rounding(occ) + 1e-12:
+        return frac
+    return None
+
+
 @dataclass(frozen=True)
 class CompositionCheck:
     """What a phase's sites hold against a :class:`Composition`.
 
     ``expected`` and ``found`` are atoms per cell by element: the formula times
-    Z, and Σ multiplicity × occupancy over the sites.  ``z`` is the declared Z,
-    or the whole number nearest ``z_implied`` = V/V_fu when none was declared.
+    Z, and Σ multiplicity × occupancy over the sites, the occupancy as
+    written.  ``found_as_fraction`` is the same sum with each part occupancy
+    read as the simple fraction it rounds where one exists
+    (:func:`occupancy_fraction`), and ``read_as`` names those sites, label →
+    ``"p/q"``.  An element matches when formula × Z equals either sum to 1e-9:
+    0.333 on a 192-fold site reads as ⅓ and holds 64; a literal 0.17 still
+    matches a formula that says 0.17, though it also rounds ⅙; and 0.5 is ½,
+    so the site holds 96 and no other count.  ``z`` is the declared Z, or the
+    whole number nearest ``z_implied`` = V/V_fu when none was declared.
     ``volume_ratio`` is V/(Z·V_fu), and ``in_volume_window`` whether it lies in
     Hofmann's (2002) 0.8-1.25 (:data:`~rietx.crystallography.atomic_volume.VOLUME_RATIO_BOUNDS`).
-    ``tolerance`` is atoms per cell by element, under which found matches
-    expected: an occupancy is read as printed to d decimals, d being the
-    fewest that reproduce it (the smallest d with |round(occ, d) − occ| < 1e-12),
-    so it is off by up to 0.5·10⁻ᵈ per atom of its site's multiplicity, and the
-    tolerance sums that over the element's part-occupied sites.  0.33 (d = 2)
-    forgives 0.005 per atom, 0.3333 forgives 0.00005, and a value carrying all
-    its digits (⅓ itself) or a full site forgives nothing.
     """
 
     formula: str
@@ -132,21 +159,26 @@ class CompositionCheck:
     expected: dict[str, float]
     found: dict[str, float]
     omitted: tuple[str, ...]
-    tolerance: dict[str, float]
+    found_as_fraction: dict[str, float]
+    read_as: dict[str, str]
+
+    def _matches(self, k: str) -> bool:
+        e = self.expected.get(k, 0.0)
+        return (abs(e - self.found.get(k, 0.0)) <= 1e-9
+                or abs(e - self.found_as_fraction.get(k, 0.0)) <= 1e-9)
 
     @property
     def inventory_matches(self) -> bool:
-        """Every element within its ``tolerance`` atoms, and none extra."""
-        keys = set(self.expected) | set(self.found)
-        return all(abs(self.expected.get(k, 0.0) - self.found.get(k, 0.0))
-                   <= self.tolerance.get(k, 0.0) + 1e-9 for k in keys)
+        """Every element held as written or as fractions, and none extra."""
+        return all(self._matches(k) for k in set(self.expected) | set(self.found))
 
     @property
     def missing(self) -> dict[str, float]:
-        """Atoms per cell the formula needs and the sites lack (negative: extra)."""
+        """Atoms per cell the formula needs and the sites lack, as written
+        (negative: extra), for the elements that do not match."""
         keys = set(self.expected) | set(self.found)
-        out = {k: self.expected.get(k, 0.0) - self.found.get(k, 0.0) for k in sorted(keys)}
-        return {k: v for k, v in out.items() if abs(v) > self.tolerance.get(k, 0.0) + 1e-9}
+        return {k: self.expected.get(k, 0.0) - self.found.get(k, 0.0)
+                for k in sorted(keys) if not self._matches(k)}
 
 
 class CompositionMismatch(ValueError):
@@ -220,7 +252,8 @@ class Composition:
         omitted = tuple(sorted({element_symbol(e) for e in omit}))
         expected = {el: n * z for el, n in self.counts.items() if el not in omitted}
         found: dict[str, float] = {}
-        tolerance: dict[str, float] = {}
+        as_fraction: dict[str, float] = {}
+        read_as: dict[str, str] = {}
         sg = resolve_group(phase.space_group, phase.symmetry_operations)
         for atom in phase.atoms:
             el = element_symbol(atom.species)
@@ -230,15 +263,18 @@ class Composition:
                                                     atom.z.value]))
             occ = float(atom.occ.value)
             found[el] = found.get(el, 0.0) + len(rot) * occ
-            if occ < 1.0:
-                tolerance[el] = tolerance.get(el, 0.0) + _rounding(occ) * len(rot)
+            frac = occupancy_fraction(occ)
+            if frac is not None:
+                read_as[atom.label] = f"{frac.numerator}/{frac.denominator}"
+            as_fraction[el] = as_fraction.get(el, 0.0) + len(rot) * (
+                float(frac) if frac is not None else occ)
         ratio = volume / (z * v_fu)
         lo, hi = VOLUME_RATIO_BOUNDS
         return CompositionCheck(
             formula=self.formula, z=int(z), z_implied=z_implied, volume=volume,
             formula_unit_volume=v_fu, volume_ratio=ratio,
             in_volume_window=bool(lo <= ratio <= hi), expected=expected, found=found,
-            omitted=omitted, tolerance=tolerance)
+            omitted=omitted, found_as_fraction=as_fraction, read_as=read_as)
 
     def require(self, phase, *, omit: tuple[str, ...] = ()) -> CompositionCheck:
         """:meth:`check`, raising :class:`CompositionMismatch` unless the
