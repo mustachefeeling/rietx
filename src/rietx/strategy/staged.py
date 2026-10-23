@@ -15,6 +15,7 @@ import dataclasses
 import functools
 import re
 from dataclasses import dataclass, field
+from typing import Literal
 
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
@@ -1050,7 +1051,18 @@ class GuardFinding:
 
     @classmethod
     def nonpositive_resolution(cls, n_bad: int, n_total: int, worst: float,
-                               two_theta: float) -> "GuardFinding":
+                               two_theta: float, *,
+                               width: Literal["gaussian", "lorentzian"] = "gaussian"
+                               ) -> "GuardFinding":
+        """``width="lorentzian"`` is Γ_L's finding: one code for both widths,
+        since the action is the same for either (WP-2002)."""
+        if width == "lorentzian":
+            return cls("RESOLUTION_NOT_POSITIVE",
+                       ("instrument.profile.x", "instrument.profile.y"),
+                       float(worst),
+                       f"the Lorentzian instrument width ({n_bad} of {n_total} "
+                       f"fitted points, worst Γ_L {worst:+.2e}° at "
+                       f"{two_theta:.3f}° 2θ)")
         return cls("RESOLUTION_NOT_POSITIVE",
                    ("instrument.profile.u", "instrument.profile.v",
                     "instrument.profile.w"),
@@ -1695,7 +1707,15 @@ RESOLUTION_CONE_TOL = 1e-9
 
 
 def check_resolution_positive(table, model) -> list[GuardFinding]:
-    """The Caglioti resolution function dipping below zero in the fitted range.
+    """An instrument width going below zero in the fitted range.
+
+    Two widths, one finding each.  The Gaussian one is below.  The Lorentzian
+    one, Γ_L = X/cosθ + Y·tanθ, is a FWHM and must not go negative either.
+    Y has no floor of its own since 2026-10-23 (WP-2002), so a negative Y can
+    take Γ_L below zero at high angle once X is too small to carry it.  The
+    model refuses nothing there: the TCH mixing gives a negative η.  Tested
+    the same way as Γ_G², over the fitted axis, on the instrument alone, at
+    the same relative tolerance.
 
     Γ_G² = U·tan²θ + V·tanθ + W is a **variance**, so the physical constraint
     is on the quadratic as a whole and not on its three coefficients: U, V and
@@ -1735,7 +1755,8 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     histogram also holds the **total** Γ_G², each phase's Gaussian size and
     strain included, at or above ``caglioti._MIN_GAMMA_G2`` at every
     reflection, as a linear inequality (WP-1938 D7,
-    ``optimize.least_squares.gaussian_width_inequalities``).  That keeps the
+    ``optimize.least_squares.gaussian_width_inequalities``), and the total
+    Γ_L at or above zero (``lorentzian_width_inequalities``).  That keeps the
     width columns alive, and it does not make this guard redundant.  A phase
     term can carry the total while the instrument quadratic is negative, the
     points between reflections are not held, and a stage that starts under
@@ -1756,15 +1777,27 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     except KeyError:  # defensive: ParameterTable always adds the five profile
         return []     # entries, so nothing in-tree reaches this
 
-    tan = np.tan(np.radians(0.5 * tt))
+    th = np.radians(0.5 * tt)
+    tan = np.tan(th)
+    out: list[GuardFinding] = []
     g2 = u * tan * tan + v * tan + w
     scale = max(float(np.max(np.abs(g2))), 1.0)
     bad = g2 < -RESOLUTION_CONE_TOL * scale
-    if not bad.any():
-        return []
-    k = int(np.argmin(g2))
-    return [GuardFinding.nonpositive_resolution(
-        int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k]))]
+    if bad.any():
+        k = int(np.argmin(g2))
+        out.append(GuardFinding.nonpositive_resolution(
+            int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k])))
+    x, y = values.get("instrument.profile.x"), values.get("instrument.profile.y")
+    if x is not None and y is not None:
+        gl = x / np.cos(th) + y * tan
+        scale = max(float(np.max(np.abs(gl))), 1.0)
+        bad = gl < -RESOLUTION_CONE_TOL * scale
+        if bad.any():
+            k = int(np.argmin(gl))
+            out.append(GuardFinding.nonpositive_resolution(
+                int(bad.sum()), int(gl.size), float(gl[k]), float(tt[k]),
+                width="lorentzian"))
+    return out
 
 
 #: a free column counts as "on its bound" within this fraction of **the closest

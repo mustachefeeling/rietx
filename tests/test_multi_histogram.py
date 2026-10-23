@@ -711,6 +711,8 @@ def test_a_seed_one_histogram_cannot_hold_is_written_in_none():
     """
     instruments = [Instrument.debye_scherrer(wavelength=lam)
                    for lam in (0.41390, 0.71070)]
+    for ins in instruments:     # Y's own box has no floor since WP-2002
+        ins.profile.y.min = 0.0
     instruments[0].profile.y.max = 1.5e-3
     instruments[1].profile.y.max = 5e-4
     mt = MultiParameterTable(make_lab6(), instruments,

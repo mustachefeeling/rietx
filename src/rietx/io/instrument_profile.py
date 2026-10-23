@@ -40,7 +40,11 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .._about import PROFILE_FORMAT_KEY
-from ..model.profiles.caglioti import _MIN_GAMMA_G2, GAUSSIAN_VARIANCE_TO_FWHM_SQUARED
+from ..model.profiles.caglioti import (
+    _MIN_GAMMA_G2,
+    GAUSSIAN_VARIANCE_TO_FWHM_SQUARED,
+    lorentzian_negative_above,
+)
 from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.instrument import (
     DEBYE_SCHERRER_POLARIZATION,
@@ -716,7 +720,7 @@ def _build_instrument(icons: GsasIcons,
     ``neutron`` (an ``HTYPE PNCR`` file) starts from
     :meth:`Instrument.constant_wavelength_neutron` at ``LAM1`` — a
     :class:`~rietx.schemas.instrument.NeutronSource`, one wavelength, the
-    polarisation term pinned at 1, the coarse-instrument profile box — and
+    polarisation term pinned at 1, the profile box every preset builds — and
     maps the same eight ``PRCF`` coefficients onto it as a ``PXCR`` file,
     because the type-3 record is the same record under either radiation.
 
@@ -764,6 +768,7 @@ def _build_instrument(icons: GsasIcons,
         prof.w.value = _MIN_GAMMA_G2 if 0.0 <= w < _MIN_GAMMA_G2 else w
         prof.x.value = lx / 1e2
         prof.y.value = ly / 1e2
+        _refuse_negative_lorentzian(prof.x.value, prof.y.value, p)
         instrument.geometry.axial_sl.value = sl
         instrument.geometry.axial_hl.value = hl
     except ValidationError as exc:
@@ -1347,12 +1352,13 @@ def _instprm_width(profile, letter: str, attr: str, value: float,
 
     Two rules, both :mod:`~rietx.io.recipe`'s and both earned there rather than
     here (``_refuse_negative_width``, ``_widen``).  A **negative** width (a
-    term :data:`TCHZ_BOUNDS` bounds at or above zero) is refused by name, so a
-    fit never answers from a model the file does not describe.  It is the
-    ordinary case rather than a corner —
+    term :data:`TCHZ_BOUNDS` bounds at or above zero, W and X) is refused by
+    name, so a fit never answers from a model the file does not describe.  It
+    is the ordinary case rather than a corner —
     GSAS-II bounds none of U V W X Y Z, and **two of the four**
     constant-wavelength files in its own tutorial corpus converged to a
-    negative ``X``.  And a value outside this package's default box **widens**
+    negative ``X``.  A negative U, V or Y is read, those three having no
+    floor of their own.  And a value outside this package's default box **widens**
     the box rather than being clipped, because the box is a lab-pattern seed
     and the file is the caller's claim.
 
@@ -1378,12 +1384,35 @@ def _instprm_width(profile, letter: str, attr: str, value: float,
         # raised to it, as the schema raises a stored one
         degrees = max(degrees, _MIN_GAMMA_G2)
     if degrees < param.min:
-        # Only u and v reach this: a width's lower bound is its own domain
-        # rather than a seeded guess, and a negative one was refused above.
+        # Unreachable while u, v and y are bounded at the ceiling's mirror
+        # image and w and x refuse a negative value above; kept for a file
+        # stating a value past the 2θ axis.
         param.min = degrees - abs(degrees) - 1.0
     if degrees > param.max:
         param.max = degrees + abs(degrees) + 1.0
     param.value = degrees
+
+
+def _refuse_negative_lorentzian(x: float, y: float, p: Path) -> None:
+    """A calibration whose Lorentzian width goes negative below 2θ = 180°.
+
+    Y has no floor of its own since 2026-10-23 (WP-2002), so a negative Y is
+    read where X carries the width X/cosθ + Y·tanθ over it.  A calibration is
+    applied to a pattern this reader has not seen, so the check runs to the
+    end of the 2θ axis.  Past the crossing GSAS-II clamps the width at a
+    floor, this package has no such clamp, and a negative Lorentzian width is
+    not a peak shape.  :mod:`~rietx.io.recipe` makes the same check against
+    its own fitted range.
+    """
+    edge = lorentzian_negative_above(x, y)
+    if edge >= 180.0:
+        return
+    raise ValueError(
+        f"{p.name}: converts to instrument.profile.x = {x:g} and "
+        f"instrument.profile.y = {y:g}, whose Lorentzian FWHM X/cosθ + Y·tanθ "
+        f"is negative above 2θ = {edge:.3f}°.  GSAS-II clamps that width at a "
+        f"floor and this package has no such clamp, so the calibration is "
+        f"refused: refine X and Y from this package's own start instead")
 
 
 def _instprm_instrument(items: dict[str, str], p: Path,
@@ -1499,6 +1528,7 @@ def _instprm_instrument(items: dict[str, str], p: Path,
             value = number(letter)
             if value is not None:
                 _instprm_width(profile, letter, attr, value, p)
+        _refuse_negative_lorentzian(profile.x.value, profile.y.value, p)
 
         geometry = Geometry(kind=geometry_kind, goniometer_radius_mm=radius)
         shl = number("SH/L")

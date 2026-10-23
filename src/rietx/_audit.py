@@ -2359,7 +2359,9 @@ ROWS: tuple[Row, ...] = (
                   "without it, and at 0.17878 with the pre-removal t values with it, the closing "
                   "stage off (one family); with the closing stage on, TRF collapses that fit "
                   "again (t = -268), so the Stephens suite declines it; none of the seven "
-                  "programs bounds these widths, the reason named here"),
+                  "programs bounds these widths, the reason named here; since "
+                  "2026-10-23 its negative is also the U, V and Y floor, for the "
+                  "same reason"),
         grounds=("A solver-path setting, held at tier 3 as B10's are until refits of three "
                  "families under TRF agree with and without it; kept on the maintainer's ruling "
                  "(the sixth round's Q7, (a), 2026-10-21)."),
@@ -2680,28 +2682,33 @@ ROWS: tuple[Row, ...] = (
         evidence=("GSAS-II 5.8.4's constant-wavelength peak is the Thompson, Cox & Hastings (1987) "
                   "pseudo-Voigt with the FCJ asymmetry (GSASIIpwd.getFWHM :916, getFCJVoigt3 "
                   ":1316; checked); 'voigt' is the opt-in true Voigt")),
-    Row("rietx.schemas.instrument.ProfileTCHZ:u", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -0.05, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
-        evidence=("TCHZ_DEFAULTS' seed 0 and TCHZ_BOUNDS' box, dicts the constant walk cannot "
-                  "see; the seed is start-invariant for a freed width (tests/test_seed_invariance.py, "
-                  "LaB6, CPD and 11-BM NAC within 1.3e-4 esd) and is the held value of an "
-                  "uncalibrated one; the floor -0.05 deg^2 is chosen, the guard against a "
-                  "negative Gaussian variance at some angle under TRF; the ceiling is "
-                  "TCHZ_CEILING_DEG squared; "
-                  "GSAS-II 5.8.4 and FullProf bound none of U, V, W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
-        grounds=("The U and V floors were kept by the fifth round's Q5 ruling ('keep the floors "
-                 "and lower bounds', 2026-10-21), and the ceiling is TCHZ_CEILING_DEG's, ruled "
-                 "the same day (the sixth round's Q7)."),
-        approved="2026-10-21"),
-    Row("rietx.schemas.instrument.ProfileTCHZ:v", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -0.5, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
-        evidence=("TCHZ_DEFAULTS' seed 0 and TCHZ_BOUNDS' box, as ProfileTCHZ:u; the floor "
-                  "-0.5 deg^2 is chosen, and the public D1B Co3O4 model's V = -0.501 sits under "
-                  "it, which TCHZ_BOUNDS_COARSE (a hand row, reached through ProfileTCHZ.coarse) "
-                  "is for; "
-                  "GSAS-II 5.8.4 and FullProf bound none of U, V, W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
-        grounds=("The U and V floors were kept by the fifth round's Q5 ruling ('keep the floors "
-                 "and lower bounds', 2026-10-21), and the ceiling is TCHZ_CEILING_DEG's, ruled "
-                 "the same day (the sixth round's Q7)."),
-        approved="2026-10-21"),
+    Row("rietx.schemas.instrument.ProfileTCHZ:u", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -32400.0, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
+        evidence=("TCHZ_DEFAULTS' seed 0 and TCHZ_BOUNDS' box, dicts the constant walk cannot see; the "
+                  "seed is start-invariant for a freed width (tests/test_seed_invariance.py, LaB6, CPD "
+                  "and 11-BM NAC within 1.3e-4 esd) and is the held value of an uncalibrated one; the "
+                  "ceiling is TCHZ_CEILING_DEG squared; no per-coefficient floor: a finite bound at "
+                  "-180^2 deg^2 (TCHZ_CEILING_DEG squared, the ceiling's mirror image) no width "
+                  "reaches, kept finite for TRF's step scaling; the physical condition is held as "
+                  "Gamma_G^2 >= eps by LM (optimize.least_squares.gaussian_width_inequalities), guarded "
+                  "under TRF by RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, "
+                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
+        grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
+                 "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
+                 "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
+        approved="2026-10-23"),
+    Row("rietx.schemas.instrument.ProfileTCHZ:v", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -32400.0, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
+        evidence=("TCHZ_DEFAULTS' seed 0 and TCHZ_BOUNDS' box, as ProfileTCHZ:u; the public D1B Co3O4 "
+                  "model's V = -0.501, under the old X-ray floor of -0.5, now builds on every preset, "
+                  "which retired TCHZ_BOUNDS_COARSE; no per-coefficient floor: a finite bound at -180^2 "
+                  "deg^2 (TCHZ_CEILING_DEG squared, the ceiling's mirror image) no width reaches, kept "
+                  "finite for TRF's step scaling; the physical condition is held as Gamma_G^2 >= eps by "
+                  "LM (optimize.least_squares.gaussian_width_inequalities), guarded under TRF by "
+                  "RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, W, X, Y "
+                  "(docs/wp/2002-batch/rulings.md, fourth round)"),
+        grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
+                 "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
+                 "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
+        approved="2026-10-23"),
     Row("rietx.schemas.instrument.ProfileTCHZ:w", "default", tier=3, ambiguity=1, value={"value": 0.001, "vary": False, "min": 1e-08, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
         evidence=("TCHZ_DEFAULTS' seed 1e-3 deg^2, start-invariant for a freed width from 1e-6 "
                   "to 1.0 on LaB6 (tests/test_seed_invariance.py), a start too wide losing NAC's "
@@ -2713,20 +2720,27 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-21"),
     Row("rietx.schemas.instrument.ProfileTCHZ:x", "default", tier=3, ambiguity=1, value={"value": 0.001, "vary": False, "min": 0.0, "max": 180.0, "expr": None, "unit": "deg", "stderr": None},
         evidence=("TCHZ_DEFAULTS' seed 1e-3 deg: start-invariant on LaB6 except starts at x = "
-                  "0.02-0.03, which land 0.38 esd away in u on a mirrored S/L-H/L minimum "
-                  "(WP-2012); FAP's GSAS protocol holds x at it, and x = 0 instead moves "
-                  "lor_size 0.69 esd at equal chi2 (tests/test_seed_invariance.py); the floor 0 "
-                  "is physical (a Lorentzian width), the ceiling TCHZ_CEILING_DEG; "
-                  "GSAS-II 5.8.4 and FullProf bound none of U, V, W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
-        grounds=("Its ceiling is TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
-        approved="2026-10-21"),
-    Row("rietx.schemas.instrument.ProfileTCHZ:y", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": 0.0, "max": 180.0, "expr": None, "unit": "deg", "stderr": None},
+                  "0.02-0.03, which land 0.38 esd away in u on a mirrored S/L-H/L minimum (WP-2012); "
+                  "FAP's GSAS protocol holds x at it, and x = 0 instead moves lor_size 0.69 esd at "
+                  "equal chi2 (tests/test_seed_invariance.py); the floor 0 is physical, kept when U, V "
+                  "and Y lost theirs: at theta -> 0 the tan term vanishes and the instrument's "
+                  "Lorentzian FWHM is X itself; the ceiling TCHZ_CEILING_DEG; GSAS-II 5.8.4 and "
+                  "FullProf bound none of U, V, W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
+        grounds=("Its ceiling is TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21); its "
+                 "floor is a width's own, which the ruling of 2026-10-23 kept."),
+        approved="2026-10-23"),
+    Row("rietx.schemas.instrument.ProfileTCHZ:y", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -180.0, "max": 180.0, "expr": None, "unit": "deg", "stderr": None},
         evidence=("TCHZ_DEFAULTS' seed 0, start-invariant for a freed width "
-                  "(tests/test_seed_invariance.py); the floor 0 is physical (a Lorentzian "
-                  "width), the ceiling TCHZ_CEILING_DEG; "
-                  "GSAS-II 5.8.4 and FullProf bound none of U, V, W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
-        grounds=("Its ceiling is TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
-        approved="2026-10-21"),
+                  "(tests/test_seed_invariance.py); the ceiling TCHZ_CEILING_DEG; no per-coefficient "
+                  "floor: a finite bound at -180 deg (TCHZ_CEILING_DEG, the ceiling's mirror image) no "
+                  "width reaches, kept finite for TRF's step scaling; the physical condition is held as "
+                  "Gamma_L >= 0 by LM (optimize.least_squares.lorentzian_width_inequalities), guarded "
+                  "under TRF by RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, "
+                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
+        grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
+                 "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
+                 "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
+        approved="2026-10-23"),
     Row("rietx.schemas.plan.PlanSpec:stages", "default", tier=1, ambiguity=1, value=(),
         evidence="arithmetic: the empty container; resolve_plan supplies every plan a fit runs"),
     Row("rietx.schemas.plan.PlanSpec:correlation_guard", "default", value=0.98),

@@ -1378,14 +1378,26 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     not a refinable parameter and not per-reflection — and consumes the *same*
     U,V,W,X,Y widths, so switching shapes never touches the parameter table.
 
-    **Every width has a floor, and which floors depends on how the
-    instrument was built.**  The X-ray presets take :data:`TCHZ_BOUNDS`
-    (U ≥ −0.05, V ≥ −0.5); :meth:`Instrument.constant_wavelength_neutron`
-    takes :data:`TCHZ_BOUNDS_COARSE` through :meth:`coarse` (U ≥ −0.5,
-    V ≥ −4); an explicit ``Parameter(value, min, max)`` carries the caller's
-    own.  X and Y have a floor of zero in both boxes, because Γ_L is a width.
-    A solution read from another program can still sit under a floor: one
-    with W < 0 starts from W's floor rather than from its value.
+    **The widths have a floor, and U, V and Y have none of their own.**  What
+    must stay non-negative is a width: Γ_G² above and Γ_L, each with every
+    phase's own terms added.  A coefficient can be negative while both
+    widths stay positive.  So U and V are bounded at −180² deg² and Y at
+    −180°, the ceilings' mirror images, which no width reaches (the
+    maintainer's ruling of 2026-10-23, WP-2002).  GSAS-II and FullProf bound
+    none of the five.  The default LM driver holds Γ_G² ≥ ε and Γ_L ≥ 0 at
+    every reflection inside the step
+    (:func:`~rietx.optimize.least_squares.gaussian_width_inequalities`,
+    :func:`~rietx.optimize.least_squares.lorentzian_width_inequalities`).
+    ``solver="trf"`` holds no inequality, and ``RESOLUTION_NOT_POSITIVE``
+    reports an instrument width that goes negative in the fitted range.
+    Two floors stay.  W's is the Γ_G² clamp (below).  X's is 0: at θ → 0
+    the tanθ term vanishes, so the instrument's Γ_L is X itself there.
+    Every preset builds this one box (:data:`TCHZ_BOUNDS`), and an explicit
+    ``Parameter(value, min, max)`` carries the caller's own.  The chosen
+    floors went on 2026-10-23: U ≥ −0.05 and V ≥ −0.5 on the X-ray presets,
+    U ≥ −0.5 and V ≥ −4 on the neutron one, Y ≥ 0 on both.  A solution
+    read from another program can still sit under a floor: one with W < 0
+    starts from W's floor rather than from its value.
 
     **The ceiling is the width of the 2θ axis** (:data:`TCHZ_CEILING_DEG`),
     which no peak can reach.  The chosen ceilings (1 for U, W, X and Y, 0.5
@@ -1399,7 +1411,8 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     Stephens fit at Rwp 0.17891 with one S_HKL esd collapsing to 66 (t = −203).
     With these ceilings it stops at 0.17878 with the pre-removal t values, as
     it did with every ceiling at 10 or at 1000 (the sixth round's Q7).  LM,
-    the default driver, gives the same answer either way.
+    the default driver, gives the same answer either way.  The floors at
+    −180² and −180 are finite for the same reason.
 
     **W's floor is the Γ_G² clamp, not zero** (WP-1938 D7).
     :func:`~rietx.model.profiles.caglioti.gaussian_fwhm` takes
@@ -1415,11 +1428,6 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     (:meth:`_w_floor_is_reachable`).
     """
 
-    #: WP-1312's escape for a coarser instrument, which a ``Parameter`` leaving
-    #: its bounds unset (it inherits :data:`TCHZ_BOUNDS`) is offered too.
-    _declared_escape: ClassVar[str] = (
-        "build ProfileTCHZ.coarse(...), every width in TCHZ_BOUNDS_COARSE")
-
     shape: Literal["tchz_pv", "voigt"] = "tchz_pv"
     u: Parameter = Field(default_factory=lambda: _tchz_width("u"))
     v: Parameter = Field(default_factory=lambda: _tchz_width("v"))
@@ -1430,22 +1438,20 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     @model_validator(mode="before")
     @classmethod
     def _refuse_bare_widths(cls, data):
-        """A bare number is refused by name, inside the default box or not.
+        """A bare number is refused by name.
 
         A width is a :class:`Parameter` carrying its own box; a bare number
         never was one, and pydantic's type error said so without saying what
-        to do.  The default box (:data:`TCHZ_BOUNDS`) is sized for a lab or
-        synchrotron X-ray line and stays the default (WP-1312's 2026-09-11
-        ruling: the bound stays, the constructor refuses by name).  So a bare
-        width — a long-wavelength neutron instrument's Caglioti ``U = 1.576``
-        (issue #276), or ``u=0.5`` — is refused naming the width, the value,
-        the box and the two escapes: :meth:`ProfileTCHZ.coarse`, which builds
-        *all five* widths in :data:`TCHZ_BOUNDS_COARSE` from bare values, or
-        an explicit ``Parameter(value, min, max)`` carrying the caller's own
-        bound.  A :class:`Parameter` or a dict passes through untouched *here*;
-        one leaving its bounds unset inherits the default box from
+        to do (WP-1312's 2026-09-11 ruling: the constructor refuses by name).
+        So a bare width, such as a neutron instrument's Caglioti ``U = 1.576``
+        (issue #276), is refused naming the width, the value, the box and the
+        two ways to build it: :meth:`ProfileTCHZ.coarse`, which builds all
+        five widths from bare values, or an explicit
+        ``Parameter(value, min, max)``.  A :class:`Parameter` or a dict passes
+        through untouched *here*; one leaving its bounds unset inherits
+        :data:`TCHZ_BOUNDS` from
         :class:`~rietx.schemas.common._InheritsDeclaredDefaults` (WP-1321), and
-        a value outside it is refused there, naming :meth:`coarse` the same way.
+        a value outside it is refused there.
         """
         if not isinstance(data, dict):
             return data
@@ -1453,15 +1459,13 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
                 if name in TCHZ_DEFAULTS and isinstance(v, (int, float))
                 and not isinstance(v, bool)}
         if bare:
-            said = ", ".join(f"{n}={float(v)!r} (default box [{TCHZ_BOUNDS[n][0]}, "
+            said = ", ".join(f"{n}={float(v)!r} (box [{TCHZ_BOUNDS[n][0]}, "
                              f"{TCHZ_BOUNDS[n][1]}])"
                              for n, v in bare.items())
             raise ValueError(
                 f"ProfileTCHZ: {said} is a bare number, and a width is a "
-                f"Parameter carrying its box; the default box is sized for an "
-                f"X-ray line and is not widened on your behalf. For a coarser "
-                f"instrument (a CW neutron line) build ProfileTCHZ.coarse(...), "
-                f"every width in TCHZ_BOUNDS_COARSE; or state the width as an "
+                f"Parameter carrying its box. Build all five widths from values "
+                f"with ProfileTCHZ.coarse(...), or state the width as an "
                 f"explicit Parameter(value, min, max) with its own bounds")
         return data
 
@@ -1490,12 +1494,12 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
     @classmethod
     def coarse(cls, *, shape: Literal["tchz_pv", "voigt"] = "tchz_pv",
                **widths: float) -> "ProfileTCHZ":
-        """Widths in the coarse-instrument box, :data:`TCHZ_BOUNDS_COARSE`.
+        """The five widths built from bare values, in :data:`TCHZ_BOUNDS`.
 
-        What :meth:`Instrument.constant_wavelength_neutron` builds: a CW
-        neutron diffractometer's lines are 0.2-2.5°, and its U and V can sit
-        under the default box's floors, sized for a ~0.03° synchrotron line.
-        ``widths`` are values (``u=1.576``), each kept in this box.
+        What :meth:`Instrument.constant_wavelength_neutron` builds.  The name
+        survives from WP-1312, when a CW neutron line needed a wider box than
+        the X-ray presets; since 2026-10-23 every preset builds the same box.
+        ``widths`` are values (``u=1.576``), each kept in that box.
         """
         unknown = set(widths) - set(TCHZ_DEFAULTS)
         if unknown:
@@ -1503,7 +1507,7 @@ class ProfileTCHZ(_InheritsDeclaredDefaults):
                             f"{sorted(unknown)}; the widths are "
                             f"{sorted(TCHZ_DEFAULTS)}")
         return cls(shape=shape, **{
-            name: _tchz_width(name, widths.get(name), box="coarse")
+            name: _tchz_width(name, widths.get(name))
             for name in TCHZ_DEFAULTS})
 
 
@@ -1520,33 +1524,27 @@ _TCHZ_CEILING = {"u": TCHZ_CEILING_DEG ** 2, "v": TCHZ_CEILING_DEG ** 2,
                  "w": TCHZ_CEILING_DEG ** 2, "x": TCHZ_CEILING_DEG,
                  "y": TCHZ_CEILING_DEG}
 
-#: The default refinement box per width coefficient, sized for a lab or
-#: synchrotron X-ray line: chosen floors, and :data:`TCHZ_CEILING_DEG` above.
-#: Every X-ray preset builds these.  W's floor is the Γ_G² clamp since WP-1938
-#: (:class:`ProfileTCHZ`), 0 before it.  The chosen ceilings (1 for U, W, X
-#: and Y, 0.5 for V) were removed on 2026-10-21 (WP-2002, the fifth round's Q5).
+#: The refinement box per width coefficient, which every preset builds.  U, V
+#: and Y have no floor of their own: each stops at the ceiling's mirror image,
+#: which no width reaches and which stays finite for ``solver="trf"``'s step
+#: scaling (:class:`ProfileTCHZ`; the maintainer's ruling of 2026-10-23,
+#: WP-2002).  W's floor is the Γ_G² clamp since WP-1938, and X's is 0.  The
+#: chosen ceilings (1 for U, W, X and Y, 0.5 for V) were removed on 2026-10-21
+#: (the fifth round's Q5).  The chosen floors went on 2026-10-23, and with them
+#: the neutron preset's own box, ``TCHZ_BOUNDS_COARSE`` (U ≥ −0.5, V ≥ −4).
+#: That box was measured on the public APDW Co3O4 set (ILL D1B, λ = 2.52 Å;
+#: issue #276), whose FullProf model has V = −0.501, under the X-ray floor.
 TCHZ_BOUNDS: dict[str, tuple[float, float]] = {
-    "u": (-0.05, _TCHZ_CEILING["u"]), "v": (-0.5, _TCHZ_CEILING["v"]),
+    "u": (-_TCHZ_CEILING["u"], _TCHZ_CEILING["u"]),
+    "v": (-_TCHZ_CEILING["v"], _TCHZ_CEILING["v"]),
     "w": (_MIN_GAMMA_G2, _TCHZ_CEILING["w"]), "x": (0.0, _TCHZ_CEILING["x"]),
-    "y": (0.0, _TCHZ_CEILING["y"])}
-
-#: The coarse-instrument box: the floors a constant-wavelength neutron line
-#: needs.  Measured on the public APDW Co3O4 set (ILL D1B, λ = 2.52 Å; issue
-#: #276): its FullProf model has U = 1.576, V = -0.501, W = 0.475, with V under
-#: the default floor, and in this box it converges to U = 1.654 ± 0.051,
-#: within 5 % of that model.  Its chosen ceilings of 8 went with the default
-#: box's, and it shares that box's :data:`TCHZ_CEILING_DEG`.
-TCHZ_BOUNDS_COARSE: dict[str, tuple[float, float]] = {
-    "u": (-0.5, _TCHZ_CEILING["u"]), "v": (-4.0, _TCHZ_CEILING["v"]),
-    "w": (_MIN_GAMMA_G2, _TCHZ_CEILING["w"]), "x": (0.0, _TCHZ_CEILING["x"]),
-    "y": (0.0, _TCHZ_CEILING["y"])}
+    "y": (-_TCHZ_CEILING["y"], _TCHZ_CEILING["y"])}
 
 _TCHZ_UNITS = {"u": "deg^2", "v": "deg^2", "w": "deg^2", "x": "deg", "y": "deg"}
 
 
-def _tchz_width(name: str, value: float | None = None, *,
-                box: Literal["default", "coarse"] = "default") -> Parameter:
-    lo, hi = (TCHZ_BOUNDS if box == "default" else TCHZ_BOUNDS_COARSE)[name]
+def _tchz_width(name: str, value: float | None = None) -> Parameter:
+    lo, hi = TCHZ_BOUNDS[name]
     return Parameter(value=TCHZ_DEFAULTS[name] if value is None else value,
                      min=lo, max=hi, unit=_TCHZ_UNITS[name])
 
@@ -2412,12 +2410,12 @@ class Instrument(_InheritsDeclaredDefaults):
         with ``x`` left at its negligible default: the width you observed is
         the width you get.
 
-        The profile is built in the coarse-instrument box
-        (:meth:`ProfileTCHZ.coarse`, :data:`TCHZ_BOUNDS_COARSE`), whose U and
-        V floors sit under the default box's: a long-wavelength CW neutron
-        model can need them (issue #276: V = −0.501 on D1B at λ = 2.52 Å).
-        Every width's ceiling is the 2θ axis (:data:`TCHZ_CEILING_DEG`), so
-        any ``fwhm_deg`` up to 180° seeds ``w`` at its square.  A *bare* width still
+        The profile is built by :meth:`ProfileTCHZ.coarse`, in the box every
+        preset builds (:data:`TCHZ_BOUNDS`).  U and V have no floor of their
+        own, so a long-wavelength CW neutron model fits in it (issue #276:
+        V = −0.501 on D1B at λ = 2.52 Å).  Every width's ceiling is the 2θ
+        axis (:data:`TCHZ_CEILING_DEG`), so any ``fwhm_deg`` up to 180° seeds
+        ``w`` at its square.  A *bare* width still
         refuses: ``ProfileTCHZ(u=1.576)`` raises, naming
         ``ProfileTCHZ.coarse`` and an explicit ``Parameter`` as the ways out.
 

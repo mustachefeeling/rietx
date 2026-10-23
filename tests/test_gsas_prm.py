@@ -525,10 +525,13 @@ def test_nonzero_reserved_prcf_term_is_refused(tmp_path):
     # a .prm states GW signed and ProfileTCHZ.w is non-negative
     ("negative GW", {"coeffs": (1.0, -0.5, -0.4, 0.0, 0.15, 0.0, 0.0011,
                                 0.0022) + (0.0,) * 11}),
-    # a GU negative enough to leave ProfileTCHZ.u's floor of -0.05 (its
-    # ceiling went on 2026-10-21, WP-2002's fifth round, Q5)
-    ("a GU under its floor", {"coeffs": (-200.0, -0.5, 0.2, 0.0, 0.15, 0.0, 0.0011,
-                                         0.0022) + (0.0,) * 11}),
+    # an LX under ProfileTCHZ.x's floor of 0, the one Lorentzian floor left
+    # when U, V and Y lost theirs (WP-2002, 2026-10-23)
+    ("a negative LX", {"coeffs": (1.0, -0.5, 0.2, 0.0, -0.15, 0.0, 0.0011,
+                                  0.0022) + (0.0,) * 11}),
+    # an LY negative enough that X/cosθ + Y·tanθ crosses zero at 2θ = 60°
+    ("an LY the LX cannot carry", {"coeffs": (1.0, -0.5, 0.2, 0.0, 0.15, -0.3,
+                                              0.0011, 0.0022) + (0.0,) * 11}),
     # POLA on some other convention's 0-100 scale, where Source.polarization
     # holds a fraction
     ("a POLA past 1", {"icons": _icons(pola=99.0)}),
@@ -870,11 +873,12 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
 
     Differ, legitimately: U V W (the Gaussian FWHM ratio, ``.prm`` over
     ``.instprm``, runs 0.42-1.49 over 10-150° 2θ with both readers converting
-    8 ln 2), the zero (0 against −0.0096°), the axial divergence
-    (S/L + H/L 0.002 against SH/L 0.09), and the profile's bound box — the
-    ``.prm`` lands on the neutron preset's coarse box, the ``.instprm`` on
-    the default one (the two-routes gotcha WP-1312's 2026-09-23 entry
-    names).
+    8 ln 2), the zero (0 against −0.0096°) and the axial divergence
+    (S/L + H/L 0.002 against SH/L 0.09).  The profile's bound box is one: the
+    ``.prm`` lands on the neutron preset, the ``.instprm`` on the default
+    profile, and since the chosen floors went (WP-2002, 2026-10-23) the two
+    build the same box, which closes the two-routes gotcha WP-1312's
+    2026-09-23 entry names.
     """
     import numpy as np
 
@@ -923,8 +927,9 @@ def test_the_two_hb2a_files_cross_on_one_diffractometer():
                      + instprm.geometry.axial_hl.value)
     assert axial_prm == pytest.approx(0.002)
     assert axial_instprm == pytest.approx(0.09)
-    # the boxes differ in their floors since the ceilings went (WP-2002, Q5)
-    assert (prm.profile.u.min, instprm.profile.u.min) == (-0.5, -0.05)
+    for name in "uvwxy":
+        assert (getattr(prm.profile, name).min, getattr(prm.profile, name).max) == (
+            getattr(instprm.profile, name).min, getattr(instprm.profile, name).max)
 
 
 def test_the_issues_synthetic_pncr_file_reads(tmp_path):
