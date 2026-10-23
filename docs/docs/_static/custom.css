@@ -439,6 +439,23 @@ dt.sig {
   overflow-x: auto;
 }
 
+/* A signature is coloured as a Python code block is (WP-2023): `docs/py_highlight.py`
+ * puts `highlight` on it and Pygments' token names on its pieces, so every colour is
+ * `pygments.css`'s.  It takes the token colours and not the block's ground, which would
+ * hide the tint of a signature reached by its permalink; and its parameter names are
+ * upright, where an italic would fight the colours. */
+html[data-theme] dt.sig.highlight {
+  background-color: transparent;
+}
+
+html[data-theme] dt.sig.highlight:target {
+  background-color: var(--pst-color-target);
+}
+
+dt.sig.highlight em.sig-param {
+  font-style: normal;
+}
+
 /* A model's fields (`py:fields`, WP-2022) are one object's signatures, a line each, and
  * carry no body of their own. */
 dl.py.fields > dt {
