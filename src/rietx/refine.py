@@ -876,7 +876,7 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     A = np.array([r[cand] for r in (*sums, *others) if r[cand].any()],
                  dtype=np.float64).reshape(-1, len(cand))
     if A.shape[0]:
-        _, s, vt = np.linalg.svd(A)
+        _, s, vt = lapack.svd(A)
         rank = int(np.sum(s > s[0] * len(cand) * np.finfo(np.float64).eps))
         null = vt[rank:].T
     else:

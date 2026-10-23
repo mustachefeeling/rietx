@@ -823,11 +823,18 @@ ROWS: tuple[Row, ...] = (
                   "defaults all separate the pair by fixing the instrument; none holds a twin "
                   "automatically. Cost on CPD brucite, where the plan fits U, X and Y on the "
                   "specimen first: Rwp 0.186391 -> 0.186423 isotropic, 0.179951 -> 0.181008 "
-                  "with a Stephens block, the specimen twins ending on their 0 floor"),
+                  "with a Stephens block, the specimen twins ending on their 0 floor. Real "
+                  "two-phase family, 11-BM LaB6 + cBN freeing X, Y and both phases' Lorentzian "
+                  "widths: once two exactly flat directions, now LaB6's widths on their floor and "
+                  "cBN lor_strain 0.0354(8), every esd finite. The cost: a plan fitting X and Y on "
+                  "the specimen first freezes that stage's start-dependent split, 15.68 plain esd "
+                  "on cpd-1a zincite's lor_strain between Biso starts (strict xfail in "
+                  "tests/test_staged_start_invariance.py); no shipped plan frees a twin pair"),
         grounds=("Every program that separates instrument from specimen width does it by "
                  "fixing the instrument, and the split of an exact sum is no measurement; the "
                  "hold names itself on the stage record. Option (b) of the width-floor ruling "
-                 "(decision 1, 2026-10-23), confirmed by the maintainer 2026-10-23."),
+                 "(decision 1, 2026-10-23), confirmed by the maintainer 2026-10-23 with the "
+                 "cpd-1a cost before them (decision 1(a))."),
         approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.released", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: a held phase reading >= 3 sigma at the answer is released and the "
@@ -2487,10 +2494,12 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.schemas.results.HIGH_CORRELATION_MAX", "constant", value=10),
     Row("rietx.schemas.structure.BISO_SEED", "constant", tier=3, value=0.5,
-        evidence=("answer-invariant behind the closing stage only: starts 0.5 and 1.5 within 0.1 "
-                  "plain esd on FAP, cpd-1a and 11-BM NAC (0.000, 0.070, 0.000; "
-                  "tests/test_staged_start_invariance.py); LaB6's two starts land in its "
-                  "mirrored axial minima (9.36 esd, WP-2012), a strict xfail; the Atom.biso "
+        evidence=("starts 0.5 and 1.5 within 0.1 plain esd behind the closing stage on FAP and "
+                  "11-BM NAC (0.000, 0.000; tests/test_staged_start_invariance.py); cpd-1a 0.070 "
+                  "until the width twin hold kept a start-dependent X/Y split, 15.68 on zincite's "
+                  "lor_strain since (WP-2002, a strict xfail); LaB6's two starts land in its "
+                  "mirrored axial minima (1.16 esd, 9.36 before WP-2002; WP-2012), a strict "
+                  "xfail; the Atom.biso "
                   "default and the literal of three readers for a site with no ADP "
                   "(crystallography/cif.py, io/recipe.py, io/projects/topas.py) until the B14 "
                   "lift"),
@@ -2752,8 +2761,13 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-23"),
     Row("rietx.schemas.instrument.ProfileTCHZ:y", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -180.0, "max": 180.0, "expr": None, "unit": "deg", "stderr": None},
         evidence=("TCHZ_DEFAULTS' seed 0, start-invariant for a freed width "
-                  "(tests/test_seed_invariance.py); the ceiling TCHZ_CEILING_DEG; no per-coefficient "
-                  "floor: a finite bound at -180 deg (TCHZ_CEILING_DEG, the ceiling's mirror image) no "
+                  "(tests/test_seed_invariance.py); the ceiling TCHZ_CEILING_DEG; a negative Y is "
+                  "physical as a coefficient: a constant positive Lorentzian width projected onto "
+                  "{1/cos, tan} over 18-120 deg 2theta is X = 1.20, Y = -0.73 (WP-2002 9th session), "
+                  "so Y >= 0 would refuse a real instrument; cost measured on tests/test_v02_core.py's "
+                  "synthetic calibration, whose truth Y = 0 sat on the old floor: Y -0.0059, X 58 % "
+                  "high, sample lor_size 55 % low against 27-39 %, HIGH_CORRELATION raised; no "
+                  "per-coefficient floor: a finite bound at -180 deg (TCHZ_CEILING_DEG, the ceiling's mirror image) no "
                   "width reaches, kept finite for TRF's step scaling; the physical condition is held as "
                   "Gamma_L >= 0 by LM (optimize.least_squares.lorentzian_width_inequalities), guarded "
                   "under TRF by RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, "

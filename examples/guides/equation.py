@@ -54,7 +54,7 @@ assert f"{abs(slope.value - true_slope) / slope.esd:.1f}" == "0.1"
 cov = result.parametric_equations[0].covariance  # the page's intercept-slope correlation
 assert f"{cov[0][1] / (cov[0][0] * cov[1][1]) ** 0.5:.3f}" == "0.001"
 assert [c.term for c in result.parametric] == ["1", "T"]
-assert f"{result.parametric[0].value:.10f}" == "4.1628327116"
+assert f"{result.parametric[0].value:.10f}" == "4.1628327119"
 assert f"{result.parametric[0].esd:.1e}" == "1.6e-06"
 assert f"{slope.value:.10f}" == "0.0000207819" and f"{slope.esd:.1e}" == "8.0e-09"
 assert result.parametric[0].unit == "Å" and slope.unit == "Å/K"

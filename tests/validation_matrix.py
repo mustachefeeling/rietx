@@ -414,39 +414,41 @@ CLAIMS: tuple[Claim, ...] = (
                   "lor_size/lor_strain are one quantity split three ways; the "
                   "expected signature is |rho| -> 1 and an Rwp that improves "
                   "while the partition degrades",
-        measured="rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) "
-                 "and +1.000 between the two phases' strains; Rwp 0.1289 "
-                 "degenerate vs 0.1687 identifiable, QPA 16.850 vs 17.791 "
-                 "wt % -- the better Rwp is 5.5 sigma outside TOPAS's interval",
+        measured="before WP-2002's width twin hold, rho = -1.000 "
+                 "(phases.0.lor_strain ~ instrument.profile.y); with X and Y "
+                 "held, Rwp 0.1377 against 0.1686 identifiable and LaB6 "
+                 "16.779(194) against 17.787(319) wt % -- the better Rwp is "
+                 "5.8 sigma outside TOPAS's interval",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_correlation_diagnostic_separates_the_two",
         "lab6_cbn", ("characterisation", "ceiling"),
         "neither HIGH_CORRELATION nor COVARIANCE_DIRECTION_DISCARDED fires on "
-        "the identifiable fit, and the degenerate one's broadening split is "
-        "named by one of them, without being told which is which",
-        reference="the diagnostic channel must separate an identifiable "
-                  "parameterisation from a flat one on its own evidence",
-        measured="0 HIGH_CORRELATION or COVARIANCE_DIRECTION_DISCARDED "
-                 "findings on the shared-broadening plan; "
-                 "on the degenerate plan COVARIANCE_DIRECTION_DISCARDED names "
-                 "all six widths on Linux x86-64 (WP-1930)",
+        "the identifiable fit, and on the plan that frees the phases' "
+        "Lorentzian widths too the width twin hold takes X and Y and leaves "
+        "no flat width (WP-2002)",
+        reference="a flat direction is held where it is exact, and the "
+                  "diagnostic channel stays silent on what the data determine",
+        measured="0 findings on either plan, macOS arm64; X and Y held against "
+                 "both phases' twins from size_strain on; before WP-2002 "
+                 "COVARIANCE_DIRECTION_DISCARDED named all six widths on Linux "
+                 "x86-64 (WP-1930)",
     ),
     Claim(
-        "test_acceptance_lab6_cbn", "test_the_flat_widths_are_flagged_whatever_rounding_does",
+        "test_acceptance_lab6_cbn",
+        "test_the_twin_hold_leaves_no_flat_width_whatever_rounding_does",
         "lab6_cbn", ("characterisation", "ceiling"),
-        "every width on the degenerate fit's flat broadening directions is "
-        "named by HIGH_CORRELATION (kept) or COVARIANCE_DIRECTION_DISCARDED "
-        "(under the cut), and none reports an esd of 0, whichever side of the "
-        "cut and whichever sign rounding gives their eigenvalues (WP-1930)",
+        "at the 1e-14 nudges to w's start where rounding once decided whether "
+        "the two flat broadening directions were flagged, the width twin hold "
+        "takes X and Y, no specimen width is flat, and each has a finite "
+        "nonzero esd (WP-2002; WP-1930 before it)",
         reference="the Linux nightly from 0f30d584 on: no HIGH_CORRELATION on "
                   "this fit, reproduced on macOS arm64 by 1e-14 nudges to w's "
                   "start (six widths at an esd of 0)",
-        measured="macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: "
-                 "HIGH_CORRELATION in all ten; widths' esds 8.9 to 3420 at "
-                 "nine, and at k = 0, where both flat directions fall under "
-                 "the cut, 5e-5 to 3e-3 with COVARIANCE_DIRECTION_DISCARDED "
-                 "naming all six; Linux x86-64 passes k = 0, 1, 7",
+        measured="macOS arm64, k = 0, 1, 7 since WP-2002: the hold at every "
+                 "nudge, cBN lor_strain 0.0354(8), LaB6's widths on their 0 "
+                 "floor; before it, over k in {0, +-1, +-3, +-7, +-20, 50}, "
+                 "HIGH_CORRELATION in all ten and esds of 8.9 to 3420",
         starts=10,
         diagnostics=("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED"),
     ),

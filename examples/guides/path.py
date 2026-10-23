@@ -44,9 +44,10 @@ assert [d.where for d in steps] == [
 assert all(round(d.value, 2) == 1.00 for d in steps)
 assert [s.indices for s in series.discontinuities] == [(3, 4)] * 3
 assert [e.rung for e in series] == [
-    "cold", "warm", "warm", "warm", "warm_staged", "warm_staged", "warm"]
+    "cold", "warm", "warm", "warm", "warm", "warm_staged", "warm"]
 # a rejected attempt's Rwp is where a diverging fit stopped: 0.917 to 0.938 between starts
-# that differ by 1e-14 (WP-2002, 2026-10-22), so the page quotes a bound
-assert all(e.rwp_warm > 0.9 for e in series.entries[4:6])
+# that differ by 1e-14 (WP-2002, 2026-10-22), so the page quotes a bound; the 700 K
+# warm start holds since the U, V and Y floors went (WP-2002, 2026-10-23)
+assert series.entries[4].rwp_warm is None and series.entries[5].rwp_warm > 0.9
 assert [f"{r:.3f}" for r in series.rwp[4:6]] == ["0.039", "0.040"]
 assert gap < 0.005

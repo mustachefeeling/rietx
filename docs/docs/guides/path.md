@@ -54,7 +54,7 @@ p000  cold
 p001  warm
 p002  warm
 p003  warm
-p004  warm_staged
+p004  warm
 p005  warm_staged
 p006  warm
 ```
@@ -70,10 +70,10 @@ Here `cell.b` and `cell.c` are flagged at the same step as `cell.a`, because the
 
 ## Read where each fit started
 
-The jump also broke the warm start.
-Started from the 600 K answer, the 700 K fit reached an Rwp over 0.9, far above the rest of the series.
-The series fitted it again with the whole plan, still from the 600 K answer, and reached 0.039.
-The 800 K pattern started from the jumped cell and needed the same rescue.
+The jump also broke a warm start, one pattern after it.
+The 700 K fit, started from the 600 K answer, followed the step and reached an Rwp of 0.039.
+The 800 K fit, started from the jumped cell, reached an Rwp over 0.9, far above the rest of the series.
+The series fitted it again with the whole plan, still from the 700 K answer, and reached 0.040.
 `entry.rwp_warm` keeps the Rwp the first attempt reached.
 
 A `cold` entry after the first pattern means no warm start could be rescued, and the pattern was fitted from your starting model.

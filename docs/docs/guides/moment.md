@@ -92,7 +92,7 @@ scale moved less than its esd
 
 The loop stops when the moment moves by less than its own esd between two rounds, and after five rounds whatever it has done.
 Both are choices of this script, not settings of rietx.
-Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit depends on the platform), more than its esd of 0.04, and round 2 moves it by less than 0.001.
+Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit depends on the platform), more than its esd of 0.04, and round 2 moves it by less than 0.002.
 
 ## Read the result
 

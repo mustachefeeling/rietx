@@ -232,14 +232,17 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       winner ended in a closing stage; the three design questions inferred (the
       closing-off report kept as measured, the closing node rule for every compile
       finer than 2 %, `build_report` refusing a bare `model=`).
-- [ ] **The width twin hold** (the maintainer's decision 1, 2026-10-23; option (b) proposed and
+- [x] **The width twin hold** (the maintainer's decision 1, 2026-10-23; option (b) proposed and
       awaiting the go-ahead at the 8th session's end). When a stage frees a specimen width whose
       instrument twin is also free, hold the twin for that stage and name it in the stage record:
       U with `gauss_strain` (both tan²θ in Γ_G²), Y with `lor_strain` (tanθ in Γ_L), X with
       `lor_size` (1/cosθ in Γ_L). Then land the parked floor removal
       (`wp2002-width-floors-wip`, `879fb1bcc`) on top. Practice: `docs/practice.md`
       § Instrument and specimen widths refined together. Details and measurements: the 8th
-      session's entry, § Next.
+      session's entry, § Next. *9th session: built (`refine._width_twin_flats`, a null space
+      on C; `StageResult.width_twins_held`; a free Stephens block is Y's twin), the floor
+      removal merged; the maintainer's rulings 1(a) (keep the hold at cpd-1a's start cost)
+      and 2(a) (all three floors go; Y ≥ 0 disproved as physics).*
 - [x] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it. *8th session: none
       owed. Every demotion removed a limit, lowered a level to info or made a tie
