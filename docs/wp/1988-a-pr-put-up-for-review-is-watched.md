@@ -1,6 +1,6 @@
 # WP-1988 — A PR put up for review is watched by the session that opened it
 
-Milestone: unscheduled · Status: 🔄 2026-10-23 — hook, steward skill and command edits landed, and the hook fired unprompted on a cloud PR (#1127); a conflict or red check handled while watched is the acceptance
+Milestone: unscheduled · Status: 🔄 2026-10-23 — hook, steward skill and command edits landed; the hook fired unprompted on #1127, and a red check on #1134 was handled unprompted; whether that meets the acceptance is the maintainer's call
 Track: The repo's own process
 Depends on: —
 Priority: P4 2026-10-16 — process: no number moves, but every WP PR waits on someone noticing it went red or conflicted
@@ -49,6 +49,23 @@ subscription happen and says how this repo wants the events handled.
 
 ## Handover log
 
+- **2026-10-23 (later)** — The event half of the acceptance happened on this
+  WP's own PR, #1134. The maintainer merged main into the branch with GitHub's
+  web button (`46143e08`), which runs no `wpindex` merge driver. The merged
+  `docs/wp/README.md` kept 1988's old 2026-10-16 row beside its new one and
+  2002's row after main had closed it, so `docs` and `ci-ok` went red on
+  `test_the_wp_index_is_the_generators_output`. Two `check_run.completed`
+  events woke the subscribed session with nobody asking. It read the failing
+  job's log tail and fast-forwarded to the PR head. It reproduced the failure
+  (`wp_index.py --check` stale, the same test red), regenerated the index as
+  the steward skill's § Merge conflict says for a web merge, re-ran
+  `test_docs_consistency.py` green and pushed that fix with this line.
+  *Cost in context:* one wake, one model turn over the whole conversation, plus
+  about 150 lines of tool output: the job log's 60-line tail and the
+  fast-forward's 86-file diffstat. *Whether this meets the acceptance is
+  the maintainer's call.* The hook fired and the event was handled unprompted,
+  but #1134 was opened by hand after a closes batch, not through
+  `/wp-handover` steps 11-12. The box stays open until that is decided.
 - **2026-10-23** — Next (2) is answered, and the acceptance is still open. In a
   cloud session the hook fired unprompted when PR #1127 (the second "WP closes
   2026-10-23" batch) went up through the GitHub MCP `create_pull_request`, not
