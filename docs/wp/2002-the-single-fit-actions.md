@@ -302,12 +302,28 @@ cannot see, by the ruling's design, is listed here, each with why it stays outsi
   ceiling since B9), `EmissionLine:weight` (floor 0), `Geometry:bounds` (physical floors only),
   `Instrument:zero_shift` (unbounded off state).
 - **Invariant internals:** `CompiledPhase.skip_extinction`, `_formula_units:tol`,
-  `arpls:max_iter,tol`, `_walk:bracket_growth`, `_DegenerateCellGuard`'s two penalties,
-  `_Arrow.largest_eigenvalue:lanczos_tol`, `n_threads:cap`, `run_least_squares:max_iter`, the
-  compiled tier's default and the Le Bail/Pawley intensity seed.
+  `_DegenerateCellGuard`'s two penalties, `_Arrow.largest_eigenvalue:lanczos_tol`,
+  `n_threads:cap`, `run_least_squares:max_iter` (covered by `StageSpec:max_iter`'s margin test
+  under both solvers) and the compiled tier's default.
+- **Claimed invariant, with no test showing it** (the generality judge, 2026-10-23; each owed to
+  WP-2017): the Le Bail/Pawley intensity seed (`model/forward.py`, `compile_model`; Le Bail at
+  three cycles does not converge, #740, so start dependence is plausible), `refine._FLAT_AXIS_TEST_DIRECTIONS`
+  (B2: "invariant, test owed"), `background.estimators.arpls`'s `max_iter`/`tol` (a six-fixture
+  probe) and `params.vector.FLOOR_SEEDS` (a finite-difference step on width columns that moves
+  their esds, so a B10 numerical setting rather than an invariant).
 - **A number inside a dict or array, which the walk cannot read:** `TCHZ_BOUNDS_COARSE` (reached
   only through `ProfileTCHZ.coarse`), `_KA_DOUBLETS` and `_LAUE_COEF` (tier 2), `_KBETA`,
   `_ASSUMED_ION`, `_FLAT_AXIS_TEST_DIRECTIONS`, `FLOOR_SEEDS`, `_NS_PER_ELEMENT`.
+- **Actions with no record field of their own, tiered in their class** (the judge's completeness
+  list): B8's cell window (`params.vector.cell_window`, `optimize.least_squares._freeze_cell_windows`,
+  tier 2, TOPAS Tech Ref § 2.17); B2's `_flat_moment_scan` modulus floor and
+  `_onto_flat_meridian` pole tolerance (tier 1); B4's two `statistics.normal_factors` steps,
+  the χ²_red scaling and the Jacobi equilibration (tier 2); B5's background σ widening in
+  `compile_model` (tier 1); B10's `ParameterTable` anisotropic symmetry tolerance (tier 1);
+  B12's `profile_fraction` mid-angle (tier 1) and its five caller verbs; B11's Le Bail
+  alternation (caller).
+- **B14's fourth field, the σ rule with its counts, is WP-1952's**: that WP replaces the σ ≤ 0
+  floor the field would report, and its Inherited carries the forward.
 - **Seats not added, because each brings unruled defaults:** `Geometry` (14 defaults,
   among them `mu_t=None` meaning a transparent plate under transmission, never ruled; so
   `Geometry:kind` stays a hand row, WP-2015's), `Instrument` (three whole nested models),

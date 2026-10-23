@@ -1450,7 +1450,7 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     rather than silently relabelled.
     """
     require_two_theta(data, "background.diagnose()")
-    from .select import PEAK_MASK_SIGMA, select_arpls_lambda
+    from .select import select_arpls_lambda
 
     mask = data.in_range_mask()
     tt = data.tt()[mask]
@@ -1474,7 +1474,9 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     net = y - env
     med_env = float(np.median(env))
 
-    peak_channels = net > PEAK_MASK_SIGMA * sigma
+    # its own 3σ over the envelope: the order scan's mask is another rule
+    # (``select.PEAK_MASK_SIGMA``, over an arPLS baseline)
+    peak_channels = net > 3.0 * sigma
     # The census wants every line the pattern shows, so it keeps no prominence
     # bar — but its height bar takes the same dynamic-range floor the width
     # measurement does (:data:`SAMPLING_HEIGHT_FRACTION`), and for the same
