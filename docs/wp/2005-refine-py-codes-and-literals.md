@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002
-Priority: P3 2026-10-18 — codes, not actions; a verdict here is a flag the caller reads, and the workaround is to read past it
+Priority: P3 2026-10-23 — 2002 closed, its last item touching no code here; codes, not actions; a verdict here is a flag the caller reads, and the workaround is to read past it
 
 ## Goal
 
@@ -44,7 +44,7 @@ its tier.
 
 ### Inherited
 
-- **From WP-2002 (2026-10-21, 4th session): tier 2 names seven programs.** `docs/milestones/generality.md` § The rule's tier 2 now reads "by default in an established Rietveld program": GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, the list rietx-bench runs (the maintainer's instruction). A row resting on a program default names the programs it checked and what each does; a program doing otherwise by default is a dissenter, one without the feature is neither. What each does on peak windows, staging, roughness starts, width limits, dispersion, solver, mode and background seed is in `docs/wp/2002-batch/practice.md`; where each program's manual or source sits is in the maintainer's memory (`foreign-code-sources-on-disk`), and rietx-bench's `tools/` holds BGMN, MAUD, RIETAN-FP and EasyDiffraction's environment beside GSAS-II and FullProf.
+- **From WP-2002 (2026-10-21, 4th session): tier 2 names seven programs.** `docs/milestones/generality.md` § The rule's tier 2 now reads "by default in an established Rietveld program": GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, the list rietx-bench runs (the maintainer's instruction). A row resting on a program default names the programs it checked and what each does; a program doing otherwise by default is a dissenter, one without the feature is neither. What each does on peak windows, staging, roughness starts, width limits, dispersion, solver, mode and background seed is in `docs/practice.md`; where each program's manual or source sits is in the maintainer's memory (`foreign-code-sources-on-disk`), and rietx-bench's `tools/` holds BGMN, MAUD, RIETAN-FP and EasyDiffraction's environment beside GSAS-II and FullProf.
 - **From WP-2002 (2026-10-20, PR #1050): `OCCUPANCY_ABOVE_ONE` is new** (`refine._occupancy_flag_diagnostics`, a warning when a refined occupancy exceeds 1, from the B9 ruling). With no significance gate it fires on counting noise about half the time on a freely refined full site (synthetic LaB6, 1.032 ± 0.025). Whether to gate it is with the maintainer; the message quotes the distance above 1 in esds.
 - **From WP-2002 (2026-10-20, PR #1050): `HUMP_MIN_WIDTH_MULT` is a diagnostic threshold** (it gates `HUMP_TOO_NARROW`; it also floors a hump's width in the extinction screen, `indexing/extinction.py:737`), so it belongs with the other diagnostic-only constants handed here (B13). The suggestions of `SIZE_UNUSUALLY_SMALL` and `STRAIN_UNUSUALLY_LARGE` said a finite `Parameter.max` silences them; neither reads `max`, and both now say the flag changes nothing in the fit.
 - **From WP-2002 (2026-10-19, PR #1050).** 2002's batch class B13 proposes handing 34 constants to this WP, pending the maintainer's ruling. Each is the threshold of a code raised in `refine.py` and gates no action. The list with each code is `2002-batch/batch.md` § The B13 hand-off table, and each row's provenance is in `2002-batch/inventory.json`. If WPs 2005-2007 are cancelled at the gate after 2004, these rows need another home.

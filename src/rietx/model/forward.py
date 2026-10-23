@@ -502,6 +502,11 @@ PAWLEY_OVERLAP_FWHM_FRAC = 0.5
 #: reported with an esd of order its own value (≈100 % at λ=1) rather than the
 #: spuriously tight one a bare pseudo-inverse of a singular JᵀJ would give.
 PAWLEY_OVERLAP_LAMBDA = 1.0
+#: floor on the scale of the off-data ridge in ``build_pawley_restraint``, in
+#: the Pawley block's intensity units: the ridge is as wide as the phase's
+#: largest on-data intensity, and never narrower than this, which a phase
+#: with no on-data reflection falls back to (WP-1459, outside PR #453)
+PAWLEY_OFF_DATA_SCALE_FLOOR = 1.0
 
 
 
@@ -3226,7 +3231,7 @@ class CompiledModel:
         off[pb.off_data] = True
         for a, b in pb.phase_slices:
             on = intens[a:b][~off[a:b]]
-            s = max(float(on.max()) if len(on) else 0.0, 1.0)
+            s = max(float(on.max()) if len(on) else 0.0, PAWLEY_OFF_DATA_SCALE_FLOOR)
             for k in np.flatnonzero(off[a:b]):
                 row = np.zeros(pb.n, dtype=np.float64)
                 row[a + k] = np.sqrt(lam) / s

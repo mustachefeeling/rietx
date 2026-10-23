@@ -82,8 +82,8 @@ Compare each coordinate's esd alone and jointly:
 
 <!-- output of examples/guides/joint.py -->
 ```text
-phases.0.atoms.0.z  X-ray 0.352121(40)  neutron 0.35190(15)  joint 0.352107(39)
-phases.0.atoms.1.x  X-ray 0.30635(19)  neutron 0.30644(18)  joint 0.30634(13)
+phases.0.atoms.0.z  X-ray 0.352121(40)  neutron 0.35190(15)  joint 0.352108(39)
+phases.0.atoms.1.x  X-ray 0.30635(19)  neutron 0.30643(18)  joint 0.30634(13)
 ```
 
 `phases.0.atoms.0.z` is the Al coordinate and `phases.0.atoms.1.x` the O coordinate.

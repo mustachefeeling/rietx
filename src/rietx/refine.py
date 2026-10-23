@@ -81,6 +81,7 @@ from .optimize.least_squares import (
     _SCALE_PATH,
     DEFAULT_SOLVER,
     SOLVERS,
+    STATIONARY_ANGLE_STEP,
     _jacobian_for,
     _longest_line_wavelength,
     covariance_estimates,
@@ -402,7 +403,7 @@ class _StageHold:
     unknown_paths: list[str] = dataclasses.field(default_factory=list)
     #: ``StageResult.seeded`` (WP-1930), riding here for the same reason:
     #: decided before the solve, and unrecoverable after it, when the seeded
-    #: row has moved.
+    #: row has moved.  ``Stage.seed``'s rows and ``Stage.strain_seed``'s.
     seeded: dict[str, float] = dataclasses.field(default_factory=dict)
     #: one :class:`CellReset`, ``(path, solved_value, start_value)``, for
     #: every free cell parameter :func:`reset_cell_runaway` put back this
@@ -415,6 +416,12 @@ class _StageHold:
     #: :attr:`cell_runaway` the stage did not hand to the collapse's hold,
     #: decided inside the stage beside ``held``.
     cell_reset: list[str] = dataclasses.field(default_factory=list)
+    #: ``StageResult.collapsed`` (WP-2002, B14): the free columns the answer
+    #: found unsupported or flat, restored to their stage-start values and
+    #: held for the second solve.  A subset of :attr:`held`, decided inside
+    #: the stage, where the start-of-stage hold and the collapse are still
+    #: two lists.
+    collapsed: list[str] = dataclasses.field(default_factory=list)
     #: ``(driver_path, [escaped_dependent_paths])`` per ``vars.*`` column
     #: :func:`_vars_driven_cell_escapes` found driving a cell outside the
     #: safety window this stage — named, never reset (review of #385
@@ -436,6 +443,10 @@ class _StageHold:
     #: ``StageResult.scale_b_held`` (WP-1534): per phase whose displacement
     #: columns :func:`_hold_scale_b_ridges` held, the separation it measured
     scale_b_held: dict[int, float] = dataclasses.field(default_factory=dict)
+    #: ``StageResult.width_twins_held`` (WP-2002): per instrument width column
+    #: :func:`_hold_width_twins` held, the specimen twin columns it pairs with
+    width_twins_held: dict[str, list[str]] = dataclasses.field(
+        default_factory=dict)
     #: each phase's :func:`_answer_significance` at the stage's answer
     #: (WP-1523), written by ``_run_stage`` alone.  Carried so the result's
     #: ``PHASE_UNCONSTRAINED`` reads the number the hold was decided on: a
@@ -766,6 +777,177 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
     return held, held_reach, ridged
 
 
+#: What a pattern sees of the peak widths (``CompiledModel._width_block``): per
+#: angular term, the instrument coefficient, the specimen widths that add to it,
+#: and whether the hold may take the instrument side.  Γ_G² = U·tan²θ + V·tanθ +
+#: W + ``gauss_size``/cos²θ + ``gauss_strain``·tan²θ, and 1/cos²θ = 1 + tan²θ, so
+#: ``gauss_size`` adds to the tan²θ and the constant terms; Γ_L = (X +
+#: ``lor_size``)/cosθ + (Y + ``lor_strain``)·tanθ.  A joint fit's λ factors on
+#: the size terms (WP-1131) are in **C**, so the test below reads them without
+#: naming them.
+#:
+#: **W is never held.**  It is the constant width every fit needs and has no
+#: specimen twin of its own: with U and W free beside ``gauss_size``,
+#: (δU, δW, δsize) = (−1, −1, 1) is flat, and holding U alone removes it, since
+#: δW + δsize·(1 + tan²θ) = 0 at every angle forces both to zero.  W's total
+#: stays a row of the test, so a held W pins the size and nothing is held.
+#: Holding W as well moved three acceptance answers (the generality judge,
+#: WP-2002 9th session).
+WIDTH_TERMS: tuple[tuple[str, tuple[str, ...], bool], ...] = (
+    ("instrument.profile.u", ("gauss_strain", "gauss_size"), True),  # tan²θ in Γ_G²
+    ("instrument.profile.w", ("gauss_size",), False),                # 1 in Γ_G²
+    ("instrument.profile.x", ("lor_size",), True),                   # 1/cosθ in Γ_L
+    ("instrument.profile.y", ("lor_strain",), True),                 # tanθ in Γ_L
+)
+
+
+def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
+                      n_columns: int) -> dict[int, list[int]]:
+    """The instrument width columns on a flat direction with specimen widths
+    (:data:`WIDTH_TERMS`), each with the specimen columns it pairs with.
+
+    ``parts`` holds one ``(table, col_map, unseen)`` per pattern: the table,
+    the θ column each of its free columns is (the identity for a single fit),
+    and the phases its data cannot see.  Columns are θ indices.
+
+    **Columns, never names** (WP-1342), and exact.  Each seen phase of each
+    pattern sees one total per angular term, so a move of the free columns is
+    flat when it changes none of those totals and no other entry.  That is the
+    null space of a matrix read off **C**, so a tie, a ``vars.X`` and a joint
+    fit's λ factor all enter as coefficients.  The pairs U with
+    ``gauss_strain``, X with ``lor_size`` and Y with ``lor_strain`` are flat
+    this way, and ``gauss_size`` with U and W together, of which only U is
+    held (:data:`WIDTH_TERMS`).  Two consequences follow without a rule of
+    their own.
+    One seen phase whose specimen width is held pins the instrument term for
+    every phase, so nothing is flat.  A pattern whose instrument width is held
+    pins the shared specimen width, and every other pattern's instrument width
+    with it.  An unseen phase's totals are left out, because its peaks pin
+    nothing; its own columns are the support hold's.
+
+    A free Stephens block (``Phase.microstrain``) locks ``lor_strain`` and
+    takes its place as Y's twin.  The block's isotropic direction is Y's
+    exactly at the seed (``Stage.strain_seed``) and only near it once the
+    strain turns anisotropic, so this one pair is held by rule rather than
+    by the null space.  At the seed the first steps would face an exactly
+    singular pair, and FullProf's shipped Stephens example holds its tanθ
+    Lorentzian term while refining the block (``docs/practice.md``).  It also
+    keeps an isotropic fit and its Stephens rival on the same instrument
+    parameters (``tests/test_acceptance_stephens.py``).  A block that is
+    present and held pins Y like a held ``lor_strain``.
+    """
+    def row(C, col_map: np.ndarray, i: int) -> np.ndarray:
+        out = np.zeros(n_columns, dtype=np.float64)
+        sl = slice(C.indptr[i], C.indptr[i + 1])
+        np.add.at(out, col_map[C.indices[sl]], C.data[sl])
+        return out
+
+    sums: list[np.ndarray] = []
+    couples: list[tuple[set[int], set[int]]] = []
+    # the instrument columns the hold may take: W's total is a row, never a hold
+    holdable: set[int] = set()
+    families: list[set[int]] = []
+    Cs = [table.constraint_block()[0].tocsr() for table, _, _ in parts]
+    for (table, col_map, unseen), C in zip(parts, Cs, strict=True):
+        pos = table._paths
+        family: set[int] = set()
+        families.append(family)
+        for inst, names, may_hold in WIDTH_TERMS:
+            i_inst = pos.get(inst)
+            if i_inst is None:
+                continue
+            family.add(i_inst)
+            r_inst = row(C, col_map, i_inst)
+            if may_hold:
+                holdable.update(np.flatnonzero(r_inst).tolist())
+            ip = 0
+            while f"phases.{ip}.scale" in pos:
+                idx = [pos[f"phases.{ip}.{n}"] for n in names
+                       if f"phases.{ip}.{n}" in pos]
+                family.update(idx)
+                block = (_stephens_block(pos, ip) if "lor_strain" in names
+                         else [])
+                r_block = sum((np.abs(row(C, col_map, i)) for i in block),
+                              np.zeros(n_columns))
+                family.update(block)
+                if ip not in unseen and r_block.any():
+                    # a free Stephens block is Y's twin: no total pins Y
+                    couples.append((set(np.flatnonzero(r_inst).tolist()),
+                                    set(np.flatnonzero(r_block).tolist())))
+                elif ip not in unseen:
+                    r_phase = sum((row(C, col_map, i) for i in idx),
+                                  np.zeros(n_columns))
+                    sums.append(r_inst + r_phase)
+                    couples.append((set(np.flatnonzero(r_inst).tolist()),
+                                    set(np.flatnonzero(r_phase).tolist())))
+                ip += 1
+    inst_cols = set().union(*(a for a, _ in couples))
+    if not inst_cols & holdable:
+        return {}
+    # the columns a family entry reaches; a move of any other is no twin's
+    cand = sorted(inst_cols.union(*(b for _, b in couples)))
+    in_cand = np.zeros(n_columns, dtype=bool)
+    in_cand[cand] = True
+    # every other entry those columns move must stay still too: a column
+    # driving a twin and a cell is pinned by the cell
+    others = []
+    for (_, col_map, _), family, C in zip(parts, families, Cs, strict=True):
+        touched = np.flatnonzero(in_cand[col_map])
+        for i in np.unique(C[:, touched].nonzero()[0]):
+            if int(i) not in family:
+                others.append(row(C, col_map, int(i)))
+    A = np.array([r[cand] for r in (*sums, *others) if r[cand].any()],
+                 dtype=np.float64).reshape(-1, len(cand))
+    if A.shape[0]:
+        _, s, vt = lapack.svd(A)
+        rank = int(np.sum(s > s[0] * len(cand) * np.finfo(np.float64).eps))
+        null = vt[rank:].T
+    else:
+        null = np.eye(len(cand))
+    on_flat = {c for c, r in zip(cand, null, strict=True)
+               if r.size and np.abs(r).max() > 1e-8}
+    out: dict[int, list[int]] = {}
+    for c in sorted(inst_cols & holdable & on_flat):
+        twins = {k for a, b in couples if c in a
+                 for k in b if k in on_flat and k not in inst_cols}
+        if twins:
+            out[c] = sorted(twins)
+    return out
+
+
+def _stephens_block(pos: dict[str, int], ip: int) -> list[int]:
+    """The entry indices of phase ``ip``'s Stephens block, its DOFs and the
+    S_HKL they drive, empty without a block."""
+    prefix = f"phases.{ip}.microstrain."
+    return [i for p, i in pos.items() if p.startswith(prefix)]
+
+
+def _hold_width_twins(table: ParameterTable, unseen: set[int]
+                      ) -> tuple[list[str], dict[str, list[str]],
+                                 dict[str, list[str]]]:
+    """Hold every instrument width column :func:`_width_twin_flats` puts on a
+    flat direction with a free specimen twin (WP-2002).
+
+    Returns the held columns, their reach (:func:`_reach_beyond_self`) and,
+    per held column, the twin columns it pairs with — the record
+    ``StageResult.width_twins_held`` carries.  The instrument half is the one
+    held because every program that separates the two does it by fixing the
+    instrument from a standard (``docs/practice.md`` § Instrument and
+    specimen widths refined together), and the specimen value is then the
+    width the instrument does not account for.
+    """
+    names = table.free_paths
+    flats = _width_twin_flats([(table, np.arange(len(names)), unseen)],
+                              len(names))
+    if not flats:
+        return [], {}, {}
+    held = [names[c] for c in flats]
+    reach = _reach_beyond_self(table, held)
+    table.set_vary(held, False)
+    return held, reach, {names[c]: [names[k] for k in ks]
+                         for c, ks in flats.items()}
+
+
 # ``MOMENT_DIRECTION_SUPPORT`` is defined in
 # :mod:`rietx.crystallography.magnetic.moments` (imported at the top of this
 # module), because the solver's stationary-angle test reads it as well and
@@ -895,7 +1077,9 @@ def _flat_rotation_axis(model: CompiledModel, values: dict[str, float],
     current = _direction(values[f"{base}.dof1"], values[f"{base}.dof2"])
     tests = [current] + [t / np.linalg.norm(t)
                          for t in _FLAT_AXIS_TEST_DIRECTIONS]
-    h = 1e-4
+    # the stationary-angle test's own step on the same quantity, an angle of
+    # order one; the SVD only proposes, the finite turn below decides
+    h = STATIONARY_ANGLE_STEP
     blocks = []
     for s in tests:
         cols = [(evaluate(_rotate(s, e, h)) - evaluate(_rotate(s, e, -h)))
@@ -1202,11 +1386,14 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
                              prior: np.ndarray | None = None,
                              seeded_phases: Iterable[int] = (), *,
                              sigma: float | None = PHASE_SUPPORT_SIGMA,
-                             ) -> tuple[list[str], dict[str, list[str]]]:
-    """Apply :func:`_unsupported_phase_paths`; returns what it held and its reach.
+                             ) -> tuple[list[str], dict[str, list[str]], set[int]]:
+    """Apply :func:`_unsupported_phase_paths`; returns what it held, its reach
+    and the phases it judged unseen.
 
-    Both halves, because the reach is only readable while the columns are
-    still free — see :func:`_reach_beyond_self`.
+    The first two, because the reach is only readable while the columns are
+    still free — see :func:`_reach_beyond_self`.  The third is what
+    :func:`_hold_width_twins` leaves out: an unseen phase's peaks pin no
+    instrument width.
 
     ``prior`` is the previous stage's :func:`_answer_significance` in a plan
     (WP-1523), read beside the screen: a phase under the threshold by either
@@ -1241,7 +1428,7 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     holds nothing and measures nothing.
     """
     if sigma is None:
-        return [], {}
+        return [], {}, set()
     support = np.asarray(model.phase_support(table.decode(table.x0())),
                          dtype=np.float64)
     if prior is not None:
@@ -1253,7 +1440,7 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
     reach = _reach_beyond_self(table, held)
     if held:
         table.set_vary(held, False)
-    return held, reach
+    return held, reach, {ip for ip, z in enumerate(support) if z < sigma}
 
 
 def _escaped_cell_paths(table: ParameterTable, start_values: dict[str, float]
@@ -4016,6 +4203,11 @@ class Refinement:
         seeded_phases = (_phases_reached([*seeded, *strain_seeded],
                                          table.column_reach())
                          if seeded or strain_seeded else set())
+        # ``StageResult.seeded``'s second writer (WP-2002, B14): each DOF of
+        # the block at the value the seed wrote, read off the entry because
+        # the isotropic ray gives every DOF its own coefficient
+        seeded.update({p: table.entries[table._paths[p]].value
+                       for p in strain_seeded})
 
         # regenerate reflection list/windows/FCJ nodes with current values
         # (between-stage refresh; frozen within the stage); the free-path
@@ -4090,7 +4282,7 @@ class Refinement:
         # values the stage starts from, and all go into ``StageResult.held``
         # so the report can say which and why.  The phase hold also reads the
         # previous answer's significance where a plan hands one in (WP-1523).
-        held, held_reach = _hold_unsupported_phases(
+        held, held_reach, unseen = _hold_unsupported_phases(
             model, table, prior_significance, seeded_phases,
             sigma=phase_support_sigma)
         # kept apart, because the release below judges each hold by its own
@@ -4107,8 +4299,12 @@ class Refinement:
         # it for being visible.  The one later question is the converse: a
         # phase the support hold released below, whose B was never probed.
         ridge_hold, ridge_reach, scale_b_held = _hold_scale_b_ridges(model, table)
-        held = held + moment_hold + ridge_hold
+        # and an instrument width whose specimen twin is free (WP-2002): a
+        # fact about which columns are free, so it is never asked again
+        twin_hold, twin_reach, width_twins_held = _hold_width_twins(table, unseen)
+        held = held + moment_hold + ridge_hold + twin_hold
         held_reach.update(ridge_reach)
+        held_reach.update(twin_reach)
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -4195,10 +4391,10 @@ class Refinement:
         # phase hold takes an invisible phase's moment DOFs too, and read by
         # name those went to the direction probe, which skips ``dof0`` and so
         # released the modulus of a phase the data still could not see.
-        moment_set, ridge_set = set(moment_hold), set(ridge_hold)
+        moment_set = set(moment_hold)
+        apart = moment_set | set(ridge_hold) | set(twin_hold)
         moment_held = [p for p in held if p in moment_set]
-        phase_held = [p for p in held
-                      if p not in moment_set and p not in ridge_set]
+        phase_held = [p for p in held if p not in apart]
         # one measurement, two questions — the release and the collapse are
         # complementary readings of the same significance vector (WP-1523):
         # a held phase measured with its held columns free, every other phase
@@ -4324,6 +4520,16 @@ class Refinement:
                         scale_b_held.update(late_sep)
                         late_set = set(late_hold)
                         released = [p for p in released if p not in late_set]
+            # the twin question asked again of the second solve's free set
+            # (code review of WP-2002's 9th session): a phase that collapsed
+            # pins nothing now, so a pair it pinned at stage start is flat
+            if phase_support_sigma is not None and support is not None:
+                late_twin, late_twin_reach, late_twins = _hold_width_twins(
+                    table, {ip for ip, z in enumerate(support)
+                            if z < phase_support_sigma})
+                held = held + late_twin
+                held_reach.update(late_twin_reach)
+                width_twins_held.update(late_twins)
             self._held = list(held) + reset_hold
             held_set = set(held)
             freed = [p for p in declared_freed
@@ -4463,10 +4669,11 @@ class Refinement:
             moment_turned=[b for b in kept_axes if b in moment_turned],
             reach={c: list(v) for c, v in held_reach.items()},
             scale_b_held=dict(scale_b_held),
+            width_twins_held=width_twins_held,
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
             seeded=seeded,
             cell_runaway=list(cell_runaway),
-            cell_reset=list(cell_reset),
+            cell_reset=list(cell_reset), collapsed=list(collapsed),
             cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved],
             origin=model.origin,
             # Le Bail and Pawley read the screen alone, which the result
@@ -5077,12 +5284,13 @@ class Refinement:
                 held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 scale_b_held=hold.scale_b_held,
+                width_twins_held=hold.width_twins_held,
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
                 seeded=hold.seeded,
-                cell_reset=hold.cell_reset,
+                cell_reset=hold.cell_reset, collapsed=hold.collapsed,
                 # checked, trivially: one histogram has no elsewhere
                 unreached_histograms={},
                 moment_angle_tests=outcome.moment_angle_tests,
@@ -5376,11 +5584,13 @@ class Refinement:
                 held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 scale_b_held=hold.scale_b_held,
+                width_twins_held=hold.width_twins_held,
                 moment_flat_axes=hold.moment_flat_axes,
                 moment_turned=hold.moment_turned,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths, unreached_histograms={},
                 seeded=hold.seeded, cell_reset=hold.cell_reset,
+                collapsed=hold.collapsed,
                 moment_angle_tests=outcome.moment_angle_tests)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
@@ -6108,7 +6318,7 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                     "fitted range.",
             suggestion="Refit the resolution on a standard with its certified "
                        "cell held fixed (lab_calibrate), or hold a loaded "
-                       "instrument profile instead of refining U, V and W on "
+                       "instrument profile instead of refining its widths on "
                        "this pattern. Do not report the widths, or the "
                        "microstructure derived from them.",
         ))

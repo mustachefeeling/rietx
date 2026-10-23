@@ -140,6 +140,7 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-23, 8th session, PR #1113): a joint fit can hold a moment direction its record does not name.** In `MultiHistogramRefinement.fit`, a phase `_rehold_multi` releases is then scanned by `_rehold_flat_moments_multi` (`multi.py` ~852); a direction it finds flat is restored and held in the table, but `held` (~1496) subtracts `released`, so that path is missing from `held` and from `carried_hold`, the next stage does not lift it, and `StageResult.collapsed` is then not a subset of `held`. Found by the lane that added `collapsed`; predates it; a fix may move values.
 - **2026-10-23, from [1326](1326-satellites-without-a-moment.md)'s close: a
   k ≠ 0 moment refined on real data, and the published structure each pattern
   answers to.** 1326 ranks k from a nuclear fit's residual and never refines a

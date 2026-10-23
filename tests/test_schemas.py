@@ -371,16 +371,16 @@ def test_an_unknown_transform_is_refused_by_name():
 def test_a_bare_width_outside_the_declared_box_is_refused_by_name():
     """WP-1312's ruling reached a bare *number* and let a bound-less
     ``Parameter`` through unbounded; inheriting the box closes that, and the
-    refusal names the field, the box and ``coarse`` rather than arriving as
+    refusal names the field and the box rather than arriving as
     ``Parameter``'s anonymous bounds error.  An explicit bound still wins.
     The box's chosen ceilings went on 2026-10-21 (WP-2002, the fifth round's
-    Q5) and its ceiling is the 2θ axis (the sixth round's Q7), so the refusal is
-    of a value under ``u``'s floor."""
+    Q5) and its chosen U, V and Y floors on 2026-10-23, so the refusal is of a
+    value under ``x``'s floor of 0, the Lorentzian floor left."""
     from rietx.schemas.instrument import ProfileTCHZ
 
-    with pytest.raises(ValidationError, match=r"ProfileTCHZ\.u: value -0\.1 lies "
-                       r"outside bounds \[-0\.05, 32400\.0\].*ProfileTCHZ\.coarse"):
-        ProfileTCHZ(u=Parameter(value=-0.1, vary=True))
+    with pytest.raises(ValidationError, match=r"ProfileTCHZ\.x: value -0\.1 lies "
+                       r"outside bounds \[0\.0, 180\.0\]"):
+        ProfileTCHZ(x=Parameter(value=-0.1, vary=True))
     assert ProfileTCHZ(u=Parameter(value=1.576, vary=True)).u.value == 1.576
     wide = ProfileTCHZ(u=Parameter(value=-0.1, vary=True, min=-0.5, max=5.0))
     assert (wide.u.min, wide.u.max, wide.u.unit) == (-0.5, 5.0, "deg^2")

@@ -460,9 +460,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         description=(
             "The tanθ term of the Gaussian variance `Γ_G² = U·tan²θ + V·tanθ + W`, "
             "which `model.profiles.caglioti.gaussian_fwhm` computes. It is the Caglioti "
-            "term that usually goes negative, and its bound has much the widest "
-            "negative range. U's default bound also admits a small negative value. W, X "
-            "and Y are bounded below and cannot go negative. The width curve has its "
+            "term that usually goes negative. U, V and Y have no floor of their own, "
+            "because what must stay positive is the width, and the default solver holds "
+            "both widths at every reflection. W and X are bounded below and cannot go "
+            "negative. The width curve has its "
             "minimum at tanθ = −V/(2U). No specimen term adds to V, so V belongs to the "
             "instrument. A phase's `gauss_strain` adds to U instead."
         ),
@@ -501,7 +502,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "The tanθ term of the Lorentzian FWHM. The tanθ shape is microstrain "
             "broadening, and a phase's `lor_strain` adds to it. An anisotropic strain "
             "block replaces the specimen part of this term with an hkl-dependent width "
-            "and locks `lor_strain`. The instrumental Y stays as it was."
+            "and locks `lor_strain`. The instrumental Y stays as it was. Y can go "
+            "negative while X keeps the total width at or above zero."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
@@ -3595,13 +3597,13 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "RESOLUTION_NOT_POSITIVE": HelpEntry(
         title="The instrument width goes negative",
         description=(
-            "The Gaussian instrument width, a quadratic in tan θ, is negative somewhere "
-            "in the fitted range. It is a variance, so negative values lie outside the "
-            "physical set. The model clamps the width to a tiny floor and carries on. "
-            "That reports a resolution far finer than any diffractometer. Do not quote "
-            "the widths, or the size and strain derived from them. Refit the resolution "
-            "on a standard with its certified cell held fixed, or load a measured "
-            "profile."
+            "An instrument width is negative somewhere in the fitted range. The "
+            "Gaussian one is a variance, a quadratic in tan θ, and the model clamps it "
+            "to a tiny floor and carries on. That reports a resolution far finer than "
+            "any diffractometer. The Lorentzian one, X/cos θ + Y tan θ, is a FWHM, "
+            "and a negative one is not a peak shape. Do not quote the widths, or the "
+            "size and strain derived from them. Refit the resolution on a standard "
+            "with its certified cell held fixed, or load a measured profile."
         ),
     ),
     "RESOLUTION_UNCONSTRAINED": HelpEntry(

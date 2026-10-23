@@ -172,6 +172,7 @@ from ...crystallography.symmetry import (
     site_orbit,
 )
 from ...schemas.common import Diagnostic, Parameter
+from ...schemas.structure import BISO_SEED
 from ..formats.base import decode
 from . import coverage as _coverage
 
@@ -4220,8 +4221,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             else:
                 # The file's own number, not `max(beq, 0.0)`: a negative one is
                 # kept rather than moved. A site that stated none is
-                # seeded 0.5 here, at build time — the model keeps it as None.
-                b_iso = 0.5 if s.beq is None else s.beq
+                # seeded BISO_SEED here, at build time — the model keeps it as None.
+                b_iso = BISO_SEED if s.beq is None else s.beq
                 displacement = {"biso": _sp(s, "beq", b_iso)}
             magnetic = {}
             if s.moment is not None and ph.name in magnetic_specs:

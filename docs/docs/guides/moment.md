@@ -65,7 +65,7 @@ The first half is the blind answer.
 <!-- output of examples/guides/moment.py -->
 ```text
 solved 58.395
-|m| = 2.04 ± 0.05 μB
+|m| = 2.0 μB
 Biso of Cr1 = -1.4 Å²
 ```
 
@@ -92,12 +92,12 @@ scale moved less than its esd
 
 The loop stops when the moment moves by less than its own esd between two rounds, and after five rounds whatever it has done.
 Both are choices of this script, not settings of rietx.
-Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit depends on the platform), more than its esd of 0.04, and round 2 moves it by less than 0.001.
+Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit depends on the platform), more than its esd of 0.04, and round 2 moves it by less than 0.002.
 
 ## Read the result
 
-On this pattern the three answers are 2.04 ± 0.05 μ<sub>B</sub> blind, 2.09 ± 0.03 with the reference and 2.12 ± 0.04 with the moment present.
-The blind moment is 0.05 and 0.09 μ<sub>B</sub> below the other two, one and two esds, and those two agree within their esds.
+On this pattern the three answers are 2.02 to 2.04 ± 0.05 μ<sub>B</sub> blind (the last digit depends on the platform), 2.09 ± 0.03 with the reference and 2.12 ± 0.04 with the moment present.
+The blind moment is 0.05 to 0.07 and 0.09 to 0.11 μ<sub>B</sub> below the other two, about one and two esds, and those two agree within their esds.
 This is one specimen with a k = 0 collinear moment, so it shows the effect and does not size it.
 
 The two printed checks say where the intensity went.
