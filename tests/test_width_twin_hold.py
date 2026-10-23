@@ -98,13 +98,24 @@ def test_a_twin_tied_to_a_visible_parameter_is_pinned_by_it():
     assert _hold_width_twins(table, set()) == ([], {}, {})
 
 
-def test_a_stephens_block_gives_y_no_twin():
-    """The block locks ``lor_strain``; its isotropic direction matches Y only
-    while the strain is isotropic, so the pair is not exactly flat."""
+def test_a_free_stephens_block_is_ys_twin():
+    """The block locks ``lor_strain`` and takes its place: its isotropic
+    direction is Y's at the seed, and an isotropic fit and its Stephens rival
+    must refine the same instrument parameters to be compared."""
     structure = make_lab6()
     structure.phases[0].microstrain = StephensStrain.from_values([0.0] * 15)
     table = _table(structure, ["instrument.profile.y", "phases.*.microstrain.dof.*"])
     assert "phases.0.lor_strain" not in table.free_paths
+    held, _, twins = _hold_width_twins(table, set())
+    assert held == ["instrument.profile.y"]
+    assert twins["instrument.profile.y"] == sorted(
+        p for p in table.free_paths if ".microstrain.dof." in p)
+
+
+def test_a_held_stephens_block_pins_y():
+    structure = make_lab6()
+    structure.phases[0].microstrain = StephensStrain.from_values([0.0] * 15)
+    table = _table(structure, ["instrument.profile.y"])
     assert _hold_width_twins(table, set()) == ([], {}, {})
 
 

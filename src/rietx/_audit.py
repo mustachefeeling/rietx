@@ -2711,7 +2711,8 @@ ROWS: tuple[Row, ...] = (
                   "reaches, kept finite for TRF's step scaling; the physical condition is held as "
                   "Gamma_G^2 >= eps by LM (optimize.least_squares.gaussian_width_inequalities), guarded "
                   "under TRF by RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, "
-                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
+                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round); the walk along its specimen "
+                  "twin, which the floor bounded, is held instead (StageResult.width_twins_held)"),
         grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
                  "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
                  "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
@@ -2756,7 +2757,8 @@ ROWS: tuple[Row, ...] = (
                   "width reaches, kept finite for TRF's step scaling; the physical condition is held as "
                   "Gamma_L >= 0 by LM (optimize.least_squares.lorentzian_width_inequalities), guarded "
                   "under TRF by RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, "
-                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
+                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round); the walk along its specimen "
+                  "twin, which the floor bounded, is held instead (StageResult.width_twins_held)"),
         grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
                  "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
                  "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),

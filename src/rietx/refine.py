@@ -810,9 +810,15 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     instrument width with it.  An unseen phase's sums are left out, because
     its peaks pin nothing; its own columns are the support hold's.
 
-    A Stephens block (``Phase.microstrain``) locks ``lor_strain``, so Y has
-    no twin here: the block's isotropic direction matches Y only while the
-    strain is isotropic.
+    A free Stephens block (``Phase.microstrain``) locks ``lor_strain`` and
+    takes its place as Y's twin.  The block's isotropic direction is Y's
+    exactly at the seed (``Stage.strain_seed``) and only near it once the
+    strain turns anisotropic, so this one pair is held by rule rather than
+    by the null space.  The rule is the one every program follows for the
+    whole pair (``docs/practice.md``), and without it an isotropic fit and its
+    Stephens rival would refine different instrument parameters, which a
+    nested comparison of the two cannot take (``tests/test_acceptance_stephens.py``).
+    A block that is present and held pins Y like a held ``lor_strain``.
     """
     def row(C, col_map: np.ndarray, i: int) -> np.ndarray:
         out = np.zeros(n_columns, dtype=np.float64)
@@ -837,7 +843,15 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
             ip = 0
             while (i_twin := pos.get(f"phases.{ip}.{twin}")) is not None:
                 family.add(i_twin)
-                if ip not in unseen:
+                block = _stephens_block(pos, ip) if twin == "lor_strain" else []
+                r_block = sum((np.abs(row(C, col_map, i)) for i in block),
+                              np.zeros(n_columns))
+                family.update(block)
+                if ip not in unseen and r_block.any():
+                    # a free Stephens block is Y's twin: no sum row pins Y
+                    couples.append((set(np.flatnonzero(r_inst).tolist()),
+                                    set(np.flatnonzero(r_block).tolist())))
+                elif ip not in unseen:
                     r_twin = row(C, col_map, i_twin)
                     sums.append(r_inst + r_twin)
                     couples.append((set(np.flatnonzero(r_inst).tolist()),
@@ -876,6 +890,13 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
         if twins:
             out[c] = sorted(twins)
     return out
+
+
+def _stephens_block(pos: dict[str, int], ip: int) -> list[int]:
+    """The entry indices of phase ``ip``'s Stephens block, its DOFs and the
+    S_HKL they drive, empty without a block."""
+    prefix = f"phases.{ip}.microstrain."
+    return [i for p, i in pos.items() if p.startswith(prefix)]
 
 
 def _hold_width_twins(table: ParameterTable, unseen: set[int]
