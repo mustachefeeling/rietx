@@ -478,7 +478,7 @@ A literal name, with no `*`, `?` or `[`, names one parameter.
 If the model has no such parameter the plan is wrong, through a typo or a renamed path.
 `StageResult.unknown_paths` lists it, and [`STAGE_PATH_UNKNOWN`](diagnostics-refinement.md#stage_path_unknown) reports it at `warning` with the nearest real name: `instrument.source.lines.0.wavelength` for a stage that names the wavelength without its line index.
 It is a diagnostic and not an exception, because one plan runs every pattern of a series.
-A family name misspelt inside a pattern looks like one that correctly matched nothing, so no rule can report it, and `freed` is the place to look.
+A wrongly spelt family name inside a pattern looks like one that correctly matched nothing, so no rule can report it, and `freed` is the place to look.
 
 A pattern under a spelling a release retired is reported too.
 A saved project, history tree or `.rxt` file is migrated as it is read, but a plan built in code is not.

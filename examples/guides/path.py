@@ -27,7 +27,7 @@ print(f"largest forward-backward gap: {gap:.2f} esd")
 
 # guide: jump start
 jumped = list(patterns)
-jumped[4] = simulate(TRUE_A[4] * 1.02, seed=15)  # the 700 K cell 2 % larger
+jumped[4] = simulate(TRUE_A[4] * 1.015, seed=15)  # the 700 K cell 1.5 % larger
 series = rx.refine_sequential(jumped, *starting_model(), plan="mccusker_default",
                               x=TEMPERATURES, x_label="T (K)", verify_discontinuities=True)
 
@@ -44,10 +44,13 @@ assert [d.where for d in steps] == [
 assert all(round(d.value, 2) == 1.00 for d in steps)
 assert [s.indices for s in series.discontinuities] == [(3, 4)] * 3
 assert [e.rung for e in series] == [
-    "cold", "warm", "warm", "warm", "warm", "warm_staged", "warm"]
-# a rejected attempt's Rwp is where a diverging fit stopped: 0.917 to 0.938 between starts
-# that differ by 1e-14 (WP-2002, 2026-10-22), so the page quotes a bound; the 700 K
-# warm start holds since the U, V and Y floors went (WP-2002, 2026-10-23)
-assert series.entries[4].rwp_warm is None and series.entries[5].rwp_warm > 0.9
-assert [f"{r:.3f}" for r in series.rwp[4:6]] == ["0.039", "0.040"]
+    "cold", "warm", "warm", "warm", "warm_staged", "warm", "warm"]
+# a 1.5 % jump, because 2 % and 3 % left which warm start broke to rounding: under start
+# nudges of 1e-14 the 800 K one held in 3 of 8 starts at 2 %, and the 700 K one in 3 of
+# 10 at 3 % on OpenBLAS, while 1.5 % broke the 700 K one at Rwp 0.946 in all 20 on both
+# BLAS builds (WP-2002, 2026-10-23); the page still quotes a bound
+assert series.entries[4].rwp_warm > 0.9 and series.entries[5].rwp_warm is None
+# the rescued 700 K fit ends at 0.039494, 6e-6 from where a third decimal flips, so the
+# page quotes two
+assert all(abs(r - 0.040) < 0.001 for r in series.rwp[4:6]), series.rwp[4:6]
 assert gap < 0.005

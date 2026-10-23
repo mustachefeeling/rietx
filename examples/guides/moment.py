@@ -47,7 +47,7 @@ solution = rx.solve_magnetic(blind, ordered, sites=["Cr1"], ion="Cr3+")
 
 moment = solution.best.moments[0]
 print(solution.verdict, solution.best.bns_number)
-print(f"|m| = {moment.magnitude:.2f} ± {moment.esd:.2f} μB")
+print(f"|m| = {moment.magnitude:.1f} μB")
 print(f"Biso of Cr1 = {blind.fitted_structure.phases[0].atoms[1].biso.value:.1f} Å²")
 # guide: blind end
 
@@ -95,12 +95,18 @@ assert 2.08 < reference.best.moments[0].magnitude < 2.14
 assert blind.fitted_structure.phases[0].atoms[1].biso.value < -1
 assert abs(shift) < scale.stderr
 # the three moments the "Read the result" section compares, and the two checks it names
-assert abs(solution.best.moments[0].magnitude - 2.038) < 0.005 and abs(solution.best.moments[0].esd - 0.05) < 0.005
+# the blind solve stops at one of several points, and rounding picks which: 2.0300, 2.0346
+# and 2.0383 on macOS arm64 under start nudges of 1e-14, and Linux's printed 2.02 (WP-2002,
+# 2026-10-23), so the page prints one decimal and quotes the range
+blind_m = solution.best.moments[0]
+assert 2.015 < blind_m.magnitude < 2.04 and abs(blind_m.esd - 0.05) < 0.005, (blind_m.magnitude, blind_m.esd)
 assert abs(reference.best.moments[0].magnitude - 2.09) < 0.005 and abs(reference.best.moments[0].esd - 0.03) < 0.005
-assert abs(row.magnitude - 2.12) < 0.01 and abs(row.magnitude_esd - 0.04) < 0.006
-# "the blind moment is 0.06 and 0.09 μB below the other two, which agree within their esds"
-blind_m, ref_m = solution.best.moments[0].magnitude, reference.best.moments[0]
-assert 0.04 < ref_m.magnitude - blind_m < 0.07 and 0.07 < row.magnitude - blind_m < 0.11
+assert abs(row.magnitude - 2.12) < 0.01 and abs(row.magnitude_esd - 0.04) < 0.006, (row.magnitude, row.magnitude_esd)
+# "the blind moment is 0.05 to 0.07 and 0.09 to 0.11 μB below the other two, which agree
+# within their esds"
+ref_m = reference.best.moments[0]
+assert 0.045 < ref_m.magnitude - blind_m.magnitude < 0.075
+assert 0.085 < row.magnitude - blind_m.magnitude < 0.115
 assert abs(row.magnitude - ref_m.magnitude) < row.magnitude_esd + ref_m.esd
 # "about half its esd": the rounds stop at one of two points, 0.41 or 0.47 esd, and rounding
 # picks which (WP-2002, 2026-10-22); the page quotes only what both share
