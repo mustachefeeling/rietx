@@ -6264,7 +6264,7 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                     "fitted range.",
             suggestion="Refit the resolution on a standard with its certified "
                        "cell held fixed (lab_calibrate), or hold a loaded "
-                       "instrument profile instead of refining U, V and W on "
+                       "instrument profile instead of refining its widths on "
                        "this pattern. Do not report the widths, or the "
                        "microstructure derived from them.",
         ))

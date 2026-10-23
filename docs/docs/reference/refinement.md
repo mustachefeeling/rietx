@@ -609,7 +609,7 @@ Each kind has one constructor, so each format string is written once:
 | `GuardFinding.nonpositive_adp` | `ADP_NOT_POSITIVE_DEFINITE` | an anisotropic displacement tensor is not positive definite | the smallest eigenvalue |
 | `GuardFinding.nonpositive_strain` | `STEPHENS_STRAIN_NOT_POSITIVE` | a Stephens block gives a negative σ²(M) for some reflection | the worst σ²(M) |
 | `GuardFinding.nonpositive_texture` | `TEXTURE_NOT_POSITIVE` | a spherical-harmonics texture gives a negative pole density somewhere on the sphere | the lowest value on the sphere |
-| `GuardFinding.nonpositive_resolution` | `RESOLUTION_NOT_POSITIVE` | the Caglioti quadratic Γ<sub>G</sub>² = U tan²θ + V tan θ + W goes below zero in the fitted range, where the model clamps Γ<sub>G</sub> to a floor | the worst Γ<sub>G</sub>² |
+| `GuardFinding.nonpositive_resolution` | `RESOLUTION_NOT_POSITIVE` | an instrument width, Γ<sub>G</sub>² or Γ<sub>L</sub>, goes below zero in the fitted range; the model clamps Γ<sub>G</sub> to a floor | the worst Γ<sub>G</sub>² or Γ<sub>L</sub> |
 | `GuardFinding.unsupported_resolution` | `RESOLUTION_UNCONSTRAINED` | the Gaussian resolution terms were refined on a pattern whose peaks are mostly Lorentzian | the Gaussian share of the width |
 | `GuardFinding.narrow_hump` | `HUMP_TOO_NARROW` | a declared hump has narrowed below four times the instrumental width, where it is a reflection rather than a background feature | its width over the instrumental width |
 | `GuardFinding.large_biso` | `BISO_UNUSUALLY_LARGE` | an isotropic displacement parameter is past the Lindemann melting bound computed from its phase's cell | B |

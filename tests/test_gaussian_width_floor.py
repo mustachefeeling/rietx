@@ -33,7 +33,6 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
     TCHZ_BOUNDS,
-    TCHZ_BOUNDS_COARSE,
     BackgroundChebyshev,
     ProfileTCHZ,
 )
@@ -159,7 +158,7 @@ def test_on_the_floor_lm_reaches_trfs_minimum(pattern, trf, monkeypatch, rows):
 
 
 def test_the_declared_boxes_start_at_the_clamp():
-    assert TCHZ_BOUNDS["w"][0] == TCHZ_BOUNDS_COARSE["w"][0] == _MIN_GAMMA_G2
+    assert TCHZ_BOUNDS["w"][0] == _MIN_GAMMA_G2
     assert ProfileTCHZ().w.min == _MIN_GAMMA_G2
     assert ProfileTCHZ.coarse().w.min == _MIN_GAMMA_G2
 
