@@ -209,7 +209,7 @@ a change to what `diagnose` computes, so it stays inside the non-goal below.
       final wording, and anything `yue-prose` already covered, in the handover entry.
 - [x] `examples/tutorials/README.md`: the repo-side tutorial rules (prose matches the output,
       and a rebuild rereads it; each model piece shown before a fit uses it; code layout).
-- [ ] Quickstart prose: each stale line and each word in § What the quickstart shows today.
+- [x] Quickstart prose: each stale line and each word in § What the quickstart shows today.
       Rebuild.
 - [ ] Sweep 02-06 for the same patterns: grep
       `drift|walk|hands|takes it up|pedestal|stops early|five nodes|comfortable`, and stage
@@ -227,13 +227,13 @@ a change to what `diagnose` computes, so it stays inside the non-goal below.
 - [x] `plot_pattern`: with `model=`, draw the model's background at its starting values, and
       name the radiation or λ from `model.instrument` or `data.metadata`, absent when neither
       knows it. Tests in `tests/test_viz.py`, and look at the figure.
-- [ ] Quickstart: a cell showing the background against the data once it is set (needs the
+- [x] Quickstart: a cell showing the background against the data once it is set (needs the
       previous task).
 - [x] Enforcement: `build.py` lists the cells whose text output changed, with the markdown
       cell under each. Run Vale's `rietx` style (at least `Metaphor` and `Terms`) over the
       tutorials' markdown cells, by extracting them to a temporary `.md`.
 - [ ] Rebuild every notebook, then run the tests below.
-- [ ] Skill: probably none, since the agent skill drives rietx and does not teach it. Check
+- [x] Skill: probably none, since the agent skill drives rietx and does not teach it. Check
       `docs/skill/rietx/` for any quoted `PatternDiagnostics` output or plot keyword that
       changes.
 
