@@ -140,6 +140,23 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **2026-10-23, from [1326](1326-satellites-without-a-moment.md)'s close: a
+  k ≠ 0 moment refined on real data, and the published structure each pattern
+  answers to.** 1326 ranks k from a nuclear fit's residual and never refines a
+  moment. Its last two handovers kept its tests task open for both of these,
+  and the maintainer moved them here at its close. Two public k ≠ 0 patterns
+  are vendored. `Magnetic-III` is `tests/data/gsas2_d1b_ba6co6.xye`
+  (Ba₆Co₆ClO₁₆, ILL D1B, 1.4 K, k = (0, 0, ½)). Its nuclear fit and ranking
+  are `test_ba6co6_d1b_returns_the_tutorials_k_first_with_every_other_candidate_behind`.
+  The tutorial cites Mentré et al., *Solid State Sci.* **10**, 471 (2008),
+  which is closed access and was never read, so k is the tutorial's label,
+  unchecked. `Magnetic-IV` is `tests/data/gsas2_llb3t2_prsrmno_10K.gda`
+  ((Pr,Sr)MnO₃, LLB 3T2, 10 K, k = (1, 0, 0) on the F cell). Its published
+  structure is not yet named. `magnetic_supercell` refuses that X point,
+  because |det P| = ½ needs #612's child-cell route, and a strict xfail pins
+  the refusal. A third k ≠ 0 case waits on PR #1073: Ba₂FeSbSe₅, k = (½, 0, ½),
+  a 12-temperature LLB G4.1 ramp released under CC BY 4.0 for WP-1329. This
+  is the "real-data k ≠ 0 acceptance" the 2026-09-26 entry lists as not done.
 - **From WP-2002 (2026-10-20, PR #1050): `strategy.magnetic.SOLVE_D_MIN` waits on the form factor.** WP-2002's batch (B12, revised pick) dropped setting it from the data's d range: the magnetic signal dies with the form factor (Mn³⁺ ⟨j₀⟩ 0.39 at d = 1.5 Å, 0.04 at 0.77 Å), so a limit from the data's range would split classes on reflections with no magnetic intensity. Set it where the form factor falls under the noise; its audit row stays `unaudited` until then.
 - **2026-10-19, from [2001](2001-the-rule-the-table-and-the-guard.md): magnetic
   refinement has no validating reference, and

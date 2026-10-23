@@ -125,6 +125,17 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-23, from [1326](1326-satellites-without-a-moment.md)'s close
+  (originally WP-1541, 2026-10-03): the satellite types have no provisional
+  declaration a test can see.** `SatelliteEvidence` and `SatelliteCandidate`
+  are still defined in `rietx.report.schemas` (`:610`, `:649` at `12f459e`).
+  That module defines stable names too, so no `PROVISIONAL_MODULES` prefix can
+  cover them, and only prose in the compatibility page and the 1.6.0 notes
+  calls them provisional. The proposed fix is to move both into
+  `rietx.report.satellites`, re-export them from `rietx.report.schemas`, and
+  declare that prefix with a reason. M-8's decision 3 (new fields on
+  `SatelliteCandidate`, or a `KSearchResult` beside `SatelliteEvidence`) is
+  where they change, so it moves here.
 - **2026-10-22, from WP-2002 (PR #1085): `solve_magnetic`'s winner ends in a closing stage.**
   When the package chose the plan, the trials and the nuclear reference still
   run no closing stage and are ranked there, and the winner then runs one from
