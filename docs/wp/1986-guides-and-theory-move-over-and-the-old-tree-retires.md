@@ -295,6 +295,7 @@ the tree that day.
 
 ### Inherited
 
+- **2026-10-23, from [1912](1912-a-polar-axis-has-no-origin.md) (closed): the floating-origin behaviour is settled for now, so the polar-origin guide can be written against it.** The maintainer decided on 2026-10-23 that both modes stay opt-in and off by default. `Refinement.hold_floating_origin()` (or `Phase.floating_origin = "hold"`) holds one atom per floating direction. `"centroid"` restrains a weighted centroid of every site (Flack & Schwarzenbach 1988), so every coordinate keeps an esd. `None` is the default. The reference text now lives in `docs/docs/reference/data.md` § Floating origin and `theory/parameterisation.md` (`par-origin-*`), since the old `using/concepts.md` retired. The round-robin zincite numbers are in WP-2029's Context. A guide written now shows the opt-in calls and promises no default. Whether the centroid becomes the default is [WP-2029](2029-whether-the-centroid-fixes-a-polar-origin-by-default.md). If it flips, its manual task updates the guide, or tells this WP if no guide has been written yet.
 - From WP-2021: the Guides menu names each guide without its "How to". So guides 18 and 24
   each enter `guides/index.md`'s toctree as `Label <doc>`, the label being the H1 less
   "How to", capitalised; the H1 keeps it.
