@@ -432,6 +432,24 @@ pre {
   border-radius: 8px;
 }
 
+/* A signature short enough to stay on one line can still be wider than a phone, and
+ * `rx.save_instrument_profile(instrument:` has no break in it: it scrolls on its own line
+ * where the column would otherwise cut it (WP-2022). */
+dt.sig {
+  overflow-x: auto;
+}
+
+/* A model's fields (`py:fields`, WP-2022) are one object's signatures, a line each, and
+ * carry no body of their own. */
+dl.py.fields > dt {
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+
+dl.py.fields > dd:empty {
+  display: none;
+}
+
 /* A tab set (macOS, Linux, Windows) is a row of words over a rule, the current one
  * underlined, and draws no box round the panel, which is not a control. */
 .bd-content .sd-tab-set > label {

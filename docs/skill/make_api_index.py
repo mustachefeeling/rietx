@@ -675,7 +675,9 @@ def _doc_line(obj) -> str:
     return text
 
 
-def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
+def model_field_parts(cls, skip: frozenset[str] = frozenset()) -> list[tuple[str, str, str | None]]:
+    """(name, annotation, default or None) per field: what `_model_fields`
+    prints, and what the manual's API reference renders as attributes."""
     from pydantic_core import PydanticUndefined
 
     out = []
@@ -685,28 +687,44 @@ def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
         ann = _ann(info.annotation)
         for member in TECHNIQUE_MEMBERS:
             ann = ann.replace(f" | {member}", "")
-        text = f"{name}: {ann}"
         if info.default_factory is not None:
-            text += f" = {_default(info.default_factory())}"
+            default = _default(info.default_factory())
         elif info.default is not PydanticUndefined:
-            text += f" = {_default(info.default)}"
-        out.append(f"`{text}`")
+            default = _default(info.default)
+        else:
+            default = None
+        out.append((name, ann, default))
     return out
 
 
-def _dataclass_fields(cls) -> list[str]:
+def dataclass_field_parts(cls) -> list[tuple[str, str, str | None]]:
+    """`model_field_parts` for a dataclass."""
     out = []
     for f in dataclasses.fields(cls):
         if f.name.startswith("_"):
             # private, as a pydantic private attribute is, which model_fields omits
             continue
-        text = f"{f.name}: {_ann(f.type)}"
         if f.default_factory is not dataclasses.MISSING:
-            text += f" = {_default(f.default_factory())}"
+            default = _default(f.default_factory())
         elif f.default is not dataclasses.MISSING:
-            text += f" = {_default(f.default)}"
-        out.append(f"`{text}`")
+            default = _default(f.default)
+        else:
+            default = None
+        out.append((f.name, _ann(f.type), default))
     return out
+
+
+def _field_spans(parts) -> list[str]:
+    return [f"`{name}: {ann}" + (f" = {default}`" if default is not None else "`")
+            for name, ann, default in parts]
+
+
+def _model_fields(cls, skip: frozenset[str] = frozenset()) -> list[str]:
+    return _field_spans(model_field_parts(cls, skip))
+
+
+def _dataclass_fields(cls) -> list[str]:
+    return _field_spans(dataclass_field_parts(cls))
 
 
 def _entry(dotted: str, technique: str | None = None) -> str:
