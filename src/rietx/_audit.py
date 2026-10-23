@@ -133,6 +133,7 @@ WALKED: dict[str, int] = {
     "project.py": 2002,
     "io/formats/dif.py": 2006,
     "io/formats/gsas.py": 2006,
+    "io/formats/pdcif.py": 2006,
     "io/formats/peaklist.py": 2006,
     "io/instrument_profile.py": 2006,
     "io/projects/fullprof.py": 2006,
@@ -697,13 +698,22 @@ ROWS: tuple[Row, ...] = (
                   "not changed")),
     Row("PATTERN_INTENSITY_SCALED", "code"),
     Row("PATTERN_MULTISCAN_DEFAULTED", "code"),
-    Row("PATTERN_NET_HAS_BACKGROUND", "code", tier=1, ambiguity=3,
+    Row("PATTERN_NET_HAS_BACKGROUND", "code", tier=3, ambiguity=3,
         evidence=("warning; fires when a column the file labels background-subtracted "
                   "(_pd_proc_intensity_net, the IUCr pdCIF definition) never comes within "
                   "NET_BACKGROUND_MIN_SIGMA = 5 of zero in y/sigma; the statistic is "
-                  "arithmetic, the 5 is ours, measured on one deposit (COD 2242872, 14.1) "
-                  "and a synthetic zero baseline; reports only, y is never shifted and "
-                  "the caller decides, as Rule 1's third kind asks")),
+                  "arithmetic, the 5 is ours: the smallest y/sigma is 14.1 (COD 2242872, "
+                  "synchrotron capillary), 955 (2017714, Stoe Stadi-P), 1212 (2242532, "
+                  "X'Pert MPD Pro) and 6037 (2310780, neutron) against |y|/sigma of order "
+                  "1 on a synthetic zero baseline; misfires on a subtracted pattern "
+                  "windowed onto a peak cluster; reports only, y is never shifted and "
+                  "the caller decides, as Rule 1's third kind asks"),
+        grounds=("Reports only and shifts nothing; the threshold sits between a measured "
+                 "zero baseline (order 1) and four unrelated deposits (four laboratories, "
+                 "four instruments, four materials; 14 to 6000), with a stated "
+                 "misfire; the 5 is rietx's own, so the row stays tier 3 (ruled "
+                 "2026-10-23, #1006 round 2)."),
+        approved="2026-10-23"),
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
@@ -1438,6 +1448,14 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.workflow.ABSENT_WINDOW_FWHM", "constant", value=0.5),
     Row("rietx.indexing.workflow.VALIDATION_METRIC_REL", "constant", value=0.01),
     Row("rietx.indexing.workflow.VALIDATION_SLACK_BOUNDS_DEG", "constant", value=(0.3, 6.0)),
+    Row("rietx.io.formats.pdcif.NET_BACKGROUND_MIN_SIGMA", "constant", tier=3, value=5.0,
+        evidence=("the smallest y/sigma of a net column before PATTERN_NET_HAS_BACKGROUND "
+                  "fires; 14.1, 955, 1212 and 6037 on four unrelated deposits labelled "
+                  "net, order 1 on a synthetic zero baseline; one case it misfires: a "
+                  "subtracted pattern windowed onto a peak cluster"),
+        grounds=("The decision threshold of PATTERN_NET_HAS_BACKGROUND, which only reports "
+                 "(ruled 2026-10-23, #1006 round 2)."),
+        approved="2026-10-23"),
     Row("rietx.io.formats.base.HEAD_BYTES", "constant", value=4096),
     Row("rietx.io.formats.base.INTEGRAL_TOL", "constant", value=0.001),
     Row("rietx.io.formats.dif._MIN_ROWS", "constant", value=3),
@@ -3320,7 +3338,10 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_INTENSITY_SCALED.suggestion", "suggestion", value=6),
     Row("PATTERN_MULTISCAN_DEFAULTED.suggestion", "suggestion", value=1),
     Row("PATTERN_NET_HAS_BACKGROUND.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
-        evidence="arithmetic: names the background to refine; takes no action itself"),
+        evidence=("names the background by what the file holds: its own "
+                  "_pd_proc_intensity_bkg_calc, held additively, where it states one, "
+                  "else a Chebyshev to refine; the competent refiner who holds the file's "
+                  "curve is the first branch, so no dissenter is left; takes no action itself")),
     Row("PATTERN_ROWS_DROPPED.suggestion", "suggestion", value=1),
     Row("PATTERN_SIGMA_CONSTANT.suggestion", "suggestion", value=1),
     Row("PATTERN_UNDERSAMPLED.suggestion", "suggestion", value=1),

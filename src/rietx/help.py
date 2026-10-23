@@ -3187,11 +3187,16 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "The file's `_pd_proc_intensity_net` column is labelled background-subtracted "
             "but never comes within 5σ of zero, so the background was not subtracted. "
             "The reader leaves the numbers as they are, and the code's value is the "
-            "column's smallest y/σ. Refine a background (a Chebyshev series, with a hump "
-            "component for a broad amorphous or capillary hump) instead of holding it at "
-            "zero. The 5σ threshold was measured on one deposit, COD 2242872 "
-            "(synchrotron capillary data written by TOPAS-Academic, 14.1σ), against a "
-            "synthetic zero baseline, and is untested beyond them."
+            "column's smallest y/σ. Where the file also states "
+            "`_pd_proc_intensity_bkg_calc`, hold that curve additively "
+            "(`BackgroundFixedPlusChebyshev`); otherwise refine a Chebyshev background, "
+            "with a hump component for a broad amorphous or capillary hump. The 5σ "
+            "threshold was measured on four unrelated deposits labelled net (a "
+            "synchrotron capillary, a laboratory Stoe Stadi-P, a laboratory "
+            "X'Pert MPD Pro and a neutron powder pattern), whose smallest y/σ run "
+            "from 14 to about 6 000, against a synthetic zero baseline. It misfires "
+            "on a subtracted pattern windowed onto a peak cluster with no empty "
+            "baseline in range."
         ),
     ),
     "PATTERN_ROWS_DROPPED": HelpEntry(

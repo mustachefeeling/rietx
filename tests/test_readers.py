@@ -3146,6 +3146,49 @@ def test_a_net_column_with_a_true_zero_baseline_is_only_reported(tmp_path):
     assert [d.code for d in found] == ["PATTERN_INTENSITY_NET"]
 
 
+def _offset_net(tmp_path, name, extra=None):
+    """A net column riding 300 counts above zero everywhere, with its weights."""
+    cols = {"_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": _W,
+            "_pd_proc_intensity_net": [v + 300.0 for v in _Y]}
+    cols.update(extra or {})
+    found: list = []
+    rx.read_pattern(_write_pdcif(tmp_path / name, cols), diagnostics=found)
+    return [d for d in found if d.code == "PATTERN_NET_HAS_BACKGROUND"]
+
+
+def test_the_suggestion_follows_what_the_file_holds_as_its_background(tmp_path):
+    """T6c: a file stating ``_pd_proc_intensity_bkg_calc`` has a curve of its own,
+    and a competent refiner holds it rather than refining a new one, so the
+    suggestion names it; without the item, a Chebyshev background."""
+    plain, = _offset_net(tmp_path, "plain.cif")
+    assert plain.suggestion.startswith("refine a Chebyshev background")
+    held, = _offset_net(tmp_path, "held.cif", {
+        "_pd_proc_intensity_bkg_calc": [300.0] * len(_TT)})
+    assert "_pd_proc_intensity_bkg_calc" in held.suggestion
+    assert "BackgroundFixedPlusChebyshev" in held.suggestion
+
+
+def test_a_subtracted_pattern_windowed_onto_a_peak_cluster_misfires(tmp_path):
+    """T6d, the threshold's stated failure case: with no empty baseline in range
+    a truly subtracted column never nears zero, and the warning fires.  Pinned
+    so the limit stays written down in ``help.py`` and the skill row."""
+    import numpy as np
+
+    rng = np.random.default_rng(1806)
+    tt = np.round(np.arange(10.95, 11.05, 0.01), 4)
+    peak = 2000.0 * np.exp(-0.5 * ((tt - 11.0) / 0.03) ** 2)
+    sig = np.sqrt(peak + 100.0)
+    y = peak + rng.normal(0.0, 1.0, tt.size) * sig
+    p = _write_pdcif(tmp_path / "window.cif", {
+        "_pd_proc_2theta_corrected": tt.tolist(),
+        "_pd_proc_ls_weight": (1.0 / sig ** 2).tolist(),
+        "_pd_proc_intensity_net": y.tolist()})
+    found: list = []
+    rx.read_pattern(p, diagnostics=found)
+    assert [d.code for d in found] == ["PATTERN_INTENSITY_NET",
+                                       "PATTERN_NET_HAS_BACKGROUND"]
+
+
 def test_a_calculated_net_column_alone_is_still_refused(tmp_path):
     """T7: ``_pd_calc_intensity_net`` is a model, never a measurement."""
     p = _write_pdcif(tmp_path / "calc.cif", {
@@ -3177,6 +3220,47 @@ def test_a_single_zero_weight_excludes_that_point_and_keeps_the_column(tmp_path)
     assert [d.code for d in found] == ["PATTERN_ZERO_WEIGHT_EXCLUDED"]
     assert found[0].value == 1.0
     assert np.isfinite(pat.sigma).all()
+
+
+def _zero_weight_pdcif(path):
+    w = list(_W)
+    w[2] = 0.0
+    return _write_pdcif(path, {
+        "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": w,
+        "_pd_proc_intensity_total": _Y})
+
+
+def test_a_callers_excluded_region_joins_the_readers_zero_weight_one(tmp_path):
+    """T8b: ``Project.create(excluded_regions=...)`` used to assign over the
+    reader's exclusions, so a zero-weight point re-entered the fit at the
+    Poisson placeholder sigma.  Both must be excluded, and survive a reopen."""
+    from tests.test_refine_synthetic import perturbed_models
+
+    p = _zero_weight_pdcif(tmp_path / "zero_w.cif")
+    structure, ins = perturbed_models()
+    project = rx.Project.create(tmp_path / "zw.rex", pattern=p,
+                                structure=structure, instrument=ins,
+                                excluded_regions=[(10.035, 10.045)])
+    for proj in (project, rx.Project.open(project.path)):
+        assert proj.data.in_range_mask().tolist() == [
+            True, True, False, True, False, True]
+        assert len(proj.doc.excluded_regions) == 2
+
+
+def test_a_series_members_own_exclusions_survive_the_projects_regions(tmp_path):
+    """T8c: the same replacement at ``gui/series.py``'s ``read_members``, where a
+    series of zero-weight pdCIFs lost them even with no region set by the user."""
+    from types import SimpleNamespace
+
+    from rietx.gui import series as series_mod
+
+    p = _zero_weight_pdcif(tmp_path / "zero_w.cif")
+    setup = SimpleNamespace(members=[SimpleNamespace(path=p, options={})])
+    bare, = series_mod.read_members(setup, [])
+    assert bare.in_range_mask().tolist() == [True, True, False, True, True, True]
+    both, = series_mod.read_members(setup, [(10.035, 10.045)])
+    assert both.in_range_mask().tolist() == [
+        True, True, False, True, False, True]
 
 
 def test_zero_weight_runs_at_the_ends_and_a_descending_scan(tmp_path):

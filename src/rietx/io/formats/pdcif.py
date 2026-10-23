@@ -29,13 +29,15 @@ _PDCIF_TT = ("_pd_proc_2theta_corrected", "_pd_meas_2theta_scan",
 _PDCIF_Y = ("_pd_proc_intensity_total", "_pd_meas_intensity_total",
             "_pd_meas_counts_total", "_pd_proc_intensity_net")
 _PDCIF_NET = "_pd_proc_intensity_net"
+_PDCIF_BKG_CALC = "_pd_proc_intensity_bkg_calc"
 #: A net column whose every point stands at least this many σ above zero is
 #: reported as carrying a background.  The pdCIF dictionary defines the item as
 #: the intensities "after background subtraction", and a subtracted pattern
 #: returns to within a few σ of zero between its peaks; one that never does
-#: still holds its background.  5 is far below what that file shows (COD
-#: 2242872, labelled net, never comes within 14.1σ of zero; its minimum is 249
-#: counts) and far above where a true zero baseline sits (|y|/σ of order 1).
+#: still holds its background.  5 is far below what four unrelated deposits
+#: labelled net show (minimum y/σ 14 to 6 000, COD 2242872, 2017714,
+#: 2242532, 2310780; see ``_audit.ROWS``) and far above where a true zero
+#: baseline sits (|y|/σ of order 1).
 NET_BACKGROUND_MIN_SIGMA = 5.0
 #: an su column is the intensity column's own: ``<intensity tag>`` + one of these
 _PDCIF_SU_SUFFIXES = ("_su", "_esd")
@@ -138,7 +140,8 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
     net = y_tag == _PDCIF_NET
     if net and diagnostics is not None:
         diagnostics.extend(_net_findings(p, tt[used], y[used],
-                                         None if sigma is None else sigma[used]))
+                                         None if sigma is None else sigma[used],
+                                         len(chosen.find_loop(_PDCIF_BKG_CALC)) > 0))
     data = pattern_data(p, tt, y, sigma,
                         source_file=p.name, format="pdcif", block=chosen.name,
                         intensity_item=y_tag if net else None)
@@ -166,12 +169,15 @@ def _runs(tt: np.ndarray, mask: np.ndarray) -> list[tuple[float, float]]:
 
 
 def _net_findings(p: Path, tt: np.ndarray, y: np.ndarray,
-                  sigma: np.ndarray | None) -> list[Diagnostic]:
+                  sigma: np.ndarray | None,
+                  has_bkg_calc: bool = False) -> list[Diagnostic]:
     """What reading a ``_pd_proc_intensity_net`` column says, and whether its
     numbers agree with its label.
 
     The σ is the one the pattern will be fitted with: the file's, else the
-    Poisson fallback √max(y, 1) that ``PatternData.sig()`` applies.
+    Poisson fallback √max(y, 1) that ``PatternData.sig()`` applies.  A file that
+    also states ``_pd_proc_intensity_bkg_calc`` has a background curve of its
+    own, which the suggestion names in place of a new one.
     """
     out = [Diagnostic(
         level="info", code="PATTERN_INTENSITY_NET",
@@ -194,9 +200,13 @@ def _net_findings(p: Path, tt: np.ndarray, y: np.ndarray,
                      f"the background was not subtracted. The intensities are "
                      f"read as the file states them; refine a background."),
             value=float(z[i]), where=[_PDCIF_NET],
-            suggestion=("refine a background (a Chebyshev series, with a "
-                        "HumpComponent for a broad amorphous or capillary "
-                        "hump) rather than holding it at zero")))
+            suggestion=(
+                f"the file states {_PDCIF_BKG_CALC}: hold that curve additively "
+                "(BackgroundFixedPlusChebyshev, with a refinable Chebyshev on "
+                "top) rather than holding the background at zero"
+                if has_bkg_calc else
+                "refine a Chebyshev background (with a HumpComponent for a broad "
+                "amorphous or capillary hump) rather than holding it at zero")))
     return out
 
 
