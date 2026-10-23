@@ -2569,15 +2569,27 @@ class ParameterTable:
         derived row is written after the matmul.  Measured before this refusal
         (WP-1803): the dependent's C row emptied and it left ``moving_paths``
         with no error.  The mirror of ``apply_value_scale``'s refusal of a
-        scaled source.  Returns ``(path, "derived" | "locked")``; one authority
-        for :meth:`set_tie`, which raises, and ``Refinement._apply_ties``,
-        which drops the tie and says so (a model edit never stops a build).
+        scaled source.  A tied source is read through its chain, as
+        :meth:`_flatten` will read it, so one resting on a locked or derived
+        row is refused too (the #773 round-2 gap).  Returns ``(path, what)``,
+        ``what`` naming the row — ``"derived row"``, ``"locked row"``, or the
+        chain; one authority for :meth:`set_tie`, which raises, and
+        ``Refinement._apply_ties``, which drops the tie and says so (a model
+        edit never stops a build).
         """
         derived = self.derived_paths()
         for src, _ in tie.terms:
-            j = self._paths.get(src)
-            if j is not None and (src in derived or self.entries[j].locked):
-                return src, "derived" if src in derived else "locked"
+            if src not in self._paths:
+                continue
+            # an untied source is its own one leaf
+            leaves, _ = self._flatten(AffineTie.identity(src))
+            for i, _ in leaves:
+                e = self.entries[i]
+                k = ("derived" if e.path in derived
+                     else "locked" if e.locked else None)
+                if k is not None:
+                    return src, (f"{k} row" if e.path == src
+                                 else f"row tied to the {k} row {e.path!r}")
         return None
 
     def set_tie(self, path: str, tie: AffineTie | None) -> None:
@@ -2595,10 +2607,10 @@ class ParameterTable:
         if tie is not None:
             reason = self.tie_source_refusal(tie)
             if reason is not None:
-                src, kind = reason
+                src, what = reason
                 raise ValueError(
                     f"cannot tie {path!r} to {src!r}: the source is a "
-                    f"{kind} row, which the affine block cannot carry, so "
+                    f"{what}, which the affine block cannot carry, so "
                     f"{path!r} would be frozen at its present value")
         if tie is not None:
             self._refuse_body_increment_tie(path, tie)
