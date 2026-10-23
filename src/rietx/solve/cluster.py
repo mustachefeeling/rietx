@@ -64,6 +64,15 @@ are declared and not measured on any public held-out set (WP-1515's
   (``prior_excludes_better_fit``).  A share rule cannot see a wrong structure
   that satisfies its prior perfectly; the data can.
 
+Two more from the answer type (#562 S2b), both capping at ``medium``:
+
+* a candidate whose χ²_data is above :data:`CHI2_RATIO_INSPECT` times the
+  Pawley floor (``chi2_ratio_high``): the ratio Kabova et al. (2025) call
+  worthy of close inspection (as WP-1515 records it), used here as a cap,
+  never as a pass bar;
+* every candidate of a run that stopped before its units finished
+  (``partial``): a cancelled or out-of-budget run's best-so-far.
+
 Nothing here is exported from :mod:`rietx`.
 """
 
@@ -96,12 +105,24 @@ CONTROL_BETTER = 0.10
 #: Seeds a cluster needs before it can be graded above ``low``.
 MIN_SEEDS = 2
 
+#: χ²_data/χ²_floor above which a candidate is capped at ``medium``
+#: (``chi2_ratio_high``).  Kabova et al. (2025) call 5× the Pawley χ² "worthy
+#: of close inspection"; WP-1515's 2026-09-30 review notes the figure was taken
+#: from a summary, so it is declared here, not measured.
+CHI2_RATIO_INSPECT = 5.0
+
 #: The versioned contract the grades ship under: a change to any constant
-#: above is a new version.
-THRESHOLDS_VERSION = "s2a-provisional-1"
+#: above is a new version.  "s2b-provisional-2" added CHI2_RATIO_INSPECT and the
+#: ``partial`` cap to "s2a-provisional-1".
+THRESHOLDS_VERSION = "s2b-provisional-2"
 
 THRESHOLDS = {"cluster_rmsd_ang": CLUSTER_RMSD_ANG, "rival_margin": RIVAL_MARGIN,
-              "control_better": CONTROL_BETTER, "min_seeds": MIN_SEEDS}
+              "control_better": CONTROL_BETTER, "min_seeds": MIN_SEEDS,
+              "chi2_ratio_inspect": CHI2_RATIO_INSPECT}
+
+#: Caveats that floor a candidate at ``low``; every other caveat caps it at
+#: ``medium``.  The vocabulary is ``solve.solution.SolveCaveat``.
+REFUTING = frozenset({"single_seed", "worse_than_leader", "prior_excludes_better_fit"})
 
 _ISOMETRY_RTOL = 1e-6
 _CELLS27 = np.array(list(itertools.product((-1, 0, 1), repeat=3)), dtype=np.float64)
@@ -375,10 +396,11 @@ class RankedSolution:
 
 def rank(clusters: list[Cluster], *, floor: float, labels, species,
          control: list[Cluster] | None = None,
-         eq: Equivalence | None = None) -> list[RankedSolution]:
+         eq: Equivalence | None = None, partial: bool = False) -> list[RankedSolution]:
     """The ranked list, best χ²_data first among the prior-on clusters, with
     the provisional grades (module docstring).  ``control`` is the clustering
-    of the prior-off seeds; ``eq`` is needed to compare the two leaders."""
+    of the prior-off seeds; ``eq`` is needed to compare the two leaders.
+    ``partial`` marks every candidate of a run that did not finish."""
     cl = sorted(clusters, key=lambda c: c.leader.chi2)
     out = []
     lead = cl[0].leader if cl else None
@@ -404,7 +426,11 @@ def rank(clusters: list[Cluster], *, floor: float, labels, species,
             caveats.append("rival")
         if i == 0 and control_caps:
             caveats.append("prior_excludes_better_fit")
-        if {"single_seed", "worse_than_leader", "prior_excludes_better_fit"} & set(caveats):
+        if s.chi2 / floor > CHI2_RATIO_INSPECT:
+            caveats.append("chi2_ratio_high")
+        if partial:
+            caveats.append("partial")
+        if REFUTING & set(caveats):
             grade: Grade = "low"
         elif caveats:
             grade = "medium"
@@ -418,6 +444,7 @@ def rank(clusters: list[Cluster], *, floor: float, labels, species,
     return out
 
 
-__all__ = ["CLUSTER_RMSD_ANG", "CONTROL_BETTER", "MIN_SEEDS", "RIVAL_MARGIN",
+__all__ = ["CHI2_RATIO_INSPECT", "CLUSTER_RMSD_ANG", "CONTROL_BETTER", "MIN_SEEDS", "REFUTING",
+           "RIVAL_MARGIN",
            "THRESHOLDS", "THRESHOLDS_VERSION", "Alignment", "Cluster", "Equivalence",
            "RankedSolution", "Solution", "align", "cluster", "equivalences", "rank"]
