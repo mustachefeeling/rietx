@@ -1,6 +1,6 @@
 # WP-2037 — Attention is a cost: two channels, a response per code, relevance by purpose
 
-Milestone: generality · Status: ⬜
+Milestone: generality · Status: 🔄 2026-10-23 — claimed by @yue-here
 Track: The registry and the guard
 Depends on: 2001
 Priority: P2 2026-10-23 — a scoping WP other WPs wait on: 2003's first demotion takes the shape this WP sets, and every audit from 2003 on fills the column it installs
