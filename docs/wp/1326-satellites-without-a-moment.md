@@ -1,6 +1,6 @@
 # WP-1326 — satellites at G ± k, with no moment model: is it magnetic?
 
-Milestone: magnetic · Status: 🔄 2026-10-22 — the satellites and their report arm landed from outside (PR #468), the public k ≠ 0 pattern `Magnetic-III` with its ranking test (PR #1069), and the candidate set as the k ≡ −k points of the phase's own lattice with `Magnetic-IV` vendored (PR #1071); the PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-23 — the satellites and their report arm landed from outside (PR #468), the public k ≠ 0 pattern `Magnetic-III` with its ranking test (PR #1069), the candidate set as the k ≡ −k points of the phase's own lattice with `Magnetic-IV` vendored (PR #1071), and the note on peaks at centring-forbidden positions (PR #1102); the PNGs remain
 Depends on: — (first rung of the magnetic scattering track; 1327 builds on
 its reflection list)
 Priority: P2 2026-09-23 — the open milestone's first rung, nothing blocks it
@@ -229,6 +229,36 @@ not both be declared on one phase.
   the fence this track opens.
 
 ## Handover log
+
+### 2026-10-23 — the note names peaks on centring-forbidden positions
+
+PR #1102 (head `ed1333f5`) merged as `d71a7583` by `/pr-review`, in one
+gate with #1015 and #1013.
+
+*Done.* An integer (h k l) that the lattice's centring forbids is not a
+reciprocal-lattice point, so a residual peak there was counted in neither
+of the arm's two lists. The note now says how many unexplained peaks sit on
+such positions, out of how many lie in range, and names the strongest by
+its height in σ with its (h k l). It lists the causes the positions cannot
+separate: a less centred lattice, λ/2 contamination, an impurity line, and
+on neutrons a magnetic k that is such an integer vector. The λ/2 cause
+appears only where the space group allows (2h 2k 2l). A primitive lattice
+has no such positions, so the sentence never appears for one. No count and
+no ranking changes.
+*What the review established.* Round 1 found the λ/2 cause tested with the
+centring-only mask, so on `F d -3 m` a peak at (1 0 0) was told it might be
+λ/2 from an extinct (2 0 0). It now uses gemmi's
+`is_systematically_absent`, which counts glides and screws as well, citing
+International Tables A §2.2.13. A test holds `F d -3 m` (no λ/2 cause)
+against `F m -3 m` and `F m m m` (λ/2 named). Issue #795 stays open: it
+carries the k-search proposal, chunks K0–K7, which nothing here starts.
+*Tasks.* Unchanged. The PNG task and the sourcing of each pattern's
+published structure remain open.
+*Gate:* main `3e0dc6f7` with #1102, #1015 and #1013 stacked (`35b9eff5`),
+macOS arm64, `[dev,jax]`, nothing else running. Fast suite: 11 322 passed,
+195 skipped, 27 xfailed and 2 failed. Whole `-m slow`: 404 passed, 12
+skipped, 14 xfailed and 4 failed. All six failures fail identically on main
+alone.
 
 ### 2026-10-22 — the candidate set follows the phase's own lattice
 
