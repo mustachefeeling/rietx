@@ -1601,6 +1601,10 @@ _SIGNATURE_PAGE = """\
 A call.
 ```
 
+```{py:function} rx.unparsed(a: dict[str, int], b = (0 × 3))
+A list Sphinx can parse neither way, so its one parameter is bare text.
+```
+
 ````{py:class} rx.Model
 A model.
 
@@ -1648,7 +1652,7 @@ def test_a_signature_is_coloured_token_by_token_and_its_twin_is_unchanged(tmp_pa
     _, plain = _signature_build(tmp_path / "without", [])
     assert twin == plain
     signatures = html.count('<dt class="sig sig-object py')
-    assert signatures == 6 and html.count('<dt class="sig sig-object py highlight"') == signatures
+    assert signatures == 7 and html.count('<dt class="sig sig-object py highlight"') == signatures
     for fragment in (
             '<span class="sig-name descname nf">call</span>',
             '<span class="n">a</span><span class="p">:</span><span class="w"> </span>'
@@ -1718,9 +1722,11 @@ def test_the_api_pages_signatures_carry_their_token_classes(built_docs_tree):
             '<span class="w"> </span><span class="n"><span class="nc">Any</span>') in read
 
 
-#: Every token class a coloured signature carries: Sphinx's own, and the ones
-#: `docs/py_highlight.py` writes.
-SIGNATURE_TOKENS = ("n", "o", "p", "w", "k", "nf", "nc", "nb", "kc", "s", "mi", "mf")
+#: Every token class a coloured signature carries: Sphinx's own (its `desc_sig_*`
+#: nodes, `m`/`kt`/`sc` among them for a `Literal[1]`-style annotation), and the
+#: ones `docs/py_highlight.py` writes.
+SIGNATURE_TOKENS = ("n", "o", "p", "w", "k", "kt", "m", "s", "sc",
+                    "nf", "nc", "nb", "kc", "mi", "mf")
 
 
 def _pygments_styles() -> dict[str, str]:

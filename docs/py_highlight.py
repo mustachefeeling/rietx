@@ -21,6 +21,7 @@
 import ast as _ast
 import builtins as _builtins
 import inspect as _inspect
+import warnings as _warnings
 
 from docutils import nodes as _nodes
 from sphinx import addnodes as _addnodes
@@ -44,12 +45,15 @@ def _default_class(text: str) -> str | None:
     """The token of a default, by the kind of literal it is; None for anything
     `ast.literal_eval` does not read as one scalar (`-inf`, a factory)."""
     try:
-        value = _ast.literal_eval(text.strip())
+        with _warnings.catch_warnings():
+            # A default like `'\d'` is a SyntaxWarning to the parser, not to the page.
+            _warnings.simplefilter("ignore", SyntaxWarning)
+            value = _ast.literal_eval(text.strip())
     except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
         return None
     if value is None or isinstance(value, bool):
         return "kc"
-    if isinstance(value, str):
+    if isinstance(value, (str, bytes)):
         return "s"
     if isinstance(value, int):
         return "mi"
@@ -70,9 +74,8 @@ def _annotation(nodes) -> None:
                 _wrap(node, _type_class(node.strip()))
         elif isinstance(node, _nodes.reference):
             node["classes"].append(_type_class(node.astext()))
-        elif isinstance(node, _addnodes.desc_sig_name):
-            # An annotation Sphinx wraps whole, inside a parameter.
-            _annotation(node.children)
+        # A `desc_sig_name` inside an annotation is a keyword's name in a call
+        # (`Annotated[str, Check(len=10)]`), not a type: it stays `n`.
 
 
 def _default(node: _nodes.Element) -> None:
@@ -91,7 +94,8 @@ def _parameter(param: _addnodes.desc_parameter) -> None:
             after = "default"
         elif after == "annotation" and isinstance(child, _addnodes.desc_sig_name):
             _annotation(child.children)
-        elif "default_value" in child.get("classes", ()):
+        elif isinstance(child, _nodes.Element) and "default_value" in child["classes"]:
+            # A parameter Sphinx could not parse is one bare `Text` of the whole list.
             _default(child)
 
 
