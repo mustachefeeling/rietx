@@ -5811,6 +5811,80 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
 }
 
 
+#: One entry per field of :class:`~rietx.solve.solution.SolveSpecSpec`, the
+#: structure-solution run's settings (#562 S2b).  Settings, not refined
+#: quantities: ``default`` is the schema's own value rendered as JSON, crossed
+#: by ``tests/test_solve_entry.py`` as the search arm's are by
+#: ``tests/test_help.py``.  Not yet in :func:`help_registry`: the route's
+#: arms are the GUI's (``gui/src/lib/help.ts``), and the solve form is S7b's.
+SOLVE_FIELD_HELP: dict[str, HelpEntry] = {
+    "engine": HelpEntry(
+        title="Solve engine",
+        description=("The search that runs. One is built, parallel tempering in direct "
+                     "space (tempering); charge flipping is planned."),
+        default='"tempering"'),
+    "seeds": HelpEntry(
+        title="Seeds",
+        description=("The independent starts, by index. A candidate is graded above low only "
+                     "when at least two of them reach it, so a one-seed run is low throughout. "
+                     "Run seeds as separate processes with one index each and merge the "
+                     "results; the merge is the in-process answer."),
+        default="[0, 1, 2, 3]",
+        typical="four on a workstation; one per process on a cluster"),
+    "control_seeds": HelpEntry(
+        title="Control seeds",
+        description=("Seeds run with every prior at zero weight: the data alone. When their "
+                     "best structure differs from the prior-on leader and fits the data "
+                     "better by a margin, the leader is capped at low."),
+        default="[0, 1]",
+        typical="two; none only when no prior is declared"),
+    "replicas": HelpEntry(
+        title="Replicas per seed",
+        description=("Temperatures on the planned geometric ladder of one seed. The top "
+                     "temperature is measured from random structures on each run."),
+        default="6",
+        typical="6"),
+    "sweeps": HelpEntry(
+        title="Sweeps per seed",
+        description=("One move per replica per sweep. The engine's measurements found 2 000 "
+                     "enough for a rigid 14-atom fragment and 20 000 for NAC's six free "
+                     "sites."),
+        default="20000",
+        typical="2 000 for one rigid fragment, 20 000 for a few free sites"),
+    "race_sweeps": HelpEntry(
+        title="First race round",
+        description=("When a composition is declared, its site-class assignments race: each "
+                     "runs this many sweeps, the better half by lowest energy continues for "
+                     "twice as many, until one is left. A multiple of 1 000, the boundary a "
+                     "round continues from."),
+        default="2000"),
+    "heartbeat_sweeps": HelpEntry(
+        title="Heartbeat",
+        description=("Sweeps between two solve_step events inside a unit, each carrying the "
+                     "leader, its change and the ladder's acceptance."),
+        default="1000"),
+    "checkpoint_every_s": HelpEntry(
+        title="Checkpoint interval",
+        description=("The shortest time between two checkpoint writes at the engine's "
+                     "boundaries. A finished unit always writes. Changes nothing the run "
+                     "computes."),
+        unit="s",
+        default="60.0"),
+    "total_budget_seconds": HelpEntry(
+        title="Whole-run ceiling",
+        description=("Wall-clock seconds for the whole run, or none. A run the ceiling stops "
+                     "returns what it has, every candidate marked partial, and names the "
+                     "units it did not reach."),
+        unit="s",
+        typical="600 under the quick preset"),
+    "seed": HelpEntry(
+        title="Base seed",
+        description=("Every unit's random generator is drawn from this, the unit's kind and "
+                     "its index, so seed k is the same chain in any run that names it."),
+        default="0"),
+}
+
+
 def plan_help() -> dict[str, HelpEntry]:
     """The plan presets as help entries, projected from ``PLAN_INFO``.
 

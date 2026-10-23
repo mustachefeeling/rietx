@@ -254,7 +254,8 @@ def test_the_reader_option_allowlist_is_exactly_what_the_formats_take(caps):
 
 
 def test_every_versioned_contract_is_a_live_value(caps):
-    """Six of them since WP-1003 — and the count is why they live in the arm.
+    """Seven of them since #562 S2b (six since WP-1003) — and the count is why
+    they live in the arm.
 
     A contract named only in prose is a contract someone forgets to add; this
     test fails on a ``*_version`` field whose value is not the constant it
@@ -269,6 +270,7 @@ def test_every_versioned_contract_is_a_live_value(caps):
     from rietx.schemas.common import SCHEMA_VERSION
     from rietx.schemas.indexing import INDEXING_THRESHOLDS_VERSION
     from rietx.schemas.project import PROJECT_FORMAT_VERSION
+    from rietx.solve.cluster import THRESHOLDS_VERSION as SOLVE_THRESHOLDS_VERSION
 
     live = {
         "schema_version": SCHEMA_VERSION,
@@ -277,6 +279,7 @@ def test_every_versioned_contract_is_a_live_value(caps):
         "project_format_version": PROJECT_FORMAT_VERSION,
         "textdoc_format_version": TEXTDOC_FORMAT_VERSION,
         "indexing_thresholds_version": INDEXING_THRESHOLDS_VERSION,
+        "solve_thresholds_version": SOLVE_THRESHOLDS_VERSION,
     }
     declared = {name for name in type(caps).model_fields
                 if name.endswith("_version") and name != "package_version"}
