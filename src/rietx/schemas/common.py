@@ -505,6 +505,12 @@ from .._nearmiss import did_you_mean
 #: parameters a stage put back at its starting values after their phase's cell
 #: left the safety window.  Additive and defaulted to ``None``, the 0.25 → 0.26
 #: rule; all three runners write a list on every stage.
+#: Also in 0.59 (WP-2002, B14): ``StageResult.collapsed``, the free parameters
+#: a stage restored to its starting values and held after its first solve found
+#: them flat (WP-1301's collapse restore).  Additive and defaulted to ``None``,
+#: the 0.25 → 0.26 rule; all three runners write a list on every stage.  And
+#: ``StageResult.seeded`` gains a second writer, ``Stage.strain_seed``'s
+#: Stephens rows, with no change of type.
 #: Also in 0.59 (WP-2002, B2): ``RefinedParameter.interval``, the profile
 #: interval of a moment angle the stationary-angle test left out of the
 #: covariance.  Additive and defaulted to ``None``, "not computed", the
@@ -523,6 +529,14 @@ from .._nearmiss import did_you_mean
 #: package defaulted to before them (a plan's own guard went unrecorded), the
 #: 0.4 → 0.5 rule for ``NodeAction.ftol``; both stage runners write them on
 #: every stage node.
+#: Also in 0.59 (WP-2002, the sixth round's Q1 and Q2):
+#: ``PlanSpec.closing_window_tol``, the closing stage's window area fraction,
+#: defaulting to 1e-3, so a stored plan gains a closing stage on its next run;
+#: ``None`` runs as before.  And ``NodeAction.window_area_tol``, the fraction a
+#: stage ran at, defaulting to ``None`` (the compiler default every earlier
+#: node ran at), the same rule.  And ``StageResult.n_lapack_fallbacks``, the
+#: decompositions a stage repeated with LAPACK's second driver, defaulting to
+#: 0, which every earlier stage took.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

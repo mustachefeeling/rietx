@@ -15,7 +15,12 @@ import warnings
 from typing import Literal
 
 from ..schemas.common import Base, Parameter
-from ..schemas.instrument import Background, BackgroundChebyshev, BackgroundPSpline
+from ..schemas.instrument import (
+    PSPLINE_LAMBDA_SMOOTH,
+    Background,
+    BackgroundChebyshev,
+    BackgroundPSpline,
+)
 from ..schemas.pattern import PatternData, require_two_theta
 from ..schemas.project import check_interval
 from .diagnostics import PatternDiagnostics, diagnose
@@ -172,7 +177,7 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
                 f"{diag.two_theta_max:g}°, which does not overlap "
                 f"two_theta_limits ({lo}, {hi})")
     bkg = BackgroundPSpline.for_range(k_lo, k_hi, knot_step_deg=step,
-                                      lambda_smooth=1.0)
+                                      lambda_smooth=PSPLINE_LAMBDA_SMOOTH)
     # Declined means absent, never a zero one: a plan's ``instrument.background.*``
     # frees whatever path exists (WP-1454).
     air = bool(diag.air_scatter_gain > AIR_SCATTER_TRIGGER)

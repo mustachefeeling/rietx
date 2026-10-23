@@ -19,7 +19,7 @@ import numpy as np
 from pydantic import ValidationError as PydanticValidationError
 
 from ...schemas.common import Diagnostic
-from ...schemas.pattern import AxisKind, PatternData
+from ...schemas.pattern import POISSON_FLOOR_COUNTS, AxisKind, PatternData
 
 
 @dataclass(frozen=True)
@@ -535,7 +535,7 @@ def sigma_from_scaled(intensity: Any, scale: Any) -> np.ndarray:
     s = np.asarray(scale, dtype=np.float64)
     if not np.all(s > 0):
         raise ValueError(f"an intensity scale must be positive, got {scale!r}")
-    return np.sqrt(np.maximum(y / s, 1.0)) * s
+    return np.sqrt(np.maximum(y / s, POISSON_FLOOR_COUNTS)) * s
 
 
 def sigma_from_cps(intensity: Any, count_time_s: float) -> np.ndarray:

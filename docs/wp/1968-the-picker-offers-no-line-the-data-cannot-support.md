@@ -75,6 +75,8 @@ close, since the peak list feeds every engine.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-22, 6th session, PR #1085): #934 (c)'s flat-silicon control rests on a 2 % draw.** `tests/test_indexing_driven_set.py::test_916s_flat_silicon_is_driven_by_its_own_lines` draws silicon with `predict`, which since WP-2002 evaluates at the closing stage's windows (1e-3 of each peak's area). Drawn there, the picker flags 4 `weak_line` components, the flagged driven set is still 11 and the truth still ranks first, but the stripped control drives 15 lines rather than 18 and indexes (4 candidates), so the control no longer shows the rule is needed. The test now draws at `WINDOW_AREA_TOL` (2 %) and says why. Whether the three extra weak components at 2 % come from the truncated tails rather than from anything a measured pattern has is this WP's to decide, since it is the evidence the driven-set exclusion was shown on.
+
 - **2026-10-16, from the issue triage (#934): PR #993 (theirs, head
   `d34597c9`, opened 2026-10-15 13:32) is part (c)'s diagnostics, and WP-1968
   does not name it.** Part (c) asked for three filters as flags with a

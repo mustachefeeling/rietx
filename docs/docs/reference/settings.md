@@ -83,7 +83,9 @@ Each entry is a `HelpEntry` with seven fields.
   The ranges come from McCusker et al. (1999) {cite}`mccusker1999` and from this repository's own reference datasets, and a specimen outside one is not thereby wrong.
 
 `HelpEntry.anchor`
-: The manual heading that carries the equation, checked against the built HTML.
+: The page and heading of this manual that carry the explanation, as `page.html#heading-id`, such as `theory/corrections.html#surface-roughness`.
+  It is relative to the manual of the running version, `rietx._about.docs_base`, which is what the GUI joins it to.
+  `tests/test_help.py` checks each one against this manual's built HTML.
 
 `HelpEntry.label`
 : The short form a chip carries where the name would not read: `at bound` for `position_at_bound`.

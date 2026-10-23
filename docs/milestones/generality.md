@@ -47,9 +47,25 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
 
 1. **Physics or arithmetic.** Deterministic from the model: a symmetry-fixed angle, a
    column with zero gradient, σ withheld because the scale is unknown. Kept. A numerical
-   floor such as `rcond` belongs here.
-2. **Established practice.** A citation that validated it, or the same action taken *by
-   default* in GSAS-II, FullProf or TOPAS. Computing a statistic is not acting on it: every
+   floor such as `rcond` belongs here. So does a numerical setting, which controls how
+   accurately rietx computes something rather than what it decides (a quadrature node
+   count, how far a peak's tails are computed), once a test shows its error stays under a
+   stated bar over every input it claims to handle (B10, ruled 2026-10-19). So does a cap
+   on what a report lists, once a test shows the report is complete inside the cap and
+   its notes count what lies outside it, or for a cap on distance the report states the
+   distance (WP-2002's fifth round, Q6, 2026-10-21; confirmed in the sixth round, Q4).
+2. **Established practice.** Something a known code has already validated: a citation
+   that validated it, or the same choice made *by default* in an established Rietveld
+   program. The programs are the seven rietx-bench runs: GSAS-II, FullProf, TOPAS,
+   RIETAN-FP, BGMN, MAUD and EasyDiffraction (widened from the first three on
+   2026-10-21). A row resting on a program default names the programs it checked and what
+   each does by default. The programs disagree, and a program that does otherwise by
+   default (a dissenter) does not move a statistic, threshold or default off tier 2.
+   Where they differ, rietx chooses by its design rules from inside the range of existing
+   practice, and a choice outside that range names its reason in the row (WP-2002's sixth
+   round, Q5, ruled 2026-10-21). A value between two programs' values is inside the range.
+   A default that switches on an action still faces the action's judgement ground below,
+   where a dissent counts. Computing a statistic is not acting on it: every
    code reports R_Bragg and WP-1069 rejects it as evidence; GSAS-II concatenates multi-range
    scans and rietx refuses to. A statistic or threshold here is kept, and the registry
    entry names the source. An action here still faces the judgement ground under tier 3.
@@ -93,7 +109,7 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    seeding its successors, and Rule 1 names it as a protection of expensive work; the
    earlier visibility wording had marked it contested.
 
-   **Tier 2 will rarely cover an action.** GSAS-II, FullProf and TOPAS take almost no
+   **Tier 2 will rarely cover an action.** The established programs take almost no
    automatic actions; the person at the GUI decides. So nearly every action in 2002 and
    2003 is tier 3. The judgement ground decides every action whatever its tier, and its
    wording carries the audit. A tier-2 *statistic* under a tier-3 *action* is the common
@@ -141,6 +157,26 @@ measured bit-identical on two chains (0 of 1030 and 0 of 392 accepted values mov
 the budget, so the invariance is a measured margin, not a construction, and its own
 docstring calls it a bet. Such an item needs an invariance test that also asserts the
 margin, and nothing else; the audit classifies it and moves on.
+
+**Caller** is a fifth class with no tier, and it is not an evidence grade. It marks a row
+the audit has no question about, because the choice that moves the answer was the
+caller's. The test is the milestone's question: did the package decide anything here on the
+caller's behalf? A row is caller only when both conditions hold.
+
+1. The caller asked for it by name: a flag or field whose default is off, or a verb no
+   default path calls. `fit`, `refine`, `index_pattern`, `build_report`, the readers and the
+   GUI routes are default paths. The evidence names the switch and its off default.
+2. The package chose nothing inside it that moves the answer. A code or record field that
+   reports the requested act qualifies, as do the switch's own off default and a number the
+   caller must supply. A number with a default used once the switch is on does not, and is
+   tiered on its own (1, 2, 3 or invariant). Nor does a verdict an opt-in verb adds beside
+   its number, or anything justified by "no default path calls this module yet".
+
+A caller row holds only while condition 1 does. Its evidence is a dated grep, and no test
+yet fails when a default path reaches the switch. Ruled 2026-10-21 from the `/pr-review` of
+#1013, #1016 and #1043, and applied in WP-2002's eighth round: `GTOL` and `XTOL`, defaulted
+inside the opt-in TRF solver, moved to tier 3, and a harmonic's order lost its default of 2,
+since which orders a monochromator passes depends on its crystal.
 
 **Demotion** moves an item to the kind of DESIGN.md § Rules, 1 its ambiguity belongs to.
 Where the alternatives are enumerable and the data score them, the result is a ranking with

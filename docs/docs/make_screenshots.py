@@ -4,8 +4,7 @@
     .venv/bin/python docs/docs/make_screenshots.py
 
 The pages are `start/gui-quickstart.md`, `reference/gui-guide.md` and
-`reference/gui-power.md`, moved here from the old tree by WP-1986; the old
-tree's copies reference the same files until it retires.
+`reference/gui-power.md`, moved here from the old tree by WP-1986.
 
 `docs/docs/make_figures.py`'s rule, one medium over: the screenshots are **committed**,
 not built, so the sphinx build stays offline and dependency-free, and this
@@ -31,9 +30,8 @@ same route the example row calls.  A fitted shot runs the plan first, so the
 curves in the picture are curves the package produced.
 
 Each shot is written twice, `-light` and `-dark`, and the pages select
-between them with the `only-light` / `only-dark` classes both themes read
-(pydata-sphinx-theme here, furo in the old tree), exactly as Part 1's
-figures do.  A single white-ground screenshot on a dark page is what
+between them with the `only-light` / `only-dark` classes the theme reads
+(pydata-sphinx-theme), exactly as the manual's figures do.  A single white-ground screenshot on a dark page is what
 that avoids.
 """
 

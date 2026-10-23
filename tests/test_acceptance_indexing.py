@@ -60,7 +60,8 @@ The convergence schedule these rankings were produced under is the package
 default (``intermediate_ftol``, WP-1123), inherited deliberately: the plan the
 validation fit runs is ``indexing.workflow.validation_plan``, which declares it
 there with the reason, and a ranking is only worth pinning if it is the ranking
-a caller actually gets.
+a caller actually gets.  The same plan declares ``closing_window_tol=None``
+(WP-2002): candidates fitted alike pay for no closing stage.
 """
 
 from __future__ import annotations

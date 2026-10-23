@@ -70,8 +70,9 @@ a finding.
    `ambiguity` agree?
 3. The case against acting. For the first kind: which competent refiner
    would act otherwise, and in what situation? Think of a different
-   instrument, specimen or experiment, and of what GSAS-II, FullProf and
-   TOPAS do. For the second kind: does it rank with its evidence, and pick
+   instrument, specimen or experiment, and of what the established programs
+   do (GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD, EasyDiffraction;
+   the rule's tier 2). For the second kind: does it rank with its evidence, and pick
    only in Rule 1's two cases? For the third: does it report the number and
    stop?
 4. The case for acting. Would every competent refiner act here anyway? What
@@ -79,7 +80,9 @@ a finding.
    off its reference (a certified cell, a weighed composition, the cross-code
    envelope)? Quote any measurement of that cost.
 5. Which tier, with its source? For tier 2, what the cited program does *by
-   default*, and whether you checked that in this repository or recall it.
+   default*, and whether you checked that in this repository or recall it. A
+   dissenting program keeps a statistic, threshold or default at tier 2; a
+   choice outside the range of the seven must name its reason.
    For `invariant`, the test asserting its margin, by file and name, or say
    that none exists.
 6. How many unrelated dataset families support the threshold, counted by

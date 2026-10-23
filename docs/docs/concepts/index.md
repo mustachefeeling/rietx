@@ -1,6 +1,6 @@
 # Concepts
 
-Each concept page explains one idea behind how rietx refines, and its title begins "About …".
+Each concept page explains one idea behind how rietx refines. Its title begins "About …", which the menu leaves out, since the tab already says it.
 
 A page here that makes a physics claim links the Theory section that derives it.
 
@@ -15,11 +15,11 @@ A page here that makes a physics claim links the Theory section that derives it.
 ```{toctree}
 :hidden:
 
-fit
-parameters
-report
-correlations
-plans
-project
-usage
+A fit <fit>
+Parameters <parameters>
+The report <report>
+Correlations and esds <correlations>
+Refinement plans <plans>
+The project <project>
+The calls most fits use <usage>
 ```

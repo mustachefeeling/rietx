@@ -99,8 +99,9 @@ def test_a_hold_survives_reopening_the_project(tmp_path, pattern_file):
 
     # and it is still enforced, not merely remembered
     result = reopened.fit(plan=SHORT)
-    assert [s.blocked_by_hold for s in result.stages if s.blocked_by_hold] == \
-        [["phases.0.cell.a"]]
+    blocked = {s.name: s.blocked_by_hold for s in result.stages if s.blocked_by_hold}
+    # the closing stage frees every glob the plan freed, the cell's too
+    assert blocked == {"cell": ["phases.0.cell.a"], "closing": ["phases.0.cell.a"]}
     assert reopened.refinement.structure.phases[0].cell.a.value == \
         project.refinement.structure.phases[0].cell.a.value
 
@@ -581,18 +582,20 @@ def test_an_instrument_profile_is_the_other_read_point(tmp_path):
 
     doc = json.loads(path.read_text(encoding="utf-8"))
     doc.pop("schema_version")
-    # V, whose declared box survives WP-2002; zero_shift's went (2026-10-20)
+    # V, whose declared box is the 2θ axis's mirror pair since WP-2002
+    # (2026-10-23); zero_shift's box went (2026-10-20) and U, V and Y lost
+    # their chosen floors, so the X left unrestored is one under its floor
     doc["instrument"]["profile"]["v"].update(_BARE)
-    doc["instrument"]["profile"]["u"].update({**_BARE, "value": 1.576})
+    doc["instrument"]["profile"]["x"].update({**_BARE, "value": -0.1})
     path.write_text(json.dumps(doc), encoding="utf-8")
     loaded = rx.load_instrument_profile(path, diagnostics=notes)
     assert (loaded.profile.v.min, loaded.profile.v.max, loaded.profile.v.unit) == (
-        -0.5, 0.5, "deg^2")
-    assert loaded.profile.u.max == float("inf") and loaded.profile.u.value == 1.576
+        -180.0 ** 2, 180.0 ** 2, "deg^2")
+    assert loaded.profile.x.min == -float("inf") and loaded.profile.x.value == -0.1
     by_code = {n.code: n for n in notes}
     assert by_code["DECLARED_RANGE_RESTORED"].where == ["instrument.profile.v"]
     left = by_code["DECLARED_RANGE_NOT_RESTORED"]
-    assert (left.where, left.value) == (["instrument.profile.u"], 1.576)
+    assert (left.where, left.value) == (["instrument.profile.x"], -0.1)
     assert "the profile cal.json" in left.message
 
 
@@ -727,7 +730,7 @@ def test_settings_drive_the_convenience_verbs(tmp_path, pattern_file):
                       two_theta_limits=(4.0, 20.0))
     result = project.fit()
 
-    assert [s.name for s in result.stages] == ["scale_bkg"]
+    assert [s.name for s in result.stages] == ["scale_bkg", "closing"]
     assert project.refinement._two_theta_limits == (4.0, 20.0)
 
 
@@ -831,7 +834,7 @@ def test_reopen_mid_history_resumes_at_head(fitted_project, pattern):
     assert result.node_id == project.history.head
 
     reopened = rx.Project.open(project.path)
-    assert len(reopened.history) == 1 + len(SHORT.stages)
+    assert len(reopened.history) == 1 + len(SHORT.run_stages())
     assert reopened.refinement._head_id == project.history.head
     # the working state is the fitted one, not the as-created one
     fitted_a = project.refinement.fitted_structure.phases[0].cell.a.value

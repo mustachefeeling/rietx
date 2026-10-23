@@ -123,7 +123,8 @@ export function labelFor(corpus: HelpCorpus | null, key: string): string {
  *
  * The anchor is `page.html#heading-id` relative to the manual root and the
  * base comes from the same payload (WP-1203), so nothing here knows the site's
- * address — that is `rietx._about.DOCS_URL`'s job and no other file's.
+ * address — that is `rietx._about.docs_base`'s job and no other file's: the
+ * manual of the running version, `<DOCS_URL>/docs/<dev or X.Y>` (WP-1986).
  */
 export function manualUrl(corpus: HelpCorpus | null,
                           entry: HelpEntry | null): string | null {

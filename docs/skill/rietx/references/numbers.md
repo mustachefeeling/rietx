@@ -132,10 +132,10 @@ have. Ask which setup a profile came from before quoting a size from it.
 
 **Before a joint fit, fit each pattern alone and compare the cells.** A neutron
 wavelength declared 300 ppm short left that pattern's cell 293 ppm short. Held
-in the joint fit, it moved the shared a 3.1 esd and widened both corundum
+in the joint fit, it moved the shared a 2.6 esd and widened both corundum
 coordinates' esds past the X-ray pattern's own, with no finding. Hold the best
 calibrated pattern's wavelength, free the other's
 (`hist.1.instrument.source.lines.0.wavelength`), and read
 `WAVELENGTH_CALIBRATION` on `result.histograms[1].diagnostics`. (Measured:
-WP-1986, synthetic corundum, `examples/guides/joint.py`: +298.4 ppm recovered,
+WP-1986, synthetic corundum, `examples/guides/joint.py`: +297.3 ppm recovered,
 5.1 ppm a esd.)

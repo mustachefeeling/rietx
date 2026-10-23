@@ -1,11 +1,11 @@
 # %% [markdown]
 # # A simple Rietveld refinement
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # We refine the fluorapatite structure against the pattern notebook 01 fitted with Le Bail.
 # This time the peak intensities come from the atoms, so the fit can move them.
 # Along the way we read the plan's stages, the parameter table and the bond lengths, draw the refined structure, and save the work as a project.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 01 introduces the pattern and how to read a fit's summary.
@@ -68,6 +68,7 @@ result.plot()
 #
 # The stage lines in the summary above are the plan's stages, in the order they ran.
 # Each stage frees one group of parameters and keeps every group freed before it.
+# The last line, `closing`, is the stage every plan ends with: it refines everything once more, with peak windows that keep more of each peak's tails.
 # [Plan presets](https://rietx.org/docs/stable/reference/plans.html) draws the stages of every plan.
 #
 # `result.stages` holds one record per stage.

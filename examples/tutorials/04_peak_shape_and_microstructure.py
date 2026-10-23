@@ -1,13 +1,13 @@
 # %% [markdown]
 # # Peak shape and microstructure
 #
-# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
-#
 # A peak's width comes from the instrument and from the specimen's small crystallites and microstrain.
 # To measure the specimen you have to know the instrument first.
 # We calibrate a synthetic instrument on a standard, save it, and load it again to measure the crystallite size and microstrain of a synthetic sample.
 # Both patterns are synthetic, so we know the answers and can grade each fit.
 # By the end you can calibrate an instrument, carry it to a sample, and read the sample's size and strain.
+#
+# *Written by Claude Code, Anthropic's coding agent, for the rietx project.*
 #
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces plans and the parameter table.

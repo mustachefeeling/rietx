@@ -108,9 +108,9 @@ def _models(scales, *, unbounded=True):
     return rx.Structure(phases=phases), instrument
 
 
-def _fit(data, stages, *, unbounded=True, ref=None):
+def _fit(data, stages, *, unbounded=True, ref=None, **plan):
     ref = ref or rx.Refinement(*_models(START_SCALES, unbounded=unbounded))
-    res = ref.fit(data, plan=RefinementPlan(stages=stages), telemetry=False)
+    res = ref.fit(data, plan=RefinementPlan(stages=stages, **plan), telemetry=False)
     return ref, res
 
 
@@ -288,7 +288,9 @@ def test_a_plan_that_never_frees_b_holds_nothing(pattern):
 def test_a_held_scale_leaves_b_to_measure_the_intensity(pattern):
     """The ridge is a *pair* of columns: with the scale fixed, B is what the
     one intensity determines, and holding it would freeze a measured value."""
-    _, res = _fit(pattern, [Stage("b", ["instrument.background.*"] + BISO)])
+    # the declared stage's probe; the closing stage is tests/test_closing_stage.py's
+    _, res = _fit(pattern, [Stage("b", ["instrument.background.*"] + BISO)],
+                  closing_window_tol=None)
     (sr,) = res.stages
     assert sr.scale_b_held == {} and FE_B in sr.freed
     assert _findings(res) == []
@@ -300,7 +302,8 @@ def test_a_phase_released_inside_the_stage_is_asked_before_its_second_solve(
     probe can see it; the solve raises its scale and the release frees B.  The
     probe is asked then, or the second solve runs on the ridge unflagged."""
     ref = rx.Refinement(*_models(START_SCALES[:FE] + [1e-9]))
-    _, res = _fit(pattern, [Stage("b", BIG + BISO)], ref=ref)
+    # the declared stage's probe; the closing stage is tests/test_closing_stage.py's
+    _, res = _fit(pattern, [Stage("b", BIG + BISO)], ref=ref, closing_window_tol=None)
     (sr,) = res.stages
     assert FE_B in sr.held and FE_B not in sr.released + sr.freed
     assert list(sr.scale_b_held) == [FE]

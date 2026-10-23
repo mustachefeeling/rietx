@@ -245,6 +245,7 @@ def qpa_plan(*, biso_globs: tuple[str, ...] = ("phases.*.atoms.*.biso",),
     # ones the package actually produces.  None here would converge every
     # stage; measured cost of the schedule on this protocol is <= 0.02 esd.
     plan.intermediate_ftol = 1e-6
+    plan.closing_window_tol = 1e-3   # WP-2002: the shipped closing stage, named rather than inherited
     return plan
 
 
@@ -342,11 +343,14 @@ def test_a_supported_trace_phase_is_never_held(sample1_results):
     cost that fit its iteration budget and 2.7 wt % of its corundum (WP-1110);
     a hold is stronger than a window, so the same restriction has to hold here,
     and it is asserted on the record rather than on the outcome: no stage held
-    anything at all.
+    any phase's parameter.  The plan frees the instrument widths and then the
+    specimen ones, so the instrument twins are held from ``sample_broadening``
+    on (WP-2002), and those are the only paths ``held`` may carry.
     """
     result = sample1_results["cpd-1c"]
     for stage in result.stages:
-        assert stage.held == [] and stage.released == [], stage.name
+        phase_held = [p for p in stage.held if p not in stage.width_twins_held]
+        assert phase_held == [] and stage.released == [], stage.name
     assert not [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
 
 

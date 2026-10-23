@@ -51,9 +51,10 @@ for c in arm.candidates[:3]:
 | `SatelliteCandidate.worst_offset_deg` | the largest Δ2θ among the matched peaks | `None` when none matched |
 | `SatelliteCandidate.n_satellites` | satellite positions this k puts in the fitted range | a k with many positions matches peaks by being everywhere |
 | `SatelliteCandidate.star_size` | arms of the star of k | |
-| `SatelliteCandidate.minus_k_distinct` | whether −k is a second vector | false when 2k is a reciprocal-lattice vector; the test respects centring, so on a C lattice (½ 0 0) is distinct from its negative and (0 0 ½) is not |
+| `SatelliteCandidate.minus_k_distinct` | whether −k is a second vector | false when 2k is a reciprocal-lattice vector; the test respects centring. in the default candidate set only (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal lattice are true, since 2k is not a lattice vector there |
 
-The candidate set is enumerated, not searched: the zone-boundary vectors {0, ½}³ without the origin, plus (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal or trigonal lattice, one per star.
+The candidate set is enumerated, not searched: the zone-boundary vectors where k ≡ −k on the phase's own lattice (2k a reciprocal-lattice vector), plus (⅓ ⅓ 0) and (⅓ ⅓ ½) on a hexagonal or trigonal lattice, one per star.
+On a primitive lattice those are {0, ½}³ without the origin; on a centred one they are not, and F, for one, adds the X points (1 0 0), (0 1 0) and (0 0 1).
 An incommensurate k is outside it, and so is any commensurate k it does not list, so a good pattern can score nothing.
 `solve_magnetic` takes another candidate set through `generator=`.
 
@@ -82,6 +83,15 @@ A peak on a forbidden lattice point is forbidden under the space group the fit a
 
 The note names all four, or the first three on an X-ray pattern, and `excess_on_absent_lattice_lines` says only that these peaks need no k.
 On the Cr<sub>2</sub>WO<sub>6</sub> 4 K pattern four residual peaks sit on forbidden lattice points, among them the (0 0 1) and (1 0 2) regions, and on the 150 K pattern none do.
+
+### Centring-forbidden positions
+
+An integer (h k l) that the lattice's centring forbids, such as (1 0 0) on an F lattice, is not a reciprocal-lattice point, so a peak there is counted in neither of the two lists above.
+It stays among the unexplained peaks and is scored like any other.
+The note then says how many unexplained peaks sit on such positions, out of how many such positions lie in range, and names the strongest by its height in σ, with its (h k l).
+It also lists the causes it cannot separate: a lattice less centred than the one assumed, λ/2 contamination when the group allows (2h 2k 2l) (centring, glides and screws all count), an impurity line, and on neutrons a magnetic structure whose propagation vector is such an integer vector.
+A lattice with no centring has no such positions, so the sentence never appears for one.
+On the GSAS-II *Magnetic-IV* (Pr,Sr)MnO<sub>3</sub> pattern (space group `F m m m`) the strongest residual peak sits on (1 0 0).
 
 ## Moments
 
@@ -366,6 +376,13 @@ A small moment's direction barely moves the pattern, and the default driver scal
 A stage pattern that frees nothing makes the compared models differ from the ones the plan describes, so `solve_magnetic` puts any such pattern in the caveats.
 A trial fit or nuclear reference that stops on its iteration budget is continued up to ten times, and one still short is listed and not ranked.
 
+Without a `plan`, the trials and the nuclear reference run no closing stage, so the ranking compares every χ² at the declared stages' windows.
+The winner then runs one closing stage from its own fit.
+Its moments and their esds, Rwp, GoF and magnetic-only R come from that stage, and a caveat says so.
+Its ΔBIC stays the ranking's.
+On a synthetic two-site orthorhombic pattern the larger modulus's esd falls from 0.00242 to 0.00151 μ<sub>B</sub>, because the declared windows drop the peak tails.
+A `plan` you pass keeps its own `closing_window_tol` for every fit, the winner's included.
+
 `solve_magnetic` refuses a pattern that is not constant-wavelength neutron, a refinement that has not fitted, a phase that already declares a magnetic space group, and a phase that declares a propagation vector.
 Everything else, such as no unexplained intensity or a tie at the top, is reported.
 
@@ -373,6 +390,8 @@ The nuclear model it starts from is the one in the refinement you hand it, fitte
 [How to refit the nuclear model with the moment present](../guides/moment.md) gives two ways to start from a better one.
 
 ### The solution
+
+`solve_magnetic` returns a `MagneticSolution`, whose fields are these.
 
 | Field | Is | Reads as |
 |---|---|---|

@@ -9,7 +9,7 @@ This page gives what a `FitReport` carries, field by field: how to build one, th
 ## Building a report
 
 `Refinement.report` builds the report for the session's last fit.
-It hands the compiled model to `build_report`, and Layers 1 and 2 need that model.
+It hands the compiled model, the structure and the instrument to `build_report`, and Layers 1 and 2 need that model.
 Pass the plan you ran as `plan=`, either a plan or a preset name.
 Layer 2 then marks each suggestion the plan already covers.
 The session also passes its free parameters, so a suggestion to free one that is already free is marked too.
@@ -141,6 +141,17 @@ Every reflection whose centre lies in the region contributes, its window clipped
 The columns are not orthogonal.
 Five separate projections would read part of a width error as an intensity error, and the joint solve avoids that.
 A column that is zero over the region is dropped, so a region can carry fewer than five coefficients.
+
+The residual and the columns come from two compiles of the model.
+The residual is read at the closing stage's precision ([The closing stage](refinement.md#the-closing-stage)), so it carries no error of the model's own.
+The columns are built at the declared stages' precision, with windows that drop 2 % of each peak, so each column stays local to its region.
+At the closing precision a lab Lorentzian's window spans about ±20°.
+The closing rule also builds an asymmetry column for reflections whose asymmetry is under 2 % of their width.
+Near 90° that column runs almost parallel to the position column, and it failed the resolvability gate, so a zero shift and a sample displacement could not be told apart.
+A residual at the declared precision misreads too: its coarser asymmetry leaves up to 5.6e-3 of a peak's maximum, and a displaced specimen read that way ranked axial asymmetry first.
+`Refinement.report` compiles whichever of the two the fit's model is not, at about 2 % of the report's time.
+`build_report` does the same, and refuses `model=` without `structure=` and `instrument=` for any mode but Pawley, whose model is read as it is.
+The texture screen shares a point's misfit over the same declared-precision windows.
 
 `FitReport.attribution` holds one `RegionAttribution` for each kept region that contains at least one reflection centre.
 A region with none has nothing to differentiate and is left out.

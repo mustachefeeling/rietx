@@ -56,6 +56,13 @@ PARAMETER_INTERVAL_SETTLE_RUNS = 4
 #: Δχ² at the end by about 0.1 % of the threshold.
 PARAMETER_INTERVAL_XTOL = 1e-3
 
+#: The factor each probe's distance from the fit grows by while one side looks
+#: for a value past the Δχ² threshold, starting one esd out.  Doubling brackets
+#: an end within log₂ of its distance in esds, then the end is solved inside
+#: the bracket.  Where window recompiles give the profile several crossings,
+#: the growth can decide which one the bracket holds.  No stated source.
+PARAMETER_INTERVAL_BRACKET_GROWTH = 2.0
+
 #: A χ² difference the interval treats as nothing, as a fraction of the Δχ²
 #: threshold.  It decides two things: whether a probe has settled
 #: (:data:`PARAMETER_INTERVAL_SETTLE_RUNS`), and whether a probe that landed

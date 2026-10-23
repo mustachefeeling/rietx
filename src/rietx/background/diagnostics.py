@@ -40,8 +40,9 @@ from pydantic import Field
 from scipy.ndimage import median_filter
 from scipy.signal import find_peaks, peak_prominences, peak_widths
 
+from ..optimize import lapack
 from ..schemas.common import Base
-from ..schemas.pattern import PatternData, require_two_theta
+from ..schemas.pattern import POISSON_FLOOR_COUNTS, PatternData, require_two_theta
 from .models import chebyshev_design_matrix
 
 #: Kβ1,3 wavelengths (Å) per anode, for contamination checks only — Kβ is never
@@ -395,6 +396,18 @@ DEAD_LEVEL_FRACTION = 0.10
 #: one *is* a floor rather than a tuning.
 DEAD_WEIGHT_RATIO_MIN = 100.0
 
+#: Width, in ° 2θ, of :func:`background_envelope`'s rolling window: wider than
+#: any Bragg FWHM, so the low quantile inside it lands on background channels
+#: (v0.2; WP-1018 reused it for peak picking, WP-1028 repaired its edges).
+ENVELOPE_WINDOW_DEG = 3.0
+#: The percentile of each window :func:`background_envelope` takes: low enough
+#: to land under the peaks.  It sits 1.28σ under the mean of pure noise, a bias
+#: ``indexing.peaks._debiased_envelope`` removes.
+ENVELOPE_QUANTILE = 10.0
+#: Chebyshev terms of the smooth envelope fit the air-scatter gain is measured
+#: against: a cubic, then the cubic plus a 1/(2θ) column (v0.2's nested test).
+AIR_GAIN_CHEBYSHEV_TERMS = 4
+
 #: Width, in ° 2θ, of the median window that turns the background envelope into
 #: the *local level* a dead channel is judged against.  It is
 #: :func:`background_envelope`'s own window for the reason that function gives
@@ -404,7 +417,7 @@ DEAD_WEIGHT_RATIO_MIN = 100.0
 #: the longest run this function will report (:data:`CUTOFF_MIN_DEG`), which is
 #: what stops a dropout from dragging down the level that is meant to expose
 #: it: at 0.1° steps that is 10 channels inside a 30-channel median.
-DEAD_LEVEL_WINDOW_DEG = 3.0
+DEAD_LEVEL_WINDOW_DEG = ENVELOPE_WINDOW_DEG
 
 #: How many times :func:`dead_channels` re-derives which channels to withhold
 #: from its level estimate before taking the mask as settled.  Each pass walks
@@ -702,7 +715,8 @@ class PatternDiagnostics(Base):
 
 
 def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
-                        window_deg: float = 3.0, quantile: float = 10.0
+                        window_deg: float = ENVELOPE_WINDOW_DEG,
+                        quantile: float = ENVELOPE_QUANTILE
                         ) -> np.ndarray:
     """Rolling low-quantile envelope of the pattern — a peak-robust,
     λ-free stand-in for the background level.
@@ -743,7 +757,8 @@ def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
 
 
 def envelope_measured_span(two_theta: np.ndarray, *,
-                           window_deg: float = 3.0) -> tuple[float, float]:
+                           window_deg: float = ENVELOPE_WINDOW_DEG
+                           ) -> tuple[float, float]:
     """The 2θ range over which :func:`background_envelope` *interpolates*.
 
     Outside it the envelope is extrapolated from the two nearest knots, so a
@@ -871,7 +886,7 @@ def sampling_steps_per_fwhm(two_theta: np.ndarray, y: np.ndarray,
     counts = np.asarray(y, dtype=np.float64)
     if len(tt) < 3:
         return None, 0
-    sig = (np.sqrt(np.maximum(counts, 1.0)) if sigma is None
+    sig = (np.sqrt(np.maximum(counts, POISSON_FLOOR_COUNTS)) if sigma is None
            else np.asarray(sigma, dtype=np.float64))
     return _median_steps_per_fwhm(counts - background_envelope(tt, counts), sig)
 
@@ -1459,6 +1474,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     net = y - env
     med_env = float(np.median(env))
 
+    # its own 3σ over the envelope: the order scan's mask is another rule
+    # (``select.PEAK_MASK_SIGMA``, over an arPLS baseline)
     peak_channels = net > 3.0 * sigma
     # The census wants every line the pattern shows, so it keeps no prominence
     # bar — but its height bar takes the same dynamic-range floor the width
@@ -1515,11 +1532,12 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
         prominence >= SAMPLING_PROMINENCE_SIGMA * sigma[candidates]]
 
     # nested envelope fits: cubic, then cubic + 1/(2θ) air-scatter column
-    design = chebyshev_design_matrix(tt, 4, float(tt[0]), float(tt[-1]))
-    coef, *_ = np.linalg.lstsq(design.T, env, rcond=None)
+    design = chebyshev_design_matrix(tt, AIR_GAIN_CHEBYSHEV_TERMS, float(tt[0]),
+                                     float(tt[-1]))
+    coef, *_ = lapack.lstsq(design.T, env, rcond=None)
     r_cubic = env - coef @ design
     design_air = np.vstack([design, 1.0 / np.maximum(tt, 1e-3)])
-    coef_air, *_ = np.linalg.lstsq(design_air.T, env, rcond=None)
+    coef_air, *_ = lapack.lstsq(design_air.T, env, rcond=None)
     r_air = env - coef_air @ design_air
     rss_cubic = float(r_cubic @ r_cubic)
     air_gain = float(1.0 - (r_air @ r_air) / rss_cubic) if rss_cubic > 0 else 0.0

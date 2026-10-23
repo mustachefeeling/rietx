@@ -30,7 +30,7 @@ from .backend.api import backend_dtype_note
 from .crystallography.symmetry import reflection_label_row
 from .history.events import _attach_progress, as_event_stream
 from .model.components import EXTRA_TICK_KEY
-from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
+from .model.forward import PHASE_SUPPORT_SIGMA, compile_model, recorded_window_tol
 from .model.microstructure import microstructure_table
 from .optimize.blocked import BlockJacobian
 from .optimize.cancel import RefinementCancelled
@@ -119,6 +119,7 @@ from .refine import (
     _utcnow,
     _wavelength_calibration_diagnostics,
     _width_census_diagnostics,
+    _width_twin_flats,
 )
 from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
@@ -513,8 +514,10 @@ def _unsupported_paths_multi(mtable, absent: list[set[int]],
 def _hold_unsupported_phases_multi(models, mtable,
                                    reach: dict[str, list[str]] | None = None,
                                    sigma: float | None = PHASE_SUPPORT_SIGMA
-                                   ) -> list[str]:
-    """Hold what :func:`_unsupported_paths_multi` finds; returns the columns.
+                                   ) -> tuple[list[str], list[set[int]]]:
+    """Hold what :func:`_unsupported_paths_multi` finds; returns the columns
+    and, per histogram, the phases judged unseen (the width-twin hold's
+    ``unseen``, ``refine._hold_unsupported_phases``' third answer).
 
     A caller recording the hold's reach reads :func:`_joint_column_reach`
     first and passes it in, because the reach is only readable while the
@@ -525,7 +528,23 @@ def _hold_unsupported_phases_multi(models, mtable,
     held = _unsupported_paths_multi(mtable, absent, reach)
     if held:
         mtable.set_vary(held, False)
-    return held
+    return held, absent
+
+
+def _hold_width_twins_multi(mtable, unseen: list[set[int]]
+                            ) -> tuple[list[str], dict[str, list[str]]]:
+    """``refine._hold_width_twins`` across the stack (WP-2002): one test over
+    every histogram's sums, since a shared specimen width ties them, so one
+    histogram whose instrument width is held pins the rest."""
+    names = mtable.free_paths
+    flats = _width_twin_flats(
+        [(table, np.asarray(mtable.col_map(h), dtype=np.intp), unseen[h])
+         for h, table in enumerate(mtable.tables)], len(names))
+    if not flats:
+        return [], {}
+    held = [names[c] for c in flats]
+    mtable.set_vary(held, False)
+    return held, {names[c]: [names[k] for k in ks] for c, ks in flats.items()}
 
 
 #: ``phases.i.scale``: the one entry a column must move, and nothing else, to
@@ -1130,7 +1149,7 @@ class MultiHistogramRefinement:
                 fitted = [int(fitted_mask(d, lim).sum())
                           for d, lim in zip(data, limits, strict=True)]
                 stream.emit("fit_start", mode=mode,
-                            stages=[s.name for s in plan.stages],
+                            stages=[s.name for s in plan.run_stages()],
                             n_points=sum(len(d.two_theta) for d in data),
                             n_fitted=sum(fitted), n_histograms=n,
                             histograms=[{"histogram_index": h,
@@ -1226,7 +1245,8 @@ class MultiHistogramRefinement:
         return build_report(
             self.result_.for_histogram(histogram),
             model=self._models[histogram], values=answer["values"],
-            plan=plan, structure=answer["structure"], held=answer["held"],
+            plan=plan, structure=answer["structure"],
+            instrument=answer["instrument"], held=answer["held"],
             free_paths=answer["free_paths"], **kw)
 
     def _freeze_answer(self) -> list[dict]:
@@ -1251,6 +1271,7 @@ class MultiHistogramRefinement:
             out.append({
                 "values": table.decode(table.x0()),
                 "structure": structure.model_copy(deep=True),
+                "instrument": self.mtable.instruments[h].model_copy(deep=True),
                 "held": held,
                 # what ``Refinement._record_free_paths`` records: free, or
                 # held by the last stage
@@ -1339,9 +1360,13 @@ class MultiHistogramRefinement:
         models = None
         outcome = None
         carried_hold: list[str] = []
-        n_stages = len(plan.stages)
-        for index, (stage, ftol) in enumerate(
-                zip(plan.stages, plan.stage_ftols(), strict=True), start=1):
+        # the declared stages and the closing one, the single runner's
+        # schedule (WP-2002, the sixth round's Q1 and Q2)
+        stages = plan.run_stages()
+        n_stages = len(stages)
+        for index, (stage, ftol, window_tol) in enumerate(
+                zip(stages, plan.stage_ftols(), plan.stage_window_tols(),
+                    strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 freed = self.mtable.set_vary(stage.turn_on, True)
                 # what the glob matched and a hold refused (WP-1435): here only
@@ -1372,7 +1397,8 @@ class MultiHistogramRefinement:
                 self.mtable.reframe_moments()
                 models = [
                     compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
-                                  moving_paths=set(tab.moving_paths))
+                                  moving_paths=set(tab.moving_paths),
+                                  window_area_tol=recorded_window_tol(window_tol))
                     for s, ins, d, lim, tab in zip(
                         self.mtable.structures, self.mtable.instruments, data, limits,
                         self.mtable.tables, strict=True)]
@@ -1390,8 +1416,8 @@ class MultiHistogramRefinement:
                 # what each column moves, read while every one is still free:
                 # the hold's record (``StageResult.held_reach``, WP-1342)
                 reach = _joint_column_reach(self.mtable)
-                held = _hold_unsupported_phases_multi(models, self.mtable, reach,
-                                                      phase_support_sigma)
+                held, unseen = _hold_unsupported_phases_multi(
+                    models, self.mtable, reach, phase_support_sigma)
                 held_reach = _joint_reach_beyond_self(held, reach)
                 # a phase whose scales and displacement parameters the ranges
                 # cannot separate (WP-1534): the single runner's probe, asked of
@@ -1404,8 +1430,13 @@ class MultiHistogramRefinement:
                 # same reason — each is asked again of the answer by its own test
                 moment_hold, flat_axes, moment_turned = _hold_flat_moments_multi(
                     models, self.mtable)
+                # and an instrument width whose specimen twin is free in every
+                # histogram's sums (WP-2002), never asked again
+                twin_hold, width_twins_held = _hold_width_twins_multi(
+                    self.mtable, unseen)
+                held_reach.update(_joint_reach_beyond_self(twin_hold, reach))
                 support_hold = held
-                held = held + ridge_hold + moment_hold
+                held = held + ridge_hold + moment_hold + twin_hold
                 if held:
                     held_set = set(held)
                     freed = [p for p in declared_freed if p not in held_set]
@@ -1450,6 +1481,10 @@ class MultiHistogramRefinement:
                     models, self.mtable, list(support_hold), start_values,
                     held_reach=held_reach, reach=reach, sigma=phase_support_sigma)
                 held_reach.update(_joint_reach_beyond_self(collapsed, reach))
+                # ``StageResult.collapsed``: the restored columns alone, taken
+                # before the late scale-B hold joins ``collapsed`` below, since
+                # that one holds a released phase's B where it stands
+                restored = list(collapsed)
                 if released:
                     # a phase the support hold released is asked before its second
                     # solve, or that solve runs on the ridge unflagged (the single
@@ -1468,6 +1503,7 @@ class MultiHistogramRefinement:
                     models, self.mtable, [p for p in held if p in moment_set],
                     start_values, moment_turned)
                 released, collapsed = released + m_released, collapsed + m_collapsed
+                restored = restored + m_collapsed
                 for site, axis in m_axes.items():
                     flat_axes.setdefault(site, axis)
                 moment_turned = moment_turned + m_turned
@@ -1525,7 +1561,9 @@ class MultiHistogramRefinement:
                         # summed for the same reason the truncations are: the stage
                         # ran twice and the count is a fact about its whole search
                         n_degenerate_cell_probes=(outcome.n_degenerate_cell_probes
-                                                  + second.n_degenerate_cell_probes))
+                                                  + second.n_degenerate_cell_probes),
+                        n_lapack_fallbacks=(outcome.n_lapack_fallbacks
+                                            + second.n_lapack_fallbacks))
                 runaway_diag = _cell_runaway_diagnostic(cell_runaway)
                 answer_runaway = [] if runaway_diag is None else [runaway_diag]
                 if runaway_diag is not None:
@@ -1549,15 +1587,18 @@ class MultiHistogramRefinement:
                     freed=freed,
                     n_constraint_truncations=outcome.n_constraint_truncations,
                     n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                    ftol=ftol, held=held, released=released,
+                    n_lapack_fallbacks=outcome.n_lapack_fallbacks,
+                    ftol=ftol, window_area_tol=window_tol,
+                    held=held, released=released,
                     held_reach={c: v for c, v in held_reach.items() if c in still},
                     scale_b_held=dict(scale_b_held),
+                    width_twins_held=width_twins_held,
                     moment_flat_axes=kept_axes,
                     moment_turned=[b for b in kept_axes if b in moment_turned],
                     unknown_paths=unknown_paths, unreached_histograms=unreached,
                     seeded=seeded, blocked_by_hold=blocked_by_hold,
                     moment_angle_tests=outcome.moment_angle_tests,
-                    cell_reset=cell_reset))
+                    cell_reset=cell_reset, collapsed=restored))
                 if stream is not None:
                     rwp, rows = self._stage_end_rows(models, outcome.theta)
                     stream.emit("stage_end", stage=stage.name, status=outcome.status,

@@ -24,6 +24,7 @@ import pytest
 from tests.validation_matrix import (
     CLAIM_TIERS,
     CLAIMS,
+    CLOSING_WINDOW_TOL_DEFAULT,
     DATASETS,
     DISPERSION_DEFAULT_ON,
     GAPS,
@@ -246,6 +247,35 @@ def test_every_acceptance_suite_declares_its_convergence_schedule() -> None:
         "  Set it on the plan explicitly — to the shipped value to say these "
         "numbers are what a user's own run produces, or to None to converge "
         "every stage — and say in a comment which and why.")
+
+
+def test_every_acceptance_suite_declares_its_closing_stage() -> None:
+    """The schedule rule one field along (WP-2002).
+
+    ``RefinementPlan.closing_window_tol`` decides whether a plan ends in a
+    closing stage at tight windows, and it moves answers by up to an esd.  A
+    suite that never names it cannot say whether it wanted the shipped closing
+    stage or inherited it.
+    """
+    undeclared = [path.name for path in sorted(TESTS.glob("test_acceptance_*.py"))
+                  if "closing_window_tol" not in path.read_text(encoding="utf-8")]
+    assert not undeclared, (
+        f"acceptance suites that never name `closing_window_tol`: {undeclared}."
+        "  Set it on the plan explicitly — to the shipped value to say these "
+        "numbers are what a user's own run produces, or to None for no closing "
+        "stage — and say in a comment which and why.")
+
+
+def test_the_recorded_closing_stage_matches_the_live_plan() -> None:
+    """``CLOSING_WINDOW_TOL_DEFAULT``'s record, held to the live default."""
+    import rietx as rx
+
+    live = rx.RefinementPlan(stages=[]).closing_window_tol
+    assert live == CLOSING_WINDOW_TOL_DEFAULT, (
+        f"RefinementPlan.closing_window_tol defaults to {live} but the "
+        f"validation matrix records {CLOSING_WINDOW_TOL_DEFAULT}.  If the "
+        "default is being changed, update CLOSING_WINDOW_TOL_DEFAULT *and* the "
+        "grounds above it.")
 
 
 def test_the_recorded_convergence_schedule_matches_the_live_plan() -> None:

@@ -60,6 +60,7 @@ from ..crystallography.wyckoff import (
     floating_origin_basis,
     stabilizer_rotations,
 )
+from ..optimize import lapack
 from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
@@ -1404,7 +1405,7 @@ class ParameterTable:
             return
         basis = strain_basis(rotation_matrices(sg))  # (n_free, 15)
         s0 = np.array(block.values(), dtype=np.float64)
-        coef, *_ = np.linalg.lstsq(basis.T.astype(np.float64), s0, rcond=None)
+        coef, *_ = lapack.lstsq(basis.T.astype(np.float64), s0, rcond=None)
         residual = basis.T @ coef - s0
         scale = max(float(np.abs(s0).max()), 1.0)
         if float(np.abs(residual).max()) > 1e-6 * scale:
@@ -1442,7 +1443,7 @@ class ParameterTable:
             self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
                                       lo=-np.inf, hi=np.inf))
         # S scales as microstrain², so one unit-ppm projection serves any seed
-        unit, *_ = np.linalg.lstsq(
+        unit, *_ = lapack.lstsq(
             basis.T.astype(np.float64),
             isotropic_coefficients(phase.cell.lengths_angles(), 1.0), rcond=None)
         self._strain_unit[base] = unit
@@ -1531,7 +1532,7 @@ class ParameterTable:
                 for k, d in enumerate(site_dofs):
                     for coord, coeff in self._anchored_dofs[d]:
                         basis[k, "xyz".index(coord[-1])] = coeff
-                a, *_ = np.linalg.lstsq(basis.T, np.asarray(f, float), rcond=None)
+                a, *_ = lapack.lstsq(basis.T, np.asarray(f, float), rcond=None)
                 if np.abs(basis.T @ a - f).max() > 1e-9:
                     continue  # this site cannot move along f at all
                 hits.extend(d for d, ak in zip(site_dofs, a, strict=True)
@@ -1755,7 +1756,7 @@ class ParameterTable:
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
         basis = adp_basis(stabilizer_rotations(sg, xyz))  # (n_free, 6)
         u0 = np.array(atom.aniso.values(), dtype=np.float64)
-        coef, *_ = np.linalg.lstsq(basis.T.astype(np.float64), u0, rcond=None)
+        coef, *_ = lapack.lstsq(basis.T.astype(np.float64), u0, rcond=None)
         residual = basis.T @ coef - u0
         scale = max(float(np.abs(u0).max()), 1e-6)
         if float(np.abs(residual).max()) > 1e-6 * scale:
@@ -2568,15 +2569,27 @@ class ParameterTable:
         derived row is written after the matmul.  Measured before this refusal
         (WP-1803): the dependent's C row emptied and it left ``moving_paths``
         with no error.  The mirror of ``apply_value_scale``'s refusal of a
-        scaled source.  Returns ``(path, "derived" | "locked")``; one authority
-        for :meth:`set_tie`, which raises, and ``Refinement._apply_ties``,
-        which drops the tie and says so (a model edit never stops a build).
+        scaled source.  A tied source is read through its chain, as
+        :meth:`_flatten` will read it, so one resting on a locked or derived
+        row is refused too (the #773 round-2 gap).  Returns ``(path, what)``,
+        ``what`` naming the row — ``"derived row"``, ``"locked row"``, or the
+        chain; one authority for :meth:`set_tie`, which raises, and
+        ``Refinement._apply_ties``, which drops the tie and says so (a model
+        edit never stops a build).
         """
         derived = self.derived_paths()
         for src, _ in tie.terms:
-            j = self._paths.get(src)
-            if j is not None and (src in derived or self.entries[j].locked):
-                return src, "derived" if src in derived else "locked"
+            if src not in self._paths:
+                continue
+            # an untied source is its own one leaf
+            leaves, _ = self._flatten(AffineTie.identity(src))
+            for i, _ in leaves:
+                e = self.entries[i]
+                k = ("derived" if e.path in derived
+                     else "locked" if e.locked else None)
+                if k is not None:
+                    return src, (f"{k} row" if e.path == src
+                                 else f"row tied to the {k} row {e.path!r}")
         return None
 
     def set_tie(self, path: str, tie: AffineTie | None) -> None:
@@ -2594,10 +2607,10 @@ class ParameterTable:
         if tie is not None:
             reason = self.tie_source_refusal(tie)
             if reason is not None:
-                src, kind = reason
+                src, what = reason
                 raise ValueError(
                     f"cannot tie {path!r} to {src!r}: the source is a "
-                    f"{kind} row, which the affine block cannot carry, so "
+                    f"{what}, which the affine block cannot carry, so "
                     f"{path!r} would be frozen at its present value")
         if tie is not None:
             self._refuse_body_increment_tie(path, tie)
@@ -2842,7 +2855,7 @@ class ParameterTable:
             if cs.size == 0:
                 return False
             block = a[rows][:, cs].toarray()
-            step, *_ = np.linalg.lstsq(block, b[rows], rcond=None)
+            step, *_ = lapack.lstsq(block, b[rows], rcond=None)
             if float(np.abs(block @ step - b[rows]).max()) > 1e-9:
                 return False
         return True
@@ -3125,7 +3138,7 @@ class ParameterTable:
                 gap -= basis[:, held] @ np.array(
                     [self.entries[self._paths[dofs[k]]].value for k in held],
                     dtype=np.float64)
-            theta, *_ = np.linalg.lstsq(basis[:, cols], gap, rcond=None)
+            theta, *_ = lapack.lstsq(basis[:, cols], gap, rcond=None)
             for k, value in zip(cols, theta):
                 self.entries[self._paths[dofs[k]]].value = float(value)
                 moved.append(dofs[k])
@@ -3177,7 +3190,7 @@ class ParameterTable:
                     # to the body's, and E's first column is one (#801)
                     e0 = block.axes[:, 0]
                     omega = math.pi * e0 / np.linalg.norm(e0)
-            theta, *_ = np.linalg.lstsq(block.axes, omega, rcond=None)
+            theta, *_ = lapack.lstsq(block.axes, omega, rcond=None)
             for path, value in zip(paths, theta, strict=True):
                 e = self.entries[self._paths[path]]
                 if e.tie is None:
@@ -3994,7 +4007,7 @@ class ParameterTable:
             if not len(cols):
                 continue
             a = a[:, cols]
-            out[np.ix_(cols, cols)] = np.linalg.pinv(a) @ chart @ a
+            out[np.ix_(cols, cols)] = lapack.pinv(a) @ chart @ a
         return out
 
     def restore_body_anchors(self, paths: Iterable[str]) -> list[str]:

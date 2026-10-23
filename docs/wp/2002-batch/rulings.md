@@ -165,6 +165,579 @@ briefs are in the session transcript; the measurements behind them are summarise
   B10's class ruling of 2026-10-19 applies (tier 3 with a domain test owed), and their
   `approved` date is that ruling's.
 
+## Fifth round: asked 2026-10-21, from the owed tests
+
+The 3rd session ran the owed tests and asked five questions. The briefs are in the session
+transcript and the PR (#1085); the measurements behind each are in `waiting.md`, by class.
+
+- **Q1. Numerical settings that failed their domain test**, as one class: the peak window's
+  area tolerance (2 %), the four FCJ node-rule constants, the reflection-list margin, the
+  axial and magnetic window-sizing floors, the origin-fix clip and the texture sphere
+  sampling. Each has a measured passing value and a cost (`waiting.md` § B10). Practice
+  checked: GSAS-II 5.8.4 computes each peak over 50 FWHM below and 75 above its position
+  (`GSASIIpwd.getWidthsCW`), about 0.6 % of a pure Lorentzian's area dropped, and
+  recomputes that range at every evaluation.
+- **Q2. The bar for an invariance test across a staged plan** (B7's tolerance, B9's Biso
+  and harmonic seed): the last stage's frozen compile carries a scatter of up to 0.16 esd,
+  part of it the window truncation Q1 decides.
+- **Q3. Pitschke's roughness seed**, which shares Suortti's 0.3 and is not start-invariant.
+- **Q4. Biso's and the scale's esds when roughness ends switched off**, which depend by
+  up to 4.4x on which off point the solver stops at.
+- **Q5. The TCHZ width box** (the fourth round's "keep until next session"): its ceilings
+  are chosen limits on physical quantities, and GSAS-II and FullProf bound none.
+- **Q6. A class for a cap on what a report lists** (the three geometry caps). The record's
+  rule has none, so they stay tier 3. Beside it, a defect: the 3.5 Å contact radius also
+  bounds the bond search, so a bond past it (Cs–Cl near 3.57 Å) is never found, unnoted.
+
+## Fifth round's answers (2026-10-21)
+
+The maintainer answered on 2026-10-21, with a note beside the six: **widen tier 2's program
+comparison to the programs rietx-bench runs** (GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN,
+MAUD, EasyDiffraction).
+
+- **Q1**: asked back. The brief's opening sentence did not parse, and the maintainer asked
+  what the other programs do and why rietx does what it does. Re-briefed below.
+- **Q2**: asked back: how do RIETAN-FP and BGMN, which also refine in stages, handle it?
+- **Q3**: asked back: check the other programs' starting values.
+- **Q4**: delegated ("whichever you consider reasonable, this is rare"). The lead chose
+  a report over the recommended (b): `ROUGHNESS_UNCONSTRAINED`, which already fires at
+  both off states and asks for the block to be dropped, now also says the scale's and
+  Biso's esds depend on which off state the fit stopped at. (b), a canonicalising re-solve
+  at b = 0, would add an automatic step, a record field and an audit row for a case the
+  maintainer called rare. The judge held the choice, measured on one family.
+- **Q5**: (a), remove the five ceilings, "confirm with other codes too and let me know".
+- **Q6**: "doesn't appear to be a question", read by the lead as agreement with the
+  recommendation. Tier 1 gains a cap clause (`generality.md` § The rule): a cap on what a
+  report lists is kept once a test shows the report complete inside the cap and its notes
+  counting what lies outside. The bond-search defect is fixed in the same change, and the
+  three geometry caps move to tier 1. The judge rated the clause's authority weak, since
+  the reply could also mean "not mine to decide", so the reading goes back to the
+  maintainer as the sixth round's Q4 below.
+
+## Sixth round: asked 2026-10-21, Q1-Q3 re-briefed with the seven programs' practice
+
+The three briefs are below, whole, under § The three briefs as sent. The full practice
+tables are `practice.md`. The measurements added this round, on SRM 660c, FAP, cpd-1a and 11-BM NAC
+(macOS arm64, `[dev]`, compiled tier on, with other sessions' agents running):
+
+- `WINDOW_AREA_TOL` at 5e-3, about GSAS-II's 0.5 % of a Lorentzian: 0.39, 0.34, 0.43 and
+  0.33σ at a point; answers 0.88 esd (LaB6 `u`), 0.23, 0.62 and 0.05; whole fit 1.09, 1.54,
+  1.44 and 1.05× today's. Fails both bars on three of four.
+- 1e-3 on the last stage only, 2e-2 before it: within 0.001, 0.008 and 0.000 esd of the
+  all-1e-3 answer on FAP, cpd-1a and NAC, at 1.91, 1.33 and 1.09× (all-1e-3: 3.49, 2.12,
+  1.19×). LaB6 at 1.12× lands with today's setting, 9.2 esd in `axial_sl` from the all-1e-3
+  answer, which sits in the mirrored S/L ↔ H/L minimum (WP-2012).
+- A closing stage: the protocol at today's windows, then one stage freeing every glob the
+  plan freed, recompiled at the answer at 1e-3. Within 0.002, 0.052 and 0.002 esd of the
+  all-1e-3 answer on FAP, cpd-1a and NAC, at 2.26, 1.54 and 1.44× (LaB6 1.36×, today's
+  basin).
+- Biso started at 0.5 and at 1.5 Å² on every atom, largest non-background disagreement in
+  plain esd (today's / 1e-3 on the last stage / closing stage): FAP 0.119 / 0.013 / 0.000;
+  cpd-1a 0.751 / 0.734 / 0.064 (sample displacement, then cell c); NAC 0.008 / 0.006 /
+  0.000; LaB6 9.0 / 9.0 / 9.4 in `axial_sl`, the two starts in the mirrored minima under
+  every setting. Tight windows on the last stage alone fix the truncation and not the
+  path; the closing stage fixes both on three of four.
+- Q1 asked: keep 2 %, tight everywhere, tight on the last stage, or a middle cut. Q2 asked
+  the bar, with the closing stage as an option. Lead's pick, joining them: the closing
+  stage at tight windows, and a 0.1-plain-esd bar for a staged plan's start test. Q3
+  asked again with the finding that no program supplies a Pitschke start; lead's pick (c),
+  split the constant. Q4-Q6 came from the handover's reviews: whether the fifth round's
+  Q6 answer meant yes, how tier 2 counts a dissenting program, and a backstop for a
+  runaway instrument width. Q7 came from the full suite: removing the width ceilings
+  moved the brucite TRF fit. All seven wait on the maintainer; the briefs are below.
+- A correction to the fifth round's Q5 brief and to this session's report: the TCHZ size
+  term is X (Γ_L = X/cosθ + Y·tanθ), so the old ceiling that capped the Lorentzian size
+  near 8 nm at Cu Kα was X ≤ 1°, not Y ≤ 1°. The code review caught it in the schema's
+  docstring.
+
+## Sixth round's answers (2026-10-21)
+
+The maintainer answered all seven, with a standing instruction: "Please use qualitative
+judgment to decide what to do if no clear option." Where an answer leaves a choice open,
+the lead decides by the design rules and records the choice here.
+
+- **Q1 and Q2**: Q2 option 3, the closing stage at tight windows with a 0.1-plain-esd bar,
+  "if it's consistent with practice", and "I assume this default can be changed through
+  options?" Practice, as replied: of the three programs that stage automatically, BGMN
+  ends every ladder with a closing run and RIETAN-FP ends with everything refining
+  together while its windows move at every evaluation; MAUD has no final cycle. The
+  0.1 % cut lies between GSAS-II's 0.5 % and the whole peak BGMN and EasyDiffraction
+  compute. The 0.1-esd bar is rietx's own, since no program tests start dependence. The
+  option did not exist (`forward.WINDOW_AREA_TOL` is a module constant), so the build adds
+  one plan setting, `closing_window_tol`, default 1e-3. `None` drops the closing stage and
+  returns today's answers bit for bit, as `intermediate_ftol=None` does.
+- **Q3**: (c).
+- **Q4**: (a). The cap clause and the three geometry caps' tier-1 rows stand.
+- **Q5**: "my intention for tier 2 is, is this thing already validated in a known code
+  somewhere. No doubt there will be disagreement. If different codes do things
+  differently, we can choose what we do based on our design guidelines and principles,
+  but we should probably choose within existing practice unless there are clear reasons
+  not to do so." So a dissenting program does not move a statistic, threshold or default
+  off tier 2, and both rows (the default solver, the cell-length floor) stay. A choice
+  outside the seven programs' range names its reason. An action's judgement ground is
+  unchanged: a named dissenter still outweighs a program default as evidence that every
+  refiner would act (DESIGN.md § Rules, 1).
+- **Q6**: no backstop. "No need to bound these values. I would like callers to set the
+  bounds themselves." With a concept to consider: "opt-in sets of bounds and defaults for
+  particular scenarios. Instead of setting overfit defaults by default (ahem), we load
+  sets of defaults that have been tested on smaller numbers of datasets. This would be
+  like sharing a topas .inp, but more flexible or usable." Filed as its own WP. Not
+  generalised here: the sample-width backstops (`strain_cap`, `size_cap`, from issue
+  #140) stay. Whether they move into such a set is that WP's question.
+- **Q7**: (a), with a question: under what conditions would someone use TRF instead of
+  LM? Answered from the manual: to reproduce a number measured before 1.8, when TRF was
+  the default, or as a second driver to check a minimum. It holds none of LM's
+  inequalities (the Stephens cone, texture positivity, the Γ_G² floor), and from a poor
+  start it can stop in a basin LM leaves (issue #900). Measured before the build: brucite
+  under TRF with every ceiling at the axis width, Rwp 0.17878 and t 0.36, −1.22, 0.40,
+  2.29; the no-ceiling control in the same script 0.17891 and t −203.34.
+
+## Seventh round: asked and answered 2026-10-21
+
+The 5th session's handover left two items for the maintainer. The 6th session re-briefed
+both in plain words (below, whole) after one new measurement: the synthetic LaB6 round
+trip of `tests/test_refine_synthetic.py`, five noise draws, one Gaussian noise vector
+shared by both draws (`q1_synthetic.py` in that session's scratchpad). Data drawn at 2 %
+and fitted with the closing stage land, against the same data drawn at 1e-3: cell and
+zero 0.01 esd apart, W 0.10, the scale 0.19, the background constant 3.4. When the data's
+windows match the windows of the fit's last stage, the two fits agree within 0.02 esd on
+every non-background row. The background constant sits about 8 esd from truth in every arm,
+which is weighting by the observed counts (σ² = y_obs biases the level about one count
+low), not a window.
+
+**Answers.**
+
+- **Q1**: option 2, evaluation outside a fit defaults to the closing stage's windows. With a
+  question: "we got the different window settings from bgmn and rietan though??" Answered:
+  the closing *run* is BGMN's (one last all-free solve restarted from the answer), and
+  RIETAN-FP's automatic mode has the same shape; neither changes its window setting
+  between stages. RIETAN-FP recomputes its windows at every evaluation with one cut (0.002
+  of each peak's height), BGMN computes whole peaks. So two window settings in one fit are
+  rietx's own, because rietx freezes windows per stage and they do not, and 1e-3 is
+  rietx's measured value between GSAS-II's 0.5 % and BGMN's whole peak. In both programs a
+  calculated pattern uses the fit's windows, which option 2 matches.
+- **Q2**: option 2, each setting fixed by its kind.
+
+**The lead's choices inside the answers** (the sixth round's standing instruction):
+
+- A stage run by hand (`Refinement.run_stage`, the GUI's single-stage run) takes the
+  closing windows by default. The brief proposed it under option 2 and the maintainer did
+  not object. A caller wanting the fast stage passes `window_area_tol=WINDOW_AREA_TOL`.
+- A recorded `window_area_tol` of `None` keeps meaning the declared stages' 2 %, so every
+  history written before this round replays unchanged; only the compile's own default moves.
+- The FCJ rule on the closing stage is the first proposal's set (`NODES_PER_FWHM` 12,
+  `MIN_NODES` 10, `MAX_NODES` 1024, `SKIP_EXTENT_FWHM_RATIO` 3e-4: worst 0.25 and 0.81 of
+  the lab and synchrotron bars), the margin chosen over the cheapest set (11 / 8 / 768 /
+  3.5e-4 at 0.95 of the bar): the cost falls on one stage only. It is chosen by the window
+  fraction: a compile at windows as tight as `CLOSING_WINDOW_TOL` or tighter samples FCJ
+  at the closing rule, so a record's window fraction also says which rule ran.
+
+### The two briefs as sent (2026-10-21)
+
+#### Q1. Which windows should evaluation outside a fit use?
+
+**The decision.** Whether `predict()` and `compile_model()` should default to the closing stage's 0.1 % windows instead of 2 %. These two calls evaluate a model without fitting it. People use them to redraw a figure, to compute a curve on another grid, and to draw a synthetic pattern for testing a refinement against known truth. This needs you because it changes a default users call, and it moves the synthetic data in 39 test files (the previous session's count).
+
+**Context.** Outside a fit, rietx still computes at 2 %. That has two consequences.
+
+First, `predict(data)` after a default fit no longer returns the curve the fit minimised. The previous session measured the gap at 1.85e-4 of the tallest peak. You would not see that on a plot. In the tails it is not small against the noise: on a synthetic LaB6 pattern I drew today, the 2 % and 0.1 % curves differ by up to 0.8σ at one point.
+
+Second, synthetic data drawn at 2 % are missing 2 % of each peak's tails, and the closing stage then fits tails the data lack. When the closing stage became the default, 127 fast tests failed. Two of the four parallel subagents that sorted them found recovery tests failing for this reason. The tests covered texture coefficients, magnetic moment angles, and the claims of `AIR_SCATTER_UNDECLARED` (the diagnostic saying the pattern shows air scatter the model does not declare). When the data were redrawn at 0.1 %, every one of them recovered its truth. The subagents made those tests pass by declaring `closing_window_tol=None`, which runs only the declared stages. So those tests now exercise a path that a default user never runs.
+
+Today I measured the size of this effect on the synthetic LaB6 round trip: synchrotron data, 4200 points, five noise draws, with the same noise added to both patterns. I compared data drawn at 2 % with data drawn at 0.1 %, both fitted with the closing stage:
+- cell and zero shift: 0.01 esd apart
+- Caglioti W: up to 0.10 esd
+- phase scale: up to 0.19 esd
+- background constant: up to 3.4 esd
+
+When the data's windows match the windows of the fit's last stage, the two fits agree within 0.02 esd on everything but the background. So the shifts above come from the mismatch alone. This pattern has narrow, nearly Gaussian peaks. Lab peaks with Lorentzian tails lose more area at 2 %, so I expect larger shifts there. I have not measured one.
+
+One option is ruled out: making `predict` default to whatever windows the object's last fit used. A test requires that a never-fitted copy with the same models predicts the same array as the fitted one. That keeps `predict` a function of the model alone.
+
+**Aim.** A curve computed from an answer should be the curve that produced it, and synthetic tests should exercise the path users run. This serves anyone who redraws a figure or checks a refinement on synthetic data. It also serves you, through tests that test what ships.
+
+**Options.**
+1. **Do nothing.** Evaluation stays at 2 %. `predict` stays up to 1.85e-4 of the peak height away from `y_calc`. A user checking a refinement on synthetic data sees the shifts above and cannot tell them from a refinement error. The tests keep their `None` declarations. No cost.
+2. **Default evaluation outside a fit to 0.1 %.** `predict` on the fitted grid should then match `y_calc` to about 8e-6 of the peak height, the gap frozen windows always left (expected, not measured). Synthetic data would carry the tails.
+   - Cost to users: a pure Lorentzian's window becomes 20 times wider, because the area left out falls as one over the window width. One evaluation took 0.01 to 0.02 s at either setting on the LaB6 grid (measured).
+   - Cost to me: the synthetic data in 39 test files move, and the numbers pinned in them need re-pinning. The `None` declarations that exist only because of the mismatch can then go.
+   - Reversible: one constant.
+3. **Give `predict` a window argument and keep 2 % as its default.** A user who knows to ask gets 0.1 %, and tests that draw synthetic data pass it. Everyone else still gets a `predict` that disagrees with `y_calc`.
+
+**Practice.** GSAS-II, MAUD, RIETAN-FP and EasyDiffraction recompute peak ranges at every evaluation (`practice.md`, checked last session). Each of the seven programs surveyed has one window setting. So in each of them, the pattern calculated at the answer is the fitted curve. From memory, and not checked this session, a calculate-only run in TOPAS or FullProf uses the same peak-range setting as its refinement. Among the programs surveyed, rietx is the only one with two window settings inside one fit, so the question does not arise elsewhere. Option 2 matches what they do.
+
+**Recommendation.** Option 2. The answer is computed at 0.1 %, so anything computed from the answer should be too. The strongest case against is the re-pinning work in 39 files. A user's own script that calls `compile_model` would also see its numbers move slightly. I would change my mind if one `predict` call took more than about a second on a large lab pattern with Lorentzian peaks.
+
+A related default waits on this answer. A stage run by hand (`run_stage`, and the GUI's single-stage run) also computes at 2 %, and no closing stage follows it. A GUI user who ends on a hand-run stage gets an answer up to about 1 esd off on lab data. That is the 2 % window's measured error. Option 2 could cover hand-run stages too, at an estimated 1.2 to 3.5 times that stage's time (inferred from whole-fit measurements). I would include it unless you want hand-run stages kept fast.
+
+#### Q2. The six other numerical settings that failed their tests
+
+**The decision.** Whether I apply each setting's measured fix. On 19 October you ruled that a numerical setting needs no sign-off from you once a test shows its arithmetic error stays under a tenth of the counting noise. A numerical setting is one that controls how carefully rietx computes and decides nothing about the science. Seven of them failed that test. The peak window was the largest failure, and the closing stage fixed it. Last round I proposed the same rule for the other six: tight values where the answer is computed. Your ruling built the closing stage but did not say whether the six follow it. Nothing has been built for them. Your standing instruction would let me decide this myself. I'm asking because the fixes move every converged fit.
+
+**Context.** Reading the six again, my proposed rule fits only two of them. They fall into three groups.
+
+*Settings frozen for each stage, where a closing-stage value helps.*
+- **The FCJ sampling rule (four constants).** rietx computes FCJ axial-divergence asymmetry (Finger, Cox and Jephcoat) as a sum of shifted copies of the symmetric peak. These constants set how many copies each peak gets.
+  - Error today: up to 5.6e-3 of the peak maximum on Lorentzian lab peaks. That is eight times the bar, which is a tenth of σ at FAP's strongest peak. Synchrotron peaks fail at every shape.
+  - Effect on answers: small. SRM 660c with 512 copies on every reflection moved no parameter past 0.04 esd.
+  - Fix: the cheapest set that passes uses 1.13 to 1.43 times as many copies, and lands only 5 % inside the bar. An earlier passing set cost 1.15 to 1.3 times the whole fit on the two lab protocols. On the closing stage alone, the cost would fall on one stage.
+- **The reflection margin (0.5°).** rietx generates reflections only up to 0.5° past each end of the scan. A reflection just outside the scan whose tail reaches in is therefore missing.
+  - Error: 0.12 to 0.19σ at the last points of FAP and cpd-1a, with answers moving 0.02 to 0.10 esd. The closing stage's wider windows made it worse.
+  - Fix: generate reflections out to the widest window. A 5° margin already gives results identical to 20°. This is cheap enough to apply to every stage.
+
+*Window floors that the closing stage probably fixes already.*
+- **The axial sizing floor (0.02).** When the axial-divergence ratios S/L and H/L start at zero, rietx sizes windows and copies as if they were 0.02. A stage that refines them to a typical 0.05 is undersampled until the next stage recompiles. The errors are 0.27 of the peak maximum, and 19.5 % of a peak's area dropped. A floor of 0.05 passes, at 1.25 to 1.8 times the fit time.
+- **The magnetic sizing floor (0.1°).** The same problem, for a magnetic peak width that starts at zero. The frozen windows drop 3.2 to 4.1 % of a magnetic peak. A plan ending on the width stage moved the moment by 0.07 to 0.57 esd.
+
+Both errors last only until the next recompile. The closing stage recompiles at the refined values, so neither floor should bind at the answer. That is an inference: I have not measured either floor with the closing stage on. One exception: the package's own default magnetic solve runs without a closing stage.
+
+*Settings unrelated to stages.*
+- **The origin-fix clip (`A5_CLIP`, 1e-3).** In a polar space group, rietx fixes the floating origin by weighting the atoms (Flack and Schwarzenbach 1988). The clip is a floor on those weights. It puts light atoms' z esds 1.40 % off, against a 1 % bar. A clip of 1e-4 gives 0.14 %, at no measured cost.
+- **The texture sphere sampling (2000 directions).** `TEXTURE_NOT_POSITIVE` warns when the refined pole density goes negative somewhere, which is unphysical. rietx checks 2000 directions and can miss a narrow dip. Dips down to −2e-3 to −7.9e-3 go unreported, against a bar of 1e-3 (the precision the warning prints). Checking 32 000 directions passes, at ten times the check's cost. A local minimisation started from the lowest of the 2000 directions passes at every order.
+
+**Aim.** Keep each setting's arithmetic error below the noise, at the smallest added fit time. This serves every user, mostly without their noticing.
+
+**Options.**
+1. **Do nothing.** All six stay at tier 3 with their failures recorded. Tier 3 is the audit table's tier for a setting chosen without a test that bounds it. WP-2017 inherits them; it is the planned second pass that measures every tier-3 setting on three dataset families. Users keep the errors above:
+   - answers move up to 0.04 esd from the FCJ rule and up to 0.10 esd from the margin
+   - some negative texture goes unwarned
+   - light-atom esds in polar groups stay 1.4 % off
+2. **Fix each by its group.**
+   - the margin: extended to the widest window, on every stage
+   - the FCJ rule: the passing set, on the closing stage only
+   - the two floors: measured with the closing stage on, and left alone if they pass
+   - `A5_CLIP`: set to 1e-4
+   - the texture check: given the local minimisation
+
+   Each lands at tier 1 under your 19 October ruling once its test passes. The clip has no measured cost. The FCJ change adds time to the closing stage; I expect under 1.3 times that stage's time, not measured. The margin and texture fixes add work I expect to be small, also not measured. Every converged fit moves slightly, and the goldens (the bit-identity reference results) need re-pinning. Each constant can be reverted on its own.
+3. **Tight values on every stage.** The FCJ passing set and the 0.05 axial floor apply everywhere. This is the simplest code. It costs 1.15 to 1.3 times and 1.25 to 1.8 times the fit time on every fit, on top of the closing stage's 1.05 to 2.05 times.
+
+**Practice.** Last round's survey of the seven programs covered only the peak window. I have not checked how they set FCJ sample counts, reflection margins, origin fixing or texture positivity checks. No program manual I have read states the accuracy of a setting like these.
+
+**Recommendation.** Option 2. Each fix has already been measured to pass, and only the FCJ change has a cost worth weighing. The strongest case against: it makes six changes that move every converged fit, for errors mostly under 0.1 esd in the answer, and WP-2017 will measure these settings on three families anyway. If you prefer a split, I can make the three cheap fixes now (margin, clip, texture) and leave FCJ and the two floors to WP-2017.
+
+## Eighth round: is the closing stage the best trade? (2026-10-21)
+
+The maintainer asked why the closing stage exists, whether its errors are real in physical
+units, what programs that move their windows at every evaluation do, and whether the closing
+stage is the best trade. The 6th session measured five variants on the four acceptance
+protocols, two interleaved rounds, with another session's suite running (so the ratios
+compare and the seconds read high). Time is against the fit with no closing stage. "Away" is
+the largest shift from the shipped answer in plain esd, non-background rows.
+
+| Variant | LaB6 | FAP | cpd-1a | NAC | cpd-1a start gap |
+|---|---|---|---|---|---|
+| no closing stage | 1.0×, 0.255 away | 1.0×, 0.905 | 1.0×, 0.960 | 1.0×, 0.154 | 0.75 (6th round) |
+| closing stage, shipped | 1.39-1.40× | 2.31-2.35× | 1.58-1.62× | 1.21-1.29× | 0.070 |
+| shipped, `intermediate_ftol` 1e-4 | 1.29-1.30×, 0.000 | 2.23-2.28×, 0.000 | 1.28-1.29×, 0.112 | 1.18-1.21×, 0.000 | 0.123, fails |
+| shipped, declared stages at 5 % windows | 1.38-1.40×, 0.002 | 2.25-2.36×, 0.001 | 1.40-1.45×, 0.114 | 1.24-1.25×, 0.000 | not run |
+| 1e-3 windows on every stage, no closing | 1.88-2.09×, 0.007 | 4.51-4.61×, 0.001 | 2.62-2.65×, 0.156 | 1.15-1.21×, 0.002 | not run |
+
+The start gap is `tests/test_staged_start_invariance.py`'s measure (every Biso started at 0.5
+and at 1.5 Å², bar 0.1 esd). The closing stage itself took 12, 9, 15 and 7 iterations (0.18,
+0.80, 0.66 and 0.13 s). In physical units, switching it off moves cpd-1a's fractions by at
+most 0.12 wt% (two toward the weighed values, one away), the fluorapatite's Lorentzian size
+by 2.5 % and its strain by 3 %, LaB6's widths by 1-2 % and NAC by under 0.4 %.
+
+**Answer.** "keep closing as built, and cascade that decision down. set closing as default
+but give the option to turn it off for speed." The closing stage stays on by default at
+1e-3. `closing_window_tol=None` is the speed switch, and it already reached every surface:
+`RefinementPlan` and `PlanSpec`, a project file, and the GUI text document's `closing none`
+line. What the round added is the record of the trade where a user and an agent choose:
+`reference/refinement.md` § The closing stage carries this round's cost and what switching
+it off moves, and the skill's `batch-operating.md` row 9c.34 when to switch it off
+(`surprises.md` § 8, where a single-fit rule would go, has 46 B left under its budget).
+The tree had moved on from three records by then: `waiting.md` § B10 and WP-2017's
+inherited line still described the edge margin as built, and the theory page's
+reflection-generation sentence too; all three now say it was reverted. Re-measured on the
+tree: the closing stage's bar 2 is 0.008, 0.011 and 0.019 esd (FAP, cpd-1a, NAC), and
+LaB6's two starts are 9.1 esd apart behind it (the mirrored axial minima).
+
+### The four items behind it, asked 2026-10-21, answered 2026-10-22
+
+**Answers.** "1. option 1. 2. keep 0.5 3. a. 4. a"
+
+1. **How the FitReport reads a fit: option 1**, the misfit from a model at the closing
+   precision and the shapes from one at the declared precision, inside the report builder.
+   Built as `report._reading_models`: `build_report` takes `instrument=` beside
+   `structure=`, and every caller in the package passes both. All 72 tests of
+   `test_fitreport_layers.py` and `test_report_loop.py` pass, the 11 that failed among
+   them.
+2. **The reflection margin: kept at 0.5°**, tier 3, for WP-2017.
+3. **The axial floor: (a)**, tier 3 with cpd-1a's 0.138 esd a strict xfail, for WP-2017.
+4. **The caller-tier ruling: (a)**, applied on this branch. The definition is in
+   `_audit.py`'s docstring and the record's § The rule; `GTOL` and `XTOL` are tier 3;
+   `Harmonic.order` has no default, `DEFAULT_HARMONIC_ORDER` and its row are gone, and
+   `harmonics=True` is refused naming the crystals that pass λ/2 and λ/3.
+
+**Item 1's evidence, as the brief gave it.** The displaced-specimen case misranked
+(axial asymmetry first) only where the closing FCJ rule's skip ratio (3e-4) and the
+closing windows met: with data, fit and report self-consistent at one precision, each
+alone ranked the displacement first, and the skip ratio set back to 0.02 alone recovered
+it (0.99). In the model that ratio cannot go back: at 0.02 the skipped asymmetry leaves
+9.5e-3 of a peak's maximum, 13× the lab bar and 54× the synchrotron one
+(`tests/test_lab_instrument.py`'s FCJ cases). Last round's declared-precision copy failed
+the same case for the opposite reason: its FCJ rule leaves 5.6e-3 (7.8× the bar) against
+data with exact asymmetry, which the report read as asymmetry. The misfit from the
+accurate model and the shapes from the copy ranked the displacement first at 0.995. A
+compile costs 4-19 ms against a report's 0.24-1.57 s on the four protocols (quiet machine).
+Every report before this WP read a declared-precision model against real data, so the
+early-stage misreading was latent there; the synthetic data hid it by sharing the model's
+precision. Item 2 corrected the session's own earlier label: the ridge the edge margin
+freed was on `tests/test_scale_b_ridge.py`'s synthetic narrow scan, not cpd-1a.
+
+## Ninth round: the 6th session's handover items (answered 2026-10-22)
+
+**Answer.** "1. Fix the TRF issue 2. End with closing stage 3. Infer what I would do"
+
+1. **The brucite TRF error: fixed by a retry.** macOS's system LAPACK (Accelerate)
+   `gesdd` failed 20 times in 20 on the 7279 × 28 step matrix (condition 7.9e10).
+   OpenBLAS's `gesdd`, installed from SciPy 1.18.1's macOS 12 wheel into a scratch
+   venv, decomposed the same matrix, with singular values equal to `gesvd`'s to the
+   last bit. A plain restart from the last accepted point also passed, but only
+   because two of the 28 columns came out 5e-4 different the second time, so it
+   was ruled out as luck. SciPy's supported alternative, `tr_solver="lsmr"`, landed
+   at Rwp 0.17873 with 20 of 43 σ² negative, against `gesvd`'s 0.17872 and 19 of
+   43; it changes the subproblem solver for the rest of the stage, so it was not
+   taken. Built: `optimize/lapack.py` (`eigh`, `eigvalsh`, `svd`, `lstsq` call numpy
+   unchanged and repeat a `LinAlgError` with `syev`, `gesvd` or `gelss`; TRF's step
+   SVD is reached through its module's own name, only on a thread inside the
+   package's solve). Every decomposition on the fit path goes through it, 41
+   calls, and a test refuses a bare one there: `optimize/`, `model/`, `params/`,
+   `report/`, `background/`, `solve/` and `refine.py`, among them the scale–B
+   separation every stage measures and the report's region solves.
+   `StageResult.n_lapack_fallbacks` records the count, tier 1.
+   Practice: TenPy's `svd_robust` does the same retry; SciPy's `svd` docstring
+   notes MATLAB and Octave call `gesvd` by default. Not generalised: the 44
+   calls in `crystallography/`, `indexing/` and `gui/`, on small symmetry
+   matrices or caught by their own handlers, none met failing;
+   `isotropy._svd_rows` already falls back and records its driver.
+2. **`solve_magnetic`'s winner: ends in a closing stage.** Only when the package
+   chose the plan. The trials and the reference stay at the declared windows,
+   where ΔBIC compares them; the winner then runs its plan's closing stage from
+   its own refinement. Its Rwp, GoF, R_mag and moments are that fit's, its ΔBIC
+   the ranking's, and a caveat says which is which. Two-site Pnma: moduli esds
+   0.00242 and 0.00179 → 0.00151 and 0.00111 μ_B; the solve 16.5 → 17.1 s (one
+   run each). Cr₂WO₆ at 4 K (the moment guide): blind 2.0353 ± 0.0459 → 2.0383 ±
+   0.0467 μ_B; the alternate model started from the winner's magCIF 2.1255 ±
+   0.0450 → 2.1240 ± 0.0440, scale shift 0.47 → 0.41 esd. Siblings checked: the
+   other package plans without a closing stage (indexing validation, the
+   extinction screen, the report's rival fits) hand the caller a ranking, never
+   refined values.
+3. **The three design questions, inferred.**
+   - *A closing-off fit's report: kept.* Measured on the fluorapatite and cpd-1a
+     fitted with `closing_window_tol=None` (the two patterns where switching it
+     off moved answers most, 0.9 and 0.96 esd): read at the closing precision and
+     at the fit's own 2 %, the report printed the same text, passed the same
+     regions (2 and 1) with the same leading shape, and suggested no action
+     either way; shares moved by 0.04 or less except one cpd-1a region, 0.43
+     against 0.57. The eighth round's rule (misfit from the accurate model)
+     stands, and `reference/refinement.md` says so beside the speed switch.
+     A known-truth case, asked for by the generality judge: the eighth round's
+     displaced specimen (−0.10 mm in the data, the displacement held at 0),
+     fitted with the closing stage on and off and read both ways, ranks the
+     displacement's cos θ shape first among the position templates in all four
+     (R² 0.539-0.555, constant 0.527-0.542, not separable over this range), and
+     no reading suggests an action.
+   - *A loosened `closing_window_tol`: keeps the closing node rule.* The line
+     moved from `CLOSING_WINDOW_TOL` to `WINDOW_AREA_TOL`, so anything finer than
+     the declared stages takes the closing rule. Inferred from the eighth
+     round's framing of the switch as speed: a caller loosening the windows asks
+     for coarser windows, not for an asymmetry error 7.8× the lab bar. No
+     compile the package makes sits between the two, so nothing moved.
+   - *`build_report` without `instrument=`: refused.* A non-Pawley `model=`
+     without `structure=` and `instrument=` raises `TypeError` naming them,
+     since one model alone brings back both misreadings the eighth round
+     measured. Every package caller passes both; one test called it bare.
+
+## The sixth round's briefs, kept whole
+
+### The three briefs as sent (2026-10-21)
+
+Kept here whole, so the session that reads the answers reads them against this wording. A seventh round's answers land under a new heading above this one.
+
+#### Q1. How far rietx computes each peak
+
+**The decision.** Whether rietx computes peak tails further than it does today. Further costs fit time. It needs you because it trades accuracy against speed, and the established programs choose differently.
+
+**What last round's sentence meant.** Some constants in rietx decide nothing about the science. They set how carefully rietx does its arithmetic: how far out each peak's tails are computed, how many sample points the axial-divergence integral uses, and how far past the scan's end reflections are still generated. On 19 October you ruled that such a setting needs no sign-off from you once a test shows its arithmetic error is too small to matter, for every kind of data it is meant to handle. "Too small to matter" was set at a tenth of the counting noise. The last session wrote those tests, and seven settings failed. This brief is about the largest, the peak window. The other six follow the same pattern and can take the same answer.
+
+**Context.** rietx computes each peak out to the point where the tails it leaves out hold 2 % of the peak's area. Past that point the peak contributes nothing. Measured on four patterns (SRM 660c LaB6, the GSAS-II fluorapatite tutorial, the CPD round robin's cpd-1a, and 11-BM NAC):
+- The calculated pattern is off by up to 2.15σ at a point.
+- Refined values move by up to 0.97 esd on lab data when the tails are computed fully (cpd-1a's zincite scale; the fluorapatite Lorentzian size). NAC moves 0.17 esd.
+- The background coefficients move 2 to 5 esd. They soak up the missing tail intensity.
+
+Why rietx works this way. It sets each peak's window once, at the start of a stage, and holds it while the solver runs. If the windows moved during a solve, a data point could enter or leave a window between two evaluations, and χ² would jump by a small step. The solver chooses its next move from derivatives. It cannot see that jump in them, so it can stall or zigzag. A fixed window avoids the jumps at any width. Its price is that it cannot follow a peak that widens during a stage. By the end of such a stage 3 to 6.5 % of the area is missing, until the next stage resets the windows.
+
+**What the other programs do.** I checked all seven this session, from each manual or source, and by running FullProf, RIETAN-FP and BGMN. The middle column is the area a pure Lorentzian loses to each default.
+
+| Program | Default cut | Area lost | When the window is set |
+|---|---|---|---|
+| rietx | 2 % of each peak's area | 2 % | once per stage |
+| TOPAS | where the peak falls to 0.001 of the strongest line's height | 2.0 % | rebuilt when a width moves past a set tolerance |
+| MAUD | ±15 FWHM | 2.1 % | every evaluation |
+| RIETAN-FP | 0.002 of each peak's height (its examples; no default) | 2.8 % | every evaluation |
+| FullProf | 6 FWHM in its PbSO₄ example (no default; examples use 3 to 15) | 5.3 % | once per run, at the starting widths |
+| GSAS-II | 50 FWHM below the peak, 75 above | 0.5 % | every evaluation |
+| BGMN | no cut seen out to 22° | about 0 | not documented |
+| EasyDiffraction | none | 0 | every evaluation |
+
+So rietx's 2 % is in the middle. TOPAS and MAUD leave out the same. FullProf's examples leave out more than twice as much, and FullProf holds its windows for a whole run, as rietx holds them for a stage. GSAS-II computes four times further, and BGMN and EasyDiffraction compute everything. No program's manual states what its cut costs in accuracy. I infer that TOPAS and MAUD users carry the same shifts measured above, but I did not test those programs.
+
+**Aim.** Answers as close as the data allow, at a fit time a batch user accepts. I have read your earlier rulings as putting accuracy first.
+
+**Options.** All measured on the four patterns. Times are whole-fit wall clock against today's.
+1. **Keep 2 %.** Matches TOPAS and MAUD. Lab answers stay up to an esd off and nothing says so. No cost. Reversible.
+2. **Tight windows everywhere, 0.1 %.** Passes both accuracy bars on all four patterns. Costs 1.1 to 3.75 times the fit time, the fluorapatite the dearest.
+3. **Tight windows on the last stage only.** The earlier stages keep 2 %. The answer matches option 2's within 0.008 esd on three patterns, at 1.06 to 1.91 times the fit time. On LaB6 both today's setting and option 3 land in a different minimum from option 2: the two axial-divergence parameters swap roles, the mirror pair already forwarded to WP-2012 (the work package on that interchange). That is a question of path, which is Q2.
+4. **A middle cut at 0.5 %**, close to GSAS-II. It still fails: 0.33 to 0.43σ at a point, and answers move up to 0.88 esd. It costs 1.05 to 1.54 times. I would not pick it.
+
+Options 2 and 3 change every converged fit slightly, and the bit-identity goldens get re-pinned in the same commit. All four can be undone by restoring the constant.
+
+**Recommendation.** Tight windows only where the answer is computed. On its own that is option 3: the answer comes from the last stage, and the earlier stages only steer the fit towards its minimum. It recovers option 2's answers on three of four patterns at about half option 2's extra cost. If you also take Q2's closing stage, the tight windows go on that stage instead, and Q1 needs nothing more. The other six failing settings would follow the same rule: tight wherever it is cheap, and only on the answer's stage where the cost bites.
+
+The case against: the fluorapatite still pays 1.9 times. A batch user fitting 200 patterns feels that. Option 1 is defensible on practice, since TOPAS and MAUD do the same. I would change my mind if the tight windows moved a certified value away from its certificate. I have not measured that against SRM 660c's certified cell.
+
+#### Q2. How close two different starts must agree
+
+**The decision.** How close two runs of a staged plan must agree before a starting value or a stopping tolerance counts as not changing the answer. You asked how RIETAN-FP and BGMN, which also stage, handle it.
+
+**Context.** The tests ask whether Biso's default start of 0.5 Å², the harmonic seed, or the looser tolerance on intermediate stages changes the answer. They do: by up to 0.16 esd in Biso last session, and by 0.75 esd in cpd-1a's sample displacement this session. The cause is in rietx, not in the starts. Each stage fixes its peak windows, reflection list and axial-divergence sample points at the stage's start. So the last stage computes on a model fixed wherever the earlier stages stopped, and different starts stop the earlier stages in slightly different places.
+
+**What RIETAN-FP and BGMN do.**
+- RIETAN-FP's automatic mode refines subsets in its first cycles: background and scale, then widths, asymmetry, cell, atoms. Then everything refines together until convergence. Its windows follow the parameters at every evaluation, so nothing stays fixed where the subsets stopped. It holds Le Bail intensities for a cycle, and its manual warns that they depend on where they started.
+- BGMN runs an automatic ladder. Isotropic models come first, and anisotropic terms are added in later runs. Every ladder ends with a closing run: everything free, restarted from the previous answer. Terms the data cannot support are switched off. Only the ray-traced instrument function is held for the whole fit.
+
+The others, for completeness. MAUD's wizard adds parameter groups stage by stage and has no closing run. FullProf has no staging, so a user runs files one after another, and each run holds its windows at its starting widths. A FullProf user who stages by hand meets the same path effect as rietx. GSAS-II, TOPAS and EasyDiffraction do not stage. None of the seven tests whether its answer depends on the path, and none of the manuals mentions it. So the bar is rietx's own to set.
+
+**Aim.** Two users with the same data and different starts get the same numbers.
+
+**What I measured this session.** Biso started at 0.5 and at 1.5 Å² on every atom, under three settings. The number is the largest disagreement between the two starts on anything but the background, in plain esd (without the Bérar-Lelann inflation).
+
+| Pattern | Today | Tight windows on the last stage | Closing stage at tight windows |
+|---|---|---|---|
+| Fluorapatite | 0.119 | 0.013 | 0.000 |
+| cpd-1a | 0.751 (sample displacement) | 0.734 | 0.064 (cell c) |
+| 11-BM NAC | 0.008 | 0.006 | 0.000 |
+| SRM 660c LaB6 | 9.0 (axial S/L) | 9.0 | 9.4 |
+
+Tight windows on the last stage fix Q1's truncation and leave the path effect. The closing stage fixes both on three patterns. LaB6's two starts land in its two mirrored minima under every setting, so no window setting can make them agree. The closing stage costs 1.36 to 2.26 times today's fit time, against 1.06 to 1.91 for tight windows on the last stage alone.
+
+**Options.**
+1. **Keep the 0.01-esd bar, change no code.** Biso's start, the harmonic seed and the intermediate tolerance stay at tier 3 with their failures recorded.
+2. **Raise the bar to 0.1 plain esd, change no code.** The fluorapatite and NAC pass. cpd-1a (0.75) and LaB6 fail.
+3. **End every plan with a closing stage at tight windows, and set the bar at 0.1 plain esd.** The closing stage recompiles at the answer and solves once more with everything the plan freed. It is BGMN's closing run. It also gives what RIETAN-FP and the per-evaluation programs get by moving their windows continuously. The fluorapatite, cpd-1a and NAC pass. LaB6 fails, correctly, and stays recorded with WP-2012. Costs 1.36 to 2.26 times today's fit time, and it covers Q1.
+4. **The closing stage with the 0.01 bar.** The fluorapatite and NAC pass. cpd-1a fails at 0.064.
+
+Options 3 and 4 change every converged fit and re-pin the goldens. All four can be undone.
+
+**Recommendation.** Option 3. It is the only option that meets the aim on more than one lab pattern, and it settles Q1 in the same stage. A 0.1-esd bar matches the answer bar Q1's window tests already use. A user cannot see a difference of 0.064 esd between two starts. LaB6 still fails it, for the reason a start test exists to catch: two minima close together.
+
+The case against: a fit that has already converged pays for one more solve, about a fifth more than Q1's option 3 alone (2.26 against 1.88 times on the fluorapatite). The 0.1 bar is also ten times looser than the 0.01 that Suortti's start passed. I would change my mind if the closing stage cost more than about 2.5 times on any lab pattern, or if the intermediate tolerance and the harmonic seed still failed 0.1 behind it. I have not rerun those two.
+
+#### Q3. Where Pitschke's roughness model starts
+
+**The decision.** Pitschke's strength c and Suortti's depth b both start at 0.3 from one shared constant. Whether Pitschke keeps that start.
+
+**Context.** Suortti's start was shown not to matter. Pitschke's does. On CPD zincite, from 0 the fit lands outside the model's valid range: the scale doubles, Biso(O) moves from 0.05 to 0.59 Å², χ² is 4.8 % lower, and `ROUGHNESS_OUTSIDE_REGIME` fires. From 0.3 the correction switches itself off. On CPD corundum Biso moves 0.26 esd between the two starts.
+
+**What the other programs do.** None supplies a default start for Pitschke's model. RIETAN-FP and TOPAS have it with no default start given (TOPAS's would be in a macro file I may not read). FullProf has the same formula with no default, and its shipped examples start the strength at 1.2 to 1.5 and τ near 0.14. GSAS-II, MAUD, BGMN and EasyDiffraction have no Pitschke model. GSAS-II's own roughness model is Suortti's, and it starts at zero, unrefined. So last round's fallback, "GSAS-II's 0", has no program behind it for Pitschke.
+
+**Options.**
+- (a) Keep 0.3 for both, with Pitschke at tier 3 and its failure recorded.
+- (b) Start Pitschke at 0.
+- (c) Split the constant: Suortti's start recorded as not affecting the answer, Pitschke's kept at 0.3 at tier 3 with its failure recorded.
+
+**Recommendation.** (c). From 0.3 the fit reaches the switched-off branch, which lies inside the model's valid range. The lower χ² from 0 is one the model itself flags as invalid. FullProf's examples start further from 0 than 0.3 does. The case against: a careful user may want to see that the data prefer a correction, even an out-of-range one. The warning already shows them that.
+
+### Three more, from the handover's reviews (2026-10-21)
+
+The generality judge and the code review read this session's changes at handover. Three
+of their findings are decisions for the maintainer. They are numbered on from Q1-Q3.
+
+#### Q4. Did the fifth round's Q6 answer mean "yes"?
+
+Q6 proposed a class for caps on what a report lists. The answer was "doesn't appear to be
+a question". The lead read it as agreement and built it: tier 1 now holds such a cap once
+a test shows the report complete inside the cap and its notes counting what lies outside,
+or, for a cap on distance, the report stating the distance. The three geometry caps moved
+to tier 1 on it. The judge points out the answer could also mean "not mine to decide".
+Two facts bear on it. No caller can change any of the three caps (3.5 Å for contacts, 24
+contacts an atom, 200 atoms a phase). The search time at 200 atoms is unmeasured.
+
+- (a) Confirm. The clause and the three rows stay.
+- (b) Undo. The clause goes, and the three caps return to tier 3.
+
+Lead's pick: (a). A cap that says what it dropped hides nothing, and the table feeds only
+the report and the CIF writer, never a fitted number.
+
+#### Q5. How tier 2 counts a program that does otherwise
+
+The rule now calls a program that does otherwise by default a dissenter, and one without
+the feature neither. It says what a dissenter outweighs only for an action, and it does
+not say how many of the seven must agree. Two rows turn on this.
+
+- The default solver. Six programs damp their steps (Marquardt). FullProf takes
+  Gauss-Newton steps scaled by fixed relaxation factors. rietx's row stays tier 2 on the
+  lead's reading that the dissent clause governs actions only.
+- The 1.5 Å cell-length floor. TOPAS alone floors cell lengths; the other six leave them
+  unbounded. The row stays tier 2, reading "no floor" as "without the feature". The judge
+  notes that removing the TCHZ ceilings read "no ceiling" as "doing otherwise", the
+  opposite reading.
+
+Options:
+- (a) A dissent counts against a default or a threshold too. The solver joins the seven
+  solver-path switches B10 already holds at tier 3 until refits of three families on
+  either side agree. The cell floor moves to tier 1 on a physics argument: no crystal has
+  a lattice translation near 1.5 Å (recalled, not checked: Be's a of about 2.29 Å is among
+  the shortest), so the floor can only stop a runaway.
+- (b) Dissent counts only against actions (today's reading), and the rule says so.
+- (c) As (b), and "no limit" always reads as "doing otherwise" for a bound. The cell floor
+  then leaves tier 2, as in (a).
+
+Lead's pick: (a). It matches how B10 already treats the other solver switches, and it
+makes the two bound readings agree.
+
+#### Q6. A backstop for a runaway instrument width
+
+With the ceilings gone, nothing stops an instrument width (U, W, X or Y) widening until the
+lines merge into the background, on a weak pattern or along a series chain. No
+single-fit diagnostic reports a runaway width. The sample-broadening terms already have a
+backstop: `params/vector.py`'s `strain_cap` and `size_cap` hold a phase's Lorentzian width
+to the width of the fitted range, so a peak cannot become wider than the scan. Issue #140
+is why: a Cu phase's `lor_strain` reached 1.1e5 on a 248-pattern series, and a real 16 wt %
+phase was starved below 1 wt %. Before the ceilings went, U, W, X and Y stopped at 1 and V
+at 0.5.
+
+- (a) Extend the range backstop to the instrument widths. It is set by the fitted range,
+  so it is no chosen number, and it fires only on a runaway.
+- (b) A diagnostic only, naming a width wider than some fraction of the range.
+- (c) Nothing until a real fit shows a runaway.
+
+Lead's pick: (a). It is the same physical argument the sample terms already rest on.
+
+#### Q7. Removing the width ceilings moved one acceptance fit
+
+The full suite ran once on the final tree and found one consequence of Q5's build. The
+brucite Stephens test fits under TRF, the bounded solver the cone test needs. TRF scales
+each step by the distance to a parameter's finite bounds. An infinite upper bound gets a
+different scaling, so the path changes even where no width comes near a ceiling. Without
+the ceilings the fit stops at a worse point: Rwp 0.17891 against 0.17877, U on its floor
+of -0.05, and one strain coefficient's esd 66 against 14 737 (t = -203 against 0.37). The
+test's "at most one coefficient 2σ from zero" fails. No width reached 1 in either fit (Y
+0.086 at most). Any finite ceiling restores the old answer to its printed digits: every
+ceiling at 10, or at 1000. The default solver, LM, is unaffected, and the bit-identity
+goldens did not move. The test is a strict xfail until this is ruled.
+
+- (a) A ceiling no peak can reach: the width of the whole 2θ axis (180° for X and Y,
+  180² deg² for U, V and W). It caps nothing physical and gives TRF a finite bound.
+- (b) No ceiling, and re-pin the brucite test at the new, worse point.
+- (c) Restore the old ceilings.
+
+Lead's pick: (a). It keeps the ruling's substance and restores the measured answer.
+(b) re-pins a number that moved away from the better fit. Not yet measured: the brucite
+fit at a 180° ceiling itself.
+
 ## Still open (first round's list, kept for the record)
 
 1. B4: keep f, and report the textbook esd beside it?

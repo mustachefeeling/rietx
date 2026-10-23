@@ -381,7 +381,7 @@ def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypat
     refine(pattern, structure, instrument, plan=plan, solver=solver)
 
     assert {c["driver"] for c in calls} == {solver}
-    assert len(calls) == len(plan.stages)
+    assert len(calls) == len(plan.run_stages())     # the closing stage is the last
     assert calls[1]["ftol"] == 1e-4
     middle = {c["ftol"] for c in calls[:-1] if c["ftol"] != 1e-4}
     assert middle == {plan.intermediate_ftol}
@@ -403,7 +403,7 @@ def test_the_exact_schedule_is_one_field_and_reaches_every_stage(
     refine(pattern, structure, instrument, plan=plan, solver=solver)
 
     assert {c["driver"] for c in calls} == {solver}
-    assert len(calls) == len(plan.stages)
+    assert len(calls) == len(plan.run_stages())     # the closing stage is the last
     assert len({c["ftol"] for c in calls}) == 1
 
 

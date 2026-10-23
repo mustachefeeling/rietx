@@ -47,7 +47,7 @@ function corpus(): HelpCorpus {
   return {
     parameters: [
       { paths: ["phases.*.cell.a", "phases.*.cell.b", "phases.*.cell.c"],
-        ...entry("Cell edge", { unit: "Å", anchor: "peak-positions.html#lattice" }) },
+        ...entry("Cell edge", { unit: "Å", anchor: "theory/peak-positions.html#lattice" }) },
       { paths: ["instrument.zero_shift"], ...entry("Zero-point shift") },
     ],
     peak_flags: { excluded: entry("Excluded") },
@@ -58,7 +58,7 @@ function corpus(): HelpCorpus {
     instrument_fields: { radiation: entry("Anode") },
     search_fields: { seed: entry("Random seed"), preset: entry("Search preset") },
     plans: { profile_only: entry("Profile only", { modes: ["rietveld"] }) },
-    docs_url: "https://rietx.org",
+    docs_url: "https://rietx.org/docs/dev",
   };
 }
 
@@ -122,7 +122,7 @@ describe("the manual link", () => {
   it("joins the served base to the entry's page and heading", () => {
     const c = corpus();
     expect(manualUrl(c, resolve(c, "parameters:phases.*.cell.a")))
-      .toBe("https://rietx.org/peak-positions.html#lattice");
+      .toBe("https://rietx.org/docs/dev/theory/peak-positions.html#lattice");
   });
 
   it("is null where the entry names no chapter", () => {
@@ -132,9 +132,9 @@ describe("the manual link", () => {
   });
 
   it("does not double the slash when the base carries one", () => {
-    const c = { ...corpus(), docs_url: "https://rietx.org/" };
+    const c = { ...corpus(), docs_url: "https://rietx.org/docs/dev/" };
     expect(manualUrl(c, resolve(c, "parameters:phases.*.cell.a")))
-      .toBe("https://rietx.org/peak-positions.html#lattice");
+      .toBe("https://rietx.org/docs/dev/theory/peak-positions.html#lattice");
   });
 });
 

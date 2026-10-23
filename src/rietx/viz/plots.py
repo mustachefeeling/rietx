@@ -1074,13 +1074,16 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 def _model_ticks(ref, data) -> dict[str, list[float]]:
     """Each phase's reflection positions over ``data``'s range, at ``ref``'s
     parameters as they stand: compiled as :meth:`Refinement.predict` compiles,
-    placed by :func:`~rietx.viz.snapshot.stage_ticks`, keyed by phase name."""
-    from ..model.forward import compile_model
+    placed by :func:`~rietx.viz.snapshot.stage_ticks`, keyed by phase name.
+    A position does not depend on the windows, so this compiles the declared
+    stages' narrow ones rather than ``compile_model``'s closing default."""
+    from ..model.forward import WINDOW_AREA_TOL, compile_model
     from ..params.vector import ParameterTable
     from .snapshot import stage_ticks
     table = ParameterTable(ref.structure, ref.instrument)
     compiled = compile_model(ref.structure, ref.instrument, data, mode="rietveld",
-                             moving_paths=set(table.moving_paths))
+                             moving_paths=set(table.moving_paths),
+                             window_area_tol=WINDOW_AREA_TOL)
     rows = stage_ticks(compiled, table.decode(table.x0()), max_per_phase=10**9)
     names = [p.name for p in ref.structure.phases]
     return {names[int(key.split()[-1])]: row["two_theta"] for key, row in rows.items()}

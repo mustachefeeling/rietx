@@ -284,12 +284,28 @@ def test_a_non_zero_z_is_refused_and_a_zero_one_is_dropped(lab6, lab6_doc):
 
 
 def test_a_negative_width_is_refused_rather_than_silently_zeroed(lab6_doc):
-    """Both reference engines converge to a negative Y; reading one is a trap."""
-    doc = _edit(lab6_doc)
-    doc["payload"]["instrument"]["initialization"][0]["Y"] = [-15.8, -15.8, False]
-    with pytest.raises(RecipeError) as exc:
-        read_recipe(doc)
-    assert "bounded below at zero" in str(exc.value)
+    """A negative X is refused: at θ → 0 it is the whole Lorentzian width.
+
+    Both reference engines converge to a negative Y, and Y has no floor of
+    its own since 2026-10-23 (WP-2002).  So the width X/cosθ + Y·tanθ is
+    checked over the fitted range: with this recipe's X it crosses zero at
+    2θ = 2.04°, under the range's top of 15°, and is refused there; with an
+    X that carries it, the same Y is read as stated."""
+    init = ["payload", "instrument", "initialization"]
+
+    def edited(**letters):
+        doc = _edit(lab6_doc)
+        row = doc[init[0]][init[1]][init[2]][0]
+        for letter, value in letters.items():
+            row[letter] = [value, value, False]
+        return doc
+
+    with pytest.raises(RecipeError, match="bounded below at zero"):
+        read_recipe(edited(X=-1.5))
+    with pytest.raises(RecipeError, match=r"negative above 2θ = 2\.041°"):
+        read_recipe(edited(Y=-15.8))
+    recipe = read_recipe(edited(X=30.0, Y=-15.8))
+    assert recipe.instrument.profile.y.value == pytest.approx(-0.158)
 
 
 def test_the_spf_schema_is_refused_by_name(lab6_doc):

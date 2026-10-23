@@ -17,7 +17,7 @@ from .parametric import (
     ParametricValue,
     RefinedParametricEquation,
 )
-from .pattern import _floor_sigma
+from .pattern import POISSON_FLOOR_COUNTS, _floor_sigma
 
 
 class RefinedParameter(Base):
@@ -774,7 +774,7 @@ class GeometryTable(Base):
     #: the listing criteria actually used, so a row can be read without
     #: knowing which version of the module produced it
     bond_slack: float = 0.0           # Å, added to the covalent-radius sum
-    contact_max: float = 0.0          # Å, the nonbonding search radius
+    contact_max: float = 0.0          # Å, the nonbonding listing radius; bonds are not bounded by it
     notes: list[str] = Field(default_factory=list)
 
     @property
@@ -986,6 +986,18 @@ class StageResult(Base):
     #: fits' parameter shifts needs to know whether they were converged the
     #: same way.
     ftol: float | None = None
+    #: the fraction of each peak's area this stage's windows dropped, or
+    #: ``None`` for ``forward.WINDOW_AREA_TOL`` — what every declared stage
+    #: takes.  A plan's closing stage runs at ``closing_window_tol`` (WP-2002,
+    #: the sixth round's Q1 and Q2), a stage run by hand at the fraction it
+    #: ran at, and the result's curves and statistics are measured at the last
+    #: stage's.  So a reader rebuilding the model from
+    #: ``RefinementResult.parameters`` passes
+    #: ``forward.recorded_window_tol(this)`` to ``compile_model`` to reproduce
+    #: them, ``compile_model``'s own default being the closing stage's
+    #: fraction: the 2 % and 0.1 % windows of one answer differ by up to 0.6 %
+    #: in χ².
+    window_area_tol: float | None = None
     #: steps the bounded-LM driver held on a linear-inequality constraint (the
     #: Stephens strain cone, or the Γ_G² floor of WP-1938 D7) during this
     #: stage: the step for the box alone crossed a row, and the step solved
@@ -1008,6 +1020,14 @@ class StageResult(Base):
     #: bumped with this change, ``SCHEMA_VERSION`` 0.19 → 0.20 (see the
     #: changelog entry in ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: decompositions this stage's solve and esds repeated with LAPACK's
+    #: QR-iteration driver because the divide-and-conquer driver stopped
+    #: without converging (``optimize.lapack``): the same decomposition by
+    #: another route, so the answer is the one a converging build computes.
+    #: Met on macOS's system LAPACK, whose ``gesdd`` failed on a TRF step on
+    #: CPD brucite that OpenBLAS's decomposed (WP-2002).  0 means no
+    #: decomposition needed it.
+    n_lapack_fallbacks: int = 0
     #: paths this stage **held** although the plan had freed them: the
     #: structural parameters of a phase the data could not see at stage start
     #: (the screen ``CompiledModel.phase_support`` below
@@ -1060,6 +1080,34 @@ class StageResult(Base):
     #: Both single-histogram runners write a mapping on every stage, so an
     #: empty one is a stage that looked and held nothing on this test.
     scale_b_held: dict[int, float] | None = None
+    #: per instrument width column this stage **held** because free specimen
+    #: widths have its angular dependence (WP-2002), the specimen columns it
+    #: pairs with: U with ``gauss_strain`` and ``gauss_size`` (tan²θ in Γ_G²;
+    #: the size's 1/cos²θ is 1 + tan²θ, so it is flat with U and W together,
+    #: and W, the constant width, is never held), X with ``lor_size`` (1/cosθ in
+    #: Γ_L), Y with ``lor_strain`` (tanθ in Γ_L).  The data see each
+    #: angular term only as a total, so with both sides free it walks along a
+    #: flat direction.  The instrument side is held at the value the stage
+    #: started from, which is how every program that separates the two does
+    #: it, by fixing the instrument from a standard (``docs/practice.md``), and
+    #: the specimen value is then the width the instrument does not account
+    #: for.  Where the instrument value was fitted on this specimen instead,
+    #: it carries that stage's split.  The held columns are in :attr:`held` too.
+    #:
+    #: Held where the null space of the totals is not empty
+    #: (``refine._width_twin_flats``): one seen phase whose specimen width is
+    #: held pins the instrument term for every phase, and nothing is held.
+    #: One pair is held by rule instead: a free Stephens block locks
+    #: ``lor_strain`` and takes its place as Y's twin, flat exactly at its
+    #: isotropic seed and near it after, so Y is listed here with the block's
+    #: columns; a held block pins Y like a held ``lor_strain``.  The test reads
+    #: no bound, so a specimen width that ends on its floor of 0 stays paired
+    #: with a held instrument term.  Asked at stage start and again before a
+    #: second solve, never released inside the stage.
+    #:
+    #: ``None`` means a result stored before the field.  Every runner writes a
+    #: mapping, and an empty one is a stage that held nothing on this test.
+    width_twins_held: dict[str, list[str]] | None = None
     #: paths held at stage start and **released within the same stage**: the
     #: phase rose above support while the stage solved, so the hold was lifted
     #: and the stage solved a second time (once — never a third) with them
@@ -1132,15 +1180,23 @@ class StageResult(Base):
     #: reason.  It feeds ``STAGE_FREED_NOTHING``.
     unreached_histograms: dict[int, list[str]] | None = None
     #: each row this stage lifted before solving, and the value it started at
-    #: in column units (WP-1930).  One writer puts a row here: the stage's own
+    #: in column units (WP-1930).  Two writers put a row here.  The stage's own
     #: :attr:`~rietx.strategy.staged.Stage.seed`, through
-    #: :meth:`~rietx.params.vector.ParameterTable.seed_floored`, which starts a
-    #: freed row sitting exactly on a floor of 0 or above at the seed.
-    #: WP-1930's second writer, a floor seed sized by unit, went with WP-1938:
-    #: it existed because a softplus column at its floor was twelve orders below
-    #: its neighbours, and a row refined in its own units has its physical
-    #: column there.  ``None`` means a result stored before the field; all three
-    #: runners write a mapping, and an empty one is a stage that lifted nothing.
+    #: :meth:`~rietx.params.vector.ParameterTable.seed_floored`, starts a
+    #: freed row sitting exactly on a floor of 0 or above at the seed.  Its
+    #: :attr:`~rietx.strategy.staged.Stage.strain_seed`, through
+    #: :meth:`~rietx.params.vector.ParameterTable.seed_stephens`, puts a freed
+    #: all-zero Stephens block on the isotropic ray, and every DOF of that block
+    #: is here at the value the seed wrote, a zero coefficient of the ray
+    #: included (WP-2002, B14).  Those rows sit at zero rather than on a floor,
+    #: since a Stephens DOF is unbounded below.  The joint fit's runner seeds
+    #: no Stephens block, so its stages carry the first writer's rows alone.
+    #: WP-1930's floor seed sized by unit went with WP-1938: it existed because
+    #: a softplus column at its floor was twelve orders below its neighbours,
+    #: and a row refined in its own units has its physical column there.
+    #: ``None`` means a result stored before the field; all three runners write
+    #: a mapping, and an empty one is a stage that lifted nothing.  A result
+    #: stored before B14 lacks the Stephens rows of a stage that seeded them.
     seeded: dict[str, float] | None = None
     #: the stationary-angle test the stage's covariance ran (WP-1929), one
     #: :class:`MomentAngleTest` per round in the order they ran.  A round with
@@ -1170,6 +1226,27 @@ class StageResult(Base):
     #: field; every runner writes a list, and an empty one is a stage that put
     #: nothing back, which is every stage of an ordinary fit.
     cell_reset: list[str] | None = None
+    #: the free parameters this stage **restored** to the values it started
+    #: from and held, because the answer of its first solve found them flat
+    #: (WP-1301, B1; recorded since WP-2002, B14).  Two readings of the answer
+    #: put a column here, and both take the same restore, hold and one second
+    #: solve.  A column moving only phases whose scale is under the plan's
+    #: ``phase_support_sigma`` there collapsed with its phase.  A moment
+    #: direction whose turn no longer moves the pattern went flat while the
+    #: stage ran.  The first solve's values for them were the walk, not a
+    #: measurement, and are gone.
+    #:
+    #: A subset of :attr:`held`, which also carries the columns held at stage
+    #: start, so a column in ``held`` and not here was held before anything
+    #: solved.  Disjoint from :attr:`released`, from :attr:`freed` and from
+    #: :attr:`cell_reset`: a cell the runaway reset and the collapse both reach
+    #: is here.  Writers: the three runners that build a ``StageResult``,
+    #: ``Refinement.fit`` and ``Refinement.run_stage`` from
+    #: ``Refinement._run_stage``'s record, and ``MultiHistogramRefinement.fit``
+    #: from its own stage loop.  ``None`` means a result stored before the
+    #: field; every runner writes a list, and an empty one is a stage whose
+    #: answer restored nothing, which is every stage of an ordinary fit.
+    collapsed: list[str] | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -1754,7 +1831,8 @@ class RefinementResult(Base):
         if self.sigma:
             s = np.asarray(self.sigma, dtype=np.float64)
         else:
-            s = np.sqrt(np.maximum(np.asarray(self.y_obs, dtype=np.float64), 1.0))
+            s = np.sqrt(np.maximum(np.asarray(self.y_obs, dtype=np.float64),
+                                   POISSON_FLOOR_COUNTS))
         return _floor_sigma(s)
 
     def for_histogram(self, h: int) -> "RefinementResult":

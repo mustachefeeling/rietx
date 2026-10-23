@@ -159,7 +159,7 @@ Before 1.10 the record was the warning `QPA_FRACTION_UNDETERMINED`, which fired 
 The basins separate only on information the fit does not have: a width held at a value the specimen justifies, a background that can take the hump itself, or more counts on the phase's strongest lines.
 
 The synthetic trace is LaB₆ with 1 wt % CaF₂ and a small amorphous hump under a six-term Chebyshev background, in `tests/test_qpa_multimodal.py`.
-The fit reports CaF₂ at 1.18 ± 0.39 wt %, and the profile admits everything from 0.86 % to 77 %, in two basins separated by a barrier the data can see.
+The fit reports CaF₂ at 0.93 ± 0.33 wt %, and the profile admits everything from 0.93 % to 77.1 %, in two basins separated by a barrier the data can see.
 
 A wrong Z·M·V is a different failure.
 A wrong site multiplicity or a wrong space-group setting ([`SITE_SNAPPED_TO_SPECIAL_POSITION`](diagnostics-structures.md#site_snapped_to_special_position), [`SPACE_GROUP_SETTING_ASSUMED`](diagnostics-structures.md#space_group_setting_assumed)) moves the Z·M·V factor of one phase by a fixed multiple, at unchanged Rwp.

@@ -19,8 +19,8 @@ This refines both phases with `mccusker_structural`:
 
 <!-- output of examples/guides/qpa.py -->
 ```text
-NAC    96.91 ± 2.32 wt%
-CaF2    3.09 ± 2.32 wt%
+NAC    96.92 ± 2.24 wt%
+CaF2    3.08 ± 2.24 wt%
 ```
 
 Each row is a `PhaseQuantity`, with the fraction, its esd, the refined scale and the Z·M and V it was computed from.
@@ -33,7 +33,7 @@ Report them as "wt % of the crystalline content".
 
 ## Check the minor phase
 
-An esd of 2.32 wt % on a 3.09 wt % phase, measured at a synchrotron, says something is trading against the scale.
+An esd of 2.24 wt % on a 3.08 wt % phase, measured at a synchrotron, says something is trading against the scale.
 The diagnostics name it:
 
 ```{literalinclude} ../../../examples/guides/qpa.py
@@ -46,7 +46,7 @@ The diagnostics name it:
 ```text
 FLOOR_HIT | phases.1.atoms.0.biso refined to its floor (ρ=+0.040).
 FLOOR_HIT | phases.1.atoms.1.biso refined to its floor (ρ=+0.084).
-HIGH_CORRELATION | Correlated pair: phases.1.scale ~ phases.1.extinction (ρ=+0.996). Flagged in stages: extinction, roughness.
+HIGH_CORRELATION | Correlated pair: phases.1.scale ~ phases.1.extinction (ρ=+0.996). Flagged in stages: extinction, roughness, closing.
 ```
 
 The plan freed CaF₂'s extinction, and with a few weak peaks the extinction and the scale can scale the same intensities.
@@ -65,7 +65,7 @@ NAC    98.63 ± 0.07 wt%
 CaF2    1.37 ± 0.07 wt%
 ```
 
-The esd falls from 2.32 to 0.07 wt %, and `mccusker_default`, which frees no structural parameter, gives 1.38 wt % for CaF₂.
+The esd falls from 2.24 to 0.07 wt %, and `mccusker_default`, which frees no structural parameter, gives 1.38 wt % for CaF₂.
 Rwp rose from 0.082 to 0.089 when the three parameters were held.
 The free extinction lowered Rwp while it moved the fraction, so Rwp cannot choose between the two fits.
 The fit reports the holds as `HOLD_BLOCKED_PLAN`, because the plan tried to free paths you held.

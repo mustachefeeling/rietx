@@ -167,7 +167,9 @@ def _refine(texture: bool):
         rx.Stage("final", ["phases.0.atoms.*.biso", *tex]),
     ]
     # The shipped schedule, named rather than inherited (validation matrix).
-    plan = rx.RefinementPlan(stages=stages, intermediate_ftol=1e-6)
+    # WP-2002: the shipped closing stage, named rather than inherited
+    plan = rx.RefinementPlan(stages=stages, intermediate_ftol=1e-6,
+                             closing_window_tol=1e-3)
     return ref.fit(data, plan=plan, two_theta_limits=LIMITS)
 
 
