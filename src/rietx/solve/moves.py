@@ -548,10 +548,12 @@ class Clash:
     compiled_used: int = 0
 
     @classmethod
-    def build(cls, space: SearchSpace, priors=None) -> Clash:
-        from .chemistry import SolvePriors, clash_cells_suffice, compile_chemistry
+    def build(cls, space: SearchSpace, priors) -> Clash:
+        """The clash term for ``priors``, a :class:`~rietx.solve.chemistry.SolvePriors`
+        the caller declares: its σ, radius fraction and weights have no default
+        (#1016's review round), so neither has this."""
+        from .chemistry import clash_cells_suffice, compile_chemistry
 
-        priors = SolvePriors() if priors is None else priors
         try:
             chem = compile_chemistry(space.search_phase(), priors)
         except ValueError as exc:
