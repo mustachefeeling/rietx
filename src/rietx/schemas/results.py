@@ -1093,8 +1093,10 @@ class StageResult(Base):
     #:
     #: Held only where the pair is exactly flat
     #: (``refine._width_twin_flats``): one seen phase whose twin is held pins
-    #: the instrument width for every phase, and nothing is held.  A Stephens
-    #: block locks ``lor_strain``, so it never puts Y here.  Never released
+    #: the instrument width for every phase, and nothing is held.  A free
+    #: Stephens block locks ``lor_strain`` and takes its place as Y's twin, so
+    #: Y is listed here with the block's columns; a held block pins Y like a
+    #: held ``lor_strain``.  Never released
     #: inside the stage, since it rests on which columns are free.
     #:
     #: ``None`` means a result stored before the field.  Every runner writes a

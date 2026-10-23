@@ -829,8 +829,8 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     sums: list[np.ndarray] = []
     couples: list[tuple[set[int], set[int]]] = []
     families: list[set[int]] = []
-    for table, col_map, unseen in parts:
-        C = table._C.tocsr()
+    Cs = [table.constraint_block()[0].tocsr() for table, _, _ in parts]
+    for (table, col_map, unseen), C in zip(parts, Cs, strict=True):
         pos = table._paths
         family: set[int] = set()
         families.append(family)
@@ -867,8 +867,7 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     # every other entry those columns move must stay still too: a column
     # driving a twin and a cell is pinned by the cell
     others = []
-    for (table, col_map, _), family in zip(parts, families, strict=True):
-        C = table._C.tocsr()
+    for (_, col_map, _), family, C in zip(parts, families, Cs, strict=True):
         touched = np.flatnonzero(in_cand[col_map])
         for i in np.unique(C[:, touched].nonzero()[0]):
             if int(i) not in family:
