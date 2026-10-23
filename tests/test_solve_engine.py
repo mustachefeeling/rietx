@@ -154,9 +154,21 @@ def _simulate(phase, ins, tt=(4.0, 70.0, 0.02), counts=1e4, seed=0):
     return compile_model(st, ins, data, mode="rietveld"), v
 
 
+#: The clash σ (Å) and radius fraction these tests declare: SolvePriors has no
+#: default for either since #1016's review round, so the values its first
+#: revision carried (0.1 Å, 0.8) are declared here, measured on nothing.
+CLASH_SIGMA_ANG = 0.1
+CLASH_FRACTION = 0.8
+
+
+def _priors(weights=None, **kw):
+    return SolvePriors(weights=weights or PriorWeights(coordination=0.0),
+                       sigma=CLASH_SIGMA_ANG, fraction=CLASH_FRACTION, **kw)
+
+
 def _problem(space, cost, ins, priors=None):
     sc = Scattering(space, cost.hkl, cost.d, Radiation.from_instrument(ins, space.species))
-    clash = Clash.build(space, priors or SolvePriors(weights=PriorWeights.control()))
+    clash = Clash.build(space, priors or _priors(PriorWeights.control()))
     return tp.SearchProblem(space, sc, cost, clash)
 
 
@@ -354,7 +366,7 @@ def test_clash_paths_and_the_one_site_identity(nac):
     oracle, and the two paths agree."""
     problem = nac[0]
     sp = problem.space
-    clash = Clash.build(sp, SolvePriors())
+    clash = Clash.build(sp, _priors())
     assert clash.active
     rng = np.random.default_rng(2)
     u = sp.random(rng, 3)
@@ -403,7 +415,7 @@ def test_a_seed_on_a_special_position_is_refused_by_name(nac):
 
 def test_a_clash_radius_past_the_27_cells_is_refused_before_a_sweep(nac):
     sp = nac[0].space
-    priors = SolvePriors(exclude=(ExcludedContact("Ca", "F", 16.0),))
+    priors = _priors(exclude=(ExcludedContact("Ca", "F", 16.0),))
     with pytest.raises(SearchRefused, match="27 cells") as err:
         Clash.build(sp, priors)
     assert err.value.reason == "clash_reach"
