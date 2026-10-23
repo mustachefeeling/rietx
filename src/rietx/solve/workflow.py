@@ -74,6 +74,10 @@ import numpy as np
 
 from ..crystallography.site_classes import site_assignments, site_classes
 from ..crystallography.symmetry import resolve_group
+from . import cluster as cl
+from . import tempering as tp
+from .engines import SolveSpec, preset_spec, register_engine, unit_seed
+from .moves import Clash, FreeSite, Radiation, Scattering, SearchSpace
 from .solution import (
     PolishedState,
     RaceRecord,
@@ -87,10 +91,6 @@ from .solution import (
     UnitRecord,
     candidate_evidence,
 )
-from . import cluster as cl
-from . import tempering as tp
-from .engines import SolveSpec, preset_spec, register_engine, unit_seed
-from .moves import Clash, FreeSite, Radiation, Scattering, SearchSpace
 
 #: The checkpoint's format; a change to what it holds is a new string.
 CHECKPOINT_FORMAT = "rietx-solve-checkpoint/1"
