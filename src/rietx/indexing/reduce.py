@@ -607,7 +607,13 @@ def _equal_as_given(red_a, red_b, cov_a, cov_b) -> tuple[bool, float]:
     the whole of it)."""
     delta = np.asarray(red_a) - np.asarray(red_b)
     if cov_a is None or cov_b is None:
+        # a component that is zero by symmetry (a monoclinic D, E) comes out of
+        # M·G·Mᵀ as rounding noise of either sign, ~1e-16 of the metric's scale
+        # (WP-2035); relative to *itself* two such noises are never equal, so the
+        # scale has a floor at the vector's own rounding level (1e-12 of its
+        # largest component, ~1e4 times double epsilon)
         scale = np.maximum(np.abs(red_a), np.abs(red_b))
+        scale = np.maximum(scale, 1e-12 * float(scale.max()))
         ok = bool(np.all(np.abs(delta) <= CELL_EQUALITY_RELATIVE * scale))
         return ok, float("nan")
     sigma = np.asarray(cov_a) + np.asarray(cov_b)
