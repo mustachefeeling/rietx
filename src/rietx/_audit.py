@@ -1320,6 +1320,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.compiled.SPELL_FORWARD", "constant", tier=1, value=0,
         evidence=("arithmetic: enum naming one of two associations of one expression; "
                   "test_the_forward_and_the_bases_keep_their_separate_spellings")),
+    Row("rietx.model.compiled._NS_PER_CONTACT", "constant", tier="invariant", value=1.0,
+        evidence=("A work estimate that only decides whether a call is split across the "
+                  "pool; reflections and replicas are disjoint rows, and "
+                  "tests/test_solve_kernels.py::test_a_split_call_lands_on_the_inline_bits "
+                  "holds a four-worker split bit-identical to the inline call for all three "
+                  "solve kernels.")),
+    Row("rietx.model.compiled._NS_PER_IMAGE", "constant", tier="invariant", value=7.5,
+        evidence=("A work estimate that only decides whether a call is split across the "
+                  "pool; reflections and replicas are disjoint rows, and "
+                  "tests/test_solve_kernels.py::test_a_split_call_lands_on_the_inline_bits "
+                  "holds a four-worker split bit-identical to the inline call for all three "
+                  "solve kernels.")),
     Row("rietx.model.compiled._THREAD_MIN_NS", "constant", tier="invariant", value=100000.0,
         evidence=("answer-invariant: rows are disjoint and each computed whole in one chunk; "
                   "tests/test_compiled_kernels.py::test_a_split_call_lands_on_the_inline_bits")),
