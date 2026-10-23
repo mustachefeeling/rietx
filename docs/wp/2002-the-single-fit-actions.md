@@ -189,7 +189,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       5th session: the sixth round built (the closing stage, the roughness seed's record,
       the axis ceilings, the tier-2 rule). Left: B14's lifts. 6th session: no demotion;
       left: B14's lifts. 8th session: B14's lifts landed (§ The hand rows that stay).*
-- [ ] Goldens: every pinned number that moved, re-pinned only if no further from its
+- [x] Goldens: every pinned number that moved, re-pinned only if no further from its
       reference; old, new, dataset and reference distance in the handover. A number that
       moved away goes back through the two grounds. *2026-10-20 (2nd session): one moved
       away, the NAC capillary pair's cell (`test_capillary_displacement.py`, offsets
@@ -203,7 +203,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       guides' quoted numbers were re-measured. 6th session: evaluation outside a fit at
       the closing windows and the closing FCJ rule moved every synthetic pattern; the
       goldens declare their capture windows and stay bit-identical (darwin/arm64), and the
-      guides (main's new moment guide too) were re-measured.*
+      guides (main's new moment guide too) were re-measured. 9th session: no bit-identity golden moved; four guides re-pinned by a last digit or a bound, the moment guide's blind moment 2.04 → 2.03 μB (0.2 of its esd), and the calibration workflow's `lor_size` moved away from its truth (27-39 % → 55 % low), taken back through the grounds as ruling 2(a): its truth sat on the removed floor.*
 - [x] `intermediate_ftol` and any other candidate for the answer-invariant class: the
       invariance test, or the row tiered. *3rd session: the test ran and failed in plain
       esds (0.033-0.074 on cpd-1a) and a hold flips with the tolerance; the rows wait on
@@ -369,6 +369,192 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-23 (9th session) — the width twin hold built, the U, V and Y floors removed behind it; closed
+
+The peak-width coefficients U, V and Y no longer have floors, as the maintainer ruled. A fit that frees an instrument width together with a specimen width of the same angular shape now holds the instrument side for that stage, and the stage record names the pair. Without that, the two walk off together and the fit fails. The test that decides when to hold is exact: it reads which combinations a pattern can see, so a second phase whose own width is fixed, a tie, or a joint fit's wavelength factor is taken into account. No shipped plan frees such a pair; the magnetic solver's last stage did, and now frees the instrument's widths alone. The cost falls on plans that fit the instrument on the specimen first: there the held value carries whatever split that stage found, so on cpd-1a the reported zincite strain depends on the starting Biso by 15.7 esd, and in three of four real fits the specimen width ends on its floor of zero. The maintainer accepted that cost (decision 1(a)), and ruled that all three floors go (2(a)) after a check showed a negative Y is the honest way to write a constant instrument width. A joint fit and every reflection just past the data now also keep the Lorentzian width non-negative, which the floor removal had left open.
+
+*Done.*
+- The hold (`1a4f5c52e`, `bd92fd503`, `7f95db1f2`, `1a1dcdb0b`, `ae06b3694`, `37ddcced5`): `refine._width_twin_flats` takes the null space of the per-phase totals of each angular term (`WIDTH_TERMS`: U with `gauss_strain` and `gauss_size`, W with `gauss_size` as a row it never holds, X with `lor_size`, Y with `lor_strain`) read off C, and holds the instrument columns on it; `_hold_width_twins` and `multi._hold_width_twins_multi` apply it in both runners; `StageResult.width_twins_held` records each held column with its partners; a free Stephens block is Y's twin by rule; an unseen phase pins nothing (`_hold_unsupported_phases` now returns the unseen set); asked again before a second solve. The SVD goes through `optimize.lapack`.
+- The parked floor removal (`879fb1bcc`) merged: U, V ∈ [−180², 180²] deg², Y ∈ [−180, 180]°, `TCHZ_BOUNDS_COARSE` gone, Γ_L ≥ 0 by `lorentzian_width_inequalities`, now at every reflection of the frozen list (not only those whose window holds data) and in the joint runner (`_joint_width_inequalities`, both width builders per histogram on joint columns).
+- Tests and records after the rulings (`59fd97ee4`): the LaB6 + cBN degeneracy tests assert the hold; `test_staged_start_invariance.py` re-measured, cpd-1a's Biso row and LaB6's intermediate tolerance strict xfails, the absent-zircon and axial-floor rows' xfails removed; `test_v02_core.py`'s calibration bar follows the measured 55 %; four guides re-pinned (`equation`, `joint` by one last digit, `moment`'s round-2 bound 0.001 → 0.002, `path`'s 700 K now accepted warm); the validation matrix and `docs/VALIDATION.md` regenerated; `reference/refinement.md` documents the field (rows tightened to stay under the 50 000-character cap).
+- Code review (`/code-review high --fix acba6290f..HEAD`), eight findings: three fixed by the review (`409cfcbbd`: two docstrings, one C conversion a table); (1) joint and past-data Γ_L fixed here (`7f95db1f2`), with `test_the_joint_runner_holds_the_lorentzian_width_too` failing on purpose without the rows; (3) `gauss_size` joined the test (`7f95db1f2`), holding U and W, which moved three acceptance answers (the cpd-1a chain, the absent-zircon start row, the corundum Stephens block); it left again (`ae06b3694`) and came back on the judge's alternative (`37ddcced5`): U alone removes the direction, so W, the constant width, is never held and its total stays a row; (4) the re-ask before a second solve (`1a1dcdb0b`, untested beyond the existing hold suites); (6) the near-copy Γ_L builder declined, a merge risking every LM fit's last bit; (7) `_fd_typicals`' width test declined as a design change and forwarded to 2017; (2) the stale field sentence fixed by the review.
+- The first full selection (on `aed3f9be2` plus the review commits) failed eight, fixed in `ae06b3694`: the three above; `solve_magnetic`'s last stage (`SOLVE_STAGE_PATHS`) freed U and X beside `gauss_strain` and `lor_size`, so the hold took U and X, its dead-glob caveat fired and the 150 K Cr₂WO₆ fit ran to `max_iter` (now the instrument's widths alone, all 76 magnetic-solve tests pass); the neutron fit's Y now refines to −0.0210949(191) off any floor, so `test_acceptance_wavelength.py`'s esd test is re-pinned (x's esd 0.0102922 at four starts, spread 1.5e-9) and its one-sided interval test declares Y ≥ 0 as a caller would (upper end 0.0164535, was 0.0166098); zincite's dispersion test reads its cell bar as 0.1 esd, the hold's split moving c by 1.5e-5 Å against an esd of 3.7e-4.
+- The second full selection (`ae06b3694`) failed two, fixed in `37ddcced5`: the moment guide's blind moment moved 2.04 → 2.03 μB with the magnetic stage change (re-pinned, the gaps to the other two answers 0.06 and 0.09); `test_acceptance_sequential.py::test_warm_start_iteration_cost_is_reported` is a strict xfail, the restricted-carry chain at Rwp 0.1282 against carry=* 0.1256 and independent 0.1258, the hold keeping each pattern's instrument split (decision 1(a), forwarded to 2003).
+- The judge's corrections built (`1a1dcdb0b`): the row to tier 3, its evidence and the field docstring say what the code does, the Stephens rule's docstring leads with its stronger reason.
+- Forward references: 2004 (an infinite strain anisotropy quoted as 1e6; `reference/refinement.md` at its cap), 2012 (LaB6's intermediate tolerance now reaches the mirrored minima), 2017 (BISO_SEED on two families, the twin hold's families, real calibrations with Y unfloored, TRF's far bound, `_fd_typicals`). Priorities of 2003, 2004, 2005 and 2017 rewritten for the close. Memory `rulings-lead-with-accuracy` extended with the maintainer's "physics and best practice take precedence over our existing workflows".
+
+*Measured* (macOS arm64, worktree venv `[dev]`, compiled tier on).
+- The hold on the shipped test plans (`stephens._plan`, `qpa_plan`): corundum Rwp 0.145744 → 0.145752; brucite 0.186391 → 0.186423, with a Stephens block 0.179951 → 0.181008 (LM) and TRF 0.179188; 11-BM LaB6 + cBN degenerate plan: LaB6 widths on their floor, cBN `lor_strain` 0.0354(8), LaB6 16.779(194) wt % (16.850 before), Rwp 0.1377 against the identifiable plan's 0.1686.
+- Start invariance (plain esd, bar 0.1), before → after: cpd-1a Biso 0.070 → 15.68 (zincite `lor_strain` 0.0088 against 0.0612, Rwp 0.1631 and 0.1634; the instrument-only stage lands X 0.0017/Y 0.065 from one start and X 0.023/Y 0.002 from the other); cpd-1a tolerance 0.042 → 0.000, axial floor 0.138 → 0.010, absent zircon 0.185 → 0.035; LaB6 Biso 9.36 → 1.16 (on `u`), LaB6 tolerance 0.000 → 8.82 (`axial_sl`); FAP and NAC 0.000 throughout.
+- The floor removal on the synthetic calibration (`test_v02_core.py`, truth u 6e-3, w 3e-3, x 5e-3, y 0): with the old floors U 0.00556, X 0.00578, Y 0; without them U 0.00579, X 0.00792, Y −0.00595, Rwp 0.039442 against 0.039451, `HIGH_CORRELATION` and `FLAT_DIRECTION` raised; the sample's `lor_size` then 55 % low against 27-39 %. A constant positive Lorentzian width projected onto {1/cosθ, tanθ} is X 1.24/1.20/1.09, Y −0.86/−0.73/−0.47 over 10-140°, 18-120° and 20-80° 2θ.
+- The judge's suggested swap (hold the specimen width that lands on its floor, free the instrument), prototyped and reverted: corundum 0.145744 and brucite 0.186391 recovered exactly, Stephens 0.180477; cpd-1a Rwp 0.1619 from both starts but Y −0.181/−0.099 and zincite `lor_strain` 0.256/0.175, the per-phase 1/cosθ–tanθ near-collinearity exposed. Not adopted.
+- Shipped plans freeing a twin pair: none of eight presets (scratch probe); the probe missed `solve_magnetic`'s internal stages, which the full selection caught.
+- Full selection, first run (`aed3f9be2` plus the review commits, nothing else running): 11 657 passed, 136 skipped, 42 xfailed, 8 failed, 27:01; the eight are above.
+- Full selection, second run (`ae06b3694`, nothing else running): 11 662 passed, 136 skipped, 42 xfailed, 2 failed, 52:24 (the sequential group set the tail); the two are above. `37ddcced5` changed only what those two and the `gauss_size` pairing reach, and the files those reach ran alone after it: `test_width_twin_hold.py`, `test_audit_table.py`, the QPA, Stephens, sequential, dispersion and start-invariance acceptance suites and the moment guide, 88 passed, 4 xfailed, 35:02. The full selection was not run a third time.
+- Fast selection on the final tree (`37ddcced5`, main through `aed3f9be2`): 11 261 passed, 129 skipped, 27 xfailed, none failed, 7:24, nothing else running. The branch's 25 added tests cost 2.94 s (junit, that run): `test_lorentzian_width_floor.py` 2.00 s over 6, `test_width_twin_hold.py` 0.43 s over 13, `test_held_phase.py` 0.29 s over 5, `test_stephens.py` 0.22 s over 1; none joins the slow tail. The counts are the merged tree's and cannot be compared with the 8th session's 11 245, main having added its own.
+- Lanes: none dispatched.
+
+*Gotchas.*
+- The twin test reads C and no bound, so a specimen width that ends on its floor stays paired with a held instrument term; that is where the Rwp costs above come from. The swap above is the measured alternative and loses on multi-phase data.
+- A plan that fits X and Y on the specimen and then frees the specimen widths gets an answer that depends on the instrument-only stage's split. Calibrating on a standard first (`lab_calibrate`, `load_instrument_profile`) is the protocol that avoids it, and no shipped plan does otherwise.
+- Under TRF no width row holds; `RESOLUTION_NOT_POSITIVE` reports Γ_L < 0 after the fit.
+- No diagnostic code reports the hold: `StageResult.width_twins_held` (and `held`) is the whole record, so a reader of the diagnostics alone does not see it (the judge, item 1, row 7). Not built here; a code would be 2005's.
+
+*Next.* None for this WP: it is closed. The open threads live where they were forwarded: 2017 for the families and measurements the judge asked for (a real calibration with Y unfloored is the one that would test 2(a)), 2004 for the anisotropy ratio and the reference page's split, 2012 for the mirrored axial minima.
+
+*Generality.* The judge's report on this session's items follows, unedited, its headings demoted to bold lines. The author's answers sit beneath them.
+
+**Item 1. `rietx.schemas.results.StageResult.width_twins_held` (new action row, tier 2, ambiguity 1)**
+
+**weak.** The case for stopping the walk along an exactly flat pair is strong. The case against holding the instrument at whatever value the stage starts from is stronger than the row records. In three of the four real fits measured, the specimen twin ended on its floor of 0.
+
+Terms used below:
+- **Twin**: a specimen width with the same angular shape as an instrument coefficient: U with `gauss_strain`, Y with `lor_strain`, X with `lor_size`.
+- **C**: the parameter table's tie matrix.
+- **cpd-1a**: the IUCr CPD round-robin quantitative-phase-analysis mixture of corundum, fluorite and zincite, whose reference is its weighed composition.
+- **Plain esd**: the esd before the Bérar-Lelann inflation.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "The instrument half is held at the value the stage started from … the specimen value is then the width the instrument does not account for" (`schemas/results.py:1088-1091`) | It overrides an explicit free in the caller's plan. U, X or Y stays where the previous stage left it, and every later change of width goes to the specimen term. No preset frees a twin pair. I checked `strategy/staged.py`: the presets' `profile` stages free u, v, x, y, and `lab_sample_refine` frees only specimen widths. So it fires only on plans a caller wrote. | — |
+| 2. Kind | `ambiguity=1` (`_audit.py:812`) | The row holds two decisions. (a) Stopping the walk is kind 1: a free pair walked to NaN residuals on corundum. (b) Choosing which side carries the width, at what value, depends on whether the held value came from a standard. The pattern cannot show that, so where it did not come from a standard (b) is kind 3. | agrees for (a), not for (b) |
+| 3. Case against | "none holds a twin automatically" (row evidence); the costs listed in the row | **A program that does otherwise by default.** GSAS-II 5.8.4 keeps both parameters free. It takes the SVD pseudo-inverse step, which does not move along the flat direction, and prints "soft (SVD) singularity … likely from". It drops a parameter only when the SVD itself fails (`GSASIImath.py:280-289`, `GSASIIstrMain.py:86-115`; checked this session). TOPAS, MAUD and EasyDiffraction run both with no check (`docs/practice.md:118-121`). **The situation where a refiner would act otherwise:** no standard was measured, and an earlier stage fitted the instrument value on this specimen. Then the held value is arbitrary, and the specimen number inherits it. On cpd-1a, zincite's `lor_strain` reads 0.0088 from one Biso start and 0.0612 from the other, at Rwp 0.1631 and 0.1634 (`tests/test_staged_start_invariance.py` docstring). **A mechanism the row does not name.** `_width_twin_flats` reads C and ignores bounds. Where the specimen twin sits on its 0 floor the pair is not flat, and the hold removes the only free direction that can narrow the line. That happened in three of the four real fits measured. On brucite (iso and Stephens), the row says "the specimen twins ending on their 0 floor", and the Stephens fit's Rwp went from 0.179951 to 0.181008. In LaB6 + cBN, LaB6's widths sit "on their floor". On corundum a reflection's specimen width "clips to zero" and the anisotropy ratio is reported as 1e6 (`test_acceptance_stephens.py:336`). On LaB6 + cBN, LaB6 moved from 16.850 to 16.779 wt % against the identifiable fit's 17.787(319), from 5.5σ to 5.8σ outside TOPAS's interval (`tests/validation_matrix.py`). That is slightly further from the cross-code reference. | strong |
+| 4. Case for | "Unheld and unfloored, CPD corundum walked y to -180 and lor_strain to +180.04 … every residual went NaN"; "Every program that separates instrument from specimen width does it by fixing the instrument" (row) | The pair is exactly flat by construction, since both terms multiply the same angular function. Removing the floors (item 4) without some stop crashes a fit, and that was measured (WP file, 8th entry, line 391). FullProf with a resolution file, BGMN and RIETAN-FP's advised protocol all fix the instrument (`docs/practice.md:116-119`; the author's survey, which I did not re-check). On LaB6 + cBN, two exactly flat directions are replaced by finite esds, with cBN `lor_strain` at 0.0354(8). Before, the esds ran 8.9 to 3420 and rounding decided their sign. LaB6 widths at 0 are plausible, because LaB6 is a line-profile standard. GSAS-II's pseudo-inverse step does not walk the flat direction either, so stopping the walk has no dissenter. | strong for stopping; moderate for choosing the instrument |
+| 5. Tier and source | tier 2; grounds: "Every program that separates … does it by fixing the instrument … Option (b) … confirmed by the maintainer 2026-10-23 … decision 1(a)" | Tier 2 needs the same choice made *by default* in a program, and the row itself says none makes it. BGMN and FullProf with a resolution file fix the instrument by design. That is a different act from overriding a caller who freed both. GSAS-II's default does otherwise (checked). The tier therefore rests on the outcome practice aims at, not on any program's default. `generality.md:112-117` expects such an action at tier 3, judged on unanimity. The ruling appears in the WP checklist (lines 241-244). I did not find it in `2002-batch/rulings.md`. | weak |
+| 6. Families | CPD corundum, brucite, cpd-1a/1c; 11-BM LaB6 + cBN; synthetic | Two laboratories: the CPD round robin (one Philips instrument, four specimens) and APS 11-BM, plus synthetic tables. LaB6 + cBN is referenced to TOPAS, which verifies and does not validate, and it moved 0.07 wt % away. For the hold's effect on cpd-1a's fractions against the weighed composition: **none given**. | thin |
+| 7. What records that it fired | "the hold names itself on the stage record" (grounds) | `StageResult.width_twins_held` and `StageResult.held` are written by all three runners (`refine.py:4639, 5254, 5554`; `multi.py:1595`). No diagnostic code exists (grep of `src`), so a caller reading only the diagnostics sees nothing. Two sentences are stale. The row's evidence says "one seen phase with its twin held, or a Stephens block, holds nothing" (`_audit.py:816-817`). `results.py:1094` says "Held only where the pair is exactly flat". Item 2 contradicts both. | holds; fix the text |
+
+Evidence that would change the verdict: cpd-1a and brucite refit with the instrument widths taken from a calibration standard rather than fitted on the specimen, showing the start dependence and the floor-binding gone; or a release of the hold when the specimen twin lands on its floor.
+
+> Author: retiered to 3 with decision 1(a) as its approval, the stale sentences rewritten, and the floor-binding named in the evidence (`1a1dcdb0b`). The release on the floor was prototyped and measured: it recovers the single-phase Rwp exactly but on cpd-1a takes Y to −0.18 and zincite's `lor_strain` to 0.26, still start-dependent, so it was not adopted (the row records it). The calibrated-instrument refits and a diagnostic code are not built; the first is 2017's.
+
+**Item 2. A free Stephens block counts as Y's twin (`refine._stephens_block`, inside `_width_twin_flats`)**
+
+**holds.** The case for is stronger than the reason the author gives: the pair is exactly degenerate at the seed, and FullProf's own example does the same. The stated reason, the nested ΔBIC comparison (ΔBIC is the Bayesian information criterion difference), is the weaker of the two. The row text contradicts the rule.
+
+Terms used below:
+- **Stephens block**: the anisotropic microstrain coefficients.
+- **Seed**: `Stage.strain_seed`, which starts the block on its isotropic ray.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "A free Stephens block … takes its place as Y's twin … held by rule rather than by the null space" (`refine.py` `_width_twin_flats` docstring) | Y is held whenever a phase's block is free, including where the exact null-space test would not call the pair flat. | — |
+| 2. Kind | inside item 1's kind 1 | It is kind 1 at the start. On the isotropic ray, moving the block along its isotropic direction changes every reflection's width by the same tanθ term as Y, so the two Jacobian columns coincide. Off the ray the pair is only near-flat. | agrees at the seed |
+| 3. Case against | "without it an isotropic fit and its Stephens rival would refine different instrument parameters, which a nested comparison of the two cannot take" (docstring) | The helper `_information` (`tests/test_acceptance_stephens.py:228-244`) counts free parameters, not paths. It already says "the path sets are not nested although the models are". With Y free only in the Stephens fit, the iso fit is still a special case of it. ΔBIC would charge four added parameters instead of three, and `assert n_added == 3` (line 299) would fail. So the reason is the test's count, not something the comparison cannot take. The cost: brucite Stephens Rwp 0.179951 → 0.181008 (item 1's row). Whether that was measured before or after this rule landed (`bd92fd503`) is **none given**. I found no program that refines the tanθ Lorentzian term freely alongside Stephens terms by default. | weak |
+| 4. Case for | "The rule is the one every program follows for the whole pair" (docstring) | FullProf's shipped `cuf1k.pcr` holds its tanθ Lorentzian term at 0 and refines the Stephens terms (`docs/practice.md:116`; FullProf's X is rietx's Y; the author's survey, not checked by me). At the seed the first LM steps would otherwise face an exactly singular pair, the same failure item 1 stops. | strong |
+| 5. Tier and source | none of its own; it sits in item 1's tier-2 row | Item 1's row says the opposite ("or a Stephens block, holds nothing"). This rule needs its own sentence in the row. | weak, as recorded |
+| 6. Families | brucite, corundum | One family: the CPD round robin, one instrument. Stephens is a rare feature, so `generality.md:120-131` allows the judgement ground alone. Reference: none. | one family |
+| 7. What records that it fired | `test_a_free_stephens_block_is_ys_twin` | `width_twins_held` lists Y with the block's DOF columns, and `results.py:1096-1099` says so. `_audit.py:816-817` contradicts it. | holds; fix the row |
+
+Evidence that would change the verdict: a brucite Stephens fit started off the isotropic ray with Y free, showing a finite, start-independent Y separated from the block.
+
+> Author: the docstring now leads with the seed's exact flatness and FullProf's example, and the row carries the rule (`1a1dcdb0b`). The 0.181008 was measured after the rule landed.
+
+**Item 3. Unseen phases contribute no sum row (`_hold_unsupported_phases` returns the unseen set)**
+
+**holds.** The case for follows from the support hold's own premise. The case against is a weak, unmeasured edge.
+
+Term used below:
+- **Support hold**: WP-1301's hold of a phase whose scale is under 3σ of its counting-noise esd.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "an unseen phase's peaks pin no instrument width" (`refine.py:1371-1373`) | A phase under the support threshold is left out of the twin test. The hold can therefore fire where counting that phase would have pinned the instrument. | — |
+| 2. Kind | kind 1, by inheritance | It follows from an existing kind-1 hold and adds no new number. The unseen set is the same `support < sigma` reading the hold uses, prior included (`refine.py:1409-1420`). | agrees |
+| 3. Case against | none given | The set inherits `PHASE_SUPPORT_SIGMA` (3σ, tiered on its own). A phase at 2-3σ carries weak width information, which is dropped. The set is read at stage start, and the twin hold is "never asked again". A phase the support hold releases mid-stage therefore leaves in place a twin hold it would now undo, for that stage only. With `phase_support_sigma=None` every phase counts as pinning, which errs toward holding nothing. All of this is unmeasured. | weak |
+| 4. Case for | `test_an_unseen_phase_pins_nothing` | An absent phase's peaks are not in the data, so its fixed specimen width measures nothing about the instrument. Counting it would let a real flat direction pass unheld. | strong |
+| 5. Tier and source | — | No new threshold. It is a reading of `PHASE_SUPPORT_SIGMA`'s tier. | holds |
+| 6. Families | synthetic tables (`tests/test_width_twin_hold.py`) | A real fit where the exclusion decided the outcome: **none given**. | none |
+| 7. What records that it fired | — | `width_twins_held` shows the outcome, and `PHASE_UNCONSTRAINED` names the unseen phase. Nothing records that the phase was dropped from the twin test. | adequate |
+
+Evidence that would change the verdict: a real fit with a phase at 2-3σ where the twin hold fires only because of the exclusion and moves the seen phase's specimen widths by more than their esd.
+
+> Author: the test is now asked again before a second solve (`1a1dcdb0b`), which covers a collapse; a released phase still leaves its stage's hold in place, as the judge says, and holding a pinned pair costs the stage that width's freedom only.
+
+**Item 4. `rietx.schemas.instrument.ProfileTCHZ:u`, `:v`, `:y` (floors removed, tier 3)**
+
+**holds.** The case for is stronger: none of the seven programs floors a coefficient, a public neutron model and two codes' LaB6 answers sit under the old floors, and there is the physics argument. Two claims in the evidence are not yet supported, and the one known-truth measurement moved away from its truth.
+
+Terms used below:
+- **Γ_G², Γ_L**: the instrument's Gaussian variance and Lorentzian width.
+- **LM, TRF**: the two solvers. LM holds linear inequalities inside the step; TRF holds only box bounds.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | U, V ∈ [−180², 180²] deg²; Y ∈ [−180, 180]°; the physical condition "held as Gamma_L >= 0 by LM … guarded under TRF by RESOLUTION_NOT_POSITIVE" (row `:y`) | One box for every preset, replacing U ≥ −0.05 and V ≥ −0.5 (X-ray), U ≥ −0.5 and V ≥ −4 (neutron), and Y ≥ 0. Positivity moves from each coefficient to the total width at each reflection with data. The readers change with it: a stated X, Y whose Γ_L crosses zero is refused, within the fitted range for a recipe and below 180° for `.instprm`/`.prm`, where a negative Y used to be refused. | — |
+| 2. Kind | `ambiguity=1` | No program floors a coefficient, so no program dissents from the absence. The far bound is a numerical setting. | agrees |
+| 3. Case against | "cost measured on tests/test_v02_core.py's synthetic calibration, whose truth Y = 0 sat on the old floor: Y -0.0059, X 58 % high, sample lor_size 55 % low against 27-39 %, HIGH_CORRELATION raised" (row `:y`) | That is the only known-truth measurement, and it moved away from its truth. The author's reply, that the truth sat on the floor, is fair but does not show gain anywhere. **A new failure:** LaB6's intermediate-tolerance start test fails at 8.82 plain esd on `axial_sl` (strict xfail), because the mirrored axial minima become reachable without the Y floor. **"a finite bound … no width reaches":** before the hold, the 8th-session probes put brucite's u on −32400 and corundum's y on −180 (WP file line 391). Under the hold this is not re-measured. **A gap the WP named:** the 8th session (line 405) found that LM's rows cover only reflections whose windows hold data, and that window sizing and `pseudovoigt.py` meet a negative Γ_L past the data. § Next item 2 said to close it, and the diff touches neither `model/forward.py` nor the peak-shape code. Under TRF only a report: the probe before the hold read brucite Stephens u −0.864, y −0.349. | moderate |
+| 4. Case for | "a constant positive Lorentzian width projected onto {1/cos, tan} over 18-120 deg 2theta is X = 1.20, Y = -0.73 … so Y >= 0 would refuse a real instrument"; "the public D1B Co3O4 model's V = -0.501, under the old X-ray floor" (rows) | No program floors an instrument coefficient. Where positivity is enforced, it is on the total width: GSAS-II `max(0.001, …)`, MAUD, EasyDiffraction (`docs/practice.md:123-125`). The LM rows have that shape. GSAS-II and TOPAS both converge to a negative Y on the powderline LaB6 set (−15.81 and −8.97 centideg, `tests/data/README.md:1497`), though that README warns their broadening terms are not comparable there. The projection follows from Γ_L·cosθ = X + Y·sinθ: a constant width needs Y < 0. I did not recompute 1.20 and −0.73. One box for all presets closes WP-1312's two-routes gotcha (`test_gsas_prm.py`). Some start tests improved, though this is mixed with item 1's effect: LaB6's Biso start 9.36 → 1.16 esd, cpd-1a's axial floor 0.138 → 0.010. | strong |
+| 5. Tier and source | tier 3; "The floor went on the maintainer's ruling of 2026-10-23 … B9"; the far bound and ceiling from `TCHZ_CEILING_DEG`'s Q7 ruling | The ruling is recorded in the WP checklist (lines 241-244), which answers the previous judge's "approval not found". The absence of a floor is every program's default. The finite far bound lies outside every program's range (none bounds), and it names its reason ("kept finite for TRF's step scaling"), as Q5 requires. | holds |
+| 6. Families | D1B Co₃O₄; the synthetic calibration; CPD probes; LaB6 + cBN | ILL D1B (neutron, a published FullProf model) shows a real V under the old floor. The powderline LaB6 is a cross-code comparison. The synthetic calibration is the only truth, and it moved away. On "what real lab calibrations do with Y unfloored": **none given** (WP-2017's Inherited says it is unmeasured). | thin |
+| 7. What records that it fired | — | `BOUND_HIT`/`FLOOR_HIT` at the far bound; `CONSTRAINT_ACTIVE` when a Γ_L row binds (`tests/test_lorentzian_width_floor.py`); `RESOLUTION_NOT_POSITIVE` now covers Γ_L under TRF. | holds |
+
+Evidence that would change the verdict: a lab calibration on SRM 660c (NIST LaB6, certified) refined with Y free and with Y ≥ 0, compared on the certified cell and on a sample's size and strain. Separately, a TRF run of brucite and corundum under the hold showing no coefficient on its far bound.
+
+> Author: the past-data gap is closed in the rows rather than in the sizing: Γ_L is held at every reflection of the frozen list, and in the joint runner (`7f95db1f2`). The SRM 660c calibration and the TRF far-bound runs went to 2017.
+
+**Item 5. `rietx.schemas.structure.BISO_SEED` (evidence changed, tier 3, value 0.5 Å²)**
+
+**weak.** The update is honest and assigns the new failure correctly to item 1. But the seed is now start-invariant on only two of the four families, under the three that tier 3's mechanical ground asks for.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the Atom.biso default and the literal of three readers for a site with no ADP" | Unchanged this session. Only the evidence moved. | — |
+| 2. Kind | a constant row, so no field | A seed is kind 1 only if the start does not change the answer. | — |
+| 3. Case against | "cpd-1a 0.070 until the width twin hold kept a start-dependent X/Y split, 15.68 on zincite's lor_strain since … LaB6 … 1.16 esd" (`_audit.py:2497-2502`) | Two of four families fail the 0.1-plain-esd bar. The 15.68 esd is a sevenfold change in a reported specimen strain (0.0088 against 0.0612) at Rwp 0.1631 against 0.1634. The cause is item 1 freezing a path-dependent split. Any perturbation of the start would expose it, so it is evidence about the hold more than about 0.5. The row says so. | strong against invariance |
+| 4. Case for | "starts 0.5 and 1.5 within 0.1 plain esd … on FAP and 11-BM NAC (0.000, 0.000)" | Some start is forced, and two families pass with full margin. Why 0.5 rather than another value: **none given**. | moderate |
+| 5. Tier and source | "The maintainer delegated this tier to the lead on 2026-10-23 … tier 3, with WP-2017 measuring …" | The delegation came from the 8th session, before the hold existed. The grounds still defer the mechanical ground to WP-2017, which now inherits the 15.68 (`docs/wp/2017-…md:71`). | weak |
+| 6. Families | FAP, NAC pass; cpd-1a and LaB6 fail | Pass: the GSAS-II tutorial fluorapatite and APS 11-BM. Fail: the CPD round robin, and the suite's `lab6` family on mirrored axial minima. The reference is the other start, which verifies and does not validate. | two of four |
+| 7. What records that it fired | — | Nothing records that a site took the seed. This is unchanged from the previous judge's finding. | none found |
+
+Evidence that would change the verdict: WP-2017 passing a third family; or cpd-1a refit with instrument widths not fitted on the specimen, confirming that the 15.68 belongs to the hold and not to the seed.
+
+> Author: left at tier 3 with its evidence as written; the third family is WP-2017's, forwarded this session.
+
+**Item 6. `rietx.strategy.magnetic.SOLVE_STAGE_PATHS`, the "all" stage frees only `instrument.profile.u` and `.x`**
+
+**holds.** The case for is stronger. With both halves of each width pair free, the twin hold froze two of the stage's own entries on every candidate fit. Freeing the instrument alone restores the width freedom the ranking had before the hold, with no exactly flat pair. The case against is unmeasured, and the docstring's practice sentence is not supported by the section it cites.
+
+Terms used below:
+- **`solve_magnetic`**: the opt-in search that refines one trial fit per candidate magnetic symmetry and ranks the candidates by ΔBIC (the Bayesian information criterion difference).
+- **Dead-glob caveat**: the solver's own report of a stage entry that freed nothing.
+- **Twin**: a specimen width with the same angular shape as an instrument coefficient (U with `gauss_strain`, X with `lor_size`).
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "The stage frees U and X and not the specimen's `gauss_strain` and `lor_size` … freed alone, the instrument carries the whole width" (`strategy/magnetic.py:227-233`) | Every candidate fit refines the peak widths through the instrument coefficients alone. The specimen widths stay at whatever the caller set. The winner no longer reports specimen widths. | — |
+| 2. Kind | none stated. The list is a tuple of strings, which the audit walk cannot see. | The choice sits inside a ranking (kind 2), so it decides which models are compared. Across the pair, total width freedom is the same either way except at the bounds. Freeing the instrument alone lets a trial narrow lines below the caller's instrument. Under the hold the trial could not do that, because the specimen terms are floored at 0. | — |
+| 3. Case against | none given | **The situation where a refiner would act otherwise:** the caller hands in a calibrated instrument, such as a neutron `.instprm` or `.prm`. FullProf with a resolution file and BGMN keep the instrument fixed and refine the sample (`docs/practice.md:116, 119`). Here every trial moves U and X off the calibration. I did not check whether the winner's moved U and X reach the caller's `Refinement`. **The docstring's practice claim** reads "the instrument carries the whole width, the reading GSAS-II and FullProf give without a standard (`docs/practice.md`)". The cited section does not say that. It records that GSAS-II leaves both the `.instprm` widths and the sample terms off by default (line 115), and that FullProf without a resolution file gives only general advice (line 116). The sentence is an inference. Measured cost: **none given**. | moderate, unmeasured |
+| 4. Case for | dispatch: freed together, the hold held U and X on every candidate fit, `test_the_default_stages_free_nothing_dead` fired, and the 150 K Cr₂WO₆ fit ran to max_iter; with the instrument alone all 76 magnetic-solve tests pass | The mechanism is sound. Item 1's hold froze two of the stage's own entries, so the models compared differed from the plan. That is exactly what the dead-glob test exists to forbid (`tests/test_magnetic_solve.py:649-659`). Freeing the instrument alone removes the exactly flat pairs and gives back the narrowing direction the hold had taken away. I found the max_iter result and the 76-test count only in the dispatch, in no file in the tree. | strong |
+| 5. Tier and source | no row | **none given.** The practice citation does not hold as written (row 3). | gap |
+| 6. Families | Cr₂WO₆ at 4 K and 150 K, plus synthetic | One real family. Magnetic structure is a rare feature, so `generality.md:120-131` allows judging it on unanimity alone. The Ba₆Co₆ tutorial pattern is not vendored. Reference: none. | one family |
+| 7. What records that it fired | — | Each trial's stage record lists U and X as freed, and `width_twins_held` is empty. | adequate |
+
+Evidence that would change the verdict: a magnetic solve with a calibrated instrument showing a different winner, or a different ΔBIC order, between the instrument-only and specimen-only stage lists.
+
+> Author: the docstring now quotes only what the record says (GSAS-II's sample flags off by default) and names the calibrated-instrument case as unmeasured. The 76-test count and the 150 K `max_iter` are in this entry's *Measured*. The moved blind moment (2.04 → 2.03 μB, `examples/guides/moment.py`) is the only quoted number it changed.
+
+**Item 7. `refine.WIDTH_TERMS` leaves `gauss_size` out of the twin hold**
+
+**weak.** Holding has the stronger case on the WP's own ground. Item 1's grounds say "the split of an exact sum is no measurement", and this direction is exactly flat with a wide range. The report the author relies on instead is not shown to fire. The smaller hold that would avoid freezing W was not tried.
+
+Term used below:
+- **The direction**: (δU, δW, δsize) = (−1, −1, 1). It is flat because the Gaussian size term goes as 1/cos²θ = 1 + tan²θ.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "`gauss_size` is left out on purpose … it cannot walk, and `FLAT_DIRECTION` reports it" (`refine.py:786-792`) | When U, W and a phase's `gauss_size` are free and `gauss_strain` is not, nothing is held. How the Gaussian constant splits between W and the Gaussian size is wherever the solver stops. | — |
+| 2. Kind | the action row's `ambiguity=1` | Item 1's own grounds make the split of an exact sum kind 1. Leaving this direction alone is the opposite decision on the same kind of direction. | inconsistent |
+| 3. Case against holding | "holding it held W and moved three acceptance answers" (`_audit.py:815-817`) | Holding froze W, which has no specimen twin and is the constant width term every fit needs. That is a real cost. The three moved answers are the cpd-1a sequential chain, the absent-zircon start test and the corundum Stephens block. All three come from the CPD round robin. Whether each moved toward or away from its reference (the weighed composition where one exists): **none given**. "Bounded both ways" is arithmetic and holds: W ≥ 1e-8 deg² and size ≥ 0, so the walk cannot run to NaN. | moderate |
+| 4. Case for holding | none given | The bound is wide. The size can take any value from 0 up to the start's W plus size, because W's floor of 1e-8 deg² is far below a typical W of about 1e-3. So a reported Gaussian crystallite size here is not a measurement. **The claimed report is not shown to fire.** `FLAT_DIRECTION`'s help text speaks of "two parameters" (`help.py:2025-2034`), while this direction involves three. `test_a_gaussian_size_is_left_to_its_floors` asserts only that nothing is held. **An alternative not tried:** hold U alone. With U fixed, δW + δsize·(1 + tan²θ) = 0 at every angle forces both to zero, which removes the direction and leaves W free. The code review's version held W because the null space put both instrument columns on the direction. | strong on mechanism; alternative unmeasured |
+| 5. Tier and source | carried in `StageResult.width_twins_held`'s row, now tier 3 (`_audit.py:812`, `1a1dcdb0b`) | The maintainer's decision 1(a) approved the hold of U, X and Y. I found no ruling on excluding the Gaussian size. The exclusion is the author's own, made after the code review. | none given |
+| 6. Families | the three CPD acceptance fits | One laboratory and instrument, with no reference distances given. | thin |
+| 7. What records that it fired | "`FLAT_DIRECTION` reports it" | Unverified for a three-parameter direction (row 4). `FLOOR_HIT` or `at_bound` would say so if W or the size ends on its floor. | unverified |
+
+Evidence that would change the verdict: a fit showing `FLAT_DIRECTION` naming U, W and `gauss_size` together; or the three CPD fits rerun with U alone held, showing whether the answers still move and in which direction from their references.
+
+> Author: built the judge's alternative. `gauss_size` is U's twin again and W, the constant width, is never held; W's total stays a row of the test, so a held W pins the size and nothing is held (`test_a_gaussian_size_holds_u_and_never_w`, `test_a_held_w_pins_the_gaussian_size`). The three CPD fits free `gauss_strain` too, so U was already held there, and they are unchanged by it (the targeted rerun is in *Measured*).
 
 ### 2026-10-23 (8th session) — B14's lifts landed, the judge's corrections built; removing the width floors exposed a degeneracy, and the twin hold is next
 

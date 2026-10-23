@@ -86,6 +86,8 @@ the bar.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-23, 9th session, PR #1113): the width twin hold makes a chain's carry policy matter.** The CPD QPA plan fits X and Y on each specimen before freeing the specimen widths, and the hold keeps whatever split that stage lands on, so the split now rides the warm start. On sample 1a-1h the chain carrying the widths but not the scales averages Rwp 0.1282, against 0.1256 carrying everything and 0.1258 fitted independently; `tests/test_acceptance_sequential.py::test_warm_start_iteration_cost_is_reported` is a strict xfail saying so. The chain's iteration saving stands (388 against 1218). A chain calibrated on a standard, its instrument held, is the protocol that avoids it.
+
 - **From WP-2002 (2026-10-23, 8th session, PR #1113): 2002's rows settled.** The single-fit actions are settled, bar one item still in flight (the width twin hold): every row 2002 owned is tiered, and B14's lifts put 21 inline numbers and `ProfileTCHZ`'s defaults in the table. Two new record fields reach a chain: `StageResult.collapsed` (the columns a stage restored to their stage-start values and held, a subset of `held`, from all three runners) and the Stephens seed's rows in `StageResult.seeded`. The joint runner seeds no Stephens block (WP-1467's Inherited).
 
 - **From WP-2002 (2026-10-21, 5th session, PR #1085).** Every plan now ends in a closing stage, and a series' warm refit carries it (`sequential._collapse` passes `closing_window_tol`), so every pattern pays it: 1.05-2.05× a single fit's time on four protocols. Its cost along a chain and its effect on the chain's path dependence are unmeasured. `closing_window_tol=None` is the bit-identical way back.
