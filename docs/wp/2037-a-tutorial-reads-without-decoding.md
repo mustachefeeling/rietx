@@ -211,7 +211,7 @@ a change to what `diagnose` computes, so it stays inside the non-goal below.
       and a rebuild rereads it; each model piece shown before a fit uses it; code layout).
 - [x] Quickstart prose: each stale line and each word in § What the quickstart shows today.
       Rebuild.
-- [ ] Sweep 02-06 for the same patterns: grep
+- [x] Sweep 02-06 for the same patterns: grep
       `drift|walk|hands|takes it up|pedestal|stops early|five nodes|comfortable`, and stage
       counts and node counts written before the closing stage. Fix them and rebuild.
 - [x] Code layout: `examples/tutorials/ruff.toml` (extending the root config, with

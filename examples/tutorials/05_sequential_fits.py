@@ -193,7 +193,7 @@ series
 
 # %% [markdown]
 # Every pattern converged.
-# Both diagnostics are `SEQUENTIAL_PERSISTENT_FINDING`, a per-pattern finding that fired on most of the series.
+# Both diagnostics are `SEQUENTIAL_PERSISTENT_FINDING`, a per-pattern finding that fired on every pattern of the series.
 # Such a finding describes the model rather than any one fit.
 # [Read the diagnostics first](https://rietx.org/docs/stable/guides/series.html#read-the-diagnostics-first) explains these two.
 #
@@ -308,9 +308,10 @@ series_jump.trajectory("phases.0.cell.a")
 [entry.rung for entry in series_jump]
 
 # %% [markdown]
-# The warm start from the 600 K answer failed at 700 K.
-# The series fitted that pattern again with the whole plan from the same start, which is the `warm_staged` attempt.
-# The 800 K pattern started from the larger cell and needed the same rescue.
+# Every pattern after the first took its values from the plain `warm` attempt, the 700 K one included.
+# Started from the 600 K answer, that fit reached the cell 2 % larger on its own.
+# When a warm start fails, the series fits the pattern again with the whole plan from the same start.
+# That attempt is `warm_staged`, and this list is where it would show.
 #
 # ## A pattern the chain cannot fit
 #

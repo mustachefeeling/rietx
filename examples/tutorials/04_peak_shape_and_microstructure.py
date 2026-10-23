@@ -254,7 +254,7 @@ uncalibrated
 
 # %% [markdown]
 # The fit converged to the same Rwp.
-# Its one diagnostic is a Gaussian term at its floor, as in the calibrated fit.
+# It raises no diagnostic, where the calibrated fit flagged its two Gaussian terms at zero.
 # Nothing in the agreement indices or the diagnostics says anything is wrong.
 # Read its microstructure.
 
@@ -265,7 +265,8 @@ uncalibrated.microstructure[0]
 # The instrument's own width has gone into the sample's terms.
 # The Lorentzian size is now many esds below `TRUE_SIZE`, the strain several esds above `TRUE_STRAIN`, and a Gaussian size appears that the sample does not have.
 # `size_agreement` shows the damage without the truth.
-# The Gaussian size is several times the Lorentzian one, so the two readings do not describe one specimen.
+# It is about 20, so the Gaussian size is about twenty times the Lorentzian one, and the two readings do not describe one specimen.
+# The Gaussian size's esd is twice its value, so it is no measurement either.
 #
 # ## The calibrated fit
 

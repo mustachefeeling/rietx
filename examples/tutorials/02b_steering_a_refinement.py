@@ -55,8 +55,9 @@ OXYGENS = [
 [result.parameter(path) for path in OXYGENS]
 
 # %% [markdown]
-# Each value lies within about one esd of the others.
-# The data cannot tell them apart, so one shared value loses nothing and spends two fewer parameters.
+# The three values agree within their esds.
+# No two differ by much more than the esd of their difference.
+# The data cannot tell them apart, so one shared value loses nothing and refines two fewer parameters.
 # `tie_equal` makes the second and third follow the first.
 # Refit with the same plan, so the tie is the only difference from the first fit.
 
