@@ -300,6 +300,7 @@ def test_compiled_and_numpy_orbit_sums_agree_within_the_kernels_bound(nac, acr):
     for sp, sc in spaces:
         xyz = sp.xyz(sp.random(np.random.default_rng(7), 4))
         atoms = np.arange(sp.n_atoms)
+        compiled.set_enabled(True)       # declared, not inherited: RIETX_COMPILED=0 runs too
         before = dict(sc.compiled_used)
         s_c = sc.orbit_sums(xyz, atoms)
         one_c = sc.orbit_sums_one(xyz, np.arange(4) % sp.n_atoms)
