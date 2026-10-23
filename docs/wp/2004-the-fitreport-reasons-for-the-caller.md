@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002, 2003
-Priority: P2 2026-10-23 — 2002's single-fit rows are settled, one item in flight; waits on 2003 too, because the one `THRESHOLDS_VERSION` bump carries its rulings
+Priority: P2 2026-10-23 — 2002 closed; waits on 2003, because the one `THRESHOLDS_VERSION` bump carries its rulings
 
 ## Goal
 
@@ -65,6 +65,8 @@ WP-1339 (where the improvement lives) and 1335 (the report costs more than the f
 open under the same track; neither tiers a gate.
 
 ### Inherited
+
+- **From WP-2002 (2026-10-23, 9th session, PR #1113): an infinite anisotropy is quoted as 10⁶.** `report.strain` divides the broadest fitted strain width by the narrowest (`strain.py` ~390) and caps the ratio at 1e6 (~399). With WP-2002's width twin hold the instrument keeps its stage-start Y, so on CPD corundum one reflection's specimen width clips to zero and `StrainAnalysis.anisotropy` reads 1000000.0 at r² 0.079, `detected` False. The GUI shows the ratio only when `detected`, so no user saw it; `tests/test_acceptance_stephens.py` dropped its `< 6` bar, which had ridden the flat split since WP-1930. An undetected fit's ratio is noise, and a zero denominator has no ratio: `None` there, or the field withheld unless `detected`, is the honest empty state. Also: `docs/docs/reference/refinement.md` rendered at 49 9xx of its 50 000 characters after this session added `StageResult.width_twins_held` (a few table rows were tightened to fit), so the split the 8th session asked for is now owed before any further row.
 
 - **From WP-2002 (2026-10-23, 8th session, PR #1113): two loose ends of the review.** (1) `docs/docs/reference/refinement.md`'s § Held parameters describes the start-of-stage hold and the release, never the collapse restore that `StageResult.collapsed` now records; three sentences there pushed the built twin to 50 279 characters, over `tests/test_manual.py`'s 50 000 cap, so the page needs splitting before the collapse can be explained on it. (2) `strategy.suggest.SUGGEST_SEED_ROUGHNESS` and `SUGGEST_SEED_STEPHENS` are aliases of `strategy.staged.ROUGHNESS_SEED` and `STRAIN_SEED_PPM` since B14's lift, yet keep rows of their own: the roughness one on `UNAUDITED_BASELINE`, the Stephens one at tier 3 repeating its source's evidence. They seed a suggestion's verify probe, whose own start was never measured; tier them as the probe's, or fold each into its source's row.
 - **From WP-2002 (2026-10-23, 8th session, PR #1113): 2002's rows settled.** The holds the report's rival fits run are settled; `StageResult.collapsed` now tells a collapse restore from a start-of-stage hold, which `PHASE_UNCONSTRAINED`'s message could use. This WP still waits on 2003.

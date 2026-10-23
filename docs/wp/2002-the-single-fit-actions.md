@@ -1,9 +1,8 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: 🔄 2026-10-23 — B14's lifts landed and the judge's corrections built; the width twin hold (decision 1, option b) is next, its base parked on `wp2002-width-floors-wip`
+Milestone: generality · Status: ✅ 2026-10-23 — every single-fit action tiered over nine ruling rounds; the U, V and Y floors removed behind the width twin hold; the owed domain tests went to 2017
 Track: The audits
 Depends on: 2001
-Priority: P2 2026-10-23 — one item left, the width twin hold, which unblocks removing the U, V and Y floors the maintainer ruled out; 2003, 2004 and 2017 read rows already settled
 
 ## Goal
 
@@ -132,7 +131,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       2001's walk, with the file and line, what it decides, and what the caller sees
       without it. Lanes read disjoint files; the lead assembles. *2026-10-19:
       `2002-batch/inventory.json`, 402 proposals from six readers.*
-- [ ] Tier each row per part (statistic, threshold, action), with evidence: the citation,
+- [x] Tier each row per part (statistic, threshold, action), with evidence: the citation,
       the program and its default behaviour, or the families measured. Where the families
       are fewer than three, run the missing ones (the fits are cheap; a chain family is
       2003's). *157 rows needing no approval landed 2026-10-19; the rest wait on the batch.

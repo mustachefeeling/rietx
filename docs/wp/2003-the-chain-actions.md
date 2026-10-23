@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002
-Priority: P2 2026-10-23 — 2002's single-fit rows are settled and one item remains (the width twin hold, which reaches no chain action); the seam the maintainer's own example (a series discontinuity) lives in
+Priority: P2 2026-10-23 — 2002 closed (its last item, the width twin hold, reaches no chain action); the seam the maintainer's own example (a series discontinuity) lives in
 
 ## Goal
 
