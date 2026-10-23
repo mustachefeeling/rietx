@@ -31,18 +31,18 @@ Z = 6.25 it is silent by arithmetic.
 
 **The window misses most inorganic cells.** Measured by WP-1986's session on
 2026-10-18 with `SearchSpec.from_formula(formula, z=…)` against each known
-cell. The figure is the window's midpoint over the true volume; a dash
-marks a z the entry did not name:
+cell. The figure is the window's midpoint over the true volume, at each
+cell's true z (the four the entry left blank were re-measured 2026-10-23):
 
 | formula | z | midpoint / true V | true cell |
 |---|---|---|---|
-| NaCl | — | 1.18 | inside |
+| NaCl | 4 | 1.18 | inside |
 | C8H9NO2 (paracetamol) | 4 | 1.05 | inside |
-| CaF₂ | — | 1.69 | outside |
+| CaF₂ | 4 | 1.69 | outside |
 | Al₂O₃ | 6 | 2.74 | outside |
-| ZnO | — | 2.17 | outside |
+| ZnO | 2 | 2.17 | outside |
 | Ca5P3O12F (fluorapatite) | 2 | 1.81 | outside |
-| LaB₆ | — | 1.96 | outside |
+| LaB₆ | 1 | 1.96 | outside |
 | Si | 8 | 1.91 | outside |
 | Na2Ca3Al2F14 (NAC) | 8 | 3.22 | outside |
 
@@ -50,7 +50,7 @@ The midpoint is 1.025 × z × V_est, so the truth lies inside only while the
 ratio is between 0.82 and 1.28 (arithmetic on the shipped bounds). Every miss
 is an overestimate, so the floor is what excludes the truth. LaB₆ holds one
 formula unit, so even `z=None`'s floor sits about 1.5× above its true cell
-(0.8 × 1.96 / 1.025, if the 1.96 was taken at its true z of 1). On the shipped fluorapatite pattern
+(0.8 × 1.96 / 1.025). On the shipped fluorapatite pattern
 (`src/rietx/data/examples/FAP.XRA`) the windowed search took 127 s, ranked
 only cells of 1000-1050 Å³ and abstained. The same search unwindowed put the
 true 523.6 Å³ cell first. `INDEX_Z_NOT_INTEGER` rests on the same volume, so
@@ -65,9 +65,7 @@ recommends it twice: § 7d of `docs/skill/rietx/references/diagnostics-indexing.
 ("Before the first search, ask for the cell or infer it"), and
 `references/abstention.md`, which sets `max_volume` from it for a large
 monoclinic or hexagonal search. An agent that follows either gets a wrong lead,
-and nothing tells it so. The skill's `INDEX_Z_NOT_INTEGER` row also opens
-"Drop the candidate for it: a correct cell can fire", which reads as the
-opposite of the code's never-remove rule.
+and nothing tells it so.
 
 **The Z tolerance's trade-off** (WP-1510, 2026-10-03). One crystal scatters
 4 % about Hofmann's estimate, so the source run's Z ≈ 2.8 reads as "3, within
@@ -172,8 +170,7 @@ to the table arrives tiered (CI's `tests/audit_delta.py`).
 - [ ] Audit rows for every value changed or name added (tiers above).
 - [ ] Manual: `docs/docs/theory/indexing.md` and `reference/indexing.md`
       state the window's scope; a staged release note.
-- [ ] Skill: § 7d and `abstention.md` say when the window applies, and the
-      `INDEX_Z_NOT_INTEGER` row stops reading as "drop the candidate". Stay
+- [ ] Skill: § 7d and `abstention.md` say when the window applies. Stay
       inside `tests/skill_caps.py`'s budget and re-sync the copies
       (`rietx skill --install . --copy`).
 

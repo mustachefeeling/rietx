@@ -43,9 +43,10 @@ the files) sits beside the fence and is not part of T-1.
 
 ### What T-1 leaves for T-2
 
-No open WP owns T-2/T-3 yet; ROADMAP § v2+ holds the cut. Three things wait
+No open WP owns T-2/T-3 yet; ROADMAP § v2+ holds the cut. Four things wait
 for it here.
-- **The API index placement** (WP-1920, decided 2026-10-11). `TOFSource`,
+- **The API index placement** (WP-1920, decided 2026-10-11 by the maintainer,
+  overriding #808's default of keeping the classes in `api.md`). `TOFSource`,
   `ProfileTOF` and `IncidentSpectrum` go to a new `api-tof.md`, one
   `TECHNIQUES` entry in `docs/skill/make_api_index.py`, and `PatternData.tof`
   goes through `TECHNIQUE_FIELDS`. #911 exported none of the three classes at
@@ -59,7 +60,15 @@ for it here.
   at a time, so the TOF position map needs its own twin of that pair, with the
   builders choosing between them in one place, or ticks drift from their peaks
   again.
-- **The review follow-ups** listed under the 2026-10-13 entry's *Not done*.
+- **The two T-2 review follow-ups** under the 2026-10-13 entry's *Not done*:
+  `TOFSource` exposing `lines`, `primary_wavelength` and `wavelength_parameters`
+  as properties that refuse by name, and the hand-written `capabilities()` note
+  for `neutron_tof` (`capabilities.py:429`). The other five are defects in
+  shipped T-1 code and went to [2032](2032-the-tof-readers-t1-follow-ups.md)
+  on 2026-10-23.
+- **WP-1419's Context** (the #286 triage, around its lines 323-335 and
+  378-384): the reporter's items (7), TOPAS v6 corroboration, and (8), a staged
+  `TOF_WINDOW_AREA_TOL`, plus the Δd/d, PRCF1 and GEM evidence kept on the fork.
 
 ## Non-goals
 
@@ -118,7 +127,8 @@ entry's "the maintainer closes this WP".
 - From WP-1908: moved to Context § What T-1 leaves for T-2. Both functions are
   where it says (`model/forward.py:1075` and `:1095`).
 
-*Next.* No open WP owns T-2/T-3, so nothing is forwarded. The T-2 cut inherits
+*Next.* No open WP owns T-2/T-3. The five review follow-ups that are T-1
+defects went to WP-2032 (the chain audit, same day). The T-2 cut inherits
 Context § What T-1 leaves for T-2. The review follow-ups still hold:
 `SPECTRUM_TYPES` is read by nothing, and no reader writes `TOFSource.l1_m`.
 

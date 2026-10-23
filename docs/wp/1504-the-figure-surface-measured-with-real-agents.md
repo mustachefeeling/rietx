@@ -123,8 +123,9 @@ figure's defects.
 
 *Closed* by the maintainer's decision of 2026-10-23, which also settles the
 spot-check of the fixed figures as done or waived. That discharges the last
-entry's two *Next* items. Every task was already ticked. The result for
-1501-1503 is in their Inherited from round B, and E changes none of it.
+entry's two *Next* items. Every task was already ticked. Round B's result for
+1501-1503 went to WP-1529 (✅ 2026-10-01), since those WPs had closed; E
+changes none of it.
 
 *Inherited, disposed.*
 - From WP-1533: the `view="auto"` question (it ranks by `hidden`, stacking
