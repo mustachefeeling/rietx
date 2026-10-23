@@ -341,26 +341,26 @@ def test_the_map_needs_no_sign_the_reduction_chose(cell):
     assert np.allclose(mapped, red, rtol=0.0, atol=1e-14 * np.max(np.abs(red)))
 
 
-_WP2035 = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="WP-2035: gemmi's ξ carries 2η from a sign it chose inside ε")
-
-
-@pytest.mark.parametrize("centring", [
-    "P", pytest.param("C", marks=_WP2035), "I",
-    pytest.param("F", marks=_WP2035), "R"])
+@pytest.mark.parametrize("centring", ["P", "C", "I", "F", "R"])
 @settings(max_examples=40, deadline=None,
           suppress_health_check=[HealthCheck.filter_too_much])
 @given(lengths, lengths, lengths, angles, angles, angles)
 @example(3.0, 11.0, 14.197202585325392, 65.0, 65.0, 65.0)           # #797
 @example(3.4481, 3.4481, 7.9668, 90.0, 89.9999997, 90.0)
 @example(3.2, 16.0, 23.602486327493914, 81.0, 66.0, 65.0)           # WP-2035
+@example(3.0, 4.0, 5.0, 89.99999, 70.0, 80.0)                       # WP-2035
 def test_the_reduced_cell_is_the_exact_image_of_its_input(centring, a, b, c,
                                                           al, be, ga):
     """WP-1923: M·G·Mᵀ of the input under the recorded change of basis *is*
     the reduced metric, and it is gemmi's reduced vector to within the
     reduction's own ε.  Not ``is_niggli``: that predicate tests signs without
-    ε, and it fails gemmi's own output on fp ties (``ReducedCell``'s note)."""
+    ε, and it fails gemmi's own output on fp ties (``ReducedCell``'s note).
+
+    WP-2035's cell (found by WP-1930) left gemmi's vector with every sign
+    agreeing and ξ 2|η| off the image, G₂₃ at 1.1e-7 of max|G| on F and
+    5.4e-8 on C, so a check of the signs alone kept it.  The primitive cell
+    one angle 1e-5° from a right angle does the same through ξ (2.9e-7 on
+    P): hypothesis's angles almost never land within ε of 90°."""
     import gemmi
 
     from rietx.crystallography.lattice import direct_metric_tensor
