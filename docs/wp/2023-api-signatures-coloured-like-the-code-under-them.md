@@ -75,11 +75,11 @@ No colour value is added to the site.
 - [x] The transform: `highlight` token classes on every Python-domain signature on the three
   API pages (name, parameter name, annotation, built-in, return type, default by literal kind),
   the `:target` tint kept, parameter names upright
-- [ ] Tests: the built HTML of the three pages carries the expected class on each token of a
+- [x] Tests: the built HTML of the three pages carries the expected class on each token of a
   few pinned signatures (`Refinement.fit`, a classmethod, a `py:fields` line, a `**kw`); the
   contrast of every token colour on `--bg` and `--accent-soft`, both themes, ≥ 4.5:1; the
   twins unchanged; looked at in chromium at 1400 px and 390 px, light and dark
-- [ ] Skill: none. The skill's `api.md` is plain text and is untouched (`make_api_index.py --check`)
+- [x] Skill: none. The skill's `api.md` is plain text and is untouched (`make_api_index.py --check`)
 
 ## Acceptance
 
