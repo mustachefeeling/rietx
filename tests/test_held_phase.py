@@ -662,6 +662,64 @@ def test_a_phase_that_collapses_mid_stage_is_held_and_put_back(collapsed_fit):
     assert "phases.1.cell.a" not in {p.path for p in result.parameters}
 
 
+def test_the_collapse_is_recorded_apart_from_the_start_of_stage_hold(collapsed_fit):
+    """``StageResult.collapsed`` (WP-2002, B14) names what the answer put back.
+
+    ``held`` alone carries both holds, so before the field a reader could not
+    tell this restore from a cell held at stage start.  Every collapsed path
+    is held, and nothing else here was held at the start.
+    """
+    _, result = collapsed_fit
+    stage = result.stages[0]
+    assert stage.collapsed == ["phases.1.cell.a"]
+    assert set(stage.collapsed) <= set(stage.held)
+    assert not set(stage.collapsed) & set(stage.released)
+    assert stage.cell_reset == []
+
+
+def test_a_hold_at_stage_start_is_not_a_collapse(held_fit):
+    """The other half: a phase invisible from the start is held and never
+    restored, so every stage writes an empty list rather than ``None``."""
+    _, result = held_fit
+    assert any(stage.held for stage in result.stages)
+    assert [stage.collapsed for stage in result.stages] == [[]] * len(result.stages)
+
+
+def test_a_release_is_not_a_collapse(released_fit):
+    _, result = released_fit
+    assert result.stages[0].collapsed == []
+
+
+def test_the_joint_path_records_a_collapse_too():
+    """The joint runner's restore writes the same field (``multi.py``).
+
+    Two copies of the sub-onset pattern, CaF₂ seeded at 1e-4 in both: no
+    histogram sees it at the answer, so its shared cell is put back and held.
+    """
+    import rietx as rx
+
+    data = _ramp_patterns([300.0])[0]
+    ins = _ramp_instrument()
+    ref = rx.MultiHistogramRefinement(_ramp_start(scale=1.0e-4, bounds=None),
+                                      [ins, ins.model_copy(deep=True)])
+    result = ref.fit([data, data.model_copy(deep=True)], plan=_collapsed_plan())
+    stage = result.stages[0]
+    assert stage.collapsed == ["phases.1.cell.a"]
+    assert set(stage.collapsed) <= set(stage.held)
+    assert ref.mtable.structures[0].phases[1].cell.a.value == RAMP_CAF2_A
+
+
+def test_a_stored_stage_record_names_no_collapse():
+    """WP-1076's rule: a result from before the field may have restored a
+    phase, so the default is ``None`` rather than an empty answer."""
+    import rietx as rx
+
+    old = rx.StageResult.model_validate_json(
+        '{"name": "cell", "status": "converged", "n_iterations": 3, '
+        '"cost_initial": 2.0, "cost_final": 1.0, "held": ["phases.1.cell.a"]}')
+    assert old.collapsed is None
+
+
 def test_the_collapse_is_reported_as_the_flat_direction_it_is(collapsed_fit):
     """``PHASE_UNCONSTRAINED``, naming the stage that held it."""
     _, result = collapsed_fit

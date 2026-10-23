@@ -70,6 +70,8 @@ documentation only.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-23, 8th session, PR #1113): the σ rule's record field.** WP-2002's B14 (option 3, ruled 2026-10-20) asked for a `RefinementResult` field naming which σ rule fired, with the channel counts: the file's esd column, the Poisson fallback √max(y, 1) (`schemas.pattern.POISSON_FLOOR_COUNTS`) or the floor at 10⁻³ of the median esd (`SIGMA_FLOOR_RELATIVE`). It was not built there, because this WP replaces the floor it would report; build it with the σ ≤ 0 rule, so the field reports the rule that ships.
+
 - **2026-10-13, from the issue triage (#897, JulesOpp's two files of
   2026-10-12, checked at c3d0367).** Both rebuilt byte for byte and read with
   `rx.read_pattern(path, diagnostics=[])`. (1) One `10.06 150.3  # …` row
