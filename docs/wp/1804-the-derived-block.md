@@ -1,6 +1,6 @@
 # WP-1804 — the derived block: a nonlinear map applied after the affine one
 
-Milestone: rigid-bodies · Status: 🔄 2026-10-07 — built in PR #773 (merged `f5f35593`); the stage-boundary regeneration with a block remains
+Milestone: rigid-bodies · Status: 🔄 2026-10-23 — claimed by @yue-here
 Depends on: 1801, 1803 (the record)
 Priority: P2 2026-10-06 — every later body WP reads it; built in PR #773, merged 2026-10-07
 
