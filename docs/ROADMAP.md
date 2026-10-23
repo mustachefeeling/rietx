@@ -559,8 +559,8 @@ scope creep. Each item names what fenced it.
   without one); neutron **TOF** (CW landed in 1134; issue #193; the energy-dependent
   resonant absorption at S(Q), #113) — **built through rather than deferred**: the
   fork's branch is visible (`tof-cleanroom-20260923`); **decided 2026-09-24: held until magnetic
-  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) taken now as
-  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, the rest still waiting, with #442 (a bank's CW
+  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) cut as
+  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, closed 2026-10-23 with T-2's inheritance in its Context; the rest still waiting, with #442 (a bank's CW
   width rows) decided inside T-1, and #618 (Mantid's instrument values: with provenance,
   never the files) — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and
