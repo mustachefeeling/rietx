@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002
-Priority: P2 2026-10-23 — 2002 closed, so nothing blocks it; the evidence every tier-3 approval in the single-fit audit was granted on the promise of, now with 2002's two owed domain tests
+Priority: P2 2026-10-23 — 2002's single-fit rows are settled, its last item (the width twin hold) in flight; the evidence every tier-3 approval in the single-fit audit was granted on the promise of, now with 2002's two owed domain tests
 
 ## Goal
 

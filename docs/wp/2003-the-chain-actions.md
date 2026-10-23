@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002
-Priority: P2 2026-10-23 — 2002 closed, so nothing blocks it; the seam the maintainer's own example (a series discontinuity) lives in
+Priority: P2 2026-10-23 — 2002's single-fit rows are settled and one item remains (the width twin hold, which reaches no chain action); the seam the maintainer's own example (a series discontinuity) lives in
 
 ## Goal
 
@@ -86,7 +86,7 @@ the bar.
 
 ### Inherited
 
-- **From WP-2002 (2026-10-23, 8th session, PR #1113): 2002 closed.** The single-fit actions are settled: every row 2002 owned is tiered, and B14's lifts put 21 inline numbers and `ProfileTCHZ`'s defaults in the table. Two new record fields reach a chain: `StageResult.collapsed` (the columns a stage restored to their stage-start values and held, a subset of `held`, from all three runners) and the Stephens seed's rows in `StageResult.seeded`. The joint runner seeds no Stephens block (WP-1467's Inherited).
+- **From WP-2002 (2026-10-23, 8th session, PR #1113): 2002's rows settled.** The single-fit actions are settled, bar one item still in flight (the width twin hold): every row 2002 owned is tiered, and B14's lifts put 21 inline numbers and `ProfileTCHZ`'s defaults in the table. Two new record fields reach a chain: `StageResult.collapsed` (the columns a stage restored to their stage-start values and held, a subset of `held`, from all three runners) and the Stephens seed's rows in `StageResult.seeded`. The joint runner seeds no Stephens block (WP-1467's Inherited).
 
 - **From WP-2002 (2026-10-21, 5th session, PR #1085).** Every plan now ends in a closing stage, and a series' warm refit carries it (`sequential._collapse` passes `closing_window_tol`), so every pattern pays it: 1.05-2.05× a single fit's time on four protocols. Its cost along a chain and its effect on the chain's path dependence are unmeasured. `closing_window_tol=None` is the bit-identical way back.
 - **From WP-2002 (2026-10-21, 4th session): tier 2 names seven programs.** `docs/milestones/generality.md` § The rule's tier 2 now reads "by default in an established Rietveld program": GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, the list rietx-bench runs (the maintainer's instruction). A row resting on a program default names the programs it checked and what each does; a program doing otherwise by default is a dissenter, one without the feature is neither. What each does on peak windows, staging, roughness starts, width limits, dispersion, solver, mode and background seed is in `docs/practice.md`; where each program's manual or source sits is in the maintainer's memory (`foreign-code-sources-on-disk`), and rietx-bench's `tools/` holds BGMN, MAUD, RIETAN-FP and EasyDiffraction's environment beside GSAS-II and FullProf.

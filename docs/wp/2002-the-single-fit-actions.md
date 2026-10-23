@@ -1,8 +1,9 @@
 # WP-2002 — The single-fit actions: what one stage decides for the caller
 
-Milestone: generality · Status: ✅ 2026-10-23 — every single-fit action tiered over nine ruling rounds; B14's lifts landed; the two owed domain tests went to 2017 at the maintainer's call
+Milestone: generality · Status: 🔄 2026-10-23 — B14's lifts landed and the judge's corrections built; the width twin hold (decision 1, option b) is next, its base parked on `wp2002-width-floors-wip`
 Track: The audits
 Depends on: 2001
+Priority: P2 2026-10-23 — one item left, the width twin hold, which unblocks removing the U, V and Y floors the maintainer ruled out; 2003, 2004 and 2017 read rows already settled
 
 ## Goal
 
@@ -131,7 +132,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       2001's walk, with the file and line, what it decides, and what the caller sees
       without it. Lanes read disjoint files; the lead assembles. *2026-10-19:
       `2002-batch/inventory.json`, 402 proposals from six readers.*
-- [x] Tier each row per part (statistic, threshold, action), with evidence: the citation,
+- [ ] Tier each row per part (statistic, threshold, action), with evidence: the citation,
       the program and its default behaviour, or the families measured. Where the families
       are fewer than three, run the missing ones (the fits are cheap; a chain family is
       2003's). *157 rows needing no approval landed 2026-10-19; the rest wait on the batch.
@@ -231,6 +232,14 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       winner ended in a closing stage; the three design questions inferred (the
       closing-off report kept as measured, the closing node rule for every compile
       finer than 2 %, `build_report` refusing a bare `model=`).
+- [ ] **The width twin hold** (the maintainer's decision 1, 2026-10-23; option (b) proposed and
+      awaiting the go-ahead at the 8th session's end). When a stage frees a specimen width whose
+      instrument twin is also free, hold the twin for that stage and name it in the stage record:
+      U with `gauss_strain` (both tan²θ in Γ_G²), Y with `lor_strain` (tanθ in Γ_L), X with
+      `lor_size` (1/cosθ in Γ_L). Then land the parked floor removal
+      (`wp2002-width-floors-wip`, `879fb1bcc`) on top. Practice: `docs/practice.md`
+      § Instrument and specimen widths refined together. Details and measurements: the 8th
+      session's entry, § Next.
 - [x] `tests/test_compare_ui.py` and `rietx compare`: a demoted action is a variant the
       comparison can show; add a row where a standard exercises it. *8th session: none
       owed. Every demotion removed a limit, lowered a level to info or made a tie
@@ -358,6 +367,282 @@ clash table [2018](2018-the-clash-table-measured.md)'s, both split out 2026-10-2
   thresholds quote).
 
 ## Handover log
+
+### 2026-10-23 (8th session) — B14's lifts landed, the judge's corrections built; removing the width floors exposed a degeneracy, and the twin hold is next
+
+The audit table now sees the numbers that could change an answer if someone retuned them. Twenty-one inline numbers became named constants, the peak-width model's defaults became table rows, and a stage now records when it put a collapsed phase back and when it seeded a Stephens block. The generality judge then found approvals in the table that the maintainer had never given, and they were put right. Two seeds are now tier 3, with WP-2017 to measure them. The final stopping tolerance keeps tier 3 with the approval it actually has. The list of what stays outside the table is complete. The maintainer's ruling to remove the floors on the peak-width coefficients then ran into a real obstacle. An instrument width and a specimen width with the same angular shape (U with the Gaussian strain, Y with the Lorentzian strain) are exactly degenerate when both are free. The floors had been bounding that walk, and without them a fit walks the pair to infinity and fails on the next stage. A survey of all seven programs found that none floors an instrument coefficient. Every program that separates instrument from specimen does it by holding the instrument from a standard. So the next step is to hold the instrument twin whenever its specimen twin is freed, and only then remove the floors. The removal is built and parked on a branch of its own.
+
+*Done.*
+- `/wp-start`: Inherited pruned (both entries answered by the 6th session: the WP-number clash renumbered, the interval's cost inside the fourth round's ruling, the switch kept private); a draft PR, #1113, claims the work.
+- B14's lifts, constants and seats (`f6b53a58e`, a lane): 21 numbers named in the module that uses them, bit-identical, each used at every site the literal was (the background order scan and envelope, the P-spline λ, the Pawley off-data floor, the roughness and Stephens seeds, the σ floor and Poisson fallback, the Biso seed, the final `FTOL`, the presets' packing, polarisation, radius and Kα2 ratio, the width grid's top). `ProfileTCHZ` joined `DEFAULT_SEATS`, so `TCHZ_DEFAULTS` and `TCHZ_BOUNDS` are held without restructuring either dict. 27 rows, none at `unaudited`. Sibling fixed: the CIF and recipe readers still wrote occupancy's 1.5 ceiling, which B9 had removed from `Atom.occ` in `fb2395b56`.
+- B14's record fields (`ecbf03d3c`, a lane): `StageResult.collapsed` (the columns a stage restored to their stage-start values and held; the moment's flat-direction collapse included; a subset of `held`; written by all three runners; tier 3 on B1's and B2's grounds). The Stephens seed's DOFs join `StageResult.seeded` at the values the seed wrote. The σ-rule field went to WP-1952's Inherited, since that WP replaces the floor the field would report. The audit table's five section counts were stale and are the live counts.
+- § The hand rows that stay (`f347eecbb`, then completed in `6eed45fde` after the judge).
+- Code review (`/code-review high --fix 425334adb..HEAD`), eight findings: (1) the compare tool's Stephens variant still started at a literal 1000 ppm, fixed `3400693f9`; (4) the `.instprm` and `.prm` readers held their own 0.99 and 0.6, fixed `787e0e0ec`; (2) a joint fit ignores `Stage.strain_seed`, to WP-1467's Inherited; (3) `reference/refinement.md` cannot explain the collapse without splitting the page (50 000-character cap), and (6) the two suggestion-seed alias rows, both to WP-2004's Inherited; (5) and (7) declined, the couplings being stated in the evidence (the judge later held (7) and weakened (5), so (5) was reverted in `6eed45fde`); (8) declined, the TOPAS writer's radius being the file format's convention.
+- The maintainer's three answers to the judge's findings (2026-10-23): 1(a) remove the per-coefficient width floors; 2 "use your best judgement"; 3(a) stay on option 3 and fix what the judge named. Built for 2 and 3 in `6eed45fde`: `BISO_SEED` and its sibling `HARMONIC_WEIGHT_SEED` to tier 3 (the conditional "invariant behind the closing stage" a previous judge refused for `MAGNETIC_SIZING_FLOOR`), `FTOL`'s grounds say the 1e-9 was never varied, `PARAMETER_INTERVAL_BRACKET_GROWTH` lifted, the four untested invariants labelled and sent to WP-2017. The judge's no-choice corrections are built too: the polarisation, Kα2 and radius rows no longer claim a record nobody writes (WP-2015 owes it), the radius reaches only the displacement, the peak shape is ambiguity kind 2, and `diagnose`'s census keeps its own 3σ.
+- 1(a), by a lane, **parked unmerged** on `wp2002-width-floors-wip` (`879fb1bcc`, pushed): U, V ∈ [−180², 180²] deg², Y ∈ [−180, 180]°, W's clamp floor and X's 0 kept; `TCHZ_BOUNDS_COARSE` removed (with these floors it equalled the default box), `ProfileTCHZ.coarse()` kept as the builder from bare values, `_declared_escape` gone; Γ_L ≥ 0 held under LM by `lorentzian_width_inequalities` (`optimize/least_squares.py` ~1982, registered beside the Γ_G² builder ~2566; rows (x + lor_size)/cosθ + (y + lor_strain)·tanθ plus the magnetic pair, Stephens left out as a sufficient condition); `check_resolution_positive` tests Γ_L under TRF too; `_fd_typicals` treats `instrument.profile.y` as a signed width (`_SIGNED_WIDTHS`); `caglioti.lorentzian_negative_above` lets the recipe, `.instprm` and `.prm` readers refuse a negative Y whose Γ_L crosses zero; `tests/test_lorentzian_width_floor.py`, five tests; the docstring, `help.py`, `theory/profiles.md` (`prof-lorentzian-floor`), `reference/instrument.md`, the release note, the skill.
+- The seven-program survey of how each handles an instrument width refined with its specimen twin, saved to the practice record, which moved from this WP's batch directory to `docs/practice.md` as a standing reference (`674d0a53f`); root CLAUDE.md points at it. The maintainer's instruction: every such survey is saved there.
+- Main merged (`2dc55a5df`). Forward references: WP-2017 (the two domain tests, then the judge's owed measurements), WP-2003, WP-2004 (two review findings), WP-2005, WP-1467 (the joint runner's strain seed), WP-1327 (a joint fit can hold a moment direction its `held` omits), WP-1952 (the σ-rule field). Priorities of 2003, 2004, 2005 and 2017 re-rated, then corrected when this WP reopened. The v1.10 record's narrative section for this WP says "in flight".
+
+*Measured* (macOS arm64, worktree venv `[dev]`, compiled tier on).
+- Fast selection on the merged tree (`2dc55a5df`, main through #1112, before the judge's corrections): 11 245 passed, 121 skipped, 27 xfailed, none failed, 7:54. The six tests added this session cost 0.83 s together (junit, that run): `test_stephens.py::test_the_strain_seed_is_recorded_in_the_stage_result` 0.44 s, `test_held_phase.py::test_the_joint_path_records_a_collapse_too` 0.39 s, four more at 0.00 s.
+- Full selection, once, on the same tree: 11 647 passed, 130 skipped, 42 xfailed, none failed, 1:00:37, nothing else running at its start. The judge's corrections came after it (text in `_audit.py`, one lifted constant, one literal restored in `diagnose`), each checked by `tests/test_audit_table.py`, `tests/test_parameter_interval.py` and the docs suites; no fitted value can move through them.
+- The floors' removal, measured on the parked branch (the lane, macOS arm64, `[dev]`, each slow file run alone). CPD corundum under `test_acceptance_stephens._plan` (frees `profile.*`, then `phases.*.lor_strain`/`gauss_strain` cumulatively), LM: after `lines_axial` y = −180.0 and `lor_strain` = +180.04, their sum 0.040° unchanged; the next stage (`biso`) raises "Residuals are not finite in the initial point" with all 7251 rows NaN, and with `profile.y.min = 0` the same run completes. `test_acceptance_stephens.py`: 1 failed, 3 errors. With instrument-only Γ_L rows added as a probe (reverted): brucite isotropic LM Rwp 0.186391 both ways, u −0.0499 → −32400 (on the far floor); corundum LM Rwp 0.145744 both ways, u −0.0182 → −15.7, y −0.017; brucite Stephens TRF Rwp 0.178722 → 0.178962, u −0.864, y −0.349; brucite Stephens LM 0.179951 both ways. `test_window_domain.py` 19 passed, 9 xfailed; `test_seed_invariance.py` 2 passed; `test_staged_start_invariance.py` 2 failed, 11 passed, 2 xfailed (`intermediate_tolerance[lab6]` 8.824 plain esd on `axial_sl` against a 0.1 bar; `axial_sizing_floor[cpd1a]` now XPASS(strict), its 0.138 esd gone). A width-floor fast selection of 72 files: 3546 passed, 67 skipped, 25 xfailed.
+- Practice (`docs/practice.md` § Instrument and specimen widths refined together): no program floors an instrument coefficient or keeps the instrument function alone positive; positivity, where enforced, is on the total width; none refuses, warns about or holds a twin pair; FullProf (the resolution file) and BGMN (ray tracing) separate the instrument by design, RIETAN-FP by its advised protocol, GSAS-II through defaults that leave the sample terms off.
+- Lanes (`session_usage.py lanes`): three, all kept, none redone.
+
+| lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | model | lane $ | main $ | in-session $ | saved $ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| B14-constants-and-seats | 40 | 144 | 166K | 75K | 0K of 3K | 12 | 30K | 0 | 0 | opus-5-5 | 10.68 | 0.67 | 20.79 | +8.70 |
+| B14-record-fields | 30 | 85 | 202K | 74K | 0K of 2K | 8 | 14K | 0 | 0 | opus-5-5 | 4.35 | 0.46 | 9.55 | +4.44 |
+| width-floors | 45 | 161 | 351K | 75K | 0K of 5K | 14 | 52K | 1 | 0 | opus-5-5 | 13.17 | 7.69 | 23.88 | +2.82 |
+
+  Trial row appended to `docs/milestones/process.md`; the selective policy's replay row: "lane when main > 150K and item >= 20 requests | 252 | -9%". Estimates ran short by 3.6× (actual over estimated requests).
+
+*Gotchas.*
+- The parked branch predates `674d0a53f`'s move of `practice.md`: merging it brings back references to `docs/wp/2002-batch/practice.md` in `_audit.py` evidence strings and WP files. Resolve them to `docs/practice.md`.
+- With a negative Y, `compile_model`'s window sizing (`forward.py` ~3953) meets a negative Γ_L at reflections the inequality rows do not hold (those past the data), and `pseudovoigt.py:45`'s `gamma5 ** 0.2` warns invalid. The twin hold keeps Y at its start where `lor_strain` is free, which removes the case those runs met; a stage freeing Y alone can still reach it, so the rows (or the sizing) must cover every generated reflection.
+- A judge-flagged approval rule: a tier-3 row's `approved` is the maintainer's date, never a borrowed one. The U/V floors' "approval" came from an author's note that misquoted Q5. Read the ruling in `rulings.md` before copying an approval into a new row.
+
+*Next.*
+1. The maintainer's go-ahead on the twin hold (option b), asked at the session's end with the seven-program table. If yes: on this branch, hold the instrument twin for any stage that frees its specimen twin. The pairs are U with `gauss_strain`, Y with `lor_strain` and X with `lor_size`. Each hold is recorded in the stage record, the way a user hold is reported (`StageResult.held` and `held_reach`, or a field of its own if `held` would misread). Decide where it lives by the rule a Stephens block already follows when it locks `lor_strain` (root CLAUDE.md, the Stephens clause), and test the two cases where the pair may not be exactly degenerate: a joint fit across wavelengths, and a phase with anisotropic strain.
+2. Merge `wp2002-width-floors-wip` on top, resolving the `practice.md` paths, and close the negative-Γ_L window-sizing gap above.
+3. Rerun `test_acceptance_stephens.py` and `test_staged_start_invariance.py` alone, plus the fast selection. Re-pin a moved number only if it is no further from its reference, reporting old → new. Remove `axial_sizing_floor[cpd1a]`'s strict xfail, and decide `intermediate_tolerance[lab6]`'s 8.824 esd (LaB6's mirrored axial minima, WP-2012). Then run the full selection once and `/wp-handover` to close.
+
+*Generality.* The judge's report on this session's items follows, unedited, its headings demoted one level. The author's answer sits under its one `fails`, and the maintainer's three rulings above answer the rest.
+
+#### Item 1: the 27 rows added to `src/rietx/_audit.py`
+
+The B-numbers below are the batch classes in `docs/wp/2002-batch/batch.md`. Each one is a group of heuristics the maintainer ruled on together. "Rounds" are the ruling rounds recorded in `docs/wp/2002-batch/rulings.md`. "Plain esd" means the esd before the Bérar-Lelann inflation.
+
+##### `rietx.optimize.lm.FTOL` (tier 3, value 1e-9)
+
+**weak.** Tier 3 is plausible. The approval, though, comes from a test that never varied this number, and the row says so itself.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | "the relative decrease in S under which an iteration counts towards convergence … the final stage's tolerance" (`lm.py` docstring, diff line 1283) | It decides where every fit's answer stage stops. The closing stage solves at it, and so does every stage under `intermediate_ftol=None`. | — |
+| 2. Kind | constant rows carry no `ambiguity` field | Kind 1 in effect, a stopping rule. It is also a numerical setting in B10's sense (B10 is numerical settings): it sets how closely the minimum is located. | — |
+| 3. Case against | SciPy's default is 1e-8 (checked). GSAS-II 5.8.4's default 'min dM/M' is 1e-3 (`GSASIIobj.py:20`, checked). | Both cited codes stop at a looser tolerance. GSAS-II stops six decades looser by default. I did not check the other five programs. No measurement exists of an answer moving under a looser final tolerance. | moderate, unmeasured |
+| 4. Case for | "the closing stage solves at it"; `INTERMEDIATE_FTOL`'s test "measures against it" | Some tolerance is forced. 1e-9 is the reference arm of `tests/test_staged_start_invariance.py`, so every shipped answer sits at it. A tighter tolerance costs iterations and cannot stop a fit short. The cost of moving it is unmeasured. | moderate |
+| 5. Tier and source | B7's class went to tier 3 "once its invariance test failed on cpd-1a", plus the sixth round's Q2 | B7's row list does name it: `run_least_squares:ftol`* "(the final 1e-9) … If the test fails: tier 3" (`batch.md:412-414`). The test that failed compares a 1e-6 intermediate tolerance against 1e-9 everywhere, so FTOL is its fixed arm. The cpd-1a failure (0.185 esd with an absent zircon declared) is evidence about 1e-6, not about 1e-9. The row is honest ("this value itself was never varied"). The approval still rests on no measurement of this number. | weak |
+| 6. Families | none for this value | none | none given |
+| 7. Record | — | `StageResult.ftol` records what each stage ran at. | holds |
+
+Would change the verdict: the four start-test families (SRM 660c, FAP, cpd-1a, NAC) refit with the final tolerance at 1e-8 and at 1e-10, compared against the 0.1-plain-esd bar.
+
+##### `rietx.schemas.instrument.ProfileTCHZ:u` and `:v` (tier 3)
+
+**weak.** I could not find the ruling the grounds quote. The recorded answer covers only the ceilings. A public model sits under v's floor.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | seed 0, box [−0.05, 180²] (u) and [−0.5, 180²] (v) | These are the Gaussian width terms on every X-ray preset. Under LM, Γ_G² ≥ 1e-8 is already held as an inequality, so the floors act mainly under TRF (`instrument.py:1381-1388`, `:1404-1415`). | — |
+| 2. Kind | ambiguity 1 | The row itself names programs that set no floor. By Rule 1's unanimity gate, a box with a named dissenter is not kind 1. The seed half is kind 1. | weak |
+| 3. Case against | "GSAS-II 5.8.4 and FullProf bound none of U, V, W, X, Y"; "the public D1B Co3O4 model's V = −0.501 sits under it" | The previous judge's table found none of the seven programs bounding these terms (WP file line 1244). An honest published model lands under v's floor. Only `constant_wavelength_neutron` takes the coarse box that fixes this (`instrument.py:2454`). A hand-built `ProfileTCHZ()` keeps −0.5. Under TRF the brucite fit landed with U on its −0.05 floor (`rulings.md:725-726`), so the floor binds in practice. | strong |
+| 4. Case for | "the guard against a negative Gaussian variance at some angle under TRF" (`waiting.md:91`) | TRF holds none of LM's inequalities (`rulings.md:290`). This is a named reason, which the sixth round's Q5 asks of a choice outside the seven programs' range. No measurement shows a TRF fit going non-physical without the floors. | moderate, unmeasured |
+| 5. Tier and source | "kept by the fifth round's Q5 ruling ('keep the floors and lower bounds', 2026-10-21)" | That quotation is not in `rulings.md`. The recorded answer is "(a), remove the five ceilings, 'confirm with other codes too and let me know'" (`rulings.md:208`). The phrase appears only in an author's note (WP file line 1251). The floors were kept by the lead ("the U and V floors are chosen and stay", `waiting.md:91`). The previous judge named them as the unjudged sibling (WP file line 1249). The maintainer's B9 ruling points the other way: "no need to impose chosen limits on quantities that remain physical" (`rulings.md:54-58`). A negative U or V is physical while Γ_G² stays positive. | weak, approval not found |
+| 6. Families | seed start-invariant on LaB6, CPD and 11-BM NAC within 1.3e-4 esd | The seed holds on three families. For the floors there is one family where the floor fails (D1B Co₃O₄) and none where it was measured to hold. | — |
+| 7. Record | — | `BOUND_HIT` and `FLOOR_HIT` report a bind. | holds |
+
+Would change the verdict: the maintainer ruling on the U and V floors themselves, or TRF fits on three families showing Γ_G² going negative without them.
+
+##### `ProfileTCHZ:x` and `:y` (tier 3)
+
+**weak.** The ceiling is honestly borrowed from Q7. The floor of 0 is called "physical" but is stricter than the physics, and no ruling covers it. This confirms the author's flag.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | seed 1e-3 (x) and 0 (y); floor 0 on each | These are the Lorentzian coefficients, with Γ_L = X/cosθ + Y·tanθ (`rulings.md:249`). | — |
+| 2. Kind | ambiguity 1 | It agrees for the seed. The floor has a named dissenter (row 3). | weak |
+| 3. Case against | "the floor 0 is physical (a Lorentzian width)"; GSAS-II and FullProf bound neither | Γ_L = (X + Y·sinθ)/cosθ. A floor of 0 on each coefficient is sufficient for a positive width but not necessary: a negative Y with X > \|Y\| keeps every line positive. A fit that wants a slightly negative Y is pinned at 0 here, where GSAS-II and FullProf leave it free. How often that happens on real data is unmeasured. The x seed matters where a protocol holds x: x = 0 instead moves FAP's `lor_size` by 0.69 esd (row). | moderate |
+| 4. Case for | Γ_L must stay positive | True. rietx already holds one combination bound as an LM inequality (Γ_G² ≥ 1e-8), so Γ_L ≥ 0 over the fitted range could be held the same way. It is not built. | moderate |
+| 5. Tier and source | grounds cite only the ceiling, Q7 | No ruling covers the floor or the held-x seed. B9's two-start rule passes for x except on LaB6's mirrored minimum (0.38 esd in u). | weak |
+| 6. Families | LaB6 and FAP (x); y unstated | The seed test is on LaB6, with FAP for the held case. | — |
+| 7. Record | — | `BOUND_HIT` and `FLOOR_HIT`. | holds |
+
+Would change the verdict: a ruling that a per-coefficient floor counts as "keeps a value physical", or the floor rewritten as Γ_L ≥ 0 over the fitted range.
+
+##### `ProfileTCHZ:w` (tier 3)
+
+**holds.** Each part of the row has its own approved row or test. The composite adds no number of its own.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | seed 1e-3 deg², floor `_MIN_GAMMA_G2`, ceiling 180² | as stated | — |
+| 3. Case against | "a start too wide losing NAC's phase at w = x = 1e-2" | That is a stated failure a decade above the seed. I found nothing else. | weak |
+| 4. Case for | seed start-invariant from 1e-6 to 1.0 on LaB6 | The floor's row is tier 3 under B10 (`_audit.py:1621-1630`). The ceiling's row is tier 3 under Q7 (`_audit.py:2341-2353`). | strong |
+| 5. Tier and source | borrowed from those two rows | The borrowing is honest: both parts carry their own approval. | holds |
+| 6. Families | LaB6 for the sweep; NAC for the failure | one family for the invariance | — |
+| 7. Record | — | `FLOOR_HIT` | holds |
+
+Would change the verdict: a freed-W start test on a second family that fails inside 1e-6 to 1.0.
+
+##### `ProfileTCHZ:shape` (tier 2)
+
+**holds on the tier, weak on `ambiguity`.** DESIGN.md § Rules, 1 gives "a choice of peak shape" as its example of the second kind (DESIGN.md:38-39). The row says 1.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 2. Kind | ambiguity 1 | Rule 1's own text puts a choice of peak shape in kind 2. As a default with no ranking it can stand, but the field should say 2. | weak |
+| 3. Case against | "'voigt' is the opt-in true Voigt" | none found | — |
+| 5. Tier and source | GSAS-II 5.8.4's CW peak is TCH pseudo-Voigt with FCJ (`GSASIIpwd.getFWHM :916`, `getFCJVoigt3 :1316`; checked) | I did not check this myself, nor the other six programs. | holds |
+| 7. Record | — | The shape is stored on the instrument. | holds |
+
+Would change the verdict: none needed for the tier. The ambiguity field should be 2, or the row should say why kind 1.
+
+##### `rietx.schemas.structure.BISO_SEED` (invariant)
+
+**weak.** It has the same conditional shape a previous judge refused for `MAGNETIC_SIZING_FLOOR`. That row moved to tier 3.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | Biso 0.5 Å² for an atom without one, and for CIF, recipe and TOPAS sites with no ADP | as stated (`cif.py:763`, `recipe.py:1077`, `topas.py:4225`) | — |
+| 3. Case against | "LaB6's two starts land in its mirrored axial minima (9.36 esd, WP-2012), a strict xfail" | One of four families fails, by 9.36 esd. Without the closing stage the two starts differed by 0.119, 0.751 and 0.008 esd on FAP, cpd-1a and NAC (`rulings.md:234-237`). `closing_window_tol=None` and a stage run by hand both have no closing stage. | strong |
+| 4. Case for | "answer-invariant behind the closing stage only: … 0.000, 0.070, 0.000" | `tests/test_staged_start_invariance.py::test_the_biso_start_does_not_change_the_answer` asserts the 0.1-esd bar on three families. cpd-1a passes with a margin of 1.4. The LaB6 failure is WP-2012's mirrored minima, which every start test on LaB6 meets. | strong on three families |
+| 5. Tier and source | invariant | The test exists and asserts the margin. But the neighbouring row records that the invariant class has "no conditional form (the generality judge, 2026-10-22)", and `MAGNETIC_SIZING_FLOOR` moved to tier 3 on that reading under the seventh round's Q2 (`_audit.py:1447-1451`). B9's ruling also reads "If fits from two starts agree, the start does not matter" (`rulings.md:909-910`), and on LaB6 they disagree. `HARMONIC_WEIGHT_SEED` has the same shape (not judged here). | weak |
+| 6. Families | FAP, cpd-1a, 11-BM NAC | Three families, but the reference is the other start (rietx's own result), so this verifies and does not validate. | — |
+| 7. Record | — | Nothing records that a site took the seed. | none found |
+
+Would change the verdict: the maintainer ruling that "invariant behind the closing stage" is allowed, which reopens the magnetic floor too. Or LaB6's pair shown to be a pure S/L ↔ H/L relabelling, with every other parameter within the bar.
+
+##### `rietx.schemas.instrument.DEBYE_SCHERRER_POLARIZATION` (tier 3)
+
+**weak.** The tier and approval match B9. The record the grounds describe does not exist.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | K = 0.99 in the `debye_scherrer` preset | as stated | — |
+| 3. Case against | "a wrong K moved a refined Biso by 12 sigma (WP-1311 item 2)"; docstring: "which a lab capillary does not share" | A lab capillary with a Cu tube has K of about 0.5-0.8 (`batch.md:508-511`, recalled there). GSAS-II reads K from the instrument file (`batch.md:524`). The ambiguity is the third kind: a fact about the beam. | strong |
+| 4. Case for | the 11-BM instrument files state 0.99 | The preset is the synchrotron one, and the caller can pass `polarization=`. | moderate |
+| 5. Tier and source | B9, ruled 2026-10-19 | `batch.md:553-554`: "Tier 3, kind 3, recorded as assumed: `debye_scherrer:polarization`*". Honestly borrowed. | holds |
+| 6. Families | APS 11-BM, one facility | one | — |
+| 7. Record | "0.99 stays the preset's held value and is recorded as assumed" | No code or field records it. The table has no `*_ASSUMED` code for polarisation, and `schemas/` has no such field. WP-2015's checklist still reads "[ ] The assumed instrument facts recorded in the result" (`docs/wp/2015-the-declared-geometry-picks-the-plan.md:106`). This is a claim with no writer. | fails |
+
+> Author: fixed in `6eed45fde`. The grounds now say that B9 asked for the record and that WP-2015 owes it, and that nothing writes one yet. The Kα2 and radius rows say the same.
+
+Would change the verdict: the grounds reworded as "owed to WP-2015", or the record built.
+
+##### `rietx.schemas.instrument.BRAGG_BRENTANO_RADIUS_MM` (tier 3)
+
+**holds on the tier, weak on the evidence.** The stakes are lower than the row says.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | "the displacement and axial terms read it" | The radius reaches the model only through `displacement_shift_deg`, Δ2θ = −2(s/R)·cosθ (`model/corrections.py:93-106`), and the capillary offsets (`:110-154`). The FCJ axial term (the axial-divergence asymmetry) takes S/L and H/L, not R. So on Bragg-Brentano a wrong radius leaves the fit, the cell and Rwp unchanged. It rescales only the reported displacement in mm, by R_true/217.5. | evidence wrong in part |
+| 3. Case against | — | Any instrument of another radius. "217.5 mm is the Bruker D8 Advance's standard radius (recalled)": I could not check this. | moderate |
+| 4. Case for | the geometry refuses a missing radius | A preset needs some value. | moderate |
+| 5. Tier and source | B9 | `batch.md:556`: tier 3, kind 3, kept. | holds |
+| 7. Record | — | Nothing records the radius as assumed (the same WP-2015 gap). | none |
+
+Would change the verdict: a model path where R enters other than as s/R.
+
+##### `rietx.schemas.instrument.KA2_RATIO` (tier 2)
+
+**holds.** The case for is stronger. GSAS-II's default lab instrument uses 0.5 (row, checked; I did not re-check it), and Hölzer et al. (1997) supplies the degeneracy ratio. The case against is a diffracted-beam monochromator clipping Kα2, while `mccusker_default` holds the ratio fixed. The row stated that already. One gap: the row calls it "a B9 recorded assumption", and nothing records it yet (WP-2015). Would change the verdict: a lab family where the held 0.5 moves a certified cell.
+
+##### `rietx.schemas.instrument.PACKING_FRACTION` (tier 3)
+
+**holds.** The case against is GSAS-II's 0.50 (`Absorb.py:89`, per the batch), about a 20 % difference in µR. The caller opts in by declaring a radius or thickness. Under the caller-tier ruling, a defaulted number inside an opt-in is tiered on its own, and it is. The record is `AbsorptionCorrection.mu_r_source` = estimated (`schemas/results.py:479-480`). The packing value itself is not on the record. Would change the verdict: a family where 0.6 against 0.5 moves Biso past its esd.
+
+##### `rietx.schemas.pattern.POISSON_FLOOR_COUNTS` (tier 2)
+
+**holds.** TOPAS weights a file without esds by 1/Max(Yobs, 1) (`rulings.md:1242`, Tech Ref § 6.2). FullProf gives a y ≤ 0 channel weight 1 (`rulings.md:1246`). GSAS-II's xye reader zero-weights it: a dissenter, which does not move tier 2 under the sixth round's Q5. The case against is the review's scaled-data point (`batch.md:325`): a floor in counts is wrong in units on a rescaled pattern. That is against the √y fallback itself, which now has only this row. The record is `DataRef.has_sigma` and the printed "σ source". Would change the verdict: none needed.
+
+##### `rietx.schemas.pattern.SIGMA_FLOOR_RELATIVE` (tier 3)
+
+**holds as written.** The case against is the stronger one. The maintainer: "fix anything obviously wrong" (`rulings.md:76-79`). Issue #897 had one point weighing 10⁶ times its neighbours. The approval is the B5 re-brief the maintainer answered: "Until it lands the floor stays, and the table names WP-1952 as its replacement" (`rulings.md:851-852`). The row is honest about that. Two gaps. WP-1952 is unscheduled (⬜), so the known-wrong floor has no end date. Nothing records that the floor fired (`batch.md:303`). Would change the verdict: WP-1952 scheduled.
+
+##### `rietx.strategy.staged.STRAIN_SEED_PPM` and `ROUGHNESS_SEED` (tier 3)
+
+**holds**, both. STRAIN_SEED_PPM is B3, ruled 2026-10-19, with the second comparison done 2026-10-20 (CPD brucite χ² 7.77 against 8.32, corundum equal). It matches GSAS-II's isotropic default (checked, per the row). Both CPD patterns probably count as one family by laboratory. ROUGHNESS_SEED is the sixth round's Q3, ruled (c), and both models are recorded on `StageResult.seeded`. Would change the verdict: none needed.
+
+##### The B12 rows (B12 is pick verbs and opt-in verbs)
+
+These are `AIR_GAIN_CHEBYSHEV_TERMS`, `ENVELOPE_QUANTILE`, `ENVELOPE_WINDOW_DEG`, `ARPLS_DW_FLOOR`, `CHEBYSHEV_MAX_ORDER`, `DW_STOP`, `PEAK_MASK_BASELINE_LAMBDA`, `PEAK_MASK_SIGMA`, `PSPLINE_LAMBDA_SMOOTH`, `PAWLEY_OFF_DATA_SCALE_FLOOR` and `FRACTION_PROFILE_FWHM_MAX_SPAN`.
+
+**holds**, each. Each is named in B12's row list (`batch.md:747-764`: tier 3, with `default_fwhm_grid:top`* and `off_data_scale_floor`* among them). B12 was ruled "yes to all" (`rulings.md:31-35`), and the skill's instruction counts as a default path. The case against is the B12 review: "The threshold evidence is synthetic" (`batch.md:735`). Notes:
+
+- `ARPLS_DW_FLOOR` feeds only `baseline_lambda`, which nothing reads (`diagnostics.py:1549-1566`, confirmed).
+- `ENVELOPE_WINDOW_DEG` now sets `DEAD_LEVEL_WINDOW_DEG` by reference (`diagnostics.py:422`), as that constant's docstring intends.
+- `PSPLINE_LAMBDA_SMOOTH`'s "Rwp flat" half is not evidence under Rule 4. Its Biso half is.
+- `PAWLEY_OFF_DATA_SCALE_FLOOR` rests on one synthetic fluorapatite (`inventory.json:2571-2573`). The row does not say so.
+- `FRACTION_PROFILE_FWHM_MAX_SPAN`'s domain test is owed in WP-2017.
+
+Would change the verdict: a real (not planted) family where one of these flips the pick.
+
+#### Item 2: the action rows
+
+##### `rietx.schemas.results.StageResult.collapsed` (tier 3, new)
+
+**holds.** The case for the restore is stronger. The grounds cite one ruling for a field with two writers.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Decides | a phase visible at stage start that fell under 3σ, or a moment direction gone flat, is "restored to its stage start, held and the stage re-solved once" | The new field records which. Before, the restore joined `held` unmarked. | — |
+| 2. Kind | ambiguity 1 | Agrees. | holds |
+| 3. Case against | — | The B1 review's dissenter (`batch.md:90`) is a ramp refiner whose new phase starts at a misplaced cell. That case is against the start-of-stage hold. For a restore after the cell has walked off, the same refiner would put it back. The threshold's dissent belongs to `PHASE_SUPPORT_SIGMA`'s row. Against the restore itself: none found. | none found |
+| 4. Case for | CaF₂ cell walked to 1.73-20.34 Å unheld and −6.49 Å under the start-only hold; the restore leaves it exactly at its stage-start value | Five new tests in `tests/test_held_phase.py`: the field is a subset of `held`, disjoint from `released`, empty on ordinary stages, `None` on a stored record, and written by the joint runner. | strong |
+| 5. Tier and source | B1 (2026-10-19), field from B14 option 3 | B1 is confirmed (`rulings.md:15-17`). The second writer is `flat_now` (`refine.py:4262-4264`: `collapsed = collapsed_phase + flat_now`), the moment path. That is B2's territory (B2 is the magnetic moment actions), and the grounds do not cite it. | holds, grounds incomplete |
+| 6. Families | the ramp | One family, synthetic (`test_held_phase.py` builds it from `tests.test_refine_synthetic`). | — |
+| 7. Record | the field | Written by all three runners. | holds |
+
+Would change the verdict: none needed. The grounds should name B2 for the moment half.
+
+##### `StageResult.seeded` (evidence changed: a second writer)
+
+**holds.** B3 ruled the Stephens seed "recorded in the result" (`rulings.md:49-51`). The writer is at `refine.py:4028-4032`. The test is `tests/test_stephens.py::test_the_strain_seed_is_recorded_in_the_stage_result`. The field's meaning widens: Stephens rows include degrees of freedom the isotropic ray leaves at zero, so not every row was "lifted". The field docstring states this. The joint runner seeds no Stephens block, which is also documented. The `grounds` text still speaks only of Suortti and Pitschke. The evidence line carries the Stephens half. Would change the verdict: none needed.
+
+#### Item 3: `DEFAULT_SEATS`
+
+##### Added: `rietx.schemas.instrument.ProfileTCHZ`
+
+**holds.** The widths' seeds and box are dicts the constant walk cannot see, and the seat exposes them as live values. Nothing argues against seating it.
+
+##### Seats not added (WP file, § The hand rows that stay)
+
+**weak for `Geometry` and the presets' `radiation`; holds for the rest.**
+
+| Seat | Author's reason | What I found | Verdict |
+|---|---|---|---|
+| `Geometry` | 14 defaults, among them unruled `mu_t=None`; `Geometry:kind` stays a hand row, WP-2015's | `Geometry:kind` is a B9-judged default (tier 3, kind 3, `batch.md:553-554`). A different default gives a different answer: capillary corrections on Bragg-Brentano data (`batch.md:504-507`). That is exactly what option 3 lifts. The reason is a cost: a seat cannot add rows at `unaudited`, so seating it means tiering 13 more defaults now. It has an owner (WP-2015, not started). | weak |
+| presets | their numbers are constants now; seating brings `radiation="CuKa"`, unruled | The default anode is a fact about the caller's instrument (kind 3), and no WP owns it now. | weak |
+| `Instrument` | three whole nested models | `Source` and `ProfileTCHZ` are seated, and `Geometry` is above. | holds |
+| `Atom` | nothing judged left once `BISO_SEED` holds the Biso | `occ` is floor 0, tier 1. `aniso` and moment default to off. | holds |
+| `run_least_squares` | its `ftol` is `optimize.lm.FTOL` | `max_iter` is covered by `StageSpec:max_iter`'s margin test under LM and TRF. The solver default is `DEFAULT_SOLVER`'s row. | holds |
+
+Would change the verdict: `Geometry:kind` seated or lifted, and `radiation` given an owner.
+
+#### Item 4: the list in § The hand rows that stay
+
+**weak.** Two rows are clearly misclassified. Three are labelled "invariant" without the test that class requires. One is doubtful. The list also leaves out hand rows it claims to cover. The 8th session's handover entry is not in the WP yet, so the author's case is the § and the row texts alone.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. Misclassified: a number a retune could turn into a different answer | each row's category in the § | (1) **`TCHZ_BOUNDS_COARSE`**, `src/rietx/schemas/instrument.py:1539-1542`. It is a B9 tier-3 box (`batch.md:551`) on the default path of `Instrument.constant_wavelength_neutron` (`instrument.py:2454`). Its U and V floors (−0.5, −4.0) were measured on one family (D1B). It could be lifted as `TCHZ_CEILING_DEG` was; "a dict the walk cannot read" is a choice. (2) **`_walk:bracket_growth`**, `src/rietx/strategy/parameter_interval.py:264`. Labelled invariant with "no test yet", and its own note says "Profiles with window-recompile steps … can have several crossings; there the growth can choose which one" (`inventory.json:7847-7854`). Since B2 option 2 the interval runs automatically on every moment angle the stationary test leaves out (`rulings.md:93-95`), so its earlier "caller verb" reading no longer holds. | misclassified (2) |
+| 2. Invariant without the margin test the class requires | — | (3) **Le Bail/Pawley intensity seed**, `src/rietx/model/forward.py:4038`: "no test yet", confidence low (`inventory.json:2507-2514`). Le Bail at 3 cycles does not converge (#740, `batch.md:636-639`), so start dependence is plausible and unmeasured. (4) **`_FLAT_AXIS_TEST_DIRECTIONS`**, `src/rietx/refine.py:819`: B2 says "Invariant, test owed" (`batch.md:162`), and no file in `tests/` names it. (5) **`arpls:max_iter,tol`**, `src/rietx/background/estimators.py:49-50`: a six-fixture probe, "no test yet" (`inventory.json:1083`). This is the weakest of the three. | weak (3) |
+| 3. Doubtful | — | (6) **`FLOOR_SEEDS`**, `src/rietx/params/vector.py:1087`, labelled invariant under B10. It sets the finite-difference step on width columns. Its own docstring measures column errors of 1.4e-3 and 1.5e-2 at the old size (`optimize/least_squares.py:1138-1146`). Esds come from JᵀJ, so a column error moves them. That makes it a B10 numerical setting, not answer-invariant. | doubtful |
+| 4. Rows that hold as listed | — | The ones I read are real floors or physics: the reflection floor of 0.1°, the 1e-10 Le Bail and Pawley floors, the 1e-12 TRF nudge, and `TEXTURE_SAMPLE_PSI_DEG` (Järvinen). `cherry_pick:fallbacks` holds: it describes what old history nodes ran at. The `select_arpls_lambda` candidate grid (`background/select.py:197`) feeds only `baseline_lambda`, which nothing reads, so the stakes are low. | holds |
+| 5. Completeness | "What the table still cannot see … is listed here" | Some hand rows from other classes are neither table rows nor in the list. I grepped `_audit.py` for each. They are: B8's window action `cell_window` (`params/vector.py:574`) and `_freeze_cell_windows` (`optimize/least_squares.py:2191`), tier 3 (B8 is bounds that act on every fit); B2's `_flat_moment_scan:modulus_floor` and `_onto_flat_meridian:pole_tol` (`refine.py:990`, `:933`); B4's two `normal_factors:*` rows; B5's background σ widening; B10's `aniso_symmetry_tolerance`; B3's `_run_stage:strain_seed`; B12's `profile_fraction:theta_mid` and its five caller verbs; and B11's `_fit_lebail_alternation`. | gap |
+| 6. Option 3's fourth field | — | B14 option 3 includes "the four fields", one of them "`RefinementResult`: the σ rule, with counts" (`batch.md:826`, `:832`). Two earlier handovers planned it (WP file lines 1599-1600, 1733-1734). It is not built, and the § neither lists nor forwards it. | gap |
+| 7. Record | — | — | — |
+
+The lead said several misclassified rows would switch the policy to option 1 (`rulings.md:107-109`). My count: two clear, three invariants lacking their test, one doubtful, plus `Geometry:kind` left out by choice. The maintainer decides whether that is several.
+
+Would change the verdict: margin tests for (2)-(5), `TCHZ_BOUNDS_COARSE` lifted, and the σ-rule field built or forwarded with an owner.
+
+#### Item 5: heuristics the table cannot see
+
+##### Occupancy ceiling removed in `crystallography/cif.py` and `io/recipe.py`
+
+**holds.** The case for removal is stronger. B9: "Unlimited occupancy is fine. We can give a warning" (`rulings.md:54-56`). The B9 review named a dissenter against the 1.5 cap: Fe on a declared Mg site reads 2.2. The warning exists: `OCCUPANCY_ABOVE_ONE`, tier 1 (`_audit.py:680`). A grep of `src/` finds no other occupancy `max=1.5`. Three other builders set `occ` without bounds: `crystallography/bodies.py:120`, `magnetic/isotropy.py:2328` and `magnetic/supercell.py:1433`. I infer that they inherit `Atom`'s declared default (floor 0, no ceiling) through `_InheritsDeclaredDefaults`; I did not check this for `Atom`. A project stored with `max: 1.5` presumably keeps it, as stored TCHZ ceilings do (inferred, not checked). Against the removal: none found. Would change the verdict: a reader path that still caps.
+
+##### `diagnose`'s peak census now reads `select.PEAK_MASK_SIGMA` (a coupling)
+
+**weak.** The coupling ties two different rules together. The census compares net counts above the rolling 10 % envelope (`diagnostics.py:1473-1477`). `peak_mask` compares against an arPLS baseline (`select.py:82-85`). The row itself keeps `auto_lambda`'s 3σ apart as "another rule", and the same reasoning applies here. Retuning the BIC mask would now redefine `peak_fraction`, a shipped number that WP-1415 deliberately left alone (`diagnostics.py:618-627`). That docstring still says "3σ". The stakes are low: `peak_fraction` is printed and read by nothing in `src/`. Would change the verdict: the census given its own constant, or a reason the two σ bars must move together.
+
+##### `refine._flat_rotation_axis` now reads `least_squares.STATIONARY_ANGLE_STEP` (a coupling)
+
+**holds.** Both are central differences on the same angle, of order one. B2 tiered the old literal (`_flat_rotation_axis:h`*) at tier 3 beside the constant (`batch.md:159-160`). The SVD step only proposes an axis. The finite turn by `MOMENT_PROBE_ANGLE_RAD` decides whether it is held (`refine.py:878-884`, `:916` on). A step error of order h² cannot hold a direction the turn rejects. Today's value is bit-identical (1e-4). Against: none found. Would change the verdict: a retune of the stationary test's step that moves the proposed axis far enough for the finite turn to miss a flat axis.
 
 ### 2026-10-22 (7th session) — the ninth round built: a second LAPACK driver on the fit path, the magnetic winner closed, three design questions settled
 
