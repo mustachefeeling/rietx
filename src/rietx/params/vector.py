@@ -2569,15 +2569,35 @@ class ParameterTable:
         derived row is written after the matmul.  Measured before this refusal
         (WP-1803): the dependent's C row emptied and it left ``moving_paths``
         with no error.  The mirror of ``apply_value_scale``'s refusal of a
-        scaled source.  Returns ``(path, "derived" | "locked")``; one authority
-        for :meth:`set_tie`, which raises, and ``Refinement._apply_ties``,
-        which drops the tie and says so (a model edit never stops a build).
+        scaled source.  A tied source is read through its chain, as
+        :meth:`_flatten` will read it, so one resting on a locked or derived
+        row is refused too (the #773 round-2 gap).  Returns ``(path, what)``,
+        ``what`` naming the row — ``"derived row"``, ``"locked row"``, or the
+        chain; one authority for :meth:`set_tie`, which raises, and
+        ``Refinement._apply_ties``, which drops the tie and says so (a model
+        edit never stops a build).
         """
         derived = self.derived_paths()
+
+        def kind(path: str) -> str | None:
+            j = self._paths.get(path)
+            if j is None:
+                return None
+            if path in derived:
+                return "derived"
+            return "locked" if self.entries[j].locked else None
+
         for src, _ in tie.terms:
+            if (k := kind(src)) is not None:
+                return src, f"{k} row"
             j = self._paths.get(src)
-            if j is not None and (src in derived or self.entries[j].locked):
-                return src, "derived" if src in derived else "locked"
+            if j is None or self.entries[j].tie is None:
+                continue
+            terms, _ = self._flatten(self.entries[j].tie, (src,))
+            for i, _ in terms:
+                leaf = self.entries[i].path
+                if (k := kind(leaf)) is not None:
+                    return src, f"row tied to the {k} row {leaf!r}"
         return None
 
     def set_tie(self, path: str, tie: AffineTie | None) -> None:
@@ -2595,10 +2615,10 @@ class ParameterTable:
         if tie is not None:
             reason = self.tie_source_refusal(tie)
             if reason is not None:
-                src, kind = reason
+                src, what = reason
                 raise ValueError(
                     f"cannot tie {path!r} to {src!r}: the source is a "
-                    f"{kind} row, which the affine block cannot carry, so "
+                    f"{what}, which the affine block cannot carry, so "
                     f"{path!r} would be frozen at its present value")
         if tie is not None:
             self._refuse_body_increment_tie(path, tie)

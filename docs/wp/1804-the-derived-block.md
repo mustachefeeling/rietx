@@ -61,7 +61,7 @@ v1.6 has shipped (2026-10), so WP-1514's "waits for v1.6" no longer holds.
 - [x] `set_tie` refuses a locked or derived source, naming both paths
 - [x] `optimize/least_squares.py`: `_column_extras` and the restraint block on the declared reach and the local Jacobian
 - [x] `backend/traced.py`: the map after the matmul
-- [ ] Tests: the acceptance below, including a toy-block row in `tests/test_cross_backend.py` and a stage-boundary regeneration with a block
+- [x] Tests: the acceptance below, including a toy-block row in `tests/test_cross_backend.py` and a stage-boundary regeneration with a block
 - [x] Skill: none. No public verb and no diagnostic code; the block is internal until WP-1805.
 
 ## Acceptance
