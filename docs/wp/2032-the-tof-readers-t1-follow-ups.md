@@ -1,9 +1,8 @@
 # WP-2032 — the TOF readers' T-1 follow-ups: a time map read as data, and names with no writer
 
-Milestone: unscheduled · Status: 🔄 2026-10-23 — all five built, on review
+Milestone: unscheduled · Status: ✅ 2026-10-23 — a `TIME_MAP` after a bank's rows ends the bank, every refusal names its file, a project records the bank it opened, and `FPATH1` and `SPECTRUM_TYPES` each have a writer and a reader (PR #1122)
 Track: The specimen is not an angle, and the neutron follow-through
 Depends on: — (1927 soft, closed: the T-1 cut these come from)
-Priority: P3 2026-10-23 — defects in shipped T-1 readers on a path nothing refines yet; one reads a record as data rows silently, the rest are a refusal that names no file and declared names with no writer
 
 ## Goal
 
@@ -82,6 +81,32 @@ WP-2006 (the dead surface) tiers such names, so tell it if 4 or 5 removes one.
   header-and-records sets "may be repeated in any order").
 
 ## Handover log
+
+- **2026-10-23 (closed)** — PR #1122 by @mustachefeeling merged as
+  `e6e97630`, after one review round (`/pr-review`, at `049d1097`). It lands
+  all five tasks, so this WP closes. The review read every source hunk.
+  Refusals now name their file, including the `.iparm` reader's wrap of
+  `_coefficient_count`. `Project.open` writes the fallback bank into
+  `DataRef.options` in memory, only after the fingerprint check passes, so
+  opening still writes nothing a save did not. `SPECTRUM_TYPES` is checked
+  before `COEFFICIENT_COUNTS` is indexed, so an unknown type cannot raise
+  `KeyError`. No `_audit` row was needed.
+  *Gate*: the branch already contained main `12f459e5`, so the merged tree
+  was the PR's head tree, and CI's fast jobs ran it green. The full suite
+  with `-m slow` on that tree (darwin/arm64, `[dev,jax]`, nothing else
+  running) gave 404 passed, 12 skipped, 14 xfailed and 4 failed in 18-19
+  min. All 4 fail the same way on main `12f459e5` alone on that machine:
+  three in `test_staged_start_invariance.py` (cpd1a, LaB6) and
+  `test_acceptance_magnetic.py::test_the_150k_null_finds_no_moment`. The
+  Linux nightly's full job passed on `d01ae735` (2026-10-22) and was
+  cancelled on `3e0dc6f7`, so whether they fail on Linux is not known. The
+  maintainer merged on "no new failures".
+  *Follow-ups asked on the PR, not blocking*: name `FPATH1`'s token read
+  as a deviation in `src/rietx/io/CLAUDE.md` § `instrument_tof.py`, the way
+  `BNKPAR`'s is named; and trim the bug's history from the `gsas` row's
+  `TIME_MAP` sentence. The real SNS `.prm` files whose `ICONS` records
+  write explicit zeros still do not read end to end, and no WP owns that
+  yet.
 
 - **2026-10-23** — built all five, as planned on #1120 (taken by
   @mustachefeeling). Each item has a test that fails on `main` `12f459e5` and
