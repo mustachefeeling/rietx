@@ -239,7 +239,7 @@ assert round(spec.max_volume, 2) == 1503.5       # 8 x 150.35 x 1.25
 The floor never drops below the 15 Å³ default.
 Every other `SearchSpec` field passes through as a keyword.
 
-A formula is written as a chemist writes it, with brackets, `·` before an adduct (`"CuSO4·5H2O"`) and decimal counts.
+A formula is written as a chemist writes it, with brackets, `·` before water of crystallisation (`"CuSO4·5H2O"`) and decimal counts.
 A full stop that reads both as a decimal count and as a hydrate's dot is refused: `"CuSO4.5H2O"` could be 4.5 O or CuSO4 with 5 H2O, so `formula_unit_volume` raises `ValueError` naming `·`.
 A count under 1 reads one way (`"Mg0.5SiO3"`), and a space after a decimal count ends the doubt (`"Fe2.95 O4"`, as a CIF writes `_chemical_formula_sum`).
 
