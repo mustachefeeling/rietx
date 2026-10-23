@@ -150,7 +150,7 @@ technical reference (memory `foreign-code-sources-on-disk`). "GSAS-II computes i
       interval and width-grid domain tests. 4th session: the three geometry caps and the
       restraint image shell to tier 1, under the rule's new cap and numerical-setting
       clauses; the fourteen tier-2 rows resting on a program default checked against
-      seven programs (`2002-batch/practice.md`). 6th session: the seventh round's
+      seven programs (`docs/practice.md`). 6th session: the seventh round's
       settings tiered (`A5_CLIP`, the texture polish and the closing FCJ rule tier 1, the
       magnetic floor invariant behind the closing stage, the margin and the axial floor
       tier 3); `GTOL`/`XTOL` tier 3 under the caller-tier ruling and
@@ -835,7 +835,7 @@ Every refinement now ends with one stage more than its plan declares. After the 
 |---|---|---|---|
 | 1. What it decides | "The area each peak's window may drop in a plan's closing stage" (`schemas/plan.py` docstring) | Yes. It also applies to declared sharp peaks (`model/forward.py:3638-3641`). | clear |
 | 2. Kind | constant, no `ambiguity` | A numerical setting: it sets how accurately rietx computes, and decides nothing. | n/a |
-| 3. Case against | "1e-3 drops less than TOPAS …, MAUD …, RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and EasyDiffraction" (plan.py) | The value lies inside the seven programs' range (`docs/wp/2002-batch/practice.md` § How far a peak is computed). The only refiner who would choose otherwise is a batch user who takes TOPAS's or MAUD's 2 % for speed. That is a cost preference, and the plan setting serves it. | weak |
+| 3. Case against | "1e-3 drops less than TOPAS …, MAUD …, RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and EasyDiffraction" (plan.py) | The value lies inside the seven programs' range (`docs/practice.md` § How far a peak is computed). The only refiner who would choose otherwise is a batch user who takes TOPAS's or MAUD's 2 % for speed. That is a cost preference, and the plan setting serves it. | weak |
 | 4. Case for | At 2 %, "up to 0.97 esd on lab data … the background 2 to 5 esd" (plan.py) | Confirmed in `tests/test_window_domain.py`'s docstring table. At 1e-3: 0.058, 0.026, 0.022 and 0.091σ at the worst point, and 0.003-0.020 esd. | strong |
 | 5. Tier and source | tier 1 under B10 (the 2026-10-19 ruling on numerical settings), via `test_the_closing_stage_meets_the_bar` | The test exists. LaB6 is a strict xfail on the answer bar: 0.908 esd on U. The module docstring shows that U moves 0.9-1.2 esd "under every window setting", so the miss belongs to the Gaussian-width clamp (WP-1467), not to this number. The window-error bar itself passes on LaB6 (0.058σ). | holds |
 | 6. Families | SRM 660c, FAP, cpd-1a, NAC | Four laboratories: NIST, the GSAS-II tutorial, the CPD round robin, APS 11-BM. The reference is the same code at a converged window, which verifies the arithmetic. That is the right test for a numerical setting. Not covered: constant-wavelength neutron, magnetic peaks, declared sharp peaks. | holds, X-ray only |
@@ -1053,7 +1053,7 @@ This session built the maintainer's fifth-round answers and checked the three qu
 - Q4: `ROUGHNESS_UNCONSTRAINED` says, when Suortti roughness ends exactly off, that the scale's and Biso's esds depend on which off state (b = 0 or a = 1) the solver stopped in, and that dropping the block removes the dependence. The canonicalising re-solve recommended last round (option b) was not built: a new automatic step, record field and audit row for a case the maintainer called rare.
 - Q5: the five TCHZ ceilings removed from both boxes, floors kept; the `fwhm_deg` fence that read w's ceiling removed. A project stored before keeps its own ceilings.
 - Tier 2 names GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, in the rule, `_audit.py`'s docstring and the judge's checklist. The fourteen rows resting on a program default name all seven. `refine:solver` stays tier 2 although FullProf dissents (undamped Gauss-Newton), the dissent clause governing actions; `CELL_MIN_LENGTH_A` stays on TOPAS alone, the others having no floor.
-- `2002-batch/practice.md`: the seven-program survey (peak window and when it is set, axial quadrature, reflection margin, staging, roughness starts, width limits, the tier-2 rows). One Sonnet agent a program read its manual or source and ran FullProf, RIETAN-FP and BGMN; the lead spot-checked TOPAS's `ymin_on_ymax` and FullProf's `Ias` in the text.
+- `docs/practice.md`: the seven-program survey (peak window and when it is set, axial quadrature, reflection margin, staging, roughness starts, width limits, the tier-2 rows). One Sonnet agent a program read its manual or source and ran FullProf, RIETAN-FP and BGMN; the lead spot-checked TOPAS's `ymin_on_ymax` and FullProf's `Ias` in the text.
 - The three briefs as sent, whole, in `rulings.md` § Sixth round.
 
 *Measured* (macOS arm64, `[dev]`, compiled tier on; timings two runs each, interleaved, with other agents running for some).

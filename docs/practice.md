@@ -1,15 +1,20 @@
-# What the seven programs do by default (2026-10-21)
+# What the other Rietveld programs do
 
-Surveyed for the fifth round's questions and for tier 2's widened program list
-(`docs/milestones/generality.md` § The rule). One agent per program read its manual or
-source and, where cheap, ran it. The lead checked the load-bearing numbers against the
-reports. Versions: GSAS-II 5.8.4 (source), FullProf 8.20 (manual and `fp2k` runs), TOPAS
-Technical Reference Version 9 (no source or `Topas.inc` read), RIETAN-FP 3.12 (manual and
-runs), BGMN 4.2.23 with Profex 5.7.2 (manual, Profex docs and templates, runs; no source,
-GPL), MAUD 3.07 (BSD-3 source at the tag), EasyDiffraction 0.21.1 with cryspy 0.13.0
-(source). The sources for the load-bearing rows are listed at the end; where each program
-sits on disk is in the maintainer's memory (`foreign-code-sources-on-disk`). "Checked" means
-read in the source or manual; "ran" means measured.
+A standing reference: what established programs do by default, by topic, each claim cited and
+marked checked (read in the source or manual), ran (measured) or inferred. Read it before
+designing a default, a limit or an automatic action, since tier 2 of the audit rule rests on
+it (`docs/milestones/generality.md` § The rule). Add a section after every survey, rather
+than leaving one in a conversation or a WP's batch directory.
+
+The seven programs are the ones rietx-bench runs: GSAS-II 5.8.4 (source), FullProf 8.20 (manual
+and `fp2k` runs), TOPAS Technical Reference Version 9 (no source or `Topas.inc` read), RIETAN-FP
+3.12 (manual and runs; its licence forbids copying, so it is paraphrased), BGMN 4.2.23 with
+Profex 5.7.2 (manual, Profex docs and templates, runs; GPL, so no source), MAUD 3.07 (BSD-3
+source at the tag) and EasyDiffraction 0.21.1 with cryspy 0.13.0 (source). Where each sits on
+disk is in the maintainer's memory (`foreign-code-sources-on-disk`).
+
+The first sections were surveyed 2026-10-21 for WP-2002's fifth round, one agent per program,
+with the load-bearing numbers checked by the lead. Each later section carries its own date.
 
 ## How far a peak is computed
 
