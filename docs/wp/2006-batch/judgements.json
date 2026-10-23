@@ -627,19 +627,19 @@
   },
   "rietx.io.formats.bruker_raw._SEG_SOURCE": {
    "role": "format layout",
-   "decides": "64 skip, then Kα-mean/Kα1/Kα2/Kβ/ratio, then anode",
+   "decides": "64 skip, then Kα-mean/Kα1/Kα2/Kβ/ratio, then anode.",
    "file": "src/rietx/io/formats/bruker_raw.py",
    "line": 123
   },
   "rietx.io.formats.bruker_raw._SEG_DRIVE": {
    "role": "format layout",
-   "decides": "uint32 flag, char[24] name, 20 skip, float64 position",
+   "decides": "uint32 flag, char[24] name, 20 skip, float64 position.",
    "file": "src/rietx/io/formats/bruker_raw.py",
    "line": 124
   },
   "rietx.io.formats.bruker_raw._MIN_DATUM": {
    "role": "runaway guard",
-   "decides": "A datum is at least one float32;",
+   "decides": "A datum is at least one float32 (4 bytes); anything smaller cannot hold an intensity.",
    "file": "src/rietx/io/formats/bruker_raw.py",
    "line": 127
   },
@@ -729,7 +729,7 @@
   },
   "rietx.io.formats.bruker_raw._V3_MIN_HEADER": {
    "role": "format layout",
-   "decides": "the last field read above ends here, so a header shorter than this is not one",
+   "decides": "the last field read above ends here, so a header shorter than this is not one.",
    "file": "src/rietx/io/formats/bruker_raw.py",
    "line": 480
   },
@@ -777,31 +777,31 @@
   },
   "rietx.io.formats.philips_rd._WAVELENGTHS_AT": {
    "role": "format layout",
-   "decides": "3 × float64: λα1, λα2, α2/α1 ratio",
+   "decides": "3 × float64: λα1, λα2, α2/α1 ratio.",
    "file": "src/rietx/io/formats/philips_rd.py",
    "line": 78
   },
   "rietx.io.formats.philips_rd._MAX_VALUE_AT": {
    "role": "format layout",
-   "decides": "uint16, equal to max(v) in all 28 real files",
+   "decides": "uint16, equal to max(v) in all 28 real files.",
    "file": "src/rietx/io/formats/philips_rd.py",
    "line": 79
   },
   "rietx.io.formats.philips_rd._FILE_NAME_AT": {
    "role": "format layout",
-   "decides": "8 bytes",
+   "decides": "8 bytes.",
    "file": "src/rietx/io/formats/philips_rd.py",
    "line": 80
   },
   "rietx.io.formats.philips_rd._SAMPLE_AT": {
    "role": "format layout",
-   "decides": "20 bytes",
+   "decides": "20 bytes.",
    "file": "src/rietx/io/formats/philips_rd.py",
    "line": 81
   },
   "rietx.io.formats.philips_rd._SCAN_AT": {
    "role": "format layout",
-   "decides": "3 × float64: step, start 2θ, end 2θ",
+   "decides": "3 × float64: step, start 2θ, end 2θ.",
    "file": "src/rietx/io/formats/philips_rd.py",
    "line": 82
   },
@@ -849,19 +849,19 @@
   },
   "rietx.io.instrument_profile._PRCF_MAPPED": {
    "role": "vocabulary / lookup",
-   "decides": "The type-3 coefficients this reader maps, **named from the one table that holds them** (``CW_PROFILE_COEFFICIENTS``, ``io/projects/gsas.py``) rather than restated here: ``GU GV GW`` and ``LX LY`` onto ``ProfileTCHZ``, ``S/L`` and ``H/L`` onto ``Geometry``, ``G",
+   "decides": "The type-3 coefficients this reader maps, **named from the one table that holds them** (``CW_PROFILE_COEFFICIENTS``, ``io/projects/gsas.py``) rather than restated here: ``GU GV GW`` and ``LX LY`` onto ``ProfileTCHZ``, ``S/L`` and ``H/L`` onto ``Geometry``, ``GP`` refused unless it is zero. Two readers unpacking one coefficient order from two lists is how they come to disagree, so this one is a slice of the other's.",
    "file": "src/rietx/io/instrument_profile.py",
    "line": 275
   },
   "rietx.io.instrument_profile._BANK_COLUMNS": {
    "role": "format layout",
-   "decides": "Same group as _PRCF_MAPPED: The type-3 coefficients this reader maps, **named from the one table that holds them** (``CW_PROFILE_COEFFICIENTS``, ``io/projects/gsas.py``) rather than restated here: ``GU GV GW`` and ``LX LY`` onto ``ProfileTCHZ``, ``S/L`` and ``H/L`` onto ``Geometry``, ``G",
+   "decides": "A ``.prm`` record's 12-byte key, by column: ``INS``, a three-column bank number, then the record's own name from column 6. The bank columns are blank on the file-wide records (``BANK``, ``HTYPE``) and carry the bank number on the rest.",
    "file": "src/rietx/io/instrument_profile.py",
    "line": 302
   },
   "rietx.io.instrument_profile._NAME_COLUMNS": {
    "role": "format layout",
-   "decides": "Same group as _PRCF_MAPPED: The type-3 coefficients this reader maps, **named from the one table that holds them** (``CW_PROFILE_COEFFICIENTS``, ``io/projects/gsas.py``) rather than restated here: ``GU GV GW`` and ``LX LY`` onto ``ProfileTCHZ``, ``S/L`` and ``H/L`` onto ``Geometry``, ``G",
+   "decides": "Same group as _BANK_COLUMNS: A ``.prm`` record's 12-byte key, by column: ``INS``, a three-column bank number, then the record's own name from column 6. The bank columns are blank on the file-wide records (``BANK``, ``HTYPE``) and carry the bank number on the rest.",
    "file": "src/rietx/io/instrument_profile.py",
    "line": 303
   },
@@ -897,13 +897,13 @@
   },
   "rietx.io.instrument_profile._PRM_CENTIDEG_SQUARED": {
    "role": "unit conversion",
-   "decides": "``S/L`` and ``H/L`` are dimensionless and cross unconverted;",
+   "decides": "``S/L`` and ``H/L`` are dimensionless and cross unconverted; the rest are the inverse of ``read_gsas_prm``'s own centidegree division, written here as the multiplication it is so the two cannot drift apart. ``GU GV GW`` are the coefficients of a Gaussian *variance* in centidegrees², the squared factor; ``profile.u/v/w`` are those of the Gaussian FWHM² in degrees² (Γ² = 8 ln 2 · σ²).",
    "file": "src/rietx/io/instrument_profile.py",
    "line": 1020
   },
   "rietx.io.instrument_profile._PRM_CENTIDEG": {
    "role": "unit conversion",
-   "decides": "Same group as _PRM_CENTIDEG_SQUARED: ``S/L`` and ``H/L`` are dimensionless and cross unconverted;",
+   "decides": "Same group as _PRM_CENTIDEG_SQUARED: ``S/L`` and ``H/L`` are dimensionless and cross unconverted; the rest are the inverse of ``read_gsas_prm``'s own centidegree division, written here as the multiplication it is so the two cannot drift apart. ``GU GV GW`` are the coefficients of a Gaussian *variance* in centidegrees², the squared factor; ``profile.u/v/w`` are those of the Gaussian FWHM² in degrees² (Γ² = 8 ln 2 · σ²).",
    "file": "src/rietx/io/instrument_profile.py",
    "line": 1021
   },
@@ -981,7 +981,7 @@
   },
   "rietx.io.legacy.lansce_iparm._BNKPAR_REALS": {
    "role": "format layout",
-   "decides": "How many of ``BNKPAR``'s fields are reals (DIST TTHETA TILT SEPN HGHT);",
+   "decides": "How many of ``BNKPAR``'s fields are reals (DIST TTHETA TILT SEPN HGHT); the rest (NTUBE ITUBE) are integers, in its documented layout of 5F10 then 2I5.",
    "file": "src/rietx/io/legacy/lansce_iparm.py",
    "line": 88
   },
@@ -1161,13 +1161,13 @@
   },
   "rietx.io.projects.topas_input._TCH_GAMMA": {
    "role": "published constants (cited)",
-   "decides": "The Thompson-Cox-Hastings constants rietx uses (``model.profiles.pseudovoigt`` ``_TCH_GAMMA``/``_TCH_ETA``;",
+   "decides": "The Thompson-Cox-Hastings constants rietx uses (``model.profiles.pseudovoigt`` ``_TCH_GAMMA``/``_TCH_ETA``; Thompson, Cox & Hastings 1987). Written into the file rather than left to a TOPAS macro, so the profile TOPAS computes is rietx's: the Technical Reference prints 0.1116 for the cubic η term where TCH (1987) and rietx have 0.11116.",
    "file": "src/rietx/io/projects/topas_input.py",
    "line": 58
   },
   "rietx.io.projects.topas_input._TCH_ETA": {
    "role": "published constants (cited)",
-   "decides": "Same group as _TCH_GAMMA: The Thompson-Cox-Hastings constants rietx uses (``model.profiles.pseudovoigt`` ``_TCH_GAMMA``/``_TCH_ETA``;",
+   "decides": "Same group as _TCH_GAMMA: The Thompson-Cox-Hastings constants rietx uses (``model.profiles.pseudovoigt`` ``_TCH_GAMMA``/``_TCH_ETA``; Thompson, Cox & Hastings 1987). Written into the file rather than left to a TOPAS macro, so the profile TOPAS computes is rietx's: the Technical Reference prints 0.1116 for the cubic η term where TCH (1987) and rietx have 0.11116.",
    "file": "src/rietx/io/projects/topas_input.py",
    "line": 59
   },
@@ -1239,13 +1239,13 @@
   },
   "rietx.io.recipe.GSASII_DEFAULT_SIZE_UM": {
    "role": "foreign program's default (measured)",
-   "decides": "What GSAS-II puts in a size/strain block whose magnitude the recipe leaves null, **measured** off the committed LaB6 reference rather than read from a manual: the peak list's ``gamma`` exceeds the instrument-only ``X/cosθ + Y·tanθ + Z`` by exactly ``1.8·λ/(π·D",
+   "decides": "What GSAS-II puts in a size/strain block whose magnitude the recipe leaves null, **measured** off the committed LaB6 reference rather than read from a manual: the peak list's ``gamma`` exceeds the instrument-only ``X/cosθ + Y·tanθ + Z`` by exactly ``1.8·λ/(π·D·cosθ) + 0.018·µ·tanθ/π`` centidegrees at these two values, on every reflection. Two free constants landing on round numbers across 49 reflections is not a coincidence.",
    "file": "src/rietx/io/recipe.py",
    "line": 1247
   },
   "rietx.io.recipe.GSASII_DEFAULT_MICROSTRAIN": {
    "role": "foreign program's default (measured)",
-   "decides": "Same group as GSASII_DEFAULT_SIZE_UM: What GSAS-II puts in a size/strain block whose magnitude the recipe leaves null, **measured** off the committed LaB6 reference rather than read from a manual: the peak list's ``gamma`` exceeds the instrument-only ``X/cosθ + Y·tanθ + Z`` by exactly ``1.8·λ/(π·D",
+   "decides": "Same group as GSASII_DEFAULT_SIZE_UM: What GSAS-II puts in a size/strain block whose magnitude the recipe leaves null, **measured** off the committed LaB6 reference rather than read from a manual: the peak list's ``gamma`` exceeds the instrument-only ``X/cosθ + Y·tanθ + Z`` by exactly ``1.8·λ/(π·D·cosθ) + 0.018·µ·tanθ/π`` centidegrees at these two values, on every reflection. Two free constants landing on round numbers across 49 reflections is not a coincidence.",
    "file": "src/rietx/io/recipe.py",
    "line": 1248
   },
@@ -1293,7 +1293,7 @@
   },
   "rietx.crystallography.attenuation._HC_EV_ANGSTROM": {
    "role": "physical constant",
-   "decides": "hc in eV*Angstrom (CODATA);",
+   "decides": "hc in eV·Å (CODATA), the conversion E[eV] = _HC_EV_ANGSTROM / wavelength[Å].",
    "file": "src/rietx/crystallography/attenuation.py",
    "line": 41
   },
@@ -1413,13 +1413,13 @@
   },
   "rietx.crystallography.magnetic.isotropy.CROSS_IRREP_DRAWS": {
    "role": "sampling count (sets a verdict's confidence)",
-   "decides": "Draws per direction on a pair no certificate settles, when the caller names none (issue #565, decision 3): 12 between two irreps, where 8 % of the cubic pairs that 3 draws called equivalent were refuted by a draw within 12 (0.2 % at 12), and 3 inside one irrep",
+   "decides": "Draws per direction on a pair no certificate settles, when the caller names none (issue #565, decision 3): 12 between two irreps, where 8 % of the cubic pairs that 3 draws called equivalent were refuted by a draw within 12 (0.2 % at 12), and 3 inside one irrep. On the cubic ``P n -3 m:1`` at (0, 0, ½) the raise is what gives the four classes of the known answer rather than two. The 3 within an irrep is not measured the same way (the 8 % was counted on cross-irrep pairs only) and applies only to two *different* directions of one irrep, since the isometry certificate settles the rank-1 copies without a draw; 12 there would cost about 4 min more on the known answer (an estimate, not a measurement).",
    "file": "src/rietx/crystallography/magnetic/isotropy.py",
    "line": 235
   },
   "rietx.crystallography.magnetic.isotropy.WITHIN_IRREP_DRAWS": {
    "role": "sampling count (sets a verdict's confidence)",
-   "decides": "Same group as CROSS_IRREP_DRAWS: Draws per direction on a pair no certificate settles, when the caller names none (issue #565, decision 3): 12 between two irreps, where 8 % of the cubic pairs that 3 draws called equivalent were refuted by a draw within 12 (0.2 % at 12), and 3 inside one irrep",
+   "decides": "Same group as CROSS_IRREP_DRAWS: Draws per direction on a pair no certificate settles, when the caller names none (issue #565, decision 3): 12 between two irreps, where 8 % of the cubic pairs that 3 draws called equivalent were refuted by a draw within 12 (0.2 % at 12), and 3 inside one irrep. On the cubic ``P n -3 m:1`` at (0, 0, ½) the raise is what gives the four classes of the known answer rather than two. The 3 within an irrep is not measured the same way (the 8 % was counted on cross-irrep pairs only) and applies only to two *different* directions of one irrep, since the isometry certificate settles the rank-1 copies without a draw; 12 there would cost about 4 min more on the known answer (an estimate, not a measurement).",
    "file": "src/rietx/crystallography/magnetic/isotropy.py",
    "line": 236
   },
@@ -1443,13 +1443,13 @@
   },
   "rietx.crystallography.magnetic.isotropy.FARKAS_QUOTE": {
    "role": "tolerance (certificate)",
-   "decides": "The projected ratio the quoted certificate is moved inside to: the min-norm point sits on the PSD boundary to rounding (ratios −4e-16 to 2e-16 on the 49 draws above), where an exact check can go either way between machines, so the certificate stored and checke",
+   "decides": "The projected ratio the quoted certificate is moved inside to: the min-norm point sits on the PSD boundary to rounding (ratios −4e-16 to 2e-16 on the 49 draws), where an exact check can go either way between machines, so the certificate stored and checked is the nearest point toward the interior with at least this ratio (or half the interior anchor's, when that is lower). Two decades above ``FARKAS_FLOOR``; the per-certificate rounding bound (≤ 3.4e-14 measured) is more than three decades below it.",
    "file": "src/rietx/crystallography/magnetic/isotropy.py",
    "line": 288
   },
   "rietx.crystallography.magnetic.isotropy.TRANSFER_FLOAT_STACK": {
    "role": "threshold (decides a label)",
-   "decides": "A fit transfer (issue #565, item 6) whose margin μ = λ′/Γ on the target's projected live stack is below this is printed as \"proved on the float Gram stack\": the cone bound cos(ŷ, I) ≥ μ then sits within a few decades of the rounding allowance ρ, and the step f",
+   "decides": "A fit transfer (issue #565, item 6) whose margin μ = λ′/Γ on the target's projected live stack is below this is printed as \"proved on the float Gram stack\": the cone bound cos(ŷ, I) ≥ μ then sits within a few decades of the rounding allowance ρ, and the step from the float G_s to the exact ones (which no certificate here covers) can be a real share of it. A label, not a gate: the verdict rests on cos < μ − ρ either way. Measured on the 246 fit transfers of the six cubic sets (2026-09-30, both machines): μ 1.7e-9 to 3.5e-4, 14 below this, the largest ρ/μ 0.22.",
    "file": "src/rietx/crystallography/magnetic/isotropy.py",
    "line": 298
   },
@@ -1503,7 +1503,7 @@
   },
   "rietx.crystallography.magnetic.operators.N_MAGNETIC_SPACE_GROUPS": {
    "role": "count (classification fact)",
-   "decides": "Number of magnetic space groups (Litvin 2013;",
+   "decides": "Number of magnetic space groups (Litvin 2013), in UNI numbering 1-1651.",
    "file": "src/rietx/crystallography/magnetic/operators.py",
    "line": 98
   },
@@ -1653,7 +1653,7 @@
   },
   "rietx.crystallography.representation.irreps._STANDARD_PRIMITIVE_BASIS": {
    "role": "numerical-method constant",
-   "decides": "The conventional primitive bases, as rows in conventional fractional coordinates: the transposes of the transformation matrices of International Tables A Table 1.5.1.1, i.e.",
+   "decides": "The conventional primitive bases, as rows in conventional fractional coordinates: the transposes of the transformation matrices of *International Tables* A Table 1.5.1.1, the same primitive cells spglib and every other code names for these centrings. Used in preference to the Hermite normal form so that ``primitive_operations`` returns the operations in the setting a reader (and spgrep's tabulated point groups) expects; a centring not among these, or a setting whose centring vectors these rows do not span, falls back to the HNF, which is correct for any lattice.",
    "file": "src/rietx/crystallography/representation/irreps.py",
    "line": 320
   },
@@ -1683,13 +1683,13 @@
   },
   "rietx.crystallography.riding.RIDING_LENGTHS": {
    "role": "tabulated data (cited)",
-   "decides": "X–H lengths (Å) by bond class and radiation;",
+   "decides": "X–H lengths (Å) by bond class and radiation, the source of each column given in the module docstring. ``None`` would mean no tabulated value and is refused; no entry is ``None`` today.",
    "file": "src/rietx/crystallography/riding.py",
    "line": 38
   },
   "rietx.crystallography.riding.RIDING_MIN_SEPARATION": {
    "role": "degenerate-geometry guard",
-   "decides": "Å: an H closer than this to its parent gives no parent→H direction",
+   "decides": "Å: an H closer than this to its parent gives no parent→H direction.",
    "file": "src/rietx/crystallography/riding.py",
    "line": 47
   },
@@ -1707,25 +1707,25 @@
   },
   "rietx.crystallography.rotation._A_SERIES": {
    "role": "numerical-method coefficients",
-   "decides": "Maclaurin coefficients through θ¹⁰ (in powers of θ²), lowest first: A = Σ (−1)ᵏ θ²ᵏ/(2k+1)!,  B = Σ (−1)ᵏ θ²ᵏ/(2k+2)!,  C = Σ (−1)ᵏ θ²ᵏ/(2k+3)!",
+   "decides": "Maclaurin coefficients through θ¹⁰ (in powers of θ²), lowest first: A = Σ (−1)ᵏ θ²ᵏ/(2k+1)!,  B = Σ (−1)ᵏ θ²ᵏ/(2k+2)!,  C = Σ (−1)ᵏ θ²ᵏ/(2k+3)!.",
    "file": "src/rietx/crystallography/rotation.py",
    "line": 95
   },
   "rietx.crystallography.rotation._B_SERIES": {
    "role": "numerical-method coefficients",
-   "decides": "Same group as _A_SERIES: Maclaurin coefficients through θ¹⁰ (in powers of θ²), lowest first: A = Σ (−1)ᵏ θ²ᵏ/(2k+1)!,  B = Σ (−1)ᵏ θ²ᵏ/(2k+2)!,  C = Σ (−1)ᵏ θ²ᵏ/(2k+3)!",
+   "decides": "Same group as _A_SERIES: Maclaurin coefficients through θ¹⁰ (in powers of θ²), lowest first: A = Σ (−1)ᵏ θ²ᵏ/(2k+1)!,  B = Σ (−1)ᵏ θ²ᵏ/(2k+2)!,  C = Σ (−1)ᵏ θ²ᵏ/(2k+3)!.",
    "file": "src/rietx/crystallography/rotation.py",
    "line": 96
   },
   "rietx.crystallography.rotation._C_SERIES": {
    "role": "numerical-method coefficients",
-   "decides": "Same group as _A_SERIES: Maclaurin coefficients through θ¹⁰ (in powers of θ²), lowest first: A = Σ (−1)ᵏ θ²ᵏ/(2k+1)!,  B = Σ (−1)ᵏ θ²ᵏ/(2k+2)!,  C = Σ (−1)ᵏ θ²ᵏ/(2k+3)!",
+   "decides": "Same group as _A_SERIES: Maclaurin coefficients through θ¹⁰ (in powers of θ²), lowest first: A = Σ (−1)ᵏ θ²ᵏ/(2k+1)!,  B = Σ (−1)ᵏ θ²ᵏ/(2k+2)!,  C = Σ (−1)ᵏ θ²ᵏ/(2k+3)!.",
    "file": "src/rietx/crystallography/rotation.py",
    "line": 98
   },
   "rietx.crystallography.rotation._LOG_SERIES_NORM": {
    "role": "numerical-method coefficients",
-   "decides": "a quaternion's vector norm below which atan2(n, w)/n is taken by its series",
+   "decides": "a quaternion's vector norm below which atan2(n, w)/n is taken by its series.",
    "file": "src/rietx/crystallography/rotation.py",
    "line": 102
   },
@@ -1797,7 +1797,7 @@
   },
   "rietx.crystallography.superspace.generation._GRID": {
    "role": "numerical-method constant",
-   "decides": "origin-shift grid of the normaliser search, 1/24",
+   "decides": "origin-shift grid of the normaliser search, 1/24.",
    "file": "src/rietx/crystallography/superspace/generation.py",
    "line": 75
   },
@@ -1851,19 +1851,19 @@
   },
   "rietx.crystallography.superspace.symbols._TETRA": {
    "role": "vocabulary / lookup",
-   "decides": "Stokes 2011 Table 2 orientations, keyed by (system, position, kind);",
+   "decides": "Stokes 2011 Table 2 orientations, keyed by (system, position, kind); the third tetragonal and hexagonal position takes the [110] two-fold and the mirror normal to [1-10] (Table 2's 422 / 4mm rows).",
    "file": "src/rietx/crystallography/superspace/symbols.py",
    "line": 86
   },
   "rietx.crystallography.superspace.symbols._HEXA": {
    "role": "vocabulary / lookup",
-   "decides": "Same group as _TETRA: Stokes 2011 Table 2 orientations, keyed by (system, position, kind);",
+   "decides": "Same group as _TETRA: Stokes 2011 Table 2 orientations, keyed by (system, position, kind); the third tetragonal and hexagonal position takes the [110] two-fold and the mirror normal to [1-10] (Table 2's 422 / 4mm rows).",
    "file": "src/rietx/crystallography/superspace/symbols.py",
    "line": 91
   },
   "rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS": {
    "role": "runaway guard",
-   "decides": "ceiling on the (2h+1)(2k+1)(2l+1) enumeration grid ``generate_reflections`` may allocate — ~30M points is ≈ 1 GB of transient int64, far above any physical powder problem (a 100 Å cell at d_min = 1 Å needs 8.1e6) and far below the PiB-scale grids a collapsed c",
+   "decides": "Ceiling on the (2h+1)(2k+1)(2l+1) enumeration grid ``generate_reflections`` may allocate: ~30M points is ≈ 1 GB of transient int64, far above any physical powder problem (a 100 Å cell at d_min = 1 Å needs 8.1e6) and far below the PiB-scale grids a collapsed cell implies.",
    "file": "src/rietx/crystallography/symmetry.py",
    "line": 36
   },

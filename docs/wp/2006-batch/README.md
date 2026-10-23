@@ -9,7 +9,7 @@ Nothing here rules on or removes anything.
 | `reachability.csv` | One row per entry of `derive_surface()`: a column per source, `state_use` and `state`. Made by `python -m tests.reachability_walk`. |
 | `reachability.md` | Counts, the positive check on the three evidence types, the lists a maintainer would read, the hand checks, what the walk cannot see. |
 | `inventory.json` | The codes of `io/` and `crystallography/` (raise site, level, condition, act or judgement), the module-level numbers of both directories with what each decides, the six reader decisions, the GUI's HTTP error names. Made by `collate_inventory.py`. |
-| `judgements.json` | The only hand-written input of `collate_inventory.py`: act/judgement per code, role and "decides" per constant, the reader decisions. The script stops on an entry that has none. |
+| `judgements.json` | The only hand-written input of `collate_inventory.py`: act/judgement per code, role and "decides" per constant, the reader decisions. The script stops on an entry that has none, and on a `decides` or `condition` text that is cut short (it must end in a full stop or a closing bracket, and the full stop must not be an abbreviation's). |
 | `collate_inventory.py` | Derives everything else from the tree (codes via `docs/reference_pages.diagnostic_index()`). |
 
 **Act or judgement** (the `records` field): `act` records something done to or assumed of the file ("was read as", "was

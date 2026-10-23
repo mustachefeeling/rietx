@@ -34,6 +34,25 @@ HELPERS = {  # codes raised through a helper that takes `code=` and builds the D
 }
 
 
+ABBREV_STOP = re.compile(r"(?:\bet al|\bVol|\bi\.e|\be\.g|\bcf|\bca|\bvs|\bFig|\bEq|\bNo|\bTable)\.$")
+
+
+def cut_texts(judg: dict) -> list[str]:
+    """Hand-written texts that stop mid-sentence (WP-2006 review, round 2).
+
+    Covers every constant's `decides`, every code's `condition` and every reader
+    decision; a code's `note` is a label, not a sentence.  A text is whole when it ends in a full stop or a closing bracket and the full
+    stop is not an abbreviation's.  A cut one (at a length cap, a semicolon, "et al.",
+    "i.e.") reads as a half reason in a ruling, so part 2 must never inherit one.
+    """
+    texts = ({f"constants:{k}": v["decides"] for k, v in judg["constants"].items()}
+             | {f"codes:{k}": v["condition"] for k, v in judg["codes"].items()}
+             | {f"reader_decisions:{r['name']}": r["decides"]
+                for r in judg["reader_decisions"]})
+    return [k for k, t in texts.items()
+            if not t.rstrip().endswith((".", ")")) or ABBREV_STOP.search(t.rstrip())]
+
+
 def rel(p: Path) -> str:
     return p.relative_to(REPO).as_posix()
 
@@ -170,6 +189,9 @@ def main() -> None:
                + [c for c in wanted if c not in by_code])
     if missing:
         sys.exit(f"no judgement or no site for: {missing}")
+    cut = cut_texts(judg)
+    if cut:
+        sys.exit(f"hand-written text cut short or not a whole sentence: {cut}")
 
     rows = []
     for code in sorted(wanted):
