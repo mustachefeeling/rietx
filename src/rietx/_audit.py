@@ -715,6 +715,10 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_UNRESOLVED_SPLIT", "code"),
     Row("PEAK_WIDTH_CAPPED", "code"),
     Row("PEAK_WIDTH_LAW_MISMATCH", "code"),
+    Row("PHASE_HELD_IN_PATTERNS", "code", tier=1, ambiguity=3,
+        evidence=("arithmetic: an info record of the hold the answer's stage already made "
+                  "(StageResult.held, WP-1325's per-pattern support hold), counting the "
+                  "patterns; no threshold of its own and gates nothing (WP-2028)")),
     Row("PHASE_UNCONSTRAINED", "code"),
     Row("QPA_ESD_UNAVAILABLE", "code"),
     Row("QPA_FRACTION_RANGE", "code", tier=1, ambiguity=3,
