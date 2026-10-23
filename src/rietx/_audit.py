@@ -1647,6 +1647,12 @@ ROWS: tuple[Row, ...] = (
         grounds="Kept on both grounds, ruled 2026-10-21 (PR #939).",
         approved="2026-10-21"),
     Row("rietx.indexing.extinction._MODULI", "constant", value=(2, 3, 4, 6)),
+    Row("rietx.indexing.extinction.N_A_CM3_PER_A3", "constant", tier=1,
+        evidence="Physics: Avogadro's number, exact in the SI since 2019 (CODATA 2018, "
+                 "6.02214076e23 /mol), times 1e-24 cm3 per A3, so Z = rho*V*N_A/M with rho "
+                 "in g/cm3, V in A3 and M in g/mol (WP-2033).  The same value qpa.ZMV.density "
+                 "uses inline.",
+        value=0.602214076),
     Row("rietx.indexing.fom.FOM_N", "constant", value=20),
     Row("rietx.indexing.fom.LINE_COINCIDENCE_RTOL", "constant", value=1e-09),
     Row("rietx.indexing.fom.MATCH_SIGMA", "constant", value=3.0),
