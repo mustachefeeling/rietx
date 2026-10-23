@@ -120,8 +120,8 @@ function alone positive; positivity, where enforced, is on the total width. None
 about or automatically holds a twin pair. Every program that separates instrument from specimen
 does it by holding the instrument from a standard: FullProf (the IRF) and BGMN (ray tracing) by
 design, RIETAN-FP by its advised protocol, GSAS-II through defaults that leave the sample terms
-off. Readers' full tables, with every citation marked checked or inferred, are in the WP-2002
-8th-session scratchpad and summarised here; the few inferred claims are TOPAS's quadrature/linear
+off. Three readers checked every citation above in the source or manual on 2026-10-23; their
+scratch copies were not kept. The claims they marked inferred are TOPAS's quadrature/linear
 combination rule (not stated in the reference), the scope of `force_positive_fwhm`, and
 FullProf's constant-wavelength combination rule with an IRF.
 
