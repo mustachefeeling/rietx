@@ -2011,12 +2011,21 @@ def lorentzian_width_inequalities(model: CompiledModel, table: ParameterTable,
     The row is then a sufficient condition, never a necessary one.  The
     phase terms have floors of 0, so a row can bind only through X and Y.
 
-    Everything else is :func:`gaussian_width_inequalities`' rule: a row per
-    (emission line, reflection) whose window holds data, at the frozen Bragg
-    angles for the starting cell and λ; affine in θ through C and d; exact
-    duplicates and rows no free column reaches dropped; a row the start
-    violates dropped; a phase with a derived width row skipped; single
-    histogram only.  ``RESOLUTION_NOT_POSITIVE`` is TRF's guard.
+    **A row at every reflection of the frozen list**, where the Gaussian rows
+    take only those whose window holds data.  Γ_G² has a clamp under it
+    (``gaussian_fwhm``'s ε), so a reflection off the data can sit under it
+    harmlessly; Γ_L has none, and a negative one is NaN at the next compile
+    that windows that reflection onto data (``tch_gamma_eta``'s fifth root),
+    which stops the stage before it starts.  The list carries
+    ``REFLECTION_MARGIN_DEG`` beyond the range, and Γ_L changes sign at most
+    once in θ, so holding it there keeps it non-negative over the range.
+
+    Everything else is :func:`gaussian_width_inequalities`' rule: at the
+    frozen Bragg angles for the starting cell and λ; affine in θ through C and
+    d; exact duplicates and rows no free column reaches dropped; a row the
+    start violates dropped; a phase with a derived width row skipped.  The
+    joint runner asks it of each histogram (:func:`_joint_width_inequalities`).
+    ``RESOLUTION_NOT_POSITIVE`` is TRF's guard.
     """
     from . import lm as lm_mod
 
@@ -2048,13 +2057,11 @@ def lorentzian_width_inequalities(model: CompiledModel, table: ParameterTable,
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         _d, tt_lines = model._cell_block(cp, cell, lams)
         blocks_T, blocks_c = [], []
-        for windows, idx in families:
+        for _windows, idx in families:
             theta = []
-            for il, tt in enumerate(tt_lines):
+            for tt in tt_lines:
                 tt = np.asarray(tt, dtype=np.float64)
-                win = windows[il]
-                used = (win[:, 1] > win[:, 0]) & np.isfinite(tt)
-                theta.append(np.radians(0.5 * tt[used]))
+                theta.append(np.radians(0.5 * tt[np.isfinite(tt)]))
             th = np.concatenate(theta) if theta else np.empty(0)
             if not th.size:
                 continue
@@ -2076,6 +2083,33 @@ def lorentzian_width_inequalities(model: CompiledModel, table: ParameterTable,
         out.append(lm_mod.LinearInequality(
             T=np.ascontiguousarray(T[keep]), c=c[keep],
             label=f"instrument.profile Lorentzian (phases.{ip})"))
+    return out
+
+
+def _joint_width_inequalities(models: list[CompiledModel], mtable, x0: np.ndarray
+                              ) -> list["lm_mod.LinearInequality"]:
+    """The single fit's Γ_G² and Γ_L rows, asked of each histogram and laid on
+    the joint columns (``mtable.col_map``).
+
+    Without them a joint fit kept a width non-negative only through the
+    per-coefficient floors, and WP-2002 removed the U, V and Y floors: a free
+    Y could step to a negative Γ_L and every residual to NaN.  Each builder
+    reads its own histogram's table, whose C already carries the λ factor a
+    shared size column takes (WP-1131), so a row needs only its columns moved.
+    """
+    from . import lm as lm_mod
+
+    out: list[lm_mod.LinearInequality] = []
+    n = len(x0)
+    for h, (model, table, local) in enumerate(
+            zip(models, mtable.tables, mtable.split(x0), strict=True)):
+        cols = np.asarray(mtable.col_map(h), dtype=np.intp)
+        for block in (gaussian_width_inequalities(model, table, local)
+                      + lorentzian_width_inequalities(model, table, local)):
+            T = np.zeros((block.T.shape[0], n), dtype=np.float64)
+            T[:, cols] = block.T
+            out.append(lm_mod.LinearInequality(T=T, c=block.c,
+                                               label=f"hist.{h} {block.label}"))
     return out
 
 
@@ -2835,8 +2869,9 @@ def run_multi_least_squares(models: list[CompiledModel],
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
-                          ftol=ftol, inequalities=[], events=events, stage=stage,
-                          track=tracker, table=mtable)
+                          ftol=ftol,
+                          inequalities=_joint_width_inequalities(models, mtable, x0),
+                          events=events, stage=stage, track=tracker, table=mtable)
     else:
         with lapack.scipy_trf():
             res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",

@@ -2,7 +2,8 @@
 
 Y lost its floor of 0 on the maintainer's ruling of 2026-10-23: what must stay
 non-negative is the Lorentzian width Γ_L = X/cosθ + Y·tanθ, not Y.  LM holds
-it at every reflection whose window holds data, as a linear inequality inside
+it at every reflection of the frozen list, those just past the data included
+(the joint runner too since the 9th session), as a linear inequality inside
 the step (``least_squares.lorentzian_width_inequalities``), the twin of the
 Γ_G² rows ``test_gaussian_width_floor.py`` tests.  TRF holds no inequality,
 and ``RESOLUTION_NOT_POSITIVE`` reports the instrument's Γ_L going negative.
@@ -72,11 +73,13 @@ def _fit(pattern, start: dict, free: str, solver: str = "lm"):
     return ref, ref.fit(pattern, plan=plan)
 
 
-def _gamma_l(ref, result) -> tuple[np.ndarray, np.ndarray]:
-    """2θ and the instrument Γ_L at every tick inside the measured range."""
+def _gamma_l(ref, result, *, past_data: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    """2θ and the instrument Γ_L at every tick inside the measured range, or at
+    every tick the result carries with ``past_data``."""
     p = ref.instrument.profile
     tt = np.asarray([x for ticks in result.ticks.values() for x in ticks])
-    tt = tt[tt <= max(result.two_theta)]
+    if not past_data:
+        tt = tt[tt <= max(result.two_theta)]
     th = np.radians(0.5 * tt)
     return tt, p.x.value / np.cos(th) + p.y.value * np.tan(th)
 
@@ -129,11 +132,13 @@ def test_lm_holds_the_lorentzian_width_at_zero_at_the_high_angle_end(too_broad):
     pattern, start = too_broad
     ref, result = _fit(pattern, start, "xy")
     _draw(result, "lorentzian_width_rows_lm")
-    tt, gamma_l = _gamma_l(ref, result)
+    tt, gamma_l = _gamma_l(ref, result, past_data=True)
     scale = float(np.max(np.abs(gamma_l)))
     assert np.all(gamma_l >= -1e-9 * scale)
-    # the row carried load: the highest reflection sits on its face
+    # the row carried load: the highest listed reflection, past the data's end,
+    # sits on its face, and the data's own last reflections stay above it
     assert gamma_l[np.argmax(tt)] == pytest.approx(0.0, abs=1e-9 * scale)
+    assert np.max(tt) > max(result.two_theta)
     assert ref.instrument.profile.y.value < 0.0
     assert any(d.code == "CONSTRAINT_ACTIVE" for d in result.diagnostics)
 
@@ -148,3 +153,33 @@ def test_trf_reports_the_negative_width_it_cannot_hold(too_broad):
     assert [d.where for d in found] == [["instrument.profile.x", "instrument.profile.y"]]
     assert "Lorentzian" in found[0].message
     assert found[0].value < 0.0
+
+
+def _joint_gamma_l(pattern, start: dict) -> list[np.ndarray]:
+    """Each histogram's instrument Γ_L over the measured range, after a joint
+    fit of ``pattern`` twice that frees each histogram's X and Y."""
+    from rietx.multi import MultiHistogramRefinement
+
+    structure, ins = _models(start, true=False)
+    ref = MultiHistogramRefinement(structure, [ins, ins.model_copy(deep=True)])
+    ref.fit([pattern, pattern], plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="scale", turn_on=_B),
+        rx.Stage(name="profile", turn_on=_B + ["instrument.profile.x",
+                                               "instrument.profile.y"])]))
+    th = np.radians(0.5 * np.asarray(pattern.two_theta))
+    return [p.profile.x.value / np.cos(th) + p.profile.y.value * np.tan(th)
+            for p in ref.fitted_instruments]
+
+
+def test_the_joint_runner_holds_the_lorentzian_width_too(too_broad, monkeypatch):
+    """The joint LM runner built no width rows, and the per-coefficient floor
+    was what kept Γ_L ≥ 0 there (code review of WP-2002's 9th session).
+    Without the rows the joint fit takes each histogram's Γ_L negative at the
+    top of the range; with them neither goes below zero."""
+    pattern, start = too_broad
+    with monkeypatch.context() as m:
+        m.setattr(ls, "_joint_width_inequalities", lambda models, mtable, x0: [])
+        unheld = _joint_gamma_l(pattern, start)
+    assert all(g.min() < 0.0 for g in unheld)
+    for g in _joint_gamma_l(pattern, start):
+        assert g.min() >= -1e-9 * np.max(np.abs(g))

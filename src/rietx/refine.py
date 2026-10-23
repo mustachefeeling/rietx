@@ -777,38 +777,43 @@ def _hold_scale_b_ridges(model: CompiledModel, table: ParameterTable,
     return held, held_reach, ridged
 
 
-#: Each instrument width coefficient and the specimen width with its angular
-#: dependence (``CompiledModel._width_block``): U and ``gauss_strain`` both
-#: multiply tan²θ in Γ_G², Y and ``lor_strain`` tanθ in Γ_L, X and
-#: ``lor_size`` 1/cosθ in Γ_L.  A pattern sees each pair only as a sum.
-#: ``lor_size`` carries a factor λ_h/λ₀ per histogram of a joint fit (WP-1131),
-#: which **C** holds, so the test below reads it without naming it.
-WIDTH_TWINS: tuple[tuple[str, str], ...] = (
-    ("instrument.profile.u", "gauss_strain"),
-    ("instrument.profile.y", "lor_strain"),
-    ("instrument.profile.x", "lor_size"),
+#: What a pattern sees of the peak widths (``CompiledModel._width_block``): per
+#: angular term, the instrument coefficient and the specimen widths that add to
+#: it.  Γ_G² = U·tan²θ + V·tanθ + W + ``gauss_size``/cos²θ + ``gauss_strain``·tan²θ,
+#: and 1/cos²θ = 1 + tan²θ, so ``gauss_size`` adds to two terms; Γ_L =
+#: (X + ``lor_size``)/cosθ + (Y + ``lor_strain``)·tanθ.  V has no specimen term.
+#: A joint fit's λ factors on the size terms (WP-1131) are in **C**, so the test
+#: below reads them without naming them.
+WIDTH_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("instrument.profile.u", ("gauss_strain", "gauss_size")),    # tan²θ in Γ_G²
+    ("instrument.profile.w", ("gauss_size",)),                   # 1 in Γ_G²
+    ("instrument.profile.x", ("lor_size",)),                     # 1/cosθ in Γ_L
+    ("instrument.profile.y", ("lor_strain",)),                   # tanθ in Γ_L
 )
 
 
 def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
                       n_columns: int) -> dict[int, list[int]]:
-    """The instrument width columns on a flat direction with their specimen
-    twins (:data:`WIDTH_TWINS`), each with the twin columns it pairs with.
+    """The instrument width columns on a flat direction with specimen widths
+    (:data:`WIDTH_TERMS`), each with the specimen columns it pairs with.
 
     ``parts`` holds one ``(table, col_map, unseen)`` per pattern: the table,
     the θ column each of its free columns is (the identity for a single fit),
     and the phases its data cannot see.  Columns are θ indices.
 
     **Columns, never names** (WP-1342), and exact.  Each seen phase of each
-    pattern sees one sum per pair, so a move of the free columns is flat when
-    it changes none of those sums and no other entry.  That is the null space
-    of a matrix read off **C**, so a tie, a ``vars.X`` and a joint fit's λ
-    factor all enter as coefficients.  Two consequences follow without a
-    rule of their own.  One seen phase whose twin is held pins the instrument
-    width for every phase, so nothing is flat.  A pattern whose instrument
-    width is held pins the shared specimen width, and every other pattern's
-    instrument width with it.  An unseen phase's sums are left out, because
-    its peaks pin nothing; its own columns are the support hold's.
+    pattern sees one total per angular term, so a move of the free columns is
+    flat when it changes none of those totals and no other entry.  That is the
+    null space of a matrix read off **C**, so a tie, a ``vars.X`` and a joint
+    fit's λ factor all enter as coefficients.  The pairs U with
+    ``gauss_strain``, X with ``lor_size`` and Y with ``lor_strain`` are flat
+    this way, and so is ``gauss_size`` with U and W together (code review of
+    the 9th session).  Two consequences follow without a rule of their own.
+    One seen phase whose specimen width is held pins the instrument term for
+    every phase, so nothing is flat.  A pattern whose instrument width is held
+    pins the shared specimen width, and every other pattern's instrument width
+    with it.  An unseen phase's totals are left out, because its peaks pin
+    nothing; its own columns are the support hold's.
 
     A free Stephens block (``Phase.microstrain``) locks ``lor_strain`` and
     takes its place as Y's twin.  The block's isotropic direction is Y's
@@ -834,28 +839,32 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
         pos = table._paths
         family: set[int] = set()
         families.append(family)
-        for inst, twin in WIDTH_TWINS:
+        for inst, names in WIDTH_TERMS:
             i_inst = pos.get(inst)
             if i_inst is None:
                 continue
             family.add(i_inst)
             r_inst = row(C, col_map, i_inst)
             ip = 0
-            while (i_twin := pos.get(f"phases.{ip}.{twin}")) is not None:
-                family.add(i_twin)
-                block = _stephens_block(pos, ip) if twin == "lor_strain" else []
+            while f"phases.{ip}.scale" in pos:
+                idx = [pos[f"phases.{ip}.{n}"] for n in names
+                       if f"phases.{ip}.{n}" in pos]
+                family.update(idx)
+                block = (_stephens_block(pos, ip) if "lor_strain" in names
+                         else [])
                 r_block = sum((np.abs(row(C, col_map, i)) for i in block),
                               np.zeros(n_columns))
                 family.update(block)
                 if ip not in unseen and r_block.any():
-                    # a free Stephens block is Y's twin: no sum row pins Y
+                    # a free Stephens block is Y's twin: no total pins Y
                     couples.append((set(np.flatnonzero(r_inst).tolist()),
                                     set(np.flatnonzero(r_block).tolist())))
                 elif ip not in unseen:
-                    r_twin = row(C, col_map, i_twin)
-                    sums.append(r_inst + r_twin)
+                    r_phase = sum((row(C, col_map, i) for i in idx),
+                                  np.zeros(n_columns))
+                    sums.append(r_inst + r_phase)
                     couples.append((set(np.flatnonzero(r_inst).tolist()),
-                                    set(np.flatnonzero(r_twin).tolist())))
+                                    set(np.flatnonzero(r_phase).tolist())))
                 ip += 1
     inst_cols = set().union(*(a for a, _ in couples))
     if not inst_cols:
