@@ -43,6 +43,8 @@ extensions = [
     "markdown_twin",
     # A model's fields in the API reference, one line each (docs/py_fields.py).
     "py_fields",
+    # A signature in the code blocks' colours (docs/py_highlight.py).
+    "py_highlight",
 ]
 nb_execution_mode = "off"
 

@@ -2770,11 +2770,11 @@ class Refinement:
                                 const=float(spec.const))
                 refused = table.tie_source_refusal(tie)
                 if refused is not None:
-                    # a later model edit locked (or derived) the source: the
-                    # tie cannot move the target any more, and ``set_tie``
-                    # would raise, stopping a build a model edit must not stop
-                    dropped.append(f"{path} (source {refused[0]} now "
-                                   f"structurally fixed)")
+                    # a later model edit locked (or derived) the source, or a
+                    # row its own tie rests on: the tie cannot move the target
+                    # any more, and ``set_tie`` would raise, stopping a build a
+                    # model edit must not stop
+                    dropped.append(_tie_refusal_text(path, refused))
                     continue
                 table.set_tie(path, tie)
                 self._applied_ties.add(path)
@@ -9863,6 +9863,19 @@ def _pawley_locate(pb, gi: int) -> tuple[int, int]:
     raise IndexError(gi)
 
 
+def _tie_refusal_text(path: str, refused: tuple[str, str]) -> str:
+    """The reason a recorded tie is dropped, from ``tie_source_refusal``.
+
+    One sentence for ``_apply_ties`` and ``replay``.  A source resting on a
+    fixed row through its own tie is not itself fixed, so it is named as what
+    it is.
+    """
+    src, what = refused
+    if what in ("locked row", "derived row"):
+        return f"{path} (source {src} now structurally fixed)"
+    return f"{path} (source {src} is now a {what})"
+
+
 def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementResult:
     """Recompute the curves and statistics of a recorded node.
 
@@ -9914,7 +9927,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         # column — so skipping it changes no count, value or statistic.
         refused = table.tie_source_refusal(tie)
         if refused is not None:
-            dropped.append(f"{path} (source {refused[0]} now structurally fixed)")
+            dropped.append(_tie_refusal_text(path, refused))
             continue
         table.set_tie(path, tie)
         applied_ties[path] = spec

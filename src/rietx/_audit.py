@@ -1118,6 +1118,42 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.rotation._C_SERIES", "constant", value=(0.16666666666666666, -0.008333333333333333, 0.0001984126984126984, -2.7557319223985893e-06, 2.505210838544172e-08, -1.6059043836821613e-10)),
     Row("rietx.crystallography.rotation._LOG_SERIES_NORM", "constant", value=1e-08),
     Row("rietx.crystallography.satellites._ORDERS", "constant", value=(1, -1)),
+    Row("rietx.crystallography.site_classes.GRID", "constant", tier=1,
+        evidence="Arithmetic: every translation of a gemmi space-group operation is a "
+                 "multiple of 1/Op.DEN = 1/24, so the affine stabilisers are exact on the "
+                 "1/24 grid, and an off-grid translation is refused by name "
+                 "(SITE_CLASSES_GRID). Special positions can still fall off it (-x+1/24 "
+                 "fixes x = 1/48; a 3-fold -y+t,x-y,z fixes (2t/3,t/3)), so an operator "
+                 "list is refused by the same name when (a) an operation that has fixed "
+                 "points, decided exactly over the integers, fixes none on the 1/24 grid "
+                 "(test_an_operator_list_with_a_special_position_off_the_grid_is_refused, "
+                 "test_a_three_fold_axis_off_the_grid_is_refused_whatever_the_translation), "
+                 "or (b) a 1/48 scan finds a stabiliser the 1/24 grid missed. (a) is exact per "
+                 "operation; (b) is a grid, kept for a point only several operations share. "
+                 "Completeness is checked on all 564 gemmi settings "
+                 "against spglib's Wyckoff letters (test_every_setting_matches_spglib).",
+        value=24),
+    Row("rietx.crystallography.site_classes.MAX_SITE_ASSIGNMENTS", "constant", tier=3,
+        evidence="refuses with the exact count and never truncates "
+                 "(SITE_ASSIGNMENTS_EXCEED_CAP); max_assignments= overrides; largest case "
+                 "seen 4 000 on our own solve kits",
+        grounds="The cap is rietx's own choice: five times the largest case seen on "
+                "one family. A correct large cell can exceed it (a 315-atom one-species "
+                "cell in R -3 m does); the refusal carries the exact count, nothing is "
+                "truncated, and the caller who wants the list passes max_assignments=.",
+        approved="2026-10-21",
+        value=20000),
+    Row("rietx.crystallography.site_classes._CACHE_SIZE", "constant", tier="invariant",
+        evidence="The cache only skips a rederivation of a group's classes; "
+                 "test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes holds a "
+                 "one-entry cache to the same classes, to the bit.",
+        value=64),
+    Row("rietx.crystallography.site_classes._CHUNK", "constant", tier="invariant",
+        evidence="A memory bound that only partitions the grid scan; "
+                 "test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes holds a "
+                 "7-point chunk to the same classes, to the bit, and fails when the scan "
+                 "stops after one chunk.",
+        value=1728),
     Row("rietx.crystallography.spherical_harmonics._TOL", "constant", value=1e-09),
     Row("rietx.crystallography.stephens._DEG_PER_RAD", "constant", value=57.29577951308232),
     Row("rietx.crystallography.superspace.generation.N_BRAVAIS_CLASSES_D1", "constant", value=24),
@@ -1320,6 +1356,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.compiled.SPELL_FORWARD", "constant", tier=1, value=0,
         evidence=("arithmetic: enum naming one of two associations of one expression; "
                   "test_the_forward_and_the_bases_keep_their_separate_spellings")),
+    Row("rietx.model.compiled._NS_PER_CONTACT", "constant", tier="invariant", value=1.0,
+        evidence=("A work estimate that only decides whether a call is split across the "
+                  "pool; reflections and replicas are disjoint rows, and "
+                  "tests/test_solve_kernels.py::test_a_split_call_lands_on_the_inline_bits "
+                  "holds a four-worker split bit-identical to the inline call for all three "
+                  "solve kernels.")),
+    Row("rietx.model.compiled._NS_PER_IMAGE", "constant", tier="invariant", value=7.5,
+        evidence=("A work estimate that only decides whether a call is split across the "
+                  "pool; reflections and replicas are disjoint rows, and "
+                  "tests/test_solve_kernels.py::test_a_split_call_lands_on_the_inline_bits "
+                  "holds a four-worker split bit-identical to the inline call for all three "
+                  "solve kernels.")),
     Row("rietx.model.compiled._THREAD_MIN_NS", "constant", tier="invariant", value=100000.0,
         evidence=("answer-invariant: rows are disjoint and each computed whole in one chunk; "
                   "tests/test_compiled_kernels.py::test_a_split_call_lands_on_the_inline_bits")),
