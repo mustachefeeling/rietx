@@ -230,7 +230,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 
 ## Tasks
 
-- [ ] The record: the fifth aim in `generality.md` § Scope; the four clauses in § The
+- [x] The record: the fifth aim in `generality.md` § Scope; the four clauses in § The
       rule and § Demotion, the 2026-10-18 "fires on every run" shape reversed with the
       log-versus-list answer written beside it; the acceptance row below added to
       § Acceptance; the decisions above dated into § Decisions.
