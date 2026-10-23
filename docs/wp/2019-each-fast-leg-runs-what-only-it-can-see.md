@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-10-21 — six of seven tasks landed (PR #1095, the shard record after it); the ten-run acceptance reads main after the record merges
 Track: The repo's own process
 Depends on: —
-Priority: P3 2026-10-21 — cost-only: the slowest per-push job is 19.6 min, at 1547's 20-min bar, but the py3.14 shards grew 30 % in ten days, so the bar will not hold
+Priority: P2 2026-10-23 — was P3: three of the five latest main runs have a slowest fast job over 20 min on the refreshed shard record; the wait 1547 was P2 for is back
 
 ## Goal
 
@@ -153,6 +153,18 @@ cutting it.
 - **Worker count:** `-n logical` buys nothing on the 2-core runner (WP-1547).
 - **A jax compile cache:** warm 8:18 against cold 8:12 (`ci.yml`).
 - **Blanket xdist groups:** setup is 9 % of the tier.
+
+### Inherited
+
+- **2026-10-23, from [1547](1547-the-fast-tiers-tail.md) (closed): main's slowest
+  fast job is over 20 min again on three of the five latest runs.** Job walls,
+  `started_at` to `completed_at`, from GitHub's REST API: 39865423926 17.6 min
+  (py3.11 1/2), 39867656769 22.2 (py3.14 2/2), 39878630013 21.9 (py3.14 2/2),
+  39930844656 17.5 (py3.11 1/2), 39937040834 21.7 (py3.14 2/2). On 39937040834
+  py3.14's shards took 9.1 and 21.7 min and the jax job 8.6. So the imbalance
+  survives the record refreshed in #1098 (merged 2026-10-22), whose predicted
+  py3.14 split was 22.8 / 23.0, and all five runs are on that record. 1547 closed on its first ten
+  runs after #869 (median 14.75 min).
 
 ## Non-goals
 

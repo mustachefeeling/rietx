@@ -2,7 +2,7 @@
 
 Milestone: rigid-bodies · Status: ⬜
 Depends on: 1805
-Priority: P3 2026-10-06 — the first real-data proof of the body; nothing waits on it but WP-1810
+Priority: P3 2026-10-23 — the first real-data proof of the body; 1810 closed without it (PR #955), and 1989 waits on it soft for its public case and pdCIF reader
 
 ## Goal
 

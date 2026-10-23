@@ -250,7 +250,7 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "at `size=400` and render the final size once. A look costs "
                 "about width × height / 750 tokens, 213 at 400 px and 1333 at "
                 "1000 px, and a turn besides (Hypothesis: WP-1503, the usual "
-                "image-token rule; WP-1504 measures it with agents). "
+                "image-token rule; WP-1504 logged each look's size but priced none). "
                 "`stacked` is the part of `hidden` behind a copy of the same "
                 "site, which a view down an axis does by construction; "
                 "`hidden - stacked` is what the view occludes. Keep a view the "
