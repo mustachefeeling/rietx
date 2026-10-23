@@ -281,7 +281,8 @@ The reader holds to the layout the GSAS manual documents and refuses anything el
 - A default set of profile function 2, 4 or 5, which this package does not evaluate, is refused.
 - A non-zero anisotropic or peak-shift coefficient is refused rather than dropped, and so is a negative `sig` variance.
 - A non-zero fifth coefficient pair of an `ITYP` 1 or 2 incident spectrum is refused, since the documented layout stops short of it. `ITYP` 10, whose spectrum is in another file, is refused too.
-- Non-blank `POLA`, `IPOLA` or `KRATIO` columns on `ICONS` are refused, since the manual says they are absent for neutron data.
+- A non-zero `POLA`, `IPOLA` or `KRATIO` on `ICONS` is refused, naming its columns, since the manual says they are absent for neutron data.
+  Each field may be blank or zero, which the record's FORTRAN format reads identically.
 - A bank with no `PRCF` set keeps its calibration and gets an all-zero `ProfileTOF`, reported as `GSAS_IPARM_PROFILE_DECLINED`.
 
 Fields with no place in the schema, such as the incident spectrum's `CHKSUM` and `IECOR`, are reported as [`GSAS_IPARM_FIELD_DROPPED`](diagnostics-files.md#gsas_iparm_field_dropped).
