@@ -28,7 +28,10 @@ call.
   on it. The file stays in append mode because a series writes every pattern
   into one log and `rietx watch` tails it. A history log needs the same split,
   or a refusal of a path that already holds a tree. Which one is this WP's
-  first decision. A refusal is simpler. A split keeps a series' one-file habit.
+  first decision. A refusal is simpler. A series already keeps one tree per
+  file (`sequential.py:1902`, `_history_spec`, WP-1051), so a refusal costs it
+  nothing on a first run. But a series rerun into the same directory reuses
+  every `<label>.jsonl`, and the decision must say what that rerun does.
 - **The stage-timing rule lives twice.** `history.aggregate` and
   `events.progress_writer` each time a stage from the first `stage_start` of
   its name to its `stage_end`. The aggregator clears its open stages at each

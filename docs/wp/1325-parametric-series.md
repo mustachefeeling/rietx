@@ -1083,7 +1083,7 @@ private bundle with the harness, drafts and data goes to the maintainer
 separately. The points for this WP are below. The subset boundary and the
 detectors went to [1965](1965-a-law-declared-by-formula-condition-and-glob.md),
 the scanned nonlinear laws to [1964](1964-a-nonlinear-law-through-the-derived-block.md),
-and the telemetry and event pairing to [1322](1322-events-aggregator.md).
+and the telemetry and event pairing to [1322](1322-events-aggregator.md) (closed 2026-10-23; it returned the per-equation line here, see § Inherited).
 Their numbers are as reported and were not re-measured here.
 
 - **The joint fit inherits the chain's start, and the chain can be wrong at
