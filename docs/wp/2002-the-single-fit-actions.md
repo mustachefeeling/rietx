@@ -410,11 +410,11 @@ The audit table now sees the numbers that could change an answer if someone retu
 
 *Generality.* The judge's report on this session's items follows, unedited, its headings demoted one level. The author's answer sits under its one `fails`, and the maintainer's three rulings above answer the rest.
 
-#### Item 1: the 27 rows added to `src/rietx/_audit.py`
+**Item 1: the 27 rows added to `src/rietx/_audit.py`**
 
 The B-numbers below are the batch classes in `docs/wp/2002-batch/batch.md`. Each one is a group of heuristics the maintainer ruled on together. "Rounds" are the ruling rounds recorded in `docs/wp/2002-batch/rulings.md`. "Plain esd" means the esd before the Bérar-Lelann inflation.
 
-##### `rietx.optimize.lm.FTOL` (tier 3, value 1e-9)
+**`rietx.optimize.lm.FTOL` (tier 3, value 1e-9)**
 
 **weak.** Tier 3 is plausible. The approval, though, comes from a test that never varied this number, and the row says so itself.
 
@@ -430,7 +430,7 @@ The B-numbers below are the batch classes in `docs/wp/2002-batch/batch.md`. Each
 
 Would change the verdict: the four start-test families (SRM 660c, FAP, cpd-1a, NAC) refit with the final tolerance at 1e-8 and at 1e-10, compared against the 0.1-plain-esd bar.
 
-##### `rietx.schemas.instrument.ProfileTCHZ:u` and `:v` (tier 3)
+**`rietx.schemas.instrument.ProfileTCHZ:u` and `:v` (tier 3)**
 
 **weak.** I could not find the ruling the grounds quote. The recorded answer covers only the ceilings. A public model sits under v's floor.
 
@@ -446,7 +446,7 @@ Would change the verdict: the four start-test families (SRM 660c, FAP, cpd-1a, N
 
 Would change the verdict: the maintainer ruling on the U and V floors themselves, or TRF fits on three families showing Γ_G² going negative without them.
 
-##### `ProfileTCHZ:x` and `:y` (tier 3)
+**`ProfileTCHZ:x` and `:y` (tier 3)**
 
 **weak.** The ceiling is honestly borrowed from Q7. The floor of 0 is called "physical" but is stricter than the physics, and no ruling covers it. This confirms the author's flag.
 
@@ -462,7 +462,7 @@ Would change the verdict: the maintainer ruling on the U and V floors themselves
 
 Would change the verdict: a ruling that a per-coefficient floor counts as "keeps a value physical", or the floor rewritten as Γ_L ≥ 0 over the fitted range.
 
-##### `ProfileTCHZ:w` (tier 3)
+**`ProfileTCHZ:w` (tier 3)**
 
 **holds.** Each part of the row has its own approved row or test. The composite adds no number of its own.
 
@@ -477,7 +477,7 @@ Would change the verdict: a ruling that a per-coefficient floor counts as "keeps
 
 Would change the verdict: a freed-W start test on a second family that fails inside 1e-6 to 1.0.
 
-##### `ProfileTCHZ:shape` (tier 2)
+**`ProfileTCHZ:shape` (tier 2)**
 
 **holds on the tier, weak on `ambiguity`.** DESIGN.md § Rules, 1 gives "a choice of peak shape" as its example of the second kind (DESIGN.md:38-39). The row says 1.
 
@@ -490,7 +490,7 @@ Would change the verdict: a freed-W start test on a second family that fails ins
 
 Would change the verdict: none needed for the tier. The ambiguity field should be 2, or the row should say why kind 1.
 
-##### `rietx.schemas.structure.BISO_SEED` (invariant)
+**`rietx.schemas.structure.BISO_SEED` (invariant)**
 
 **weak.** It has the same conditional shape a previous judge refused for `MAGNETIC_SIZING_FLOOR`. That row moved to tier 3.
 
@@ -505,7 +505,7 @@ Would change the verdict: none needed for the tier. The ambiguity field should b
 
 Would change the verdict: the maintainer ruling that "invariant behind the closing stage" is allowed, which reopens the magnetic floor too. Or LaB6's pair shown to be a pure S/L ↔ H/L relabelling, with every other parameter within the bar.
 
-##### `rietx.schemas.instrument.DEBYE_SCHERRER_POLARIZATION` (tier 3)
+**`rietx.schemas.instrument.DEBYE_SCHERRER_POLARIZATION` (tier 3)**
 
 **weak.** The tier and approval match B9. The record the grounds describe does not exist.
 
@@ -522,7 +522,7 @@ Would change the verdict: the maintainer ruling that "invariant behind the closi
 
 Would change the verdict: the grounds reworded as "owed to WP-2015", or the record built.
 
-##### `rietx.schemas.instrument.BRAGG_BRENTANO_RADIUS_MM` (tier 3)
+**`rietx.schemas.instrument.BRAGG_BRENTANO_RADIUS_MM` (tier 3)**
 
 **holds on the tier, weak on the evidence.** The stakes are lower than the row says.
 
@@ -536,27 +536,27 @@ Would change the verdict: the grounds reworded as "owed to WP-2015", or the reco
 
 Would change the verdict: a model path where R enters other than as s/R.
 
-##### `rietx.schemas.instrument.KA2_RATIO` (tier 2)
+**`rietx.schemas.instrument.KA2_RATIO` (tier 2)**
 
 **holds.** The case for is stronger. GSAS-II's default lab instrument uses 0.5 (row, checked; I did not re-check it), and Hölzer et al. (1997) supplies the degeneracy ratio. The case against is a diffracted-beam monochromator clipping Kα2, while `mccusker_default` holds the ratio fixed. The row stated that already. One gap: the row calls it "a B9 recorded assumption", and nothing records it yet (WP-2015). Would change the verdict: a lab family where the held 0.5 moves a certified cell.
 
-##### `rietx.schemas.instrument.PACKING_FRACTION` (tier 3)
+**`rietx.schemas.instrument.PACKING_FRACTION` (tier 3)**
 
 **holds.** The case against is GSAS-II's 0.50 (`Absorb.py:89`, per the batch), about a 20 % difference in µR. The caller opts in by declaring a radius or thickness. Under the caller-tier ruling, a defaulted number inside an opt-in is tiered on its own, and it is. The record is `AbsorptionCorrection.mu_r_source` = estimated (`schemas/results.py:479-480`). The packing value itself is not on the record. Would change the verdict: a family where 0.6 against 0.5 moves Biso past its esd.
 
-##### `rietx.schemas.pattern.POISSON_FLOOR_COUNTS` (tier 2)
+**`rietx.schemas.pattern.POISSON_FLOOR_COUNTS` (tier 2)**
 
 **holds.** TOPAS weights a file without esds by 1/Max(Yobs, 1) (`rulings.md:1242`, Tech Ref § 6.2). FullProf gives a y ≤ 0 channel weight 1 (`rulings.md:1246`). GSAS-II's xye reader zero-weights it: a dissenter, which does not move tier 2 under the sixth round's Q5. The case against is the review's scaled-data point (`batch.md:325`): a floor in counts is wrong in units on a rescaled pattern. That is against the √y fallback itself, which now has only this row. The record is `DataRef.has_sigma` and the printed "σ source". Would change the verdict: none needed.
 
-##### `rietx.schemas.pattern.SIGMA_FLOOR_RELATIVE` (tier 3)
+**`rietx.schemas.pattern.SIGMA_FLOOR_RELATIVE` (tier 3)**
 
 **holds as written.** The case against is the stronger one. The maintainer: "fix anything obviously wrong" (`rulings.md:76-79`). Issue #897 had one point weighing 10⁶ times its neighbours. The approval is the B5 re-brief the maintainer answered: "Until it lands the floor stays, and the table names WP-1952 as its replacement" (`rulings.md:851-852`). The row is honest about that. Two gaps. WP-1952 is unscheduled (⬜), so the known-wrong floor has no end date. Nothing records that the floor fired (`batch.md:303`). Would change the verdict: WP-1952 scheduled.
 
-##### `rietx.strategy.staged.STRAIN_SEED_PPM` and `ROUGHNESS_SEED` (tier 3)
+**`rietx.strategy.staged.STRAIN_SEED_PPM` and `ROUGHNESS_SEED` (tier 3)**
 
 **holds**, both. STRAIN_SEED_PPM is B3, ruled 2026-10-19, with the second comparison done 2026-10-20 (CPD brucite χ² 7.77 against 8.32, corundum equal). It matches GSAS-II's isotropic default (checked, per the row). Both CPD patterns probably count as one family by laboratory. ROUGHNESS_SEED is the sixth round's Q3, ruled (c), and both models are recorded on `StageResult.seeded`. Would change the verdict: none needed.
 
-##### The B12 rows (B12 is pick verbs and opt-in verbs)
+**The B12 rows (B12 is pick verbs and opt-in verbs)**
 
 These are `AIR_GAIN_CHEBYSHEV_TERMS`, `ENVELOPE_QUANTILE`, `ENVELOPE_WINDOW_DEG`, `ARPLS_DW_FLOOR`, `CHEBYSHEV_MAX_ORDER`, `DW_STOP`, `PEAK_MASK_BASELINE_LAMBDA`, `PEAK_MASK_SIGMA`, `PSPLINE_LAMBDA_SMOOTH`, `PAWLEY_OFF_DATA_SCALE_FLOOR` and `FRACTION_PROFILE_FWHM_MAX_SPAN`.
 
@@ -570,9 +570,9 @@ These are `AIR_GAIN_CHEBYSHEV_TERMS`, `ENVELOPE_QUANTILE`, `ENVELOPE_WINDOW_DEG`
 
 Would change the verdict: a real (not planted) family where one of these flips the pick.
 
-#### Item 2: the action rows
+**Item 2: the action rows**
 
-##### `rietx.schemas.results.StageResult.collapsed` (tier 3, new)
+**`rietx.schemas.results.StageResult.collapsed` (tier 3, new)**
 
 **holds.** The case for the restore is stronger. The grounds cite one ruling for a field with two writers.
 
@@ -588,17 +588,17 @@ Would change the verdict: a real (not planted) family where one of these flips t
 
 Would change the verdict: none needed. The grounds should name B2 for the moment half.
 
-##### `StageResult.seeded` (evidence changed: a second writer)
+**`StageResult.seeded` (evidence changed: a second writer)**
 
 **holds.** B3 ruled the Stephens seed "recorded in the result" (`rulings.md:49-51`). The writer is at `refine.py:4028-4032`. The test is `tests/test_stephens.py::test_the_strain_seed_is_recorded_in_the_stage_result`. The field's meaning widens: Stephens rows include degrees of freedom the isotropic ray leaves at zero, so not every row was "lifted". The field docstring states this. The joint runner seeds no Stephens block, which is also documented. The `grounds` text still speaks only of Suortti and Pitschke. The evidence line carries the Stephens half. Would change the verdict: none needed.
 
-#### Item 3: `DEFAULT_SEATS`
+**Item 3: `DEFAULT_SEATS`**
 
-##### Added: `rietx.schemas.instrument.ProfileTCHZ`
+**Added: `rietx.schemas.instrument.ProfileTCHZ`**
 
 **holds.** The widths' seeds and box are dicts the constant walk cannot see, and the seat exposes them as live values. Nothing argues against seating it.
 
-##### Seats not added (WP file, § The hand rows that stay)
+**Seats not added (WP file, § The hand rows that stay)**
 
 **weak for `Geometry` and the presets' `radiation`; holds for the rest.**
 
@@ -612,7 +612,7 @@ Would change the verdict: none needed. The grounds should name B2 for the moment
 
 Would change the verdict: `Geometry:kind` seated or lifted, and `radiation` given an owner.
 
-#### Item 4: the list in § The hand rows that stay
+**Item 4: the list in § The hand rows that stay**
 
 **weak.** Two rows are clearly misclassified. Three are labelled "invariant" without the test that class requires. One is doubtful. The list also leaves out hand rows it claims to cover. The 8th session's handover entry is not in the WP yet, so the author's case is the § and the row texts alone.
 
@@ -630,17 +630,17 @@ The lead said several misclassified rows would switch the policy to option 1 (`r
 
 Would change the verdict: margin tests for (2)-(5), `TCHZ_BOUNDS_COARSE` lifted, and the σ-rule field built or forwarded with an owner.
 
-#### Item 5: heuristics the table cannot see
+**Item 5: heuristics the table cannot see**
 
-##### Occupancy ceiling removed in `crystallography/cif.py` and `io/recipe.py`
+**Occupancy ceiling removed in `crystallography/cif.py` and `io/recipe.py`**
 
 **holds.** The case for removal is stronger. B9: "Unlimited occupancy is fine. We can give a warning" (`rulings.md:54-56`). The B9 review named a dissenter against the 1.5 cap: Fe on a declared Mg site reads 2.2. The warning exists: `OCCUPANCY_ABOVE_ONE`, tier 1 (`_audit.py:680`). A grep of `src/` finds no other occupancy `max=1.5`. Three other builders set `occ` without bounds: `crystallography/bodies.py:120`, `magnetic/isotropy.py:2328` and `magnetic/supercell.py:1433`. I infer that they inherit `Atom`'s declared default (floor 0, no ceiling) through `_InheritsDeclaredDefaults`; I did not check this for `Atom`. A project stored with `max: 1.5` presumably keeps it, as stored TCHZ ceilings do (inferred, not checked). Against the removal: none found. Would change the verdict: a reader path that still caps.
 
-##### `diagnose`'s peak census now reads `select.PEAK_MASK_SIGMA` (a coupling)
+**`diagnose`'s peak census now reads `select.PEAK_MASK_SIGMA` (a coupling)**
 
 **weak.** The coupling ties two different rules together. The census compares net counts above the rolling 10 % envelope (`diagnostics.py:1473-1477`). `peak_mask` compares against an arPLS baseline (`select.py:82-85`). The row itself keeps `auto_lambda`'s 3σ apart as "another rule", and the same reasoning applies here. Retuning the BIC mask would now redefine `peak_fraction`, a shipped number that WP-1415 deliberately left alone (`diagnostics.py:618-627`). That docstring still says "3σ". The stakes are low: `peak_fraction` is printed and read by nothing in `src/`. Would change the verdict: the census given its own constant, or a reason the two σ bars must move together.
 
-##### `refine._flat_rotation_axis` now reads `least_squares.STATIONARY_ANGLE_STEP` (a coupling)
+**`refine._flat_rotation_axis` now reads `least_squares.STATIONARY_ANGLE_STEP` (a coupling)**
 
 **holds.** Both are central differences on the same angle, of order one. B2 tiered the old literal (`_flat_rotation_axis:h`*) at tier 3 beside the constant (`batch.md:159-160`). The SVD step only proposes an axis. The finite turn by `MOMENT_PROBE_ANGLE_RAD` decides whether it is held (`refine.py:878-884`, `:916` on). A step error of order h² cannot hold a direction the turn rejects. Today's value is bit-identical (1e-4). Against: none found. Would change the verdict: a retune of the stationary test's step that moves the proposed axis far enough for the finite turn to miss a flat axis.
 
