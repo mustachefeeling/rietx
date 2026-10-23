@@ -5,7 +5,7 @@ position, and on a mirror that is 5e-5 of the coordinate, because the test
 compares the 2δ displacement.  PbSO₄'s S2 (``tests/data/gsas2_pbso4.gpx``, Pnma
 4c on the mirror at y = ¼) moved 6e-5 off it is a general position: two images
 0.0006 Å apart, 8 S in a cell of 4.  #765 merged such twins for a CIF read; the
-same rule (``symmetry.site_twin_merge``, 0.02 Å) now runs at the boundaries that
+same rule (``symmetry.site_twin_merge``, 5e-4 fractional per coordinate) now runs at the boundaries that
 can report it, through ``twins.merge_site_twins``: the project readers,
 ``RefinementTree.load`` and the ``Refinement`` verbs that take a structure in.
 ``Phase`` validation stays strict and moves nothing.  ``phase_zmv`` and the
@@ -29,7 +29,7 @@ import pytest
 import rietx as rx
 from rietx.crystallography.cif import structure_from_cif
 from rietx.crystallography.symmetry import (
-    TWIN_DISTANCE,
+    TWIN_COORD_TOL,
     resolve_group,
     site_orbit,
     site_twin_merge,
@@ -91,7 +91,7 @@ def _pattern(structure: Structure) -> PatternData:
                        sigma=np.sqrt(y).tolist())
 
 
-@pytest.mark.parametrize("dy", [6e-5, 1e-4, 1e-3])
+@pytest.mark.parametrize("dy", [6e-5, 1e-4, 4e-4])
 def test_issue_reproducer_counts_four_sulfur(pbso4, dy):
     """#1007's reproducer, verbatim in its core: raw coordinates into ``phase_zmv``."""
     atoms = [(a.species, a.x.value, a.y.value + (dy if a.label == "S2" else 0),
@@ -100,7 +100,7 @@ def test_issue_reproducer_counts_four_sulfur(pbso4, dy):
     assert (c["Pb"], c["S"], c["O"]) == (4, 4, 16)      # PbSO₄, Z = 4
 
 
-@pytest.mark.parametrize("dy", [6e-5, 1e-4, 1e-3])
+@pytest.mark.parametrize("dy", [6e-5, 1e-4, 4e-4])
 def test_the_merge_puts_the_site_on_the_mirror_and_says_so(pbso4, dy):
     structure = Structure(phases=[_moved(pbso4, "S2", y=dy)])
     merged, found = _merge(structure)
@@ -128,10 +128,10 @@ def test_phase_validation_is_strict_and_moves_nothing(pbso4):
     assert again.model_dump() == phase.model_dump()
 
 
-@pytest.mark.parametrize("dy", [4e-3, 1e-2])
-def test_images_further_apart_than_the_twin_distance_stay_general(pbso4, dy):
-    """The negative arm: 2·dy·b = 0.043 Å and 0.108 Å are real offsets."""
-    assert 2 * dy * pbso4.cell.b.value > TWIN_DISTANCE
+@pytest.mark.parametrize("dy", [1e-3, 4e-3, 1e-2])
+def test_a_coordinate_further_than_the_reach_from_the_position_stays_general(pbso4, dy):
+    """The negative arm: y = 0.251 at its own precision excludes 0.25 (and 0.2540, 0.26 more so)."""
+    assert dy > TWIN_COORD_TOL
     structure = Structure(phases=[_moved(pbso4, "S2", y=dy)])
     merged, found = _merge(structure)
     assert merged is structure and not found
@@ -203,7 +203,7 @@ def test_a_half_occupied_site_says_its_content_was_halved():
     merged, found = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
     assert _counts(merged.phases[0])["Fe"] == 2                # what the merge left
     (d,) = found
-    assert d.code == "SITE_TWINS_MERGED" and d.value < TWIN_DISTANCE
+    assert d.code == "SITE_TWINS_MERGED" and d.value < 0.01
     assert ("Atoms per cell (multiplicity × occupancy): "
             "8 × 0.5 = 4 → 4 × 0.5 = 2.") in d.message
     assert "split pair" in d.message and "halved its content" in d.message
@@ -239,7 +239,7 @@ def test_a_fully_occupied_site_names_no_split_pair():
     (d,) = found
     assert "8 × 1 = 8 → 4 × 1 = 4." in d.message
     assert "split pair" not in d.message + d.suggestion
-    assert "state it at least 0.02 Å from its own images" in d.suggestion
+    assert "more than 0.0005 (fractional) from the special position" in d.suggestion
 
 
 def test_a_site_too_full_to_be_a_split_pair_names_none():
@@ -251,13 +251,33 @@ def test_a_site_too_full_to_be_a_split_pair_names_none():
     assert "split pair" not in d.message + d.suggestion
 
 
-def test_the_distance_decides_not_the_fractional_reach():
-    """b = 20 Å, a = 5 Å: 2·dy = 0.003 is inside the 0.02/5 reach, 2·dy·b = 0.06 Å is not."""
-    dy = 1.5e-3
-    assert 2 * dy < TWIN_DISTANCE / 5.0 and 2 * dy * 20.0 > TWIN_DISTANCE
-    structure = Structure(phases=[_phase(
-        "P n m a", (5.0, 20.0, 6.0, 90, 90, 90), (0.1, 0.25 + dy, 0.3))])
-    assert _merge(structure)[0] is structure
+def test_the_reach_is_fractional_whatever_the_cell():
+    """b = 20 Å and b = 5 Å take the same offset: 4e-4 merges, 6e-4 does not."""
+    for b in (5.0, 20.0):
+        for dy, expect in ((4e-4, True), (6e-4, False)):
+            structure = Structure(phases=[_phase(
+                "P n m a", (5.0, b, 6.0, 90, 90, 90), (0.1, 0.25 + dy, 0.3))])
+            assert (_merge(structure)[0] is not structure) is expect, (b, dy)
+
+
+def test_every_pair_the_merge_collapses_is_tested_not_only_the_closest():
+    """Yue's case (#1014, round 4): Pmmm, a = b = 4 Å, c = 40 Å, (2e-4, 0.3, 0.0024).
+
+    The images split by 0.0016 Å along x and 0.192 Å along z.  Collapsing the z pair
+    would move z by 0.096 Å for the sake of the x pair, and the old rule did: it
+    measured the nearest pair and merged the whole orbit.  Now only the pair within
+    the reach is collapsed: x goes onto the plane, z stays as stated, and the 0.192 Å
+    pair is left split.  The same site with z within the reach merges both."""
+    cell = (4.0, 4.0, 40.0, 90, 90, 90)
+    sg = resolve_group("P m m m", None)
+    part = site_twin_merge(sg, cell, (2e-4, 0.3, 0.0024))
+    assert part is not None and (part.before, part.after) == (8, 4)   # ITA: 4 images stay
+    assert np.allclose(part.position, (0.0, 0.3, 0.0024), atol=1e-12)
+    assert part.gap == pytest.approx(0.0016)
+    merged = site_twin_merge(sg, cell, (2e-4, 0.3, 4e-4))
+    assert merged is not None and (merged.before, merged.after) == (8, 2)
+    assert np.allclose(merged.position, (0.0, 0.3, 0.0), atol=1e-12)
+    assert merged.gap == pytest.approx(2 * 4e-4 * 40.0, rel=2e-3)   # the widest pair, not the x one
 
 
 def test_a_rigid_body_atom_is_left_to_the_body(pbso4):
@@ -635,7 +655,7 @@ def test_the_load_warning_is_one_per_site_when_every_node_stores_another_coordin
 def test_a_merged_centre_loses_vary_and_its_table_builds():
     """P-1 1a: ``fix_special_positions`` would clear ``vary``; so does the merge."""
     from rietx.params.vector import ParameterTable
-    phase = _phase("P -1", (5.0, 6.0, 7.0, 80, 85, 95), (3e-4, -3e-4, 6e-4))
+    phase = _phase("P -1", (5.0, 6.0, 7.0, 80, 85, 95), (3e-4, -3e-4, 4e-4))
     for atom in phase.atoms:
         for axis in "xyz":
             getattr(atom, axis).vary = True
@@ -686,14 +706,133 @@ def test_a_tensor_already_allowed_is_not_touched_nor_mentioned():
     assert "projected" not in found[0].message
 
 
-def test_the_suggestions_read_the_twin_distance_constant(monkeypatch):
+def test_the_suggestions_read_the_reach_constant(monkeypatch):
     """A retune cannot leave the advice stale: the figure comes from the constant."""
     import rietx.crystallography.twins as twins
-    monkeypatch.setattr(twins, "TWIN_DISTANCE", 0.015)
+    monkeypatch.setattr(twins, "TWIN_COORD_TOL", 0.0003)
     _, merged = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=1.0)]))
-    assert "0.015 Å" in merged[0].suggestion and "0.02 Å" not in merged[0].suggestion
+    assert "0.0003 (fractional)" in merged[0].suggestion and "0.0005" not in merged[0].suggestion
     _, half = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
-    assert "0.015 Å" in half[0].suggestion and "0.02 Å" not in half[0].suggestion
+    assert "0.0003 (fractional)" in half[0].suggestion and "0.0005" not in half[0].suggestion
     kept: list = []
     merge_site_twins(_half_pnma(), diagnostics=kept, keep_part_occupied=True)
-    assert "0.015 Å" in kept[0].suggestion and "0.02 Å" not in kept[0].suggestion
+    assert "0.0003 (fractional)" in kept[0].suggestion and "0.0005" not in kept[0].suggestion
+
+
+# ------------------------------------------------ round 4: Yue's review at e18006a7
+
+
+def _o5(pbso4) -> int:
+    return [a.label for a in pbso4.atoms].index("O5")
+
+
+def test_a_hold_follows_its_direction_through_the_dof_renumbering(pbso4):
+    """O5 (Pnma 8d → 4c on y = ¼): DOFs x, y, z become x, z.  Held y is dropped and
+    said; held z follows to ``dof.1`` instead of freezing z by accident of its number."""
+    j = _o5(pbso4)
+    site = f"phases.0.atoms.{j}"
+    ref = rx.Refinement(Structure(phases=[pbso4]), INSTRUMENT, history=False)
+    ref.hold([f"{site}.dof.1", f"{site}.dof.2"])         # y and z on the general position
+    ref.set_values({f"{site}.dof.1": 0.2501 - pbso4.atoms[j].y.value})   # y → 0.2501
+    assert _y(ref.structure, "O5") == 0.25
+    assert ref._user_holds == {f"{site}.dof.1"}          # was dof.2: z
+    rows = {r.path: r for r in ref.parameters()}
+    assert rows[f"{site}.dof.1"].held_because and not rows[f"{site}.dof.0"].held_because
+    (d,) = [d for d in ref._twin_findings if d.code == "SITE_TWINS_MERGED"]
+    assert f"the hold on {site}.dof.1 was dropped" in d.message
+    assert f"the hold on {site}.dof.2 now reads {site}.dof.1" in d.message
+
+
+def test_a_tie_on_a_renumbered_dof_follows_it_or_is_dropped(pbso4):
+    j = _o5(pbso4)
+    site = f"phases.0.atoms.{j}"
+    ref = rx.Refinement(Structure(phases=[pbso4]), INSTRUMENT, history=False)
+    ref.tie(f"{site}.dof.2", f"{site}.dof.0")            # z follows x
+    ref.set_values({f"{site}.dof.1": 0.2501 - pbso4.atoms[j].y.value})
+    assert list(ref._ties) == [f"{site}.dof.1"]          # the tie on z, renumbered
+    assert ref._ties[f"{site}.dof.1"].sources == [f"{site}.dof.0"]
+    rows = {r.path: r for r in ref.parameters()}
+    assert rows[f"{site}.dof.1"].tie is not None
+
+
+def test_a_tie_on_the_direction_the_position_fixes_is_dropped_and_said(pbso4):
+    j = _o5(pbso4)
+    site = f"phases.0.atoms.{j}"
+    ref = rx.Refinement(Structure(phases=[pbso4]), INSTRUMENT, history=False)
+    ref.tie(f"{site}.dof.2", f"{site}.dof.1")            # z follows y
+    ref.set_values({f"{site}.dof.1": 0.2501 - pbso4.atoms[j].y.value})
+    assert not ref._ties
+    (d,) = [d for d in ref._twin_findings if d.code == "SITE_TWINS_MERGED"]
+    assert f"the tie on {site}.dof.2 was dropped" in d.message
+
+
+def test_a_stored_history_carries_its_holds_through_the_merge(tmp_path, pbso4, pattern):
+    """The load route: a node recorded with a hold on z, its site stored off the mirror."""
+    j = _o5(pbso4)
+    site = f"phases.0.atoms.{j}"
+    path = tmp_path / "held.jsonl"
+    ref = rx.Refinement(Structure(phases=[pbso4]), INSTRUMENT, history=path)
+    ref.hold([f"{site}.dof.2"])
+    ref.run_stage(pattern, Stage("scale", ["phases.*.scale"]))
+    lines = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        doc = json.loads(line)
+        if doc.get("node") is not None:
+            doc["node"]["state"]["structure"]["phases"][0]["atoms"][j]["y"]["value"] = 0.2501
+        lines.append(json.dumps(doc))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tree = RefinementTree.load(path)
+    holds = {h for nid in tree.order for h in tree[nid].state.holds}
+    assert holds == {f"{site}.dof.1"}
+
+
+def _shared_site(occ_fe: float, occ_mn: float) -> Structure:
+    phase = _phase(*_PNMA, _OFF, occ=occ_fe)
+    twin = phase.atoms[0].model_copy(deep=True)
+    twin.label, twin.species = "Y", "Mn"
+    twin.occ = Parameter(value=occ_mn)
+    return Structure(phases=[phase.model_copy(update={"atoms": [phase.atoms[0], twin]})])
+
+
+def test_the_occupancy_gate_sums_the_atoms_sharing_a_site():
+    """Fe 0.5 + Mn 0.5 on one site, 8 → 4: each passes the gate alone (0.5 × 2 = 1),
+    but the position holds (0.5 + 0.5) × 2 = 2 atoms, so both merge."""
+    ref = rx.Refinement(_shared_site(0.5, 0.5), INSTRUMENT, history=False)
+    assert [d.code for d in ref._twin_findings] == ["SITE_TWINS_MERGED"] * 2
+    assert {a.y.value for a in ref.structure.phases[0].atoms} == {0.25}
+
+
+def test_a_shared_site_that_still_fits_is_kept_as_stored():
+    """The negative arm: 0.25 + 0.25 gives (0.5) × 2 = 1, a split pair is possible."""
+    ref = rx.Refinement(_shared_site(0.25, 0.25), INSTRUMENT, history=False)
+    assert [d.code for d in ref._twin_findings] == ["SITE_TWINS_KEPT"] * 2
+    assert {a.y.value for a in ref.structure.phases[0].atoms} == {_OFF[1]}
+
+
+def test_the_adp_projection_of_a_merge_is_positive_definite_and_allowed():
+    """P6/mmm 6j, (x, 0, 0) stated 3e-4 off: the merge's group average of a
+    positive-definite tensor stays positive definite for every tensor (a
+    least-squares projection in the six components failed 1.3 % of them) and
+    lies in the allowed subspace, so the table builds."""
+    from rietx.crystallography.adp import is_positive_definite
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas import AnisoU
+
+    rng = np.random.default_rng(1014)
+    bad = 0
+    for k in range(1500):
+        q, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+        w = np.exp(rng.uniform(0.0, np.log(20.0), size=3)) * 0.01
+        u = q @ np.diag(w) @ q.T
+        u6 = dict(u11=u[0, 0], u22=u[1, 1], u33=u[2, 2], u12=u[0, 1], u13=u[0, 2], u23=u[1, 2])
+        phase = _phase("P 6/m m m", (5.0, 5.0, 8.0, 90, 90, 120),
+                       (0.3, 3e-4, -2e-4))
+        phase.atoms[0].aniso = AnisoU(**{n: Parameter(value=float(v)) for n, v in u6.items()})
+        merged, found = _merge(Structure(phases=[phase]))
+        assert found, k
+        t = merged.phases[0].atoms[0].aniso
+        vals = [t.u11.value, t.u22.value, t.u33.value, t.u12.value, t.u13.value, t.u23.value]
+        bad += not is_positive_definite(vals)
+        if k < 20:
+            ParameterTable(merged, INSTRUMENT)
+    assert bad == 0

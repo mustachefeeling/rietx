@@ -1009,14 +1009,26 @@ def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = SITE
     return [p for p, _ in expand_orbit(sg, xyz, tol=tol)]
 
 
-#: Two images of one site closer than this are one atom stated twice (Å).
-#: Far below any split-site separation a refined structure states — the
-#: closest pair of images of one partially occupied site in the 2026-10-06
-#: MAGNDATA sweep is 0.20 Å apart, at occupancies summing to at most 1 — and
-#: far above the 1e-3 Å twins rounding leaves when a special position is
-#: printed off by 1e-3.  Defined here, beside the orbit, because every route
-#: that expands one applies it (issue #1007); the CIF reader re-exports it.
+#: Two images of one site closer than this are one atom stated twice (Å).  It
+#: now decides only whether a *listed* site is another site's image
+#: (``cif._sites_listed_twice``); a site's own twin is :data:`TWIN_COORD_TOL`'s.
 TWIN_DISTANCE = 0.02
+
+#: How far a coordinate may sit from a special position and still be stated
+#: *on* it, per coordinate, fractional (#1014, round 4).  A coordinate printed
+#: to three decimals is consistent with a special position when it lies within
+#: half a unit of its last digit, 5e-4: that is arithmetic on print precision
+#: and needs no dataset.  It takes ``0.333`` for 1/3 (3.3e-4) and
+#: ``y = 0.2504`` for 1/4 (4e-4), and leaves ``y = 0.251``, which at its own
+#: precision excludes 0.25.  Being fractional it does not grow with the cell.
+#: GSAS-II 5.8.4 drops an image within 2e-4 per coordinate.
+TWIN_COORD_TOL = 5e-4
+
+#: A rotation of the site group turns an offset δ into a displacement R·x+t−x of
+#: up to 3δ per coordinate (a mirror 2δ, a hexagonal axis up to 3δ), so the
+#: operation search runs at this multiple of :data:`TWIN_COORD_TOL` and the
+#: snapped position is then held to :data:`TWIN_COORD_TOL` itself.
+_TWIN_SEARCH_FACTOR = 3.0
 
 
 @dataclass(frozen=True)
@@ -1027,8 +1039,9 @@ class TwinMerge:
     ----------
     position : (3,) float — the special position, on the lattice branch
         nearest the given coordinates (so a caller's -0.1 stays near -0.1).
-    gap : float — the shortest distance between two images of the given
-        coordinates, Å; below :data:`TWIN_DISTANCE` by construction.
+        No coordinate is moved by more than :data:`TWIN_COORD_TOL`.
+    gap : float — the largest distance between two images of the given
+        coordinates that the merge collapses onto one, Å.
     before, after : int — the multiplicity at the given coordinates and at
         ``position``.
     """
@@ -1047,58 +1060,69 @@ def _orthogonalizer(cell) -> np.ndarray:
 
 
 def site_twin_merge(sg, cell, xyz, *, tol: float = SITE_TOL,
-                    distance: float = TWIN_DISTANCE) -> TwinMerge | None:
+                    reach: float = TWIN_COORD_TOL) -> TwinMerge | None:
     """The special position a site's coinciding images collapse to, or ``None``.
 
     :func:`site_orbit` snaps a site within ``tol`` (fractional) of a special
     position.  Its test compares |R·x + t − x|, which on a mirror is twice the
     offset, so the effective reach there is ``tol``/2: PbSO₄'s S2 moved 6e-5
     off the Pnma mirror is a general position, and its two images sit
-    2·6e-5·b = 0.0004 Å apart — one atom counted twice (issue #1007).  Where
-    the images of a site are closer than ``distance`` (Å) — at any occupancy,
-    since no split site is that tight — the site belongs on the special
-    position its orbit collapses to at the looser fractional reach
-    ``distance``/min(a, b, c).  The occupancy is kept, so a part-occupied
-    split pair that a fit leaves this tight loses content; the merge's
-    message states the atoms per cell both ways (#1088).  A split site,
-    whose images stay apart, gives ``None``, as does every site already on its
-    position or far from one.
+    2·6e-5·b = 0.0004 Å apart — one atom counted twice (issue #1007).  A site
+    whose special position lies within ``reach`` (:data:`TWIN_COORD_TOL`,
+    fractional, **per coordinate**) of every coordinate belongs on it, at any
+    occupancy; the occupancy is kept, so a part-occupied split pair that a fit
+    leaves this tight loses content, which the merge's message states both
+    ways (#1088).  Because every coordinate moves by at most ``reach``, every
+    pair of images the merge collapses is as close as that allows: the test is
+    on the move, not on the nearest pair, which is how a site 0.0024 off a
+    mirror in a long cell was merged for the sake of a tight pair in another
+    axis.  A site that would have to move further, a split site (whose images
+    stay apart), a site already on its position and one far from any give
+    ``None``.
 
-    ``cell`` is a ``gemmi.UnitCell`` or (a, b, c, α, β, γ).  The orbit and its
-    collapse are those of :func:`site_orbit`: International Tables for
-    Crystallography vol. A (Wyckoff positions), with the tolerance-based
-    site-symmetry search of Grosse-Kunstleve & Adams (2002), Acta Cryst. A58,
-    60.  Moved here from the CIF reader (#765), which applied it to files only.
+    ``cell`` is a ``gemmi.UnitCell`` or (a, b, c, α, β, γ); it only measures
+    ``gap``.  The orbit and its collapse are those of :func:`site_orbit`:
+    International Tables for Crystallography vol. A (Wyckoff positions), with
+    the tolerance-based site-symmetry search of Grosse-Kunstleve & Adams
+    (2002), Acta Cryst. A58, 60.  Moved here from the CIF reader (#765), which
+    applied it to files only.
     """
     m = _orthogonalizer(cell)
-    lengths = np.linalg.norm(m, axis=0)
-    reach = distance / float(lengths.min())
-    if reach <= tol:
+    search = reach * _TWIN_SEARCH_FACTOR
+    if search <= tol:
         return None
     x = np.asarray(xyz, dtype=np.float64).reshape(3)
     _, all_rot, all_tran = _group_arrays(group_key(sg))
-    # the cheap screen: an operation within ``reach`` of fixing x that
+    # the cheap screen: an operation within ``search`` of fixing x that
     # ``tol`` does not admit is the only way the looser orbit can be smaller,
     # since with the same candidates the two orbits are one computation
     d = all_rot @ x + all_tran - x
     d = np.abs(d - np.round(d))
     bound = 1.0 + _SITE_TOL_SLACK
-    if not np.any(np.all(d <= reach * bound, axis=1)
+    if not np.any(np.all(d <= search * bound, axis=1)
                   & ~np.all(d <= tol * bound, axis=1)):
         return None
     tight = site_orbit(sg, x, tol=tol)
-    loose = site_orbit(sg, x, tol=reach)
+    loose = site_orbit(sg, x, tol=search)
     if loose.multiplicity >= tight.multiplicity:
         return None
+    delta = loose.position - x
+    delta -= np.round(delta)
+    if float(np.max(np.abs(delta))) > reach * bound:
+        return None
+    # the pairs the merge collapses: each stated image goes to the nearest
+    # image of the merged position, and images sharing one are the pairs
     images = np.asarray(tight.images, dtype=np.float64)
+    target = np.asarray(loose.images, dtype=np.float64)
+    to_target = images[:, None, :] - target[None, :, :]
+    to_target -= np.round(to_target)
+    owner = np.argmin(np.linalg.norm(to_target @ m.T, axis=-1), axis=1)
     diff = images[:, None, :] - images[None, :, :]
     diff -= np.round(diff)
     norms = np.linalg.norm(diff @ m.T, axis=-1)
-    gap = float(norms[np.triu_indices(len(images), k=1)].min())
-    if gap > distance:
-        return None
-    delta = loose.position - x
-    return TwinMerge(position=x + delta - np.round(delta), gap=gap,
+    same = owner[:, None] == owner[None, :]
+    gap = float(norms[same].max())
+    return TwinMerge(position=x + delta, gap=gap,
                      before=tight.multiplicity, after=loose.multiplicity)
 
 

@@ -3828,9 +3828,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "SITE_TWINS_KEPT": HelpEntry(
         title="Near-duplicate atoms left as stored",
         description=(
-            "A site's symmetry images fell in tight pairs, closer than 0.02 Å, in a "
-            "stored history or a model edit, and its occupancy times the images before "
-            "over the images after is at most 1. The numbers read two ways: one atom "
+            "A site lies within 5e-4 (fractional, per coordinate) of a special position, "
+            "so its symmetry images fall in tight pairs, in a stored history or a model "
+            "edit, and the occupancy at that position, summed over the atoms sharing "
+            "it and each times the images before over the images after, is at most 1. The numbers read two ways: one atom "
             "stated off its special position, or a split pair of part-atoms (#1088). "
             "Nothing was moved, and the model counts the second reading. The message "
             "gives the atoms per cell each reading implies, and the suggestion gives the "
@@ -3842,8 +3843,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "SITE_TWINS_MERGED": HelpEntry(
         title="Near-duplicate atoms merged onto a special position",
         description=(
-            "A site's symmetry images fell in tight pairs, closer than 0.02 Å, so it "
-            "would have put twice the atoms in the cell. Reading a project file, or a "
+            "A site lay within 5e-4 (fractional, per coordinate) of a special position, "
+            "so its symmetry images fell in tight pairs and it would have put "
+            "more atoms in the cell than the position holds. Reading a project file, or a "
             "history or model edit where the occupancy is high enough that the unchanged "
             "site would put more than one atom at one place, moved the site onto "
             "the special position its orbit collapses to. Coordinates the position fixes "
@@ -3854,10 +3856,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "occupancy is kept, so the site's atoms per cell change with its "
             "multiplicity, and the message gives both counts. That is right for one atom "
             "stated off its position. A part-occupied split pair that a fit or a file "
-            "left within 0.02 Å of its own image loses content in the merge, and the "
+            "left within 5e-4 of its own image's position loses content in the merge, and the "
             "message says so. Check the coordinate against its source, since a special "
             "position stated a few 1e-5 off is the usual cause. To keep a genuinely "
-            "displaced atom, state it at least 0.02 Å from its own images. To keep a "
+            "displaced atom, state it more than 5e-4 (fractional) from the position. "
+            "A hold or tie on a coordinate degree of freedom that the position "
+            "renumbers follows it, or is dropped and named in the message. To keep a "
             "split pair's content, restate the site on the special position at the "
             "occupancy that the suggestion gives."
         ),

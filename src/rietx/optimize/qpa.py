@@ -149,7 +149,7 @@ def phase_zmv(space_group, cell: tuple[float, float, float, float, float, float]
     fed coordinates that are genuinely on their site, because an atom refined
     to within the dedup tolerance of a special position would otherwise
     collapse its orbit and mis-weigh the cell.  A site whose own images sit
-    closer than :data:`~rietx.crystallography.symmetry.TWIN_DISTANCE` counts
+    within :data:`~rietx.crystallography.symmetry.TWIN_COORD_TOL` of a special position counts
     at the special position they collapse to, as ``Phase`` construction
     moves it there (issue #1007).
     """

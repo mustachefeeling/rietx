@@ -45,7 +45,11 @@ from .crystallography.magnetic.moments import (
 )
 from .crystallography.magnetic.scattering import check_group_is_structure_symmetry
 from .crystallography.symmetry import reflection_label, reflection_label_row
-from .crystallography.twins import merge_site_twins
+from .crystallography.twins import (
+    carry_constraints,
+    carry_state_constraints,
+    merge_site_twins,
+)
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
 from .history.store import fingerprint
@@ -2237,9 +2241,44 @@ class Refinement:
         assigned after a phase was built never re-validates it.  What moved is
         held in ``_twin_findings`` for the next result.
         """
-        self.structure = merge_site_twins(self.structure,
-                                          diagnostics=self._twin_findings,
-                                          keep_part_occupied=True)
+        moves: dict = {}
+        found: list[Diagnostic] = []
+        self.structure = merge_site_twins(self.structure, diagnostics=found,
+                                          keep_part_occupied=True, moves=moves)
+        self._carry_twin_moves(moves, found)
+        self._twin_findings.extend(found)
+
+    def _carry_twin_moves(self, moves: dict, found: list[Diagnostic]) -> None:
+        """Carry holds, user ties and free paths through the DOF renumbering of a merge.
+
+        A site that gains symmetry renumbers its coordinate DOFs, so a hold on
+        ``dof.1`` (y on the general position) would read z on the mirror and
+        keep the wrong coordinate fixed with nothing saying so.  Each register
+        follows its DOFs (:func:`~.crystallography.twins.carry_constraints`),
+        and what cannot follow is dropped and named in the site's
+        ``SITE_TWINS_MERGED`` message.
+        """
+        if "_user_holds" not in self.__dict__:
+            return            # construction: no constraint has been declared yet
+        sites = sorted({path.rsplit(".dof.", 1)[0] for path in moves})
+        for site in sites:
+            site_moves = {p: m for p, m in moves.items()
+                          if p.rsplit(".dof.", 1)[0] == site}
+            holds, ties, free, notes = carry_constraints(
+                site_moves, holds=sorted(self._user_holds), ties=self._ties,
+                free_paths=self._free_paths)
+            self._user_holds = set(holds)
+            self._ties = ties
+            self._free_paths = free
+            self._held = [new for p in self._held
+                          if (new := (site_moves[p][0] if p in site_moves else p))]
+            if not notes:
+                continue
+            for n, d in enumerate(found):
+                if d.code == "SITE_TWINS_MERGED" and d.where == [site]:
+                    found[n] = d.model_copy(update={
+                        "message": d.message + " Constraints: "
+                        + "; ".join(notes) + "."})
 
     def _drain_twin_findings(self) -> list[Diagnostic]:
         """The merges no result has reported yet; each is reported once."""
@@ -2385,8 +2424,9 @@ class Refinement:
         # a proposed structure meets the twin merge before its table is built,
         # since moving a site changes the symmetry its table is checked against
         merged: list[Diagnostic] = []
+        moves: dict = {}
         candidate = merge_site_twins(candidate, diagnostics=merged,
-                                     keep_part_occupied=True)
+                                     keep_part_occupied=True, moves=moves)
         # No magnetic-group judgement here: ``edit`` receives refined state
         # plus one change (the GUI's funnel for every model edit), which is the
         # case :func:`_refined_state` exists for (issue #597).
@@ -2402,6 +2442,8 @@ class Refinement:
         # register it leaves is the one the node carries, and a tie that stopped
         # applying is said once — at the edit that ended it — instead of on
         # every listing afterwards (WP-1070).
+        if structure is not None:
+            self._carry_twin_moves(moves, merged)
         self._declare_variables(table)
         applied = self._apply_ties(table)
         self._ties = {p: s for p, s in self._ties.items() if p in applied}
@@ -9811,8 +9853,13 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
 
     state = node.state
     twins: list[Diagnostic] = []
+    moves: dict = {}
     structure = merge_site_twins(state.structure.model_copy(deep=True),
-                                 diagnostics=twins, keep_part_occupied=True)
+                                 diagnostics=twins, keep_part_occupied=True,
+                                 moves=moves)
+    if moves:
+        state = state.model_copy(deep=True)
+        carry_state_constraints(state, moves, twins)
     instrument = state.instrument.model_copy(deep=True)
     table = ParameterTable(structure, instrument)
     for name, prm in state.variables.items():

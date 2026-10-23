@@ -754,22 +754,29 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code"),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code"),
-    Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=1,
+    Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,
         evidence=("arithmetic: fires exactly when a model-side boundary (RefinementTree.load, a "
-                  "Refinement verb) finds a site's images under TWIN_DISTANCE and occupancy x "
-                  "(images before / after) <= 1, so the numbers read both as one atom off its "
-                  "position and as a split pair (#1088); nothing is moved and both counts are "
-                  "stated. Maintainer's ruling on #1014 (round 3): no other code merges a "
-                  "fit-made coordinate by default")),
-    Row("SITE_TWINS_MERGED", "code", tier=1, ambiguity=1,
-        evidence=("arithmetic: fires exactly when a site's images sit under TWIN_DISTANCE and it "
-                  "was moved onto its special position; reports the atoms per cell before and "
-                  "after (multiplicity x occupancy). Physics branch, tier 1: a model-side "
-                  "boundary merges only where occupancy x (before / after) > 1, since the "
-                  "unmerged model then puts more than one atom at one place. Reader branch (the "
-                  "file's stated occupancy is kept, as GSAS-II's GenAtom keeps it when it drops "
-                  "an image within 2e-4 fractional, GSASIIspc.py 2236-2239 per the maintainer's "
-                  "reading of 5.8.4): tier 2 at TWIN_DISTANCE's looser reach (PR #1014)")),
+                  "Refinement verb) finds a site within TWIN_COORD_TOL of its special position "
+                  "and the occupancy at that position, summed over the atoms sharing it and each "
+                  "x (images before / after), is <= 1, so the numbers read both as one atom off "
+                  "its position and as a split pair (#1088). It acts on nothing: it reports two "
+                  "readings with their occupancies and stops, because which one the file meant "
+                  "is a fact outside it (DESIGN.md Rules, 1, third kind; maintainer's review of "
+                  "#1014, round 4). Maintainer's ruling on #1014 (round 3): no other code merges "
+                  "a fit-made coordinate by default")),
+    Row("SITE_TWINS_MERGED", "code", tier=2, ambiguity=1,
+        evidence=("fires when a site within TWIN_COORD_TOL of its special position was moved "
+                  "onto it; reports the atoms per cell before and after (multiplicity x "
+                  "occupancy), and what became of a hold or tie on a renumbered coordinate "
+                  "DOF. The whole code is tier 2 because its two branches share one row and "
+                  "one row takes one tier (maintainer's review of #1014, round 4). Model-side "
+                  "branch: merges only where the occupancy at the position, summed over the "
+                  "atoms sharing it, x (before / after) exceeds 1, since the unmerged model "
+                  "then puts more than one atom at one place (arithmetic, tier 1). Reader "
+                  "branch: the file's stated occupancy is kept, as GSAS-II's GenAtom keeps it "
+                  "when it drops an image within 2e-4 fractional (GSASIIspc.py 2236-2239, per "
+                  "the maintainer's reading of 5.8.4): the evidence for that branch is "
+                  "GSAS-II's default, hence tier 2 (PR #1014)")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code"),
     Row("SIZE_UNUSUALLY_SMALL", "code"),
     Row("SOLVE_B_TIED_PER_PARENT_SITE", "code", tier="caller", ambiguity=2,
@@ -1096,19 +1103,28 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS", "constant", value=30000000),
     Row("rietx.crystallography.symmetry.SITE_TOL", "constant", value=0.0001),
     Row("rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG", "constant", value=0.001),
+    Row("rietx.crystallography.symmetry.TWIN_COORD_TOL", "constant", tier=1, value=0.0005,
+        evidence=("arithmetic on print precision, the maintainer's proposal on #1014 (round 4): "
+                  "a coordinate printed to three decimals is consistent with a special position "
+                  "when it lies within half a unit of its last digit, 5e-4. It covers 0.333 for "
+                  "1/3 (3.3e-4) and y = 0.2504 for 1/4 (4e-4), and not y = 0.251, which at its "
+                  "own precision excludes 0.25: a caller with y = 0.251 on a Pnma mirror site "
+                  "sees nothing moved, nothing said, and the 8 positions the coordinates state. "
+                  "Fractional, so the reach in A does not grow with the cell. For comparison "
+                  "GSAS-II 5.8.4 drops an image within 2e-4 per coordinate. The case the "
+                  "arithmetic does not cover is a coordinate printed to two decimals (0.33 "
+                  "for 1/3, 3.3e-3 off), which is outside the reach and so stays general")),
     Row("rietx.crystallography.symmetry.TWIN_DISTANCE", "constant", value=0.02,
-        evidence=("unaudited, for the maintainer's tier and approval (PR #1014, round 3). The "
-                  "comparison: GSAS-II drops an image within 2e-4 fractional per coordinate "
-                  "(0.001-0.004 A); no other code tested merges by default. 0.02 A is what a "
-                  "coordinate printed to three decimals needs: on a mirror the images sit "
-                  "2 x offset x b apart, so an offset of up to 5e-4 gives 0.001 x b, under 0.02 A "
-                  "for b up to 20 A. Measured here: P6_3/mmc 2c stated 0.333/0.667 (offset "
-                  "3.3e-4, a = 5 A) has a gap of 0.005 A and needs a distance of at least "
-                  "0.006 A; Pnma y = 0.2504 (b = 5.4 A) 0.0043 A, needs 0.006 A; y = 0.251 "
-                  "0.0108 A, needs 0.02 A; Fd-3m 8a at 0.1251 (a = 10 A) 0.0035 A, needs "
-                  "0.004 A. A 2e-4 fractional reach would miss the first three. The cost of "
-                  "the wider reach is a split pair closer than 0.02 A, which a model-side "
-                  "boundary now leaves as stored (SITE_TWINS_KEPT)")),
+        evidence=("unaudited, for the maintainer's tier and approval. After #1014's round 4 it "
+                  "no longer decides a site's own twin (TWIN_COORD_TOL does); it remains the "
+                  "distance at which one *listed* site is another's image "
+                  "(CIF_SITE_LISTED_TWICE, #765), unchanged from main")),
+    Row("rietx.crystallography.symmetry._TWIN_SEARCH_FACTOR", "constant", tier=1, value=3.0,
+        evidence=("arithmetic: a rotation of a crystal-axes site group has entries 0 and +-1, so "
+                  "its rows sum to at most 2 in absolute value and |(R - I) d|inf <= 3 |d|inf; "
+                  "the operation search at 3 x TWIN_COORD_TOL therefore admits every operation "
+                  "an offset within TWIN_COORD_TOL can satisfy, and the snapped position is "
+                  "then held to TWIN_COORD_TOL itself")),
     Row("rietx.crystallography.symmetry._COINCIDENCE_TOL", "constant", value=1e-09),
     Row("rietx.crystallography.symmetry._GAMMA_HEX", "constant", value=120.0),
     Row("rietx.crystallography.symmetry._ORBIT_CHUNK_ELEMENTS", "constant", value=24000000),
@@ -2662,11 +2678,11 @@ ROWS: tuple[Row, ...] = (
     Row("SITE_TWINS_KEPT.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence=("arithmetic: names the special-position occupancy each reading implies "
                   "(occ for one atom off its position, occ x before/after for a split pair) "
-                  "and TWIN_DISTANCE, read from the constant")),
+                  "and TWIN_COORD_TOL, read from the constant")),
     Row("SITE_TWINS_MERGED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence=("arithmetic: names the coordinate's source and the restatement (special "
                   "position at the occupancy that keeps a split pair, or at least "
-                  "TWIN_DISTANCE from its own images, read from the constant) that keeps a "
+                  "more than TWIN_COORD_TOL from the position, read from the constant) that keeps a "
                   "real displacement")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", value=1),
     Row("SIZE_UNUSUALLY_SMALL.suggestion", "suggestion", value=1),

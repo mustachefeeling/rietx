@@ -82,7 +82,7 @@ The multiplicity decides how many atoms a site puts in the cell, so it sets the 
 Compare it against the file's own `_atom_site_symmetry_multiplicity`.
 
 Two more repairs guard the same count.
-A site further off a special position whose own images still sit closer than 0.02 Å is one atom counted twice, so it is moved onto the special position they collapse to, at every boundary that can say so.
+A site within 5e-4 (fractional, per coordinate) of a special position, further off than a snap reaches, is one atom counted twice (a coordinate printed to three decimals is consistent with a special position within half its last digit: `y = 0.2504` is, `y = 0.251` is not), so it is moved onto the special position they collapse to, at every boundary that can say so.
 A CIF read says so with [`CIF_SITE_TWINS_MERGED`](diagnostics-structures.md#cif_site_twins_merged).
 The project readers' `to_structure` say `SITE_TWINS_MERGED` on their own `diagnostics=`, keeping the occupancy the file states.
 `RefinementTree.load` and `Refinement` construction, `edit`, `set_values` and `checkout` hold a model rather than a file.
@@ -92,8 +92,10 @@ A merged site's coordinates that the position fixes lose `vary`, and an anisotro
 `Phase` itself stays strict: a phase built in code with a twin site is held as stated until it enters one of those.
 The merge keeps the occupancy, so the site's atoms per cell change with its multiplicity, and each message gives both counts (multiplicity × occupancy).
 For one atom stated off its position that is the repair.
-A part-occupied split pair that a fit left within 0.02 Å of its own image loses content instead (issue #1088), so on such a site the message says so and the suggestion gives the occupancy that keeps it.
-A split site, whose images are 0.2 Å or more apart, is left as stated.
+A part-occupied split pair that a fit left within 5e-4 of the position loses content instead (issue #1088), so on such a site the message says so and the suggestion gives the occupancy that keeps it.
+A split site, further than that from every special position, is left as stated.
+The occupancy test sums over every atom sharing the position, so Fe 0.5 and Mn 0.5 on one site merge together.
+A hold or user tie on a coordinate degree of freedom (`…dof.k`) follows its direction when the site gains symmetry, or is dropped and named in the message where the position fixes that direction.
 Two sites of one species on one orbit with identical properties are one site listed twice, and the second is dropped, [`CIF_SITE_LISTED_TWICE`](diagnostics-structures.md#cif_site_listed_twice).
 A pair that differs in any property is refused.
 

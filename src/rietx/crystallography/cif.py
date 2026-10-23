@@ -331,13 +331,14 @@ def _cartesian_gap(cell, d) -> float:
 
 
 def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
-    """A site whose own images sit closer than :data:`TWIN_DISTANCE`, put on its special position.
+    """A site within :data:`TWIN_COORD_TOL` of a special position, put on it.
 
     ``site_orbit`` snaps a site within ``SITE_TOL`` (1e-4, fractional) of a
     special position.  A file stating the 6h site (x, 2x, ¼) of P6₃/mmc as
     (0.828, 0.657, ¼) is 1e-3 off it, so every image counts as a distinct atom
     0.005 Å from its twin and the site scatters as two atoms per position.
-    Where the twins are closer than :data:`TWIN_DISTANCE` — at any
+    Where the special position is within :data:`TWIN_COORD_TOL` of every
+    coordinate (fractional) — at any
     occupancy, since no split site is that tight, and a co-occupant of a
     doubled site is doubled with it — the site is taken at the special
     position its orbit collapses to, and ``CIF_SITE_TWINS_MERGED`` says so,

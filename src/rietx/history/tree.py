@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ..crystallography.twins import merge_site_twins
+from ..crystallography.twins import carry_state_constraints, merge_site_twins
 from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.history import (
     Annotation,
@@ -57,11 +57,13 @@ def _merge_stored_twins(pending: Sequence[Any]) -> list[Diagnostic]:
         if not isinstance(item, HistoryNode):
             continue
         local: list[Diagnostic] = []
+        moves: dict = {}
         merged = merge_site_twins(item.state.structure, diagnostics=local,
                                   source="this history",
-                                  keep_part_occupied=True)
+                                  keep_part_occupied=True, moves=moves)
         if local:
             item.state.structure = merged
+            carry_state_constraints(item.state, moves, local)
         for d in local:
             found.setdefault((d.code, tuple(d.where)), []).append(d)
     out: list[Diagnostic] = []
@@ -129,8 +131,8 @@ class RefinementTree:
         outside that range the parameter is left as stored in all of them, as
         ``DECLARED_RANGE_NOT_RESTORED``.  No value ever moves
         (:func:`~rietx.schemas.migrate.restore_declared_ranges`).  The other
-        repair moves a coordinate: a site whose own images sit closer than
-        0.02 Å (a stored ``y = 0.2501`` on a mirror at ¼) is put on the
+        repair moves a coordinate: a site within 5e-4 (fractional) of its
+        special position (a stored ``y = 0.2501`` on a mirror at ¼) is put on the
         special position they collapse to, in every node that stored it, and
         said once per site as ``SITE_TWINS_MERGED`` (issue #1007).
 
