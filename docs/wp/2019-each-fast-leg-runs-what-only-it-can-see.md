@@ -154,6 +154,17 @@ cutting it.
 - **A jax compile cache:** warm 8:18 against cold 8:12 (`ci.yml`).
 - **Blanket xdist groups:** setup is 9 % of the tier.
 
+### Inherited
+
+- **2026-10-23, from [1547](1547-the-fast-tiers-tail.md) (closed): main's slowest
+  fast job is over 20 min again on three of the five latest runs.** Job walls,
+  `started_at` to `completed_at`, from GitHub's REST API: 39865423926 17.6 min
+  (py3.11 1/2), 39867656769 22.2 (py3.14 2/2), 39878630013 21.9 (py3.14 2/2),
+  39930844656 17.5 (py3.11 1/2), 39937040834 21.7 (py3.14 2/2). On 39937040834
+  py3.14's shards took 9.1 and 21.7 min and the jax job 8.6, so the imbalance
+  is in the shard record, which this WP refreshes. 1547 closed on its first ten
+  runs after #869 (median 14.75 min).
+
 ## Non-goals
 
 - **Why `isotropy.analyse` is slow, and the fast tier computing the F m -3 m
