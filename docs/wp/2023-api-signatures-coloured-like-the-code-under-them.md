@@ -72,7 +72,7 @@ No colour value is added to the site.
 
 ## Tasks
 
-- [ ] The transform: `highlight` token classes on every Python-domain signature on the three
+- [x] The transform: `highlight` token classes on every Python-domain signature on the three
   API pages (name, parameter name, annotation, built-in, return type, default by literal kind),
   the `:target` tint kept, parameter names upright
 - [ ] Tests: the built HTML of the three pages carries the expected class on each token of a
