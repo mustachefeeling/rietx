@@ -15,12 +15,12 @@ Interpretation table, written before the tests were (each arm can fail):
 
 | arm | must read if it works | reading if it is broken |
 |---|---|---|
-| #916's flat Si (seed 1, 12.1–60°): census | 23 picked, 17 usable, ``[1,1,1,2,1,3,2,1,1,1,1]``, and the same flag counts as before this change (``position_at_bound`` 10, ``no_intensity`` 5, ``weak_line`` 6, ``width_capped`` 2) | a diagnostic change moved a flag or ``usable()`` |
-| the same: ``PEAK_POSITION_AT_BOUND`` | lists exactly the 10 flagged components, each with ±0.5 × its window's seed FWHM; ``info``, value 0 (every one is unusable or under the bar) | absent, a component missed, or a bound that is not its window's |
+| #916's flat Si (seed 1, 12.1–60°): census | 20 picked, 16 usable, ``[1,1,1,2,1,3,1,1,1,1,1]``, and the flag counts main's own picker gives (``position_at_bound`` 7, ``no_intensity`` 3, ``weak_line`` 5, ``width_capped`` 1) | a diagnostic change moved a flag or ``usable()`` |
+| the same: ``PEAK_POSITION_AT_BOUND`` | lists exactly the 7 flagged components, each with ±0.5 × its window's seed FWHM; ``info``, value 0 (every one is unusable or under the bar) | absent, a component missed, or a bound that is not its window's |
 | a position named one FWHM off a strong line (``fit_peaks``) | flagged, the bound from **its own** window (not detection's group of the same index), ``info`` (Yue's ruling: never a warning), value 1, the count still offered | the bound read from the wrong window, or the offered count lost |
 | the same position named on the line (control) | no flag, no diagnostic | a clean line reported at its bound |
-| ``PEAK_NO_INTENSITY``: an empty named position on its zero bound, one under 1σ, and the reproducer's five | each entry says which: ``I = …, at the zero bound`` or ``I/σ_I … < 1``; value = the count on the bound | the two causes conflated |
-| ``PEAK_WIDTH_CAPPED`` on the reproducer | the two humps, each with its FWHM and 5 × its window's seed FWHM | a value missing |
+| ``PEAK_NO_INTENSITY``: an empty named position on its zero bound, one under 1σ, and the reproducer's three | each entry says which: ``I = …, at the zero bound`` or ``I/σ_I … < 1``; value = the count on the bound | the two causes conflated |
+| ``PEAK_WIDTH_CAPPED`` on the reproducer | the one capped hump, with its FWHM and 5 × its window's seed FWHM | a value missing |
 | the floor's edge: planted I/σ_I just under and just over the bar | the one under is flagged and named with its I/σ_I and the bar; the one over is not | the edge on the wrong side, or a value missing |
 
 Synthetic data only: silicon through the package's own forward model with
@@ -72,26 +72,31 @@ def _flagged(pl: PeakList, flag: str) -> list[ObservedPeak]:
 
 def test_the_census_on_the_reproducer_does_not_move(flat_si):
     """Invariance control: this change adds diagnostics and moves no flag.
-    Before and after: 23 picked, 17 usable, ``[1,1,1,2,1,3,2,1,1,1,1]``
-    usable components within one FWHM of each silicon line."""
+    Main's own census on this reproducer: 20 picked, 16 usable,
+    ``[1,1,1,2,1,3,1,1,1,1,1]`` usable components within one FWHM of each
+    silicon line.  Measured on main alone and on main with this change, the
+    two agree.  (Until WP-2002 closed the picker's fits at the closing
+    stage's wider peak windows, #1085, the pair was (23, 17) with 10, 5, 6 and
+    2 flags; the wider windows let components that ended on a bound or on zero
+    land elsewhere.)"""
     _, _, pl, _ = flat_si
     use = pl.usable()
     tt = np.array([p.two_theta for p in use])
     fw = np.array([max(p.fwhm, 0.025) for p in use])
     per = [int(np.sum(np.abs(tt - t) <= fw)) for t in _si_lines()]
-    assert (len(pl.peaks), len(use)) == (23, 17)
-    assert per == [1, 1, 1, 2, 1, 3, 2, 1, 1, 1, 1]
+    assert (len(pl.peaks), len(use)) == (20, 16)
+    assert per == [1, 1, 1, 2, 1, 3, 1, 1, 1, 1, 1]
     counts = {f: len(_flagged(pl, f)) for f in
               ("position_at_bound", "no_intensity", "weak_line", "width_capped")}
-    assert counts == {"position_at_bound": 10, "no_intensity": 5,
-                      "weak_line": 6, "width_capped": 2}
+    assert counts == {"position_at_bound": 7, "no_intensity": 3,
+                      "weak_line": 5, "width_capped": 1}
 
 
 def test_every_position_bound_hit_is_named_with_its_windows_bound(flat_si):
     _, _, pl, det = flat_si
     d = _one(pl, "PEAK_POSITION_AT_BOUND")
     moved = _flagged(pl, "position_at_bound")
-    assert len(d.where) == len(moved) == 10
+    assert len(d.where) == len(moved) == 7
     for p, entry in zip(moved, d.where):
         r = PEAK_POSITION_BOUND_FWHM * det.groups[p.group].seed_fwhm
         z = p.intensity / p.intensity_esd
@@ -142,8 +147,10 @@ def test_no_intensity_says_whether_the_bound_or_the_floor_put_it_there(
                        for p in empty]
     assert d.value == 0.0
     # two empty named positions: one the fit takes to its zero bound, one
-    # that keeps a third of its esd
-    named = rx.fit_peaks(data, ins, [20.0, 21.37], two_theta_range=RANGE)
+    # that stays above it with an esd thousands of times its value.  The
+    # closing stage's wider windows (#1085) moved the pair: 21.37 used to go
+    # to zero and now keeps 0.33, while 22.5 now takes the zero bound.
+    named = rx.fit_peaks(data, ins, [20.0, 22.5], two_theta_range=RANGE)
     d = _one(named, "PEAK_NO_INTENSITY")
     low, zero = named.peaks
     assert zero.intensity < 1e-10 < low.intensity
@@ -161,7 +168,9 @@ def test_width_capped_names_each_width_and_its_bound(flat_si):
     assert d.where == [
         f"{p.two_theta:.4f}° (FWHM {p.fwhm:.4f}°, Γ_G/Γ_L bound "
         f"{f_hi * det.groups[p.group].seed_fwhm:.4f}° each)" for p in capped]
-    assert [round(p.two_theta, 1) for p in capped] == [15.4, 25.1]
+    # the 15.4° hump was capped before the closing windows (#1085) widened
+    # the picker's fits; the one at 25.1° still is
+    assert [round(p.two_theta, 1) for p in capped] == [25.1]
 
 
 def _peak(tt: float, i_over_s: float) -> ObservedPeak:
