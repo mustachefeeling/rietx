@@ -819,11 +819,12 @@ def _width_twin_flats(parts: list[tuple[ParameterTable, np.ndarray, set[int]]],
     takes its place as Y's twin.  The block's isotropic direction is Y's
     exactly at the seed (``Stage.strain_seed``) and only near it once the
     strain turns anisotropic, so this one pair is held by rule rather than
-    by the null space.  The rule is the one every program follows for the
-    whole pair (``docs/practice.md``), and without it an isotropic fit and its
-    Stephens rival would refine different instrument parameters, which a
-    nested comparison of the two cannot take (``tests/test_acceptance_stephens.py``).
-    A block that is present and held pins Y like a held ``lor_strain``.
+    by the null space.  At the seed the first steps would face an exactly
+    singular pair, and FullProf's shipped Stephens example holds its tanθ
+    Lorentzian term while refining the block (``docs/practice.md``).  It also
+    keeps an isotropic fit and its Stephens rival on the same instrument
+    parameters (``tests/test_acceptance_stephens.py``).  A block that is
+    present and held pins Y like a held ``lor_strain``.
     """
     def row(C, col_map: np.ndarray, i: int) -> np.ndarray:
         out = np.zeros(n_columns, dtype=np.float64)
@@ -4505,6 +4506,16 @@ class Refinement:
                         scale_b_held.update(late_sep)
                         late_set = set(late_hold)
                         released = [p for p in released if p not in late_set]
+            # the twin question asked again of the second solve's free set
+            # (code review of WP-2002's 9th session): a phase that collapsed
+            # pins nothing now, so a pair it pinned at stage start is flat
+            if phase_support_sigma is not None and support is not None:
+                late_twin, late_twin_reach, late_twins = _hold_width_twins(
+                    table, {ip for ip, z in enumerate(support)
+                            if z < phase_support_sigma})
+                held = held + late_twin
+                held_reach.update(late_twin_reach)
+                width_twins_held.update(late_twins)
             self._held = list(held) + reset_hold
             held_set = set(held)
             freed = [p for p in declared_freed

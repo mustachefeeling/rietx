@@ -1080,24 +1080,29 @@ class StageResult(Base):
     #: Both single-histogram runners write a mapping on every stage, so an
     #: empty one is a stage that looked and held nothing on this test.
     scale_b_held: dict[int, float] | None = None
-    #: per instrument width column this stage **held** because a free specimen
-    #: width has its angular dependence (WP-2002), the specimen columns it
-    #: pairs with: U with ``gauss_strain`` (tan²θ in Γ_G²), Y with
-    #: ``lor_strain`` (tanθ in Γ_L), X with ``lor_size`` (1/cosθ in Γ_L).
-    #: The data see each pair only as a sum, so with both free the pair walks
-    #: along a flat direction.  The instrument half is held at the value the
-    #: stage started from, which is how every program that separates the two
-    #: does it (``docs/practice.md``), and the specimen value is then the width
-    #: the instrument does not account for.  The held columns are in
-    #: :attr:`held` too.
+    #: per instrument width column this stage **held** because free specimen
+    #: widths have its angular dependence (WP-2002), the specimen columns it
+    #: pairs with: U with ``gauss_strain`` and ``gauss_size`` (tan²θ in Γ_G²),
+    #: W with ``gauss_size`` (whose 1/cos²θ is 1 + tan²θ), X with ``lor_size``
+    #: (1/cosθ in Γ_L), Y with ``lor_strain`` (tanθ in Γ_L).  The data see each
+    #: angular term only as a total, so with both sides free it walks along a
+    #: flat direction.  The instrument side is held at the value the stage
+    #: started from, which is how every program that separates the two does
+    #: it, by fixing the instrument from a standard (``docs/practice.md``), and
+    #: the specimen value is then the width the instrument does not account
+    #: for.  Where the instrument value was fitted on this specimen instead,
+    #: it carries that stage's split.  The held columns are in :attr:`held` too.
     #:
-    #: Held only where the pair is exactly flat
-    #: (``refine._width_twin_flats``): one seen phase whose twin is held pins
-    #: the instrument width for every phase, and nothing is held.  A free
-    #: Stephens block locks ``lor_strain`` and takes its place as Y's twin, so
-    #: Y is listed here with the block's columns; a held block pins Y like a
-    #: held ``lor_strain``.  Never released
-    #: inside the stage, since it rests on which columns are free.
+    #: Held where the null space of the totals is not empty
+    #: (``refine._width_twin_flats``): one seen phase whose specimen width is
+    #: held pins the instrument term for every phase, and nothing is held.
+    #: One pair is held by rule instead: a free Stephens block locks
+    #: ``lor_strain`` and takes its place as Y's twin, flat exactly at its
+    #: isotropic seed and near it after, so Y is listed here with the block's
+    #: columns; a held block pins Y like a held ``lor_strain``.  The test reads
+    #: no bound, so a specimen width that ends on its floor of 0 stays paired
+    #: with a held instrument term.  Asked at stage start and again before a
+    #: second solve, never released inside the stage.
     #:
     #: ``None`` means a result stored before the field.  Every runner writes a
     #: mapping, and an empty one is a stage that held nothing on this test.
