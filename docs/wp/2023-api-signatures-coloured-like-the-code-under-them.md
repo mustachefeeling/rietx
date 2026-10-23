@@ -1,6 +1,6 @@
 # WP-2023 — API signatures coloured like the code under them
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-23 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P3 2026-10-23 — was P4 (presentation, no number moves), up a rung: the finishing rung of WP-2022's reading of the API pages, small against what that WP paid
