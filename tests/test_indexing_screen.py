@@ -1,7 +1,7 @@
 """The line screen, the containment refuter and the windowed cap (C3, issue #916).
 
 Synthetic only: the two control patterns of the C3 design record, regenerated
-here from their seeds — Si (F d -3 m, a = 5.4311 Å, 17 lines at λ = 0.8257 Å,
+here from their seeds — Si (F d -3 m, a = 5.4311 Å, 16 lines at λ = 0.8257 Å,
 the "flat17" repro of #916) and a tetragonal P cell with c/a = 1.01 (60
 lines), each with the derivative and descent cells the design measured.  Every
 arm below has a reading pre-registered in that record's interpretation table;
@@ -139,7 +139,7 @@ def test_the_refuter_reaches_the_cells_the_sublattice_relation_could_not(si):
     from rietx.indexing.screen import containment_evidence
 
     pattern, s = _screens(*si, SI_CELLS)
-    assert len(si[2].usable()) == 17
+    assert len(si[2].usable()) == 16
     truth = s["truth cF"]
     expect = {"cI sqrt2 a0": ("containment", 0), "cP a0": ("sublattice", 4),
               "cP 2a0": ("containment", 0), "hR rank-1 of #916": ("containment", 0),
