@@ -69,7 +69,8 @@ vector shared by every rotation. A new diagnostic code needs its skill row.
 ## Non-goals
 
 - The screen at a small cell error, and its default prefit (WP-1910, PR #939).
-- The blind search's use of what the chemist knows (WP-1510).
+- The blind search's use of what the chemist knows (WP-1510, shipped in 1.7; its open window
+  and Z-check work is WP-2030).
 - Z and density inside #940 (decided as a follow-up, a task below).
 
 ## Tasks
