@@ -268,6 +268,23 @@ def test_same_lattice_sees_through_a_setting_change():
     assert np.isnan(chi2)          # the covariance-free fallback ran
 
 
+def test_symmetry_zero_components_at_rounding_level_do_not_split_a_lattice():
+    """A monoclinic reduced D, E is zero; M·G·Mᵀ returns it as ~1e-18 noise of
+    either sign (WP-2035), which a purely relative test calls a difference —
+    the two settings of one prior lattice then dedup apart on some platforms
+    (CI, Linux, py3.11 and 3.14: ``test_two_settings_of_one_prior_lattice``)."""
+    red = np.array([1.9720631506620304e-02, 1.2753091867002138e-02,
+                    3.7144002961060477e-03, -9.0e-19, -1.12e-18,
+                    2.1241323203985479e-03])
+    noisy = red.copy()
+    noisy[3], noisy[4] = 4e-19, 2e-19
+    assert equal_reduced(red, noisy)[0]
+    # a real difference in the same slots still separates
+    real = red.copy()
+    real[3] = 1e-4
+    assert not equal_reduced(red, real)[0]
+
+
 def test_same_lattice_separates_genuinely_different_cells():
     a = af_from_cell((7.0, 8.0, 9.0, 85.0, 95.0, 100.0))
     b = af_from_cell((7.0, 8.0, 9.3, 85.0, 95.0, 100.0))
