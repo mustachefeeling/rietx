@@ -130,14 +130,15 @@ choices = {plan.name: plan.when_to_use for plan in caps.plans}
 `Capabilities.package_version` is the installed rietx version, the same string as `rietx.__version__`.
 It moves with every release.
 
-Six more strings version the data contracts, and each moves on its own:
+Seven more strings version the data contracts, and each moves on its own:
 
 - `Capabilities.schema_version`, the pydantic models;
 - `Capabilities.report_thresholds_version`, the `FitReport` gates and thresholds;
 - `Capabilities.event_schema_version`, the streaming event ladder;
 - `Capabilities.project_format_version`, the `.rex` project directory;
 - `Capabilities.textdoc_format_version`, the `.rxt` text document;
-- `Capabilities.indexing_thresholds_version`, the indexing gates and the grade and caveat vocabularies.
+- `Capabilities.indexing_thresholds_version`, the indexing gates and the grade and caveat vocabularies;
+- `Capabilities.solve_thresholds_version`, the provisional grades of a structure-solution answer, a module still under construction.
 
 [The six version strings](compatibility.md#the-six-version-strings) says what a change to each means.
 Store the contract versions beside any answer you store.
@@ -159,6 +160,8 @@ A threshold compared across two `report_thresholds_version` values compares two 
 | `Capabilities.project_formats` | one `ProjectFormatCapability` per format of another program's refinement this build reads ([How to open a GSAS, TOPAS or FullProf refinement](../guides/foreign.md)) |
 | `Capabilities.search_presets` | one `SearchPresetCapability` per indexing search preset |
 | `Capabilities.indexing_engines` | one `EngineCapability` per indexing engine |
+| `Capabilities.solve_engines` | one `EngineCapability` per structure-solution engine (provisional; the entry point is not exported yet) |
+| `Capabilities.solve_presets` | one `SolvePresetCapability` per structure-solution preset (provisional) |
 | `Capabilities.crystal_systems` | the crystal systems in the order an indexing search enters them, from cubic to triclinic. Each system takes longer to search than the one before it |
 | `Capabilities.centrings` | for each crystal system, the Bravais centring letters it admits |
 | `Capabilities.shift_templates` | the systematic-shift models the indexing screen can fit |
@@ -274,3 +277,12 @@ A reader keyword means the same in every format that takes it, so `Capabilities.
 
 An indexing search runs against a budget.
 A program that has to promise a response time reads the ceiling here.
+
+### Structure solution (provisional)
+
+| Field | Meaning |
+|---|---|
+| `SolvePresetCapability.name` | the preset's name |
+| `SolvePresetCapability.description` | what the preset runs |
+| `SolvePresetCapability.default` | true for the preset a run uses when none is given |
+| `SolvePresetCapability.total_budget_seconds` | the ceiling on the whole run in seconds, or `None` for no ceiling |

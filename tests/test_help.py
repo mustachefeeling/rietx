@@ -42,6 +42,7 @@ from rietx.help import (
     PEAK_ORIGIN_HELP,
     READER_OPTION_HELP,
     SEARCH_FIELD_HELP,
+    SOLVE_FIELD_HELP,
     STAGE_FIELD_HELP,
     UNIT_DISPLAY,
     HelpEntry,
@@ -334,6 +335,7 @@ def _arms() -> dict[str, dict[str, HelpEntry]]:
         "reader_options": READER_OPTION_HELP,
         "instrument_fields": INSTRUMENT_FIELD_HELP,
         "search_fields": SEARCH_FIELD_HELP,
+        "solve_fields": SOLVE_FIELD_HELP,
         "plans": plan_help(),
     }
 
