@@ -1,6 +1,6 @@
 # The refinement
 
-This page gives the calls that run a refinement and where each setting goes, the fit modes, the plan and stage objects and how a plan is stored, what each stage records, the guard findings, the event stream, cancellation, and what a result records about the run.
+This page gives the calls that run a refinement, where each setting goes, the fit modes, the plan and stage objects and their storage, what each stage records, the guard findings, the event stream, cancellation, and what a result records about the run.
 
 [About a fit](../concepts/fit.md) follows one stage from freeing its parameters to committing its history node.
 [Plan presets](plans.md) draws each preset's stages, and [Stage settings, flags and options](settings.md#stage-settings) gives each stage setting with its meaning.
@@ -443,26 +443,28 @@ for stage in result.stages:
 |---|---|
 | `StageResult.name` | the stage's name, as the plan gave it |
 | `StageResult.status` | `converged` or `max_iter` |
-| `StageResult.n_iterations` | residual evaluations the solve made, the start included, on either driver |
+| `StageResult.n_iterations` | residual evaluations the solve made, the start included |
 | `StageResult.cost_initial`, `StageResult.cost_final` | the cost the stage started from and the cost it reached |
 | `StageResult.freed` | the parameters this stage's patterns freed, less any the stage held |
 | `StageResult.ftol` | the tolerance it ran at; `None` is the solver default |
 | `StageResult.n_constraint_truncations` | steps the `lm` driver held on a linear inequality |
-| `StageResult.n_degenerate_cell_probes` | trial cells the residual refused as degenerate, with zero or negative volume |
-| `StageResult.n_lapack_fallbacks` | LAPACK calls the solve and its esds repeated with the second driver because the first did not converge, the same answer by another route |
+| `StageResult.n_degenerate_cell_probes` | trial cells the residual refused for zero or negative volume |
+| `StageResult.n_lapack_fallbacks` | LAPACK calls repeated with a second driver after the first failed to converge, the same answer by another route |
 | `StageResult.held` | parameters the plan freed that this stage held because the data cannot determine them |
 | `StageResult.held_reach` | per held parameter, the tied parameters it also stopped |
 | `StageResult.released` | parameters held at the start and freed again within the stage |
-| `StageResult.scale_b_held` | per phase whose displacement parameters this stage held because the fitted range cannot separate them from its scale, the measured separation; `{}` when it looked and held nothing |
+| `StageResult.scale_b_held` | per phase whose displacement parameters this stage held as inseparable from its scale over the fitted range, the measured separation; `{}` when it held nothing |
+| `StageResult.width_twins_held` | per instrument width held beside its free specimen twin, that twin |
 | `StageResult.blocked_by_hold` | parameters the patterns matched and a `Refinement.hold` kept fixed ([How to keep a parameter fixed whatever the plan frees](../guides/hold.md)) |
-| `StageResult.unknown_paths` | literal names in `turn_on` that name no parameter of this model, and names under a retired spelling |
+| `StageResult.unknown_paths` | literal names in `turn_on` naming no parameter of this model, or under a retired spelling |
 | `StageResult.unreached_histograms` | joint fits: per histogram, the patterns that freed parameters of another histogram and matched none of this one; `{}` on a single histogram |
-| `StageResult.seeded` | each parameter this stage lifted before solving, with the value it started from |
-| `StageResult.cell_reset` | the free cell parameters this stage put back at the values it started from, because their phase's cell left the safety window while it solved ([Parameter table](parameter-table.md#bounds-a-stage-adds); [`CELL_RUNAWAY`](diagnostics-refinement.md#cell_runaway) says more) |
+| `StageResult.seeded` | each parameter this stage lifted before solving, with the value it started from, `Stage.strain_seed`'s Stephens DOFs included |
+| `StageResult.cell_reset` | the free cell parameters this stage put back at their starting values because their phase's cell left the safety window ([`CELL_RUNAWAY`](diagnostics-refinement.md#cell_runaway) says more) |
+| `StageResult.collapsed` | the parameters in `held` put back at their starting values because the stage's first solve found them flat ([Held parameters](#held-parameters)) |
 | `StageResult.moment_flat_axes`, `StageResult.moment_turned` | magnetic sites whose moment direction the stage held about a flat axis ([Magnetic refinement](magnetic.md#directions-a-powder-cannot-see)) |
 | `StageResult.moment_angle_tests` | each round of the stationary-angle test, one `MomentAngleTest` per round; `None` when no test ran ([Magnetic refinement](magnetic.md#an-angle-at-a-symmetry-direction)) |
 
-`StageResult.scale_b_held`, `StageResult.unknown_paths`, `StageResult.unreached_histograms`, `StageResult.seeded` and `StageResult.cell_reset` are `None` on a result stored before the field existed, meaning that nothing looked.
+`StageResult.scale_b_held`, `unknown_paths`, `unreached_histograms`, `seeded`, `cell_reset`, `collapsed` and `width_twins_held` are `None` on a result stored before the field existed, meaning that nothing looked.
 The status type also admits `diverged`, which neither driver produces today.
 Both drivers accept a step only when it lowers the cost, so `cost_final` never exceeds `cost_initial`.
 
@@ -476,7 +478,7 @@ A literal name, with no `*`, `?` or `[`, names one parameter.
 If the model has no such parameter the plan is wrong, through a typo or a renamed path.
 `StageResult.unknown_paths` lists it, and [`STAGE_PATH_UNKNOWN`](diagnostics-refinement.md#stage_path_unknown) reports it at `warning` with the nearest real name: `instrument.source.lines.0.wavelength` for a stage that names the wavelength without its line index.
 It is a diagnostic and not an exception, because one plan runs every pattern of a series.
-A family name spelt wrong inside a pattern looks exactly like a pattern that correctly matched nothing, so no rule can report it, and `freed` is the place to look.
+A wrongly spelt family name inside a pattern looks like one that correctly matched nothing, so no rule can report it, and `freed` is the place to look.
 
 A pattern under a spelling a release retired is reported too.
 A saved project, history tree or `.rxt` file is migrated as it is read, but a plan built in code is not.
@@ -499,11 +501,12 @@ A pattern scoped to one histogram, `hist.0.…`, is not reported, and neither is
 ### Held parameters
 
 `StageResult.held` is the field to read when a parameter did nothing.
-A stage holds three kinds of parameter at the values it starts from.
+A stage holds four kinds of parameter at the values it starts from.
 
 - The structural parameters of a phase the data cannot see. A phase reaches the pattern only through scale × \|F\|² × profile, so a phase whose scale is at its floor, or not significant against the counting noise, has no measurable structural parameter. The phase's own `scale` is never held, which is how the phase can still appear. [`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) names the phase and the stages that held it, and its parameters are absent from `RefinementResult.parameters`, because nothing measured them.
 - A moment direction the powder average cannot determine ([Magnetic refinement](magnetic.md#directions-a-powder-cannot-see)).
 - A phase's displacement parameters when the fitted range cannot separate them from the phase's scale. `StageResult.scale_b_held` gives the measured separation, and [`SCALE_B_INSEPARABLE`](diagnostics-refinement.md#scale_b_inseparable) reports it.
+- An instrument width whose specimen twin is free: U with `gauss_strain`, Y with `lor_strain`, X with `lor_size`. The data see only each pair's sum.
 
 A stage holds whichever parameter carries the freedom.
 Tie a phase's lattice parameter to a variable of your own, and the variable is what stops moving, so `StageResult.held` names `vars.A`.
@@ -606,7 +609,7 @@ Each kind has one constructor, so each format string is written once:
 | `GuardFinding.nonpositive_adp` | `ADP_NOT_POSITIVE_DEFINITE` | an anisotropic displacement tensor is not positive definite | the smallest eigenvalue |
 | `GuardFinding.nonpositive_strain` | `STEPHENS_STRAIN_NOT_POSITIVE` | a Stephens block gives a negative σ²(M) for some reflection | the worst σ²(M) |
 | `GuardFinding.nonpositive_texture` | `TEXTURE_NOT_POSITIVE` | a spherical-harmonics texture gives a negative pole density somewhere on the sphere | the lowest value on the sphere |
-| `GuardFinding.nonpositive_resolution` | `RESOLUTION_NOT_POSITIVE` | the Caglioti quadratic Γ<sub>G</sub>² = U tan²θ + V tan θ + W goes below zero in the fitted range, where the model clamps Γ<sub>G</sub> to a floor | the worst Γ<sub>G</sub>² |
+| `GuardFinding.nonpositive_resolution` | `RESOLUTION_NOT_POSITIVE` | an instrument width, Γ<sub>G</sub>² or Γ<sub>L</sub>, goes below zero in the fitted range; the model clamps Γ<sub>G</sub> to a floor | the worst Γ<sub>G</sub>² or Γ<sub>L</sub> |
 | `GuardFinding.unsupported_resolution` | `RESOLUTION_UNCONSTRAINED` | the Gaussian resolution terms were refined on a pattern whose peaks are mostly Lorentzian | the Gaussian share of the width |
 | `GuardFinding.narrow_hump` | `HUMP_TOO_NARROW` | a declared hump has narrowed below four times the instrumental width, where it is a reflection rather than a background feature | its width over the instrumental width |
 | `GuardFinding.large_biso` | `BISO_UNUSUALLY_LARGE` | an isotropic displacement parameter is past the Lindemann melting bound computed from its phase's cell | B |

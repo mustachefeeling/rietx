@@ -890,12 +890,12 @@ Planning docs are split so a session loads only what it needs; do not read all:
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-sized checklist,
   acceptance command, handover log); its header lines are what the index reads, never hand-copied.
 - `docs/DESIGN.md` — design record; read only the section a WP links.
+- `docs/practice.md` — the seven programs' defaults by topic, cited: read before designing a default, add each survey.
 - `docs/milestones/vX.Y.md` — one record per release: the measured ship block, plus (while in
   flight) the running "How vX.Y is getting here" narrative; `<name>.md` holds a named milestone's
   scope and acceptance (WP-1540). The live one is `pyproject.version`'s X.Y, never `ls`'s last.
-- The **paper corpus** (location and unread list) is maintainer-local, outside this repo;
-  `AGENTS.md` names the split and the maintainer's memory holds it. **Search it before asking for a
-  paper or re-deriving a published constant.**
+- The **paper corpus** (location, unread list) is maintainer-local: `AGENTS.md` names the split, the maintainer's
+  memory holds it. **Search it before asking for a paper or re-deriving a published constant.**
 - `docs/skill/rietx/` — the **agent skill** (agentskills.io), consumer-facing: `SKILL.md` the
   judgement core read whole, `references/` the lookups read on demand. **What a session learns has
   three destinations** (WP-1330): a rule an agent *driving* rietx needs goes in the skill, a rule for

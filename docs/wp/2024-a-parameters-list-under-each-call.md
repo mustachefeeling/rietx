@@ -82,6 +82,16 @@ WP-2025 and WP-2026 then write the rest without deciding anything.
   goes to 2013's list rather than being half-fixed here.
 - Tier: no rule, threshold, default or automatic action; documentation only.
 
+### Inherited
+
+- **From WP-2023 (2026-10-23).** API signatures are now coloured with the code blocks' Pygments
+  tokens by `docs/py_highlight.py`, on `doctree-resolved` ahead of the twin, and it touches only
+  `desc_signature` nodes: a `:param:`/`:type:` field list is not one, so its types stay one
+  colour. If the list's types should match the signature's, call that module's `_annotation`
+  on the field list's type nodes rather than writing a second classifier. Whatever renders the
+  list, the twin test (`test_a_signature_is_coloured_token_by_token_and_its_twin_is_unchanged`'s
+  two-build shape) is the pattern for proving the classes carry no text.
+
 ## Non-goals
 
 - The rest of the everyday page (WP-2025), the techniques page (WP-2026), model and dataclass

@@ -104,6 +104,29 @@ guard above stays the check for those.
 
 {source}`rietx.model.profiles.caglioti.lorentzian_fwhm`
 
+$\Gamma_L$ is a width, so it must not go below zero. $X$ has a floor of 0,
+because as $\theta \to 0$ the $\tan\theta$ term vanishes and the
+instrument's $\Gamma_L$ is $X$ itself. $Y$ has no floor of its own. A
+negative $Y$ is legitimate wherever $X$ carries the width. The default driver
+holds the sum on a single-histogram fit, one more row per reflection on the
+data:
+
+```{math}
+:label: prof-lorentzian-floor
+
+\Gamma_L(\theta_{hkl}) \;\ge\; 0
+\qquad \text{for every reflection } hkl \text{ on the data}
+```
+
+{source}`rietx.optimize.least_squares.lorentzian_width_inequalities`
+
+$\Gamma_L$ here includes the phase's Lorentzian size and strain terms. An
+anisotropic strain block adds a term its own cone keeps at or above zero, so
+the row leaves it out. TRF builds no rows. Below zero the pseudo-Voigt mixing
+parameter turns negative and the line is no longer a peak shape, so
+`RESOLUTION_NOT_POSITIVE` reports where the instrument's $\Gamma_L$ falls below
+zero in the fitted range.
+
 ```{warning}
 Conventions here are documented by physics and not by letters. The
 $1/\cos\theta$ terms (and the $1/\cos^2\theta$ variance term) carry Scherrer

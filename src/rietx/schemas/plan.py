@@ -148,7 +148,7 @@ def check_phase_support_sigma(value: Any) -> float | None:
 #: strongest line's height, 2 % of a Lorentzian), MAUD (±15 FWHM, 2.1 %),
 #: RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and
 #: EasyDiffraction, which compute the whole peak
-#: (``docs/wp/2002-batch/practice.md``).  At 1e-3 the window error is under
+#: (``docs/practice.md``).  At 1e-3 the window error is under
 #: 0.1σ at every point on four families, and the closing answer lies within
 #: 0.1 plain esd of the converged tails' on three of them
 #: (``tests/test_window_domain.py``).  SRM 660c LaB6 misses by 0.9 esd on U,

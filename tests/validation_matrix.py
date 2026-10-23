@@ -414,39 +414,41 @@ CLAIMS: tuple[Claim, ...] = (
                   "lor_size/lor_strain are one quantity split three ways; the "
                   "expected signature is |rho| -> 1 and an Rwp that improves "
                   "while the partition degrades",
-        measured="rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) "
-                 "and +1.000 between the two phases' strains; Rwp 0.1289 "
-                 "degenerate vs 0.1687 identifiable, QPA 16.850 vs 17.791 "
-                 "wt % -- the better Rwp is 5.5 sigma outside TOPAS's interval",
+        measured="before WP-2002's width twin hold, rho = -1.000 "
+                 "(phases.0.lor_strain ~ instrument.profile.y); with X and Y "
+                 "held, Rwp 0.1377 against 0.1686 identifiable and LaB6 "
+                 "16.779(194) against 17.787(319) wt % -- the better Rwp is "
+                 "5.8 sigma outside TOPAS's interval",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_correlation_diagnostic_separates_the_two",
         "lab6_cbn", ("characterisation", "ceiling"),
         "neither HIGH_CORRELATION nor COVARIANCE_DIRECTION_DISCARDED fires on "
-        "the identifiable fit, and the degenerate one's broadening split is "
-        "named by one of them, without being told which is which",
-        reference="the diagnostic channel must separate an identifiable "
-                  "parameterisation from a flat one on its own evidence",
-        measured="0 HIGH_CORRELATION or COVARIANCE_DIRECTION_DISCARDED "
-                 "findings on the shared-broadening plan; "
-                 "on the degenerate plan COVARIANCE_DIRECTION_DISCARDED names "
-                 "all six widths on Linux x86-64 (WP-1930)",
+        "the identifiable fit, and on the plan that frees the phases' "
+        "Lorentzian widths too the width twin hold takes X and Y and leaves "
+        "no flat width (WP-2002)",
+        reference="a flat direction is held where it is exact, and the "
+                  "diagnostic channel stays silent on what the data determine",
+        measured="0 findings on either plan, macOS arm64; X and Y held against "
+                 "both phases' twins from size_strain on; before WP-2002 "
+                 "COVARIANCE_DIRECTION_DISCARDED named all six widths on Linux "
+                 "x86-64 (WP-1930)",
     ),
     Claim(
-        "test_acceptance_lab6_cbn", "test_the_flat_widths_are_flagged_whatever_rounding_does",
+        "test_acceptance_lab6_cbn",
+        "test_the_twin_hold_leaves_no_flat_width_whatever_rounding_does",
         "lab6_cbn", ("characterisation", "ceiling"),
-        "every width on the degenerate fit's flat broadening directions is "
-        "named by HIGH_CORRELATION (kept) or COVARIANCE_DIRECTION_DISCARDED "
-        "(under the cut), and none reports an esd of 0, whichever side of the "
-        "cut and whichever sign rounding gives their eigenvalues (WP-1930)",
+        "at the 1e-14 nudges to w's start where rounding once decided whether "
+        "the two flat broadening directions were flagged, the width twin hold "
+        "takes X and Y, no specimen width is flat, and each has a finite "
+        "nonzero esd (WP-2002; WP-1930 before it)",
         reference="the Linux nightly from 0f30d584 on: no HIGH_CORRELATION on "
                   "this fit, reproduced on macOS arm64 by 1e-14 nudges to w's "
                   "start (six widths at an esd of 0)",
-        measured="macOS arm64, k in {0, +-1, +-3, +-7, +-20, 50}: "
-                 "HIGH_CORRELATION in all ten; widths' esds 8.9 to 3420 at "
-                 "nine, and at k = 0, where both flat directions fall under "
-                 "the cut, 5e-5 to 3e-3 with COVARIANCE_DIRECTION_DISCARDED "
-                 "naming all six; Linux x86-64 passes k = 0, 1, 7",
+        measured="macOS arm64, k = 0, 1, 7 since WP-2002: the hold at every "
+                 "nudge, cBN lor_strain 0.0354(8), LaB6's widths on their 0 "
+                 "floor; before it, over k in {0, +-1, +-3, +-7, +-20, 50}, "
+                 "HIGH_CORRELATION in all ten and esds of 8.9 to 3420",
         starts=10,
         diagnostics=("HIGH_CORRELATION", "COVARIANCE_DIRECTION_DISCARDED"),
     ),
@@ -2118,11 +2120,12 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_wavelength",
-        "test_a_width_on_its_floor_leaves_one_esd_at_every_start",
+        "test_the_neutron_widths_leave_one_esd_at_every_start",
         "ndruo_joint", ("prediction", "identity"),
-        "issue #831's platform split, reproduced on one machine: with the "
-        "neutron fit's Lorentzian y on 0, x's esd is one number however the "
-        "start is nudged at the size of two platforms' arithmetic",
+        "issue #831's platform split, reproduced on one machine: x's esd is "
+        "one number however the start is nudged at the size of two "
+        "platforms' arithmetic, with y on its old floor of 0 and since "
+        "WP-2002 with y free",
         reference="the esd the width column gives when taken in physical "
                   "units and chained by dp/du, computed by WP-1929 at three "
                   "softplus stopping points before WP-1938 refined in those "
@@ -2130,13 +2133,16 @@ CLAIMS: tuple[Claim, ...] = (
                   "four nudged starts under 1e-6 relative",
         measured="0.0098437 at nudges 0, +-1e-14, 2e-14 (eight nudges spread "
                  "4e-8 relative, macOS arm64); y = 0 +- 0.018101, at_bound. "
-                 "The pre-1938 tree gives 0.00322, Linux's figure",
+                 "The pre-1938 tree gives 0.00322, Linux's figure. Since "
+                 "WP-2002: 0.0102922 at four starts, spread 1.5e-9, y = "
+                 "-0.0210949(191) off any bound",
     ),
     Claim(
         "test_acceptance_wavelength",
         "test_a_width_on_its_floor_has_a_one_sided_profile_interval",
         "ndruo_joint", ("characterisation",),
-        "the neutron fit's Lorentzian y on its floor of 0 gets a one-sided "
+        "the neutron fit's Lorentzian y on a floor of 0 (the caller's since "
+        "WP-2002) gets a one-sided "
         "profile interval: the bound is one end, and the other lies where "
         "the data's chi2 has risen by chi2_1(0.90) x chi2_red x f^2, inside "
         "the sqrt(2.706) esd a stationary floor would give, because the "
@@ -2150,7 +2156,8 @@ CLAIMS: tuple[Claim, ...] = (
         measured="upper end 0.0166098 (0.558 of 0.0298), Delta chi2 there "
                  "0.0044 under a cut of 21.343, 19 refits, 3 s; the same to "
                  "5e-10 relative at six starts nudged by 1e-14 (macOS "
-                 "arm64)",
+                 "arm64); 0.0164535 at a cut of 21.048 since WP-2002 left U "
+                 "and V unfloored",
     ),
     Claim(
         "test_acceptance_wavelength", "test_the_fits_render",
