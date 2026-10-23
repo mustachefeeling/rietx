@@ -153,7 +153,7 @@ A `RefinementPlan` holds its stages and five settings.
 | `RefinementPlan.correlation_guard` | 0.98 | the \|ρ\| above which a stage reports a correlated pair |
 | `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
 | `RefinementPlan.lebail_passes` | 1 | the cap on Le Bail passes ([Le Bail passes](#le-bail-passes)) |
-| `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` switches the hold off ([Held parameters](#held-parameters)) |
+| `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` skips the test ([Held parameters](#held-parameters)) |
 | `RefinementPlan.closing_window_tol` | 1e-3 | the fraction of each peak's area the closing stage's windows may drop; `None` runs no closing stage ([The closing stage](#the-closing-stage)) |
 
 ```python
@@ -503,7 +503,7 @@ A pattern scoped to one histogram, `hist.0.…`, is not reported, and neither is
 `StageResult.held` is the field to read when a parameter did nothing.
 A stage holds four kinds of parameter at the values it starts from.
 
-- The structural parameters of a phase the data cannot see. A phase reaches the pattern only through scale × \|F\|² × profile, so a phase whose scale is at its floor, or not significant against the counting noise, has no measurable structural parameter. The phase's own `scale` is never held, which is how the phase can still appear. [`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) names the phase and the stages that held it, and its parameters are absent from `RefinementResult.parameters`, because nothing measured them.
+- The structural parameters of a phase the data cannot see. A phase reaches the pattern only through scale × \|F\|² × profile, so one whose scale is at its floor or not significant has no measurable structural parameter. Its `scale` is not held on significance, so a phase can appear; with no reflection in range it is held whole, at any `phase_support_sigma`. [`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) names the phase and the stages that held it, and its parameters, which nothing measured, are absent from `RefinementResult.parameters`.
 - A moment direction the powder average cannot determine ([Magnetic refinement](magnetic.md#directions-a-powder-cannot-see)).
 - A phase's displacement parameters when the fitted range cannot separate them from the phase's scale. `StageResult.scale_b_held` gives the measured separation, and [`SCALE_B_INSEPARABLE`](diagnostics-refinement.md#scale_b_inseparable) reports it.
 - An instrument width whose specimen twin is free: U with `gauss_strain`, Y with `lor_strain`, X with `lor_size`. The data see only each pair's sum.
@@ -527,7 +527,7 @@ Both lists are empty on every fit whose phases are all visible.
 The line between seen and unseen is a plan setting, `RefinementPlan.phase_support_sigma`, mirrored by `PlanSpec.phase_support_sigma`.
 A phase counts as seen when its scale sits at least that many esds from zero, the esd taken against the counting noise.
 The default is {{ PHASE_SUPPORT_SIGMA }}.
-A higher number holds more phases, and `None` switches the hold off:
+A higher number holds more phases, and `None` skips the significance test:
 
 ```python
 import dataclasses

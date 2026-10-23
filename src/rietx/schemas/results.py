@@ -1051,8 +1051,11 @@ class StageResult(Base):
     #: (WP-1301).  Disjoint from :attr:`freed` by construction — a held path is
     #: dropped from it — so the two together say exactly what refined.  Empty
     #: on every fit with no unsupported phase, which is every fit that is
-    #: working; the phase's own ``scale`` is never held, because that is how a
-    #: phase legitimately climbs out of the noise.
+    #: working; the phase's own ``scale`` is never held on its significance,
+    #: because that is how a phase legitimately climbs out of the noise — except
+    #: a phase with no reflection in the fitted range, whose scale column is
+    #: zero at every value and is held too (WP-1958), at any
+    #: ``phase_support_sigma``.
     #: Since WP-1342 these are **columns**, not names: a caller's ``vars.X``
     #: driving that cell is what stopped moving, and a path under
     #: ``phases.{ip}.`` need not appear here at all.  What each held column

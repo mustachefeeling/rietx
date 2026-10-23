@@ -118,6 +118,7 @@ from .refine import (
     _symmetry_silence_diagnostics,
     _uncorrected,
     _unknown_path_diagnostics,
+    _unmeasured_phases,
     _utcnow,
     _wavelength_calibration_diagnostics,
     _width_census_diagnostics,
@@ -430,11 +431,36 @@ def _joint_lineless_phases(models) -> list[set[int]]:
     return [_lineless_phases(m) for m in models]
 
 
-def _joint_flat_scales(models, lineless: list[set[int]]) -> list[set[int]]:
-    """Of ``lineless``, per histogram, the phases whose scale no
+def _joint_flat_scales(models, mtable, lineless: list[set[int]]
+                       ) -> list[set[int]]:
+    """Of ``lineless``, per histogram, the phases whose scale no weighted
     ``ValueRestraint`` pulls (``refine._restrained_scale_phases``)."""
-    return [n - _restrained_scale_phases(m)
-            for m, n in zip(models, lineless, strict=True)]
+    return [n - _restrained_scale_phases(m, t)
+            for m, t, n in zip(models, mtable.tables, lineless, strict=True)]
+
+
+def _joint_unmeasured_phases(models, mtable,
+                             stage_results: list[StageResult]
+                             ) -> list[set[int]]:
+    """Per histogram, the phases the answer left without a fraction.
+
+    ``refine._unmeasured_phases``' reading per histogram, with the one thing a
+    joint fit adds (#1103): **a shared scale that another histogram measures
+    counts as measured everywhere it is shared**, since its value is then the
+    data's.  The stage does not hold such a scale (the hold needs every
+    histogram out of range), so only the answer's recount can put it here,
+    and that recount drops a phase whose scale is shared and which some
+    histogram has a line of.
+    """
+    lineless = _joint_lineless_phases(models)
+    out = []
+    for h, m in enumerate(models):
+        own = {ip for ip in lineless[h]
+               if not (mtable.sharing.is_shared(f"phases.{ip}.scale")
+                       and any(ip not in lineless[g]
+                               for g in range(len(models)) if g != h))}
+        out.append(_unmeasured_phases(m, stage_results, hist=h, lineless=own))
+    return out
 
 
 def _unseen(mtable, name: str, absent: list[set[int]],
@@ -556,7 +582,7 @@ def _hold_unsupported_phases_multi(models, mtable,
     absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
                                     lineless, strict=True)]
     held = _unsupported_paths_multi(mtable, absent, reach,
-                                    _joint_flat_scales(models, lineless))
+                                    _joint_flat_scales(models, mtable, lineless))
     if held:
         mtable.set_vary(held, False)
     return held, absent
@@ -707,7 +733,7 @@ def _rehold_multi(models, mtable, held: list[str],
     lineless = _joint_lineless_phases(models)
     absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
                                     lineless, strict=True)]
-    flat_scales = _joint_flat_scales(models, lineless)
+    flat_scales = _joint_flat_scales(models, mtable, lineless)
     held_set = set(held)
     held_reach = held_reach or {}
     released = [p for p in held
@@ -1737,6 +1763,7 @@ class MultiHistogramRefinement:
         histograms: list[HistogramResult] = []
         top_bg: list[GuardFinding] = []
         absorption_table: dict[str, float] = {}
+        joint_unmeasured = _joint_unmeasured_phases(models, mt, stage_results)
         for h in range(n):
             table = mt.tables[h]
             model = models[h]
@@ -1762,6 +1789,7 @@ class MultiHistogramRefinement:
             # (WP-1463); rows are addressed as this surface spells them
             qpa, qpa_diags = _quantify_phases(
                 table, thetas[h], s_h, corr_h, struct, values, model,
+                unmeasured=joint_unmeasured[h],
                 where_of=lambda p, h=h: (p if mt.sharing.is_shared(p)
                                          else f"hist.{h}.{p}"))
 

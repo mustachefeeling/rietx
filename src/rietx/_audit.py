@@ -972,7 +972,10 @@ ROWS: tuple[Row, ...] = (
                   "the others are normalised over the phases seen, absent rather than zero "
                   "(WP-1072, WP-1110 item 14); before, TRF read 99.99 wt% iron off a walked "
                   "scale and LM 0.61 wt%, the start; Brindley is skipped, its mean mu needing "
-                  "every fraction")),
+                  "every fraction; the set is what the last stage held plus the answer's own "
+                  "no-line count, so a line a zero shift moved into range cannot quote the "
+                  "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
+                  "histogram that has lines counts as measured in every histogram (item 2)")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "

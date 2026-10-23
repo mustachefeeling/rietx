@@ -304,8 +304,13 @@ def microabsorption_diagnostics(qpa: QuantitativePhaseAnalysis) -> list[Diagnost
             level="warning", code="MICROABSORPTION_SKIPPED",
             where=[r.name for r in qpa.phases],
             message=qpa.microabsorption_skipped,
-            suggestion="Supply particle_radius_um on every phase, and use a "
-                       "wavelength inside the attenuation tables.",
+            suggestion=(
+                "Widen the fitted range to reach a reflection of "
+                f"{', '.join(qpa.unmeasured_phases)}, or remove the phase; "
+                "the radii were supplied."
+                if qpa.unmeasured_phases else
+                "Supply particle_radius_um on every phase, and use a "
+                "wavelength inside the attenuation tables."),
         ))
         return out
     offenders = [r for r in qpa.phases

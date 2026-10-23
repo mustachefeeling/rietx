@@ -323,6 +323,26 @@ def test_brindley_is_skipped_with_an_unmeasured_phase():
     assert full.microabsorption is not None and full.microabsorption_skipped is None
 
 
+def test_the_skipped_brindley_advice_follows_its_reason():
+    """With radii supplied and a phase unmeasured, "supply particle_radius_um"
+    points the wrong way: the advice is the range or the phase (#1103).  The
+    positive arm, a phase missing its radius, keeps the old advice."""
+    from rietx.optimize.qpa import microabsorption_diagnostics
+
+    structure, values, compute_qpa = _three_phase_decoded([0.4, 0.4, 0.4])
+    qpa = compute_qpa(structure, values, wavelength=1.5406, unmeasured=[2])
+    (diag,) = microabsorption_diagnostics(qpa)
+    assert diag.code == "MICROABSORPTION_SKIPPED"
+    assert "Widen the fitted range" in diag.suggestion
+    assert "CaF2_out" in diag.suggestion
+    assert "particle_radius_um" not in diag.suggestion.replace(
+        "the radii were supplied", "")
+    structure, values, compute_qpa = _three_phase_decoded([0.4, None, 0.4])
+    qpa = compute_qpa(structure, values, wavelength=1.5406)
+    (diag,) = microabsorption_diagnostics(qpa)
+    assert diag.suggestion.startswith("Supply particle_radius_um")
+
+
 def test_a_lone_phase_seen_is_whole_by_definition_with_no_esd():
     structure, values, compute_qpa = _three_phase_decoded([None] * 3)
     cov = np.diag([1e-10, 1e-10])

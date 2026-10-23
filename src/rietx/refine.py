@@ -557,7 +557,7 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     """
     lineless = _lineless_phases(model)
     absent = set(lineless)
-    flat_scales = lineless - _restrained_scale_phases(model)
+    flat_scales = lineless - _restrained_scale_phases(model, table)
     if sigma is not None:
         if support is None:
             support = model.phase_support(table.decode(table.x0()))
@@ -581,14 +581,77 @@ def _lineless_phases(model: CompiledModel) -> set[int]:
     return {ip for ip, n in enumerate(model.phase_line_counts()) if int(n) == 0}
 
 
-def _restrained_scale_phases(model: CompiledModel) -> set[int]:
+def _restrained_scale_phases(model: CompiledModel,
+                             table: ParameterTable) -> set[int]:
     """The phases whose ``scale`` a caller's ``ValueRestraint`` pulls: its row
     gives the scale a column even with no line in range, so the WP-1958 hold
     leaves that scale to the restraint (its fraction stays absent all the
-    same, the value being the caller's target and not the data's)."""
+    same, the value being the caller's target and not the data's).
+
+    Only a restraint **whose row has weight** counts: a weight of 0, or a
+    stage's ``restraint_weight_scale`` of 0, silences the row and gives the
+    column nothing (TRF walked such a scale from 1e-4 to 64.9).  And a
+    restraint **reaches** the scales a variable drives as well as the one it
+    names, so its path is read through ``ParameterTable.entry_reach``, never
+    literally: a restraint on ``vars.s`` with ``phases.1.scale`` tied to it
+    restrains phase 1's scale.
+    """
     items = model.restraints.items if model.restraints is not None else []
-    return {int(m.group(1)) for it in items
-            if (m := _SCALE_PATH.match(getattr(it, "path", "") or ""))}
+    if not items or not model.restraint_weight_scale > 0.0:
+        return set()
+    reach = table.entry_reach()
+    out: set[int] = set()
+    for it in items:
+        path = getattr(it, "path", None)
+        if not path or not getattr(it, "weight", 1.0) > 0.0:
+            continue
+        for name in (path, *reach.get(path, ())):
+            if (m := _SCALE_PATH.match(name)):
+                out.add(int(m.group(1)))
+    return out
+
+
+def _held_scale_phases(sr: StageResult, hist: int | None = None) -> set[int]:
+    """The phases whose own ``scale`` the stage held, off its record: a held
+    column named it, or moved it (``held_reach``, a ``vars.X`` driving it).  A
+    joint record's scoped path ``hist.h.…`` counts for histogram ``hist`` only,
+    a bare (shared) one for every histogram."""
+    out: set[int] = set()
+    for path in sr.held:
+        for name in (path, *sr.held_reach.get(path, ())):
+            if name.startswith("hist."):
+                h, _, name = name[len("hist."):].partition(".")
+                if hist is None or not h.isdigit() or int(h) != hist:
+                    continue
+            if (m := _SCALE_PATH.match(name)):
+                out.add(int(m.group(1)))
+    return out
+
+
+def _unmeasured_phases(model: CompiledModel,
+                       stage_results: list[StageResult] | None,
+                       hist: int | None = None,
+                       lineless: set[int] | None = None) -> set[int]:
+    """The phases whose scale the answer did not measure, so the QPA quotes
+    them no fraction (WP-1958, #954).
+
+    **What the last stage held, and what the answer's own count finds.**  The
+    hold reads the line count at the stage's compile, and a refined zero shift
+    can move a line across the range edge before the final compile counts
+    again: iron held at its handed-in 1e-4 then came back at 0.607 ± 0.0035
+    wt%, the value handed in with an esd (#1103).  So a scale the last stage
+    held is unmeasured whatever the recount says.  The recount still counts,
+    the other way round and for a restrained scale (whose column is the
+    restraint's, not the data's): a phase with no line at the answer has no
+    data at the values quoted.  A line entering at a closing recompile makes
+    that stage free the scale, so neither reading fires and the scale is
+    measured.  ``hist`` scopes a joint record to one histogram; ``lineless``
+    replaces the recount where the caller owns a better one (a joint fit's
+    shared scale, :func:`rietx.multi._joint_unmeasured_phases`).
+    """
+    held = (_held_scale_phases(stage_results[-1], hist)
+            if stage_results else set())
+    return held | (_lineless_phases(model) if lineless is None else lineless)
 
 
 #: Below this separation of a phase's scale column from its displacement
@@ -7668,7 +7731,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     qpa = None
     if mode == "rietveld":
         qpa, qpa_diagnostics = _quantify_phases(
-            table, theta, stderr_internal, correlation, structure, values, model)
+            table, theta, stderr_internal, correlation, structure, values, model,
+            unmeasured=_unmeasured_phases(model, stage_results))
         diagnostics = diagnostics + qpa_diagnostics
 
     # Soft-restraint summary (bond/angle/value deviations).  Rietveld-only, so
@@ -9194,6 +9258,7 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
                      correlation: np.ndarray | None, structure: Structure,
                      values: dict[str, float], model: CompiledModel, *,
                      where_of: Callable[[str], str] | None = None,
+                     unmeasured: set[int] | None = None,
                      ) -> tuple[QuantitativePhaseAnalysis | None, list[Diagnostic]]:
     """Weight fractions from the refined scales, and the findings they carry.
 
@@ -9226,9 +9291,12 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
     takes it), so a fraction read off it is the caller's start, not a
     measurement.  It leaves the sum, so the others are fractions of the phases
     seen in range, ``QuantitativePhaseAnalysis.unmeasured_phases`` names it,
-    and its zero column no longer withholds their esds.
+    and its zero column no longer withholds their esds.  ``unmeasured`` is the
+    caller's answer to which (:func:`_unmeasured_phases`, read off what the
+    last stage held); ``None`` recounts the lines at this model.
     """
-    unmeasured = sorted(_lineless_phases(model))
+    unmeasured = sorted(_lineless_phases(model) if unmeasured is None
+                        else unmeasured)
     scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))
                    if ip not in unmeasured]
     scale_cov = None
@@ -9536,8 +9604,20 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                                f"{'was' if len(structural) == 1 else 'were'} "
                                f"held for {during}.")
             if scale_held:
-                clauses.append(f"Its scale was held at the value handed in "
-                               f"for {during}.")
+                scale_stages = [
+                    sr.name for sr in stage_results or []
+                    if any(_unscoped(n) == f"{prefix}scale"
+                           for q in sr.held
+                           for n in (q, *sr.held_reach.get(q, ())))]
+                last = stage_results[-1] if stage_results else None
+                refined_last = last is not None and last.name not in scale_stages
+                clauses.append(
+                    f"Its scale was held at the value handed in for stage"
+                    f"{'' if len(scale_stages) == 1 else 's'} "
+                    f"{', '.join(scale_stages)}"
+                    + (f", and refined in the last stage ({last.name}), "
+                       "where a reflection reached the range, so the answer's "
+                       "scale is a measurement." if refined_last else "."))
         if no_lines and quantified:
             clauses.append("It has no weight fraction"
                            + (", and the other fractions are relative to the "

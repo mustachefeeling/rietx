@@ -124,7 +124,7 @@ A stage node also records the two plan settings its stage ran under, so a cherry
 
 | Field | Default | Holds |
 |---|---|---|
-| `NodeAction.phase_support_sigma` | `3.0` | the absent-phase hold's threshold in esds; `None` means the hold was off |
+| `NodeAction.phase_support_sigma` | `3.0` | the absent-phase hold's threshold in esds; `None` means the significance hold was off (a phase with no line in range is held either way) |
 | `NodeAction.correlation_guard` | `0.98` | the \|ρ\| above which the stage reported a correlated pair |
 | `NodeAction.window_area_tol` | `None` | the fraction of each peak's area the stage's windows dropped; a plan's closing stage records `closing_window_tol`, a stage run by hand the fraction it ran at, and `None` a declared stage's 2 % |
 
