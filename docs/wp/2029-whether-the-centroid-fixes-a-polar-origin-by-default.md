@@ -189,7 +189,8 @@ documentation only). BGMN is GPL, so concepts only.
       state. Update the two default-pinning tests in `test_floating_origin.py`
       and regenerate `api.md`. Every test that pins a number on a polar phase
       freeing coordinates declares the field rather than inheriting it (the
-      dispersion rule, root CLAUDE.md). Add the `_audit` row and a release
+      dispersion rule, root CLAUDE.md). Add `rietx.schemas.structure.Phase` to `_audit.DEFAULT_SEATS` and its
+      `Phase:floating_origin` default row and a release
       note.
 - [ ] Manual: `docs/docs/reference/data.md` § Floating origin ("`None` is
       off") and `theory/parameterisation.md`'s `par-origin-*` prose say what

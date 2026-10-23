@@ -94,7 +94,16 @@ entry a column reaches in its own histogram, and joint stages write
    rule holds: a declared peak belongs to every histogram that sees it. Root
    CLAUDE.md puts it as "a second builder of anything (`multi.py` keeps its
    own) is the miss". `MultiHistogramRefinement` also has no `parameters()`, so
-   `STAGE_PATH_UNKNOWN`'s suggestion names the `mtable` listing instead.
+   `STAGE_PATH_UNKNOWN`'s suggestion names the `mtable` listing instead. The
+   joint path also runs neither the declared-peak screen nor the parameter-space
+   screens (`schemas/results.py:391-395`), so `extra_peak_absorption` is always
+   empty on a joint fit (1341's review).
+8. **`DATA_SUPPORT_LOW`'s ratio half is not asked on a joint fit.**
+   `DIAGNOSTIC_SCOPES['_data_support_diagnostics']` (`multi.py:230-237`) passes
+   `support=None`, since McCusker's observations-per-parameter has no agreed joint
+   definition, and calls it "WP-1341's territory". 1341 closed without a definition.
+   Three more comments name WP-1341 as the owner of future work: `multi.py:411`,
+   `:1920` and `:1923`.
 
 **Rules this WP may add, and their tier** (generality § The rule,
 `docs/milestones/generality.md`). Tasks 1, 2 and 5 add no rule: each runs an
@@ -162,7 +171,12 @@ that caveat until 1421 lands.
 - [ ] The `multi.py` census: list each member that re-derives something
       `Refinement` derives, `_ticks` first, compare it with the single path,
       and fold it or record why it stays, as `DIAGNOSTIC_SCOPES` does. Say
-      whether a joint `parameters()` is owed.
+      whether a joint `parameters()` is owed. Include the declared-peak and
+      parameter-space screens the joint path skips (Context item 7).
+- [ ] Decide a joint observations-per-parameter for `DATA_SUPPORT_LOW`, or write
+      why there is none in that scope reason (Context item 8). Re-point the four
+      comments naming WP-1341 as owner (`multi.py:237`, `:411`, `:1920`, `:1923`)
+      to this WP or to the decision taken.
 - [ ] Tests in `tests/test_joint_report.py` and
       `tests/test_multi_diagnostics.py`, each landed with its feature.
 - [ ] Skill: `watching.md` 9d.10 and `surprises.md` 8.30 (1341's rows) say

@@ -353,6 +353,10 @@ field. After `unhold` of the origin DOF, Zn's row reads `vary=False`; after
 findings, the read-time pin, the rigid-body test and the default; WP-1986
 holds the guide.
 
+*For the issue thread* (to batch, none posted): #727 gets a line saying both modes
+stay opt-in and off, and that the default, the joint-fit seam and the analytic
+weights are WP-2029's. #727 stays open, cited by 2029.
+
 ### 2026-10-13 (2nd session) — the centroid, built from the paper
 
 A polar-group fit can now fix its origin the way single-crystal codes do. It

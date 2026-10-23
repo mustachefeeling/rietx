@@ -248,6 +248,8 @@ bullet saying where it went.
 *Next.* Nothing owed here. The three open questions and 1325's items are
 WP-2028's. The fresh compile went to WP-1421 on 2026-10-12 (open; its
 Inherited carries it). WP-1908 closed 2026-10-15, so the census is unblocked.
+`Refinement.report`'s live-table read (PR-review item 9 below) went to WP-1421's Inherited.
+The four `multi.py` comments naming WP-1341 as owner are a 2028 task. 1325 is told.
 
 ### 2026-10-13 — six tasks landed: events, a convergence figure, a report per histogram, and #803
 

@@ -826,7 +826,7 @@ the untied fit 1.21-1.44×. The chain itself took 20-83 s. One linear law took
     window never met it: no phase falls below support in any pattern here.
   - The chain held the fading LT phase in two patterns (938 K and 956 K) by
     WP-1523's answer significance. The joint path reads the support screen
-    alone, by design, because its report is WP-1341's. So the chain and the
+    alone, by design, because its report is WP-2028's (WP-1341's until it closed 2026-10-23). So the chain and the
     joint free different sets, 14 columns here. That is why the nested test
     takes the untied joint fit as its reference.
 
@@ -1119,6 +1119,10 @@ Their numbers are as reported and were not re-measured here.
 
 ### Inherited
 
+- **2026-10-23, from [1341](1341-a-joint-fit-has-no-report.md) (closed): joint-report items now go
+  to [2028](2028-a-joint-fits-guards-see-every-histogram.md).** The four joint items and the
+  three `PARAMETRIC_*` rendering notes this WP sent 1341 on 2026-10-14 are 2028's Context items
+  1-4 and 6, under today's names (`parametric_equations`, `RefinedParameter.equations`).
 - **2026-10-23, from [1322](1322-events-aggregator.md) (closed): `rietx events`
   could print one line per parametric equation of a joint fit.** This is
   @mustachefeeling's point from the PR #977 comments, which this WP sent to
