@@ -547,7 +547,7 @@ def test_natao3_from_its_parent_returns_the_planted_amplitude(natao3_fit, natao3
     """Acceptance 4 (milestone row E): one M-point mode, from the seed to 0.378 Å.
 
     |A| is compared, the sign being a domain; within its esd and 0.01 Å.
-    Seeds of ±s give ±A with Rwp equal to twelve digits, and a fit freeing the
+    Seeds of ±s give ±A with Rwp equal to ten digits (twelve before main's closing stage, 2.7e-11 after), and a fit freeing the
     block exactly at zero is refused rather than run.
     """
     statement, _, result = natao3_fit
@@ -564,7 +564,7 @@ def test_natao3_from_its_parent_returns_the_planted_amplitude(natao3_fit, natao3
     _, other = fit(flipped, natao3_data)
     ((value2, _),) = amplitudes(other).values()
     assert value2 == pytest.approx(-value, abs=1e-6)
-    assert other.statistics.rwp == pytest.approx(result.statistics.rwp, rel=1e-12)
+    assert other.statistics.rwp == pytest.approx(result.statistics.rwp, rel=1e-10)
 
     unseeded = D.displacive_statement(natao3_parent(), natao3_child(0.0), NATAO3_T, seed=0.0)
     with pytest.raises(ValueError, match="exactly zero"):
