@@ -58,9 +58,10 @@ from ..params.vector import (
     strain_cap,
 )
 from ..schemas.results import MomentAngleTest
-from . import blocked
+from . import blocked, lapack
 from .blocked import BlockJacobian
 from .cancel import RefinementCancelled
+from .lm import FTOL
 
 if TYPE_CHECKING:
     from ..params.multi import MultiParameterTable
@@ -259,6 +260,10 @@ class LSQOutcome:
     #: ``StageResult.n_degenerate_cell_probes``, carried by
     #: ``SCHEMA_VERSION`` 0.19 → 0.20 (see ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: decompositions this solve and its esds repeated with LAPACK's
+    #: QR-iteration driver because the divide-and-conquer one did not converge
+    #: (:mod:`.lapack`), copied onto ``StageResult.n_lapack_fallbacks``
+    n_lapack_fallbacks: int = 0
     #: cos of the angle between the residual and each Jacobian **column**,
     #: ``gₖ / (‖J:,ₖ‖·‖r‖)`` with ``g = Jᵀr`` the gradient of ½‖r‖²; signed,
     #: in [−1, 1], **table columns only**, so it indexes like :attr:`theta`.
@@ -722,7 +727,7 @@ def _joint_newton(resid, x: np.ndarray, r_stop: np.ndarray, idx: list[int],
             curvature_stop = m
         # block a of the stacked system is column a's rows: C[:, a] against
         # M[:, a, :], so C.T flattened and M with its first two axes swapped
-        step = -np.linalg.lstsq(m.transpose(1, 0, 2).reshape(k * len(r0), k),
+        step = -lapack.lstsq(m.transpose(1, 0, 2).reshape(k * len(r0), k),
                                 c.T.reshape(-1), rcond=None)[0]
         trial = th.copy()
         trial[idx] += step
@@ -765,7 +770,7 @@ def _refitted_increase(jac_data: np.ndarray, angles: list[int],
     live = np.isfinite(d) & (d > 0.0)
     if live.any():
         j_o = j_o[:, live] / d[live]
-        rhs = rhs - j_o @ np.linalg.lstsq(j_o, rhs, rcond=None)[0]
+        rhs = rhs - j_o @ lapack.lstsq(j_o, rhs, rcond=None)[0]
     return float(rhs[:, 1] @ rhs[:, 1] - rhs[:, 0] @ rhs[:, 0])
 
 
@@ -1147,10 +1152,12 @@ def _fd_typicals(table: ParameterTable,
     2e-9 to 3e-6 against jax on every golden state.  An offset can be
     negative and a width cannot, so a row is sized as a width when its lower
     bound is at least 0.  A deg² row is a Caglioti term of a variance and is
-    sized whatever its bound, since ``u`` and ``v`` may go negative.  The test
-    also admits a position or an angle a caller bounded above 0.  Its step
-    is unchanged while |θ| exceeds the size, which holds for every such row
-    the package builds.
+    sized whatever its bound, since ``u`` and ``v`` may go negative.  So is
+    the Lorentzian ``y`` (:data:`_SIGNED_WIDTHS`), a deg row with no floor of
+    its own since 2026-10-23 (WP-2002): read off its bound it would take the
+    offset's step of 1.  The test also admits a position or an angle a caller
+    bounded above 0.  Its step is unchanged while |θ| exceeds the size, which
+    holds for every such row the package builds.
 
     The size is in **column units**, which is what a stage's seed is in
     already (:meth:`~rietx.params.vector.ParameterTable.seed_floored`'s
@@ -1176,9 +1183,17 @@ def _fd_typicals(table: ParameterTable,
         size = FLOOR_SEEDS.get(unit)
         if (size is not None and k > 0.0
                 and (table.entries[table._paths[row]].lo >= 0.0
-                     or unit == "deg^2")):
+                     or unit == "deg^2"
+                     or any(row == w or row.endswith("." + w)
+                            for w in _SIGNED_WIDTHS))):
             out[c] = size / k
     return out
+
+
+#: Width rows in deg that may go negative, so :func:`_fd_typicals` cannot read
+#: them off their lower bound.  Matched on the end of the path, which a joint
+#: fit's histogram prefix leaves in place.
+_SIGNED_WIDTHS = ("instrument.profile.y",)
 
 
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
@@ -1974,13 +1989,137 @@ def gaussian_width_inequalities(model: CompiledModel, table: ParameterTable,
     return out
 
 
+def lorentzian_width_inequalities(model: CompiledModel, table: ParameterTable,
+                                  x0: np.ndarray) -> list["lm_mod.LinearInequality"]:
+    """Γ_L ≥ 0 at every reflection, one block per phase.
+
+    The Lorentzian twin of :func:`gaussian_width_inequalities`, built the
+    same way and for the maintainer's ruling of 2026-10-23 (WP-2002): Y has
+    no floor of its own, and the width is what must stay non-negative.  A
+    negative Γ_L is not a shape.  The TCH mixing then gives a negative η, and
+    nothing in the forward model refuses it.
+
+    The rows are the sum the forward model draws
+    (``CompiledModel._width_block``):
+
+        Γ_L = (x + lor_size)/cosθ + (y + lor_strain)·tanθ
+
+    at the nuclear windows, and with ``magnetic_lor_size`` and
+    ``magnetic_lor_strain`` added at a magnetic component's windows.  A
+    Stephens block adds Λ(hkl)·tanθ, which its own cone holds at or above
+    zero (:func:`strain_cone_inequalities`), so it is left out of the row.
+    The row is then a sufficient condition, never a necessary one.  The
+    phase terms have floors of 0, so a row can bind only through X and Y.
+
+    **A row at every reflection of the frozen list**, where the Gaussian rows
+    take only those whose window holds data.  Γ_G² has a clamp under it
+    (``gaussian_fwhm``'s ε), so a reflection off the data can sit under it
+    harmlessly; Γ_L has none, and a negative one is NaN at the next compile
+    that windows that reflection onto data (``tch_gamma_eta``'s fifth root),
+    which stops the stage before it starts.  The list carries
+    ``REFLECTION_MARGIN_DEG`` beyond the range, and Γ_L changes sign at most
+    once in θ, so holding it there keeps it non-negative over the range.
+
+    Everything else is :func:`gaussian_width_inequalities`' rule: at the
+    frozen Bragg angles for the starting cell and λ; affine in θ through C and
+    d; exact duplicates and rows no free column reaches dropped; a row the
+    start violates dropped; a phase with a derived width row skipped.  The
+    joint runner asks it of each histogram (:func:`_joint_width_inequalities`).
+    ``RESOLUTION_NOT_POSITIVE`` is TRF's guard.
+    """
+    from . import lm as lm_mod
+
+    if not table.free_paths:
+        return []
+    C, d = table.constraint_block()
+    C = C.toarray()
+    derived = table.derived_paths()
+    values = table.decode(x0)
+    lams = model.line_lambdas(values)
+    out: list[lm_mod.LinearInequality] = []
+    for ip, cp in enumerate(model.phases):
+        # size then strain, pairwise: the basis below relies on the order
+        nuclear = ("instrument.profile.x", "instrument.profile.y",
+                   f"phases.{ip}.lor_size", f"phases.{ip}.lor_strain")
+        magnetic = (f"phases.{ip}.magnetic_lor_size",
+                    f"phases.{ip}.magnetic_lor_strain")
+        if any(n in derived for n in nuclear + magnetic):
+            continue
+        try:
+            rows = [table._paths[n] for n in nuclear]
+        except KeyError:                        # defensive: every phase has both
+            continue
+        families = [(cp.win, rows)]
+        # the magnetic pair is a table row only where a moment block is declared
+        if cp.win_mag is not None and all(n in table._paths for n in magnetic):
+            families.append((cp.win_mag, rows + [table._paths[n] for n in magnetic]))
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        _d, tt_lines = model._cell_block(cp, cell, lams)
+        blocks_T, blocks_c = [], []
+        for _windows, idx in families:
+            theta = []
+            for tt in tt_lines:
+                tt = np.asarray(tt, dtype=np.float64)
+                theta.append(np.radians(0.5 * tt[np.isfinite(tt)]))
+            th = np.concatenate(theta) if theta else np.empty(0)
+            if not th.size:
+                continue
+            # each row's coefficient in Γ_L: the size terms (x, lor_size, and
+            # magnetic_lor_size) go as 1/cosθ, the strain terms as tanθ
+            inv_cos, t = 1.0 / np.cos(th), np.tan(th)
+            basis = np.column_stack([inv_cos, t] * (len(idx) // 2))
+            blocks_T.append(basis @ C[idx, :])
+            blocks_c.append(basis @ d[idx])
+        if not blocks_T:
+            continue
+        Tc = np.unique(np.column_stack([np.vstack(blocks_T),
+                                        np.concatenate(blocks_c)]), axis=0)
+        T, c = Tc[:, :-1], Tc[:, -1]
+        keep = (np.any(T != 0.0, axis=1)
+                & ~lm_mod.LinearInequality(T=T, c=c).violated(x0))
+        if not keep.any():
+            continue
+        out.append(lm_mod.LinearInequality(
+            T=np.ascontiguousarray(T[keep]), c=c[keep],
+            label=f"instrument.profile Lorentzian (phases.{ip})"))
+    return out
+
+
+def _joint_width_inequalities(models: list[CompiledModel], mtable, x0: np.ndarray
+                              ) -> list["lm_mod.LinearInequality"]:
+    """The single fit's Γ_G² and Γ_L rows, asked of each histogram and laid on
+    the joint columns (``mtable.col_map``).
+
+    Without them a joint fit kept a width non-negative only through the
+    per-coefficient floors, and WP-2002 removed the U, V and Y floors: a free
+    Y could step to a negative Γ_L and every residual to NaN.  Each builder
+    reads its own histogram's table, whose C already carries the λ factor a
+    shared size column takes (WP-1131), so a row needs only its columns moved.
+    """
+    from . import lm as lm_mod
+
+    out: list[lm_mod.LinearInequality] = []
+    n = len(x0)
+    for h, (model, table, local) in enumerate(
+            zip(models, mtable.tables, mtable.split(x0), strict=True)):
+        cols = np.asarray(mtable.col_map(h), dtype=np.intp)
+        for block in (gaussian_width_inequalities(model, table, local)
+                      + lorentzian_width_inequalities(model, table, local)):
+            T = np.zeros((block.T.shape[0], n), dtype=np.float64)
+            T[:, cols] = block.T
+            out.append(lm_mod.LinearInequality(T=T, c=block.c,
+                                               label=f"hist.{h} {block.label}"))
+    return out
+
+
 def _pad_inequalities(blocks: list["lm_mod.LinearInequality"], n_aux: int
                       ) -> list["lm_mod.LinearInequality"]:
     """Each block's T widened by ``n_aux`` zero columns for the Pawley tail.
 
     The builders read the table, whose columns are the leading part of the
-    solver's vector.  A Pawley intensity enters neither Γ_G² nor σ²(M), so its
-    columns are zero.  Unpadded, ``T·θ`` raised a shape ``ValueError`` on
+    solver's vector.  A Pawley intensity enters none of Γ_G², Γ_L and σ²(M),
+    so its columns are zero.  Unpadded, ``T·θ`` raised a shape ``ValueError`` on
     every Pawley stage freeing a Stephens block under LM.
     """
     if not n_aux:
@@ -2375,7 +2514,7 @@ def _check_magnetic_width_compiled(model: CompiledModel,
 
 
 def run_least_squares(model: CompiledModel, table: ParameterTable,
-                      *, max_iter: int = 100, ftol: float = 1e-9,
+                      *, max_iter: int = 100, ftol: float = FTOL,
                       compute_uncertainties: bool = True,
                       events=None, stage: str = "",
                       backend: str = "numpy",
@@ -2391,6 +2530,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     window (:func:`_freeze_cell_windows`); ``None`` windows no cell."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    lapack_start = lapack.retries()
     # A free λ beside a free cell is an exactly flat direction.  Asked here
     # rather than at table build because a cumulative plan can free the two in
     # different stages, and rather than in ``_rebuild`` because a diagnostic
@@ -2460,20 +2600,22 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # one budget, in residual evaluations, for both drivers (WP-1937)
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
-        # the strain cone and the Γ_G² floor (WP-1938 D7) are built against
-        # the *starting* point, because feasibility is maintained rather than
-        # restored (see the builders)
+        # the strain cone and the Γ_G² and Γ_L floors (WP-1938 D7, WP-2002)
+        # are built against the *starting* point, because feasibility is
+        # maintained rather than restored (see the builders)
         ineqs = _pad_inequalities(
             strain_cone_inequalities(model, table, x0[:n_table])
             + texture_positivity_inequalities(model, table, x0[:n_table])
-            + gaussian_width_inequalities(model, table, x0[:n_table]), n_aux)
+            + gaussian_width_inequalities(model, table, x0[:n_table])
+            + lorentzian_width_inequalities(model, table, x0[:n_table]), n_aux)
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
                           ftol=ftol, inequalities=ineqs, events=events, stage=stage,
                           track=tracker, table=table)
         n_truncated, truncated_by = res.n_truncated, res.truncated_by
     else:
-        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
+        with lapack.scipy_trf():
+            res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                                ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -2518,6 +2660,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      n_lapack_fallbacks=lapack.retries() - lapack_start,
                       covariance_error=covariance_error,
                       esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests)
@@ -2611,7 +2754,7 @@ def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
 def run_multi_least_squares(models: list[CompiledModel],
                             mtable: "MultiParameterTable", *,
                             weights: list[float] | None = None,
-                            max_iter: int = 100, ftol: float = 1e-9,
+                            max_iter: int = 100, ftol: float = FTOL,
                             compute_uncertainties: bool = True,
                             backend: str = "numpy",
                             solver: str = DEFAULT_SOLVER,
@@ -2669,6 +2812,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     """
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    lapack_start = lapack.retries()
     # dense below a size, blocked above it (WP-1325, ``blocked.choose_layout``)
     layout = blocked.choose_layout(_stacked_rows(models)[1], len(mtable.free_paths),
                                    solver)
@@ -2725,11 +2869,13 @@ def run_multi_least_squares(models: list[CompiledModel],
     max_nfev = max_iter * NFEV_PER_ITERATION
     if solver == "lm":
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_nfev=max_nfev,
-                          ftol=ftol, inequalities=[], events=events, stage=stage,
-                          track=tracker, table=mtable)
+                          ftol=ftol,
+                          inequalities=_joint_width_inequalities(models, mtable, x0),
+                          events=events, stage=stage, track=tracker, table=mtable)
     else:
-        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
+        with lapack.scipy_trf():
+            res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                                ftol=ftol, xtol=XTOL, gtol=GTOL, max_nfev=max_nfev)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
@@ -2762,6 +2908,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                           mtable, tracker.step(), stderr, corr),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      n_lapack_fallbacks=lapack.retries() - lapack_start,
                       covariance_error=covariance_error,
                       esd_inflation=esd_inflation,
                       moment_angle_tests=moment_angle_tests,

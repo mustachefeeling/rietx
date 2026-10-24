@@ -120,7 +120,8 @@ def independent(sample1_results):
     These are the *same* eight fits the v0.3 QPA acceptance runs: same phases,
     same instrument, same ``seed_scales``, same ``qpa_plan()`` — including the
     convergence schedule that builder declares (``intermediate_ftol``,
-    WP-1123), inherited deliberately, since a chain is only comparable to the
+    WP-1123, and ``closing_window_tol``, WP-2002), inherited deliberately,
+    since a chain is only comparable to the
     unchained baseline if both stop their stages in the same place.  They are
     therefore shared, from ``tests/conftest.py``, rather than re-derived here
     (which cost eight full refinements per run).  Two deliberate semantics
@@ -152,15 +153,19 @@ def chained():
     return result
 
 
-@pytest.fixture(scope="module")
-def chained_all():
-    """The naive default: carry everything, scales included."""
+def _chained_all(**kw):
     _require_data()
     structure = rx.Structure(phases=_phases())
     ins = qarr_instrument()
     seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
     return rx.SequentialRefinement(structure, ins).fit(
-        _patterns(), labels=list(SAMPLE1), plan=qpa_plan())
+        _patterns(), labels=list(SAMPLE1), plan=qpa_plan(), **kw)
+
+
+@pytest.fixture(scope="module")
+def chained_all():
+    """The naive default: carry everything, scales included."""
+    return _chained_all()
 
 
 # -- accuracy: a chained fit must be as good as an unchained one ----------
@@ -221,6 +226,11 @@ def test_cells_are_stable_across_the_series(chained):
 # -- the warm start: measured, not assumed --------------------------------
 
 @pytest.mark.slow
+@pytest.mark.xfail(strict=True, reason=(
+    "WP-2002's width twin hold keeps the X/Y split each pattern's instrument-only "
+    "stage lands on, and the two carry policies hand it different starts: "
+    "restricted-carry Rwp 0.1282 against carry=* 0.1256 and independent 0.1258 "
+    "(decision 1(a), 2026-10-23; forwarded to WP-2003)"))
 def test_warm_start_iteration_cost_is_reported(chained, chained_all,
                                                independent):
     """The headline warm-start number, reported rather than gated.
@@ -282,6 +292,32 @@ def test_the_hostile_series_exercises_the_reseed_fence(chained_all):
     assert codes.count("SEQUENTIAL_RWP_OUTLIER") == sum(
         e.above_fence for e in chained_all) == 0
     assert all(e.rwp_fence is not None for e in chained_all.entries[1:])
+
+
+@pytest.fixture(scope="module")
+def chained_all_unbounded():
+    """``chained_all`` with WP-1127's first-rung bound switched off."""
+    return _chained_all(first_rung_factor=None)
+
+
+@pytest.mark.slow
+def test_the_first_rung_bound_moves_no_accepted_value(chained_all,
+                                                      chained_all_unbounded):
+    """`FIRST_RUNG_FACTOR`'s invariance on a real chain (WP-2003).
+
+    The thermal ramp's twin in `test_sequential.py`, on the hostile series:
+    every accepted value, esd, rung and code is equal with the bound on and
+    off, and every first rung the unbounded chain kept cost less than the
+    budget the bound would have set there.
+    """
+    from rietx.sequential import FIRST_RUNG_FACTOR
+    from tests.test_sequential import chain_answer, first_rung_ratios
+
+    assert chain_answer(chained_all) == chain_answer(chained_all_unbounded)
+    ratios = first_rung_ratios(chained_all_unbounded)
+    print(f"\nfirst-rung ratios: {[round(r, 3) for r in ratios]}")
+    assert ratios, "the bound armed on no pattern, so nothing was tested"
+    assert max(ratios) < FIRST_RUNG_FACTOR
 
 
 @pytest.mark.slow

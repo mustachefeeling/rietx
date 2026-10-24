@@ -1034,7 +1034,7 @@ say it. And **only the Rwp badge may be green**: `.better` was on every compare
 row with a non-zero delta, and a parameter difference has no good direction.
 
 **The manual is held to this app, and two of its vocabularies by test**
-(WP-1017, `docs/manual/using/gui-*.md`, `tests/test_gui_manual.py`). The GUI is
+(WP-1017, `docs/docs/**/gui-*.md`, `tests/test_gui_manual.py`). The GUI is
 documented and no longer beta; its **routes stay provisional by declaration**,
 which is the half of that status the chapters did not retire. Four rules.
 **Routes and panel names are partitioned** the way `tests/api_surface.py`

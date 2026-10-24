@@ -4,7 +4,7 @@ API-first Rietveld refinement package (powder XRD). MIT. numpy/scipy fp64 core, 
 schemas, gemmi for CIF/symmetry. Import name `rietx`, aliased `rx` (`import rietx as rx`).
 
 **This file is for changing the package.** To *use* it (refine someone's data):
-`docs/skill/rietx/SKILL.md` (the agent skill) + `docs/manual/` Part 1. Nothing here
+`docs/skill/rietx/SKILL.md` (the agent skill) + the manual, `docs/docs/`. Nothing here
 substitutes for either.
 
 Each rule below is stated with its identifiers and its measured anchor; the derivation, the
@@ -22,8 +22,7 @@ uv pip install --python .venv/bin/python -e ".[dev,jax,torch]"   # + optional ja
 .venv/bin/python -m tests.bethanechol_benchmark        # the graded indexing benchmark (~1 h; run it ALONE — engine budgets are wall-clock)
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
-.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # old manual (Theory is in docs/docs/)
-.venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html      # the new manual, beside the old until WP-1986
+.venv/bin/python -m sphinx -W -q -b html docs/docs docs/docs/_build/html      # the manual
 .venv/bin/rietx gui my_sample.rex [--scratch]      # the refinement GUI (localhost:8731); --scratch works on a temp-dir copy
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
 npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-scene/splitter/theme/plot/peaks logic; count: § Numbers) + svelte-check
@@ -236,7 +235,7 @@ rungs are states the plan already visits, so the answer is bit-identical.
 ### GUI
 
 `rietx gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist,
-**documented** since WP-1017 (`using/gui-quickstart|guide|power.md`) with its **routes still
+**documented** since WP-1017 (the manual's `gui-*.md` pages) with its **routes still
 provisional by declaration**. Rulebook — session/wire split, server contract (the 409 while a run
 is in flight), `.rxt` document, editors, the nine panels, 3D viewer, theming, the example
 projects: `gui/CLAUDE.md`, loaded under `gui/`.
@@ -290,17 +289,17 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   (`is_variable_path`, third rule); left in, every tied column fails on its own name. And the
   record takes the **column** while its reach rides beside it (`StageResult.held_reach`), since
   `where` keyed on the reach made one finding about a phase into one per tied cell parameter.
-- **A staged plan does not converge its intermediate stages; the one that does is the last**
-  (WP-1123, flipping what 1113 measured). `RefinementPlan.intermediate_ftol` (1e-6 vs the
-  solver's 1e-9) is the schedule; `stage_ftols()` the one authority applying it, since the plan
-  alone knows which stage is last — no runner reads `Stage.ftol` itself. **Cumulative staging
-  bounds the cost**: an intermediate stage's parameters keep refining in every later stage, so
-  1.2-1.6× fewer evaluations costs ≤ 0.03 esd on every non-degenerate parameter — a bound for
-  **one fit**, not for a *chain*, where the effect is unbounded and not even fixed in sign
-  (measured both ways, 1.12× better and 1.04× worse). A series is measured, never assumed.
-  `intermediate_ftol=None` is the bit-identical way back and what a golden declares; the record
-  says what a stage **ran** at, never what it declared (`StageResult.ftol`, `NodeAction.ftol`),
-  or a cherry-pick replays what never happened.
+- **A staged plan does not converge its intermediate stages; the one that does is the last**,
+  and since WP-2002 the last is the closing stage `run_stages()` appends, recompiled at the answer
+  on windows dropping `closing_window_tol` (1e-3) of each peak. `intermediate_ftol` (1e-6 vs the
+  solver's 1e-9, WP-1123) is the schedule; `stage_ftols()` and `stage_window_tols()`, parallel to
+  `run_stages()`, are the one authority, since the plan alone knows which stage is last — no runner
+  reads `Stage.ftol` or `plan.stages`. **Cumulative staging bounds the cost**: every later stage
+  refines an intermediate stage's parameters again, so 1.2-1.6× fewer evaluations cost ≤ 0.03 esd
+  on **one fit**, and along a *chain* the effect is unbounded and of either sign (1.12× better,
+  1.04× worse): a series is measured, never assumed. `None` for either is the bit-identical way
+  back and what a golden declares; the record says what a stage **ran** at (`StageResult.ftol` and
+  `.window_area_tol`, `NodeAction`'s twins), or a cherry-pick replays what never happened.
 - **An unconstrained linear block is already solved jointly; profiling it out cannot buy an
   evaluation** — VarPro's win is over alternation, never done here (measured 1.00× on 34 of 34
   pure-Gauss-Newton stages, 0.79× overall). What survives: *correctness* (esds marginalised over
@@ -310,16 +309,17 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
 - **A phase the data cannot see is a flat direction, held for the stage rather than bounded**
   (WP-1301). It reaches the pattern only through `scale × |F|² × profile`, so at a floored scale
   nothing of it moves Rwp while its cell leaves the physical range; a bound narrows that walk, is
-  never free, and is suppressed by a caller's own (`params.vector.cell_window`). `_run_stage`
-  holds every free structural path of such a phase — never its `scale`, the one direction that is
-  not flat — and `StageResult.held` records it. **Support is a fact about the values and a stage
-  moves them** → re-measured at the answer: a phase that appeared is *released*; one that
-  **collapsed** while solving is restored to where the stage found it and held (one extra solve,
-  never a third). **A value that is not a measurement is the caller's**: held paths leave
-  `RefinementResult.parameters`, a trajectory starts at the onset. Which phases: a scale under 3σ
-  of its counting-noise esd (`refine._answer_significance`, WP-1523), never the fitted curve an
-  absent phase's cell fits to noise; zero limit `phase_line_counts`. Both feed `PHASE_UNCONSTRAINED`,
-  which says what was done; `SEQUENTIAL_PERSISTENT_FINDING` what no one pattern can: "42 of 68".
+  never free, and is suppressed by a caller's own (`params.vector.cell_window`). `_run_stage` holds
+  every free structural path of such a phase — never its `scale`, the one direction that is not
+  flat, bar a phase with no line in range (WP-1958: held, no QPA fraction) — and `StageResult.held`
+  records it. **Support is a fact about the values and a stage moves them** → re-measured at the
+  answer: a phase that appeared is *released*; one that **collapsed** while solving is restored to
+  where the stage found it and held (one extra solve, never a third). **A value that is not a
+  measurement is the caller's**: held paths leave `RefinementResult.parameters`, a trajectory starts
+  at the onset. Which phases: a scale under 3σ of its counting-noise esd
+  (`refine._answer_significance`, WP-1523), never the fitted curve an absent phase's cell fits to
+  noise; zero limit `phase_line_counts`. Both feed `PHASE_UNCONSTRAINED`, which says what was done;
+  `SEQUENTIAL_PERSISTENT_FINDING` what no one pattern can: "42 of 68".
 - **Pydantic knows no crystallography, so a whole-model swap is checked by building its table.**
   Every symmetry refusal is raised in `ParameterTable.__init__`, and the snapshot
   `Refinement.edit` commits performs none of it, so `edit` builds the **proposed** pair's table
@@ -543,7 +543,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   words a chip carries, WP-1209) are the only authored fields. A `ParameterRow` carries
   `help_key`, the family glob, never the entry: an entry describes a *family*, so inlining one
   repeats a paragraph once per atom (3.4× the `/api/params` payload).
-  `docs/manual/using/glossary.md` is generated from it in `conf.py`, and every `anchor` is checked
+  The manual's `reference/parameters.md` and `settings.md` are generated from it
+  (`docs/reference_pages.py`, run by `conf.py`), and every `anchor` is checked
   against the built HTML, not the sources. **A family has a second consumer and only node sees
   it**: `gui/src/lib/history.ts`'s `PLACES` declares a print format per family and its vitest holds
   the table equal to the live vocabulary (`gui/CLAUDE.md`), so adding one means
@@ -589,7 +590,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   uPlot, WP-1461), redrawing in place so the zoom survives a stage. The page it replaced cost
   the fit's thread 4.51-6.03 MB a stage; `rietx html` writes one on demand, module inlined.
 - **A display reads fields and never computes; a designed view is a `__str__` override** (WP-1544;
-  the three rules and the figure rule are `_display.py`'s docstring and `viz.plots._pyplot`'s).
+  the four rules and the figure rule are `_display.py`'s docstring and `viz.plots._pyplot`'s).
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is
   near-constant, so `nac` at 0.354 s spends 50 ms on six snapshots against a 17.7 ms budget.
   **That one is paid** (WP-1438): a ratio is the wrong test where the absolute charge is 50 ms,
@@ -843,14 +844,14 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   reported. **A foreign format's unit is measured against that format's own reference output, never
   adopted from its prose**, and a row the format states two ways is **refused** rather than chosen,
   exactly as a CIF whose angle contradicts its symbol is.
-- The **manual** (`docs/manual/`) is one `-W` Sphinx tree in two parts, guarded differently because
-  each fails differently. **Part 2 — Theory** (source in `docs/docs/theory/` since WP-1986, the old
-  tree's pages one-line includes of it; `tests/test_manual.py`): fenced constants are MyST
-  substitutions injected from `docs/sphinx_shared.py` (both trees), every displayed equation carries a
+- The **manual** (`docs/docs/`) is one `-W` Sphinx tree in tabs (Start, Guides, Concepts,
+  Reference, Theory, Switching), guarded twice because pages fail two ways. **The Theory tab**
+  (`docs/docs/theory/`, `tests/test_manual.py`): fenced constants are MyST
+  substitutions injected from `docs/sphinx_shared.py`, every displayed equation carries a
   `*Source:*` line whose symbol must import, every bib entry is cited — so renaming a physics
   symbol or retuning a fenced constant means touching the manual in the same change, and **a WP
-  that adds physics adds its equation there**, never only Part 1 prose (WP-1067). **Part 1 — Using
-  rietx** (`docs/manual/using/`, `tests/test_manual_api.py`): its failure mode is a *name*, so every
+  that adds physics adds its equation there**, never only in another tab's prose (WP-1067). **Every
+  page** (`tests/test_manual_api.py`): its failure mode is a *name*, so every
   dotted name and dot-path must resolve, every python block parses and either executes or carries a
   written reason, and the public call surface is partitioned into documented /
   excluded-with-a-reason / generated-deferred. That surface is **derived**
@@ -858,7 +859,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   field fails the partition until documented or deferred** — a coverage gate, not a freeze
   (WP-1117). Under-development subsystems declare themselves (1078): `PROVISIONAL_MODULES` keys a
   module prefix to a reason and the tier derives from each name's **defining** module, so a new
-  type inherits it and a re-export is reached; four modules are, promised in the new tree's
+  type inherits it and a re-export is reached; four modules are, promised in
   `reference/compatibility.md` § Provisional by declaration, `{ref}`d not restated. **A green
   build is not a rendered page**: `-W` cannot see a paragraph that printed its own TeX, so
   `test_no_unrendered_math_survives_the_build` scans the *built* HTML, and diagrams and themed
@@ -871,11 +872,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `docs/docs/make_screenshots.py`.
 - **The site root is the landing page, and `docs/landing/README.md` is its rulebook**
   (WP-1331). Two consequences reach a session that never opens that directory. `/` is the
-  page and the manual is `/manual.html` — sphinx's `root_doc` is `manual.md`, so a link
-  meaning "the manual" is never the site root. And `conf.py` copies the page in through
-  `html_extra_path` **only if `docs/landing/site` exists** (`-W` makes a missing entry an
-  error, and the suite builds the manual on every run), so the build output holds pages
-  Sphinx never rendered and a guard walking it must exclude them, not widen itself.
+  page and the manual is `/docs/` (`dev/` from `main`, each kept release beside it:
+  `docs/docs_versions.py`), so a link meaning "the manual" is `/docs/`, never the site root.
+  And `pages.yml` copies the page into the site root itself, so **no sphinx build writes
+  outside `site/docs/`**; the old tree's URLs (`/manual.html`, `/using/<x>.html`) are redirect
+  stubs from `docs_versions.RETIRED` (WP-1986), carrying a `#fragment` over by script.
 - **A walkthrough has one authority, and it is `examples/`.** The manual `{literalinclude}`s those
   scripts and `tests/test_examples.py` runs them, so a worked example is code that ran. Never write
   a third copy. The tutorial notebooks are a generated projection of `examples/tutorials/NN_*.py`
@@ -890,12 +891,12 @@ Planning docs are split so a session loads only what it needs; do not read all:
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-sized checklist,
   acceptance command, handover log); its header lines are what the index reads, never hand-copied.
 - `docs/DESIGN.md` — design record; read only the section a WP links.
+- `docs/practice.md` — the seven programs' defaults by topic, cited: read before designing a default, add each survey.
 - `docs/milestones/vX.Y.md` — one record per release: the measured ship block, plus (while in
   flight) the running "How vX.Y is getting here" narrative; `<name>.md` holds a named milestone's
   scope and acceptance (WP-1540). The live one is `pyproject.version`'s X.Y, never `ls`'s last.
-- The **paper corpus** (location and unread list) is maintainer-local, outside this repo;
-  `AGENTS.md` names the split and the maintainer's memory holds it. **Search it before asking for a
-  paper or re-deriving a published constant.**
+- The **paper corpus** (location, unread list) is maintainer-local: `AGENTS.md` names the split, the maintainer's
+  memory holds it. **Search it before asking for a paper or re-deriving a published constant.**
 - `docs/skill/rietx/` — the **agent skill** (agentskills.io), consumer-facing: `SKILL.md` the
   judgement core read whole, `references/` the lookups read on demand. **What a session learns has
   three destinations** (WP-1330): a rule an agent *driving* rietx needs goes in the skill, a rule for

@@ -1888,7 +1888,9 @@ def test_a_flat_combination_found_at_the_answer_is_turned_too(eps, released,
     start = tuple(eps * np.array([3.0, 0.2, 0.2]))
     ref, result = _fit(_rhombohedral(truth), _rhombohedral(start),
                        solver=solver)
-    stage = result.stages[-1]
+    # both checks run in the stage that starts at the vanishing modulus; the
+    # closing stage starts at the answer, where nothing is left to release
+    stage = next(s for s in result.stages if s.name == "moment")
     base = "phases.0.atoms.0.moment"
     assert stage.held == [f"{base}.dof2"], stage.held
     assert (f"{base}.dof1" in stage.released) is released, stage.released
@@ -2167,8 +2169,9 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``RefinementResult.parametric`` 0.55 and ``.parametric_form`` 0.56, and
     # WP-1960's ``Phase.texture`` 0.57, WP-1810's ``RigidBody.riding``
     # 0.58, and WP-1325's ``RefinedParameter.equations`` 0.59, which indexing C4's
-    # ``CellCandidate.n_search_unindexed`` and ``.unindexed_two_theta`` share.
-    assert caps.schema_version == "0.59"
+    # ``CellCandidate.n_search_unindexed`` and ``.unindexed_two_theta`` share,
+    # and WP-2042's ``RefinementResult.radiation`` 0.60.
+    assert caps.schema_version == "0.60"
 
 
 def test_every_moment_dof_has_a_help_entry():

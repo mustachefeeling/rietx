@@ -1,10 +1,10 @@
 # Stage settings, flags and options
 
-This page lists the names rietx uses besides its parameters, plans and diagnostic codes: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
+This page lists the names rietx uses besides its parameters, plans, diagnostic codes and result fields: stage settings, peak flags, peak origins, reader options, instrument preset fields and indexing search settings.
 
 The entries are generated from `rietx.help`, the one place each is written.
 The GUI puts the same sentence beside the same control, so this page and a tooltip cannot disagree.
-Parameters are on the [parameter map](parameters.md), plans on [Plan presets](plans.md) and diagnostic codes on [Diagnostic codes](diagnostics.md).
+Parameters are on the [parameter map](parameters.md), plans on [Plan presets](plans.md), diagnostic codes on [Diagnostic codes](diagnostics.md) and result fields on [Result fields](result-fields.md).
 
 ## Looking one up in code
 
@@ -54,9 +54,11 @@ print(registry["peak_flags"]["axial_tail"]["title"])
 ```
 
 ```text
-['diagnostics', 'instrument_fields', 'parameters', 'peak_flags', 'peak_origins', 'plans', 'reader_options', 'search_fields', 'stage_fields']
+['diagnostics', 'instrument_fields', 'parameters', 'peak_flags', 'peak_origins', 'plans', 'reader_options', 'result_fields', 'search_fields', 'stage_fields']
 Possibly a stronger line's axial tail
 ```
+
+`rietx.help.explain` looks up a diagnostic code or a result field, as [Result fields](result-fields.md) shows.
 
 ## Entry fields
 

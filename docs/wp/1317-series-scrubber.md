@@ -53,6 +53,7 @@ screenshots come from `docs/manual/make_screenshots.py`.
 
 ### Inherited
 
+- **2026-10-24, from WP-2003 (PR #1150): the planted fixture's `signals.json` is stale in its one unpinned list.** WP-2003 reran the planted-events series on the current tree (`docs/wp/2003-batch/measure_reseed.py --family planted`, all 248 patterns, default arm) and found 49 reseeds where `tests/data/planted_series/signals.json` lists 20. Nothing fails, because `tests/test_planted_series.py` pins every signal but that list. The other lists were not compared. The reseed fence's ruling (WP-2003's batch) may change the count again, so regenerate it after that lands, or pin it now and let the ruling move it on purpose.
 - **2026-10-19, from WP-1986.** The GUI chapters moved to the new manual tree:
   `docs/docs/start/gui-quickstart.md`, `docs/docs/reference/gui-guide.md` and
   `docs/docs/reference/gui-power.md`, with the screenshots in `docs/docs/screenshots/` and

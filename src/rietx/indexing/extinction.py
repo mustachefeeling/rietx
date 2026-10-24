@@ -711,7 +711,9 @@ def _screen_plan(instrument: Instrument | None = None):
         paths += [f"instrument.extra_components.{i}.*"
                   for i, c in enumerate(instrument.extra_components or ())
                   if COMPONENT_AGGREGATE.get(c.kind) == "background"]
-    return RefinementPlan(stages=[Stage("bkg", paths)])
+    # one class's screen fit among several fitted alike: no closing stage
+    # (WP-2002, the sixth round's Q1 and Q2)
+    return RefinementPlan(stages=[Stage("bkg", paths)], closing_window_tol=None)
 
 
 def _with_background_width_humps(instrument: Instrument) -> Instrument:

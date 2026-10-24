@@ -67,6 +67,7 @@ that it did not.
 
 ### Inherited
 
+- **From WP-2002 (2026-10-21, 5th session, PR #1085).** Every preset now ends in a closing stage that frees the union of its globs at 1e-3 windows (`RefinementPlan.closing_stage`); a geometry-picked preset inherits it with nothing to add, and its stage-list tests count it (`plan.run_stages()`).
 - **Renumbered 2026-10-20.** Filed on WP-2002's branch as WP-2013 while main gave 2013 to
   the stale-text WP; this file is the same WP under its new number.
 - **From the second read of WP-2002's batch (Mike Gaultois, PR #1050, 2026-10-20), agreed

@@ -168,6 +168,20 @@ def test_every_histograms_ticks_name_their_reflections(two_patterns):
     assert set(first.tick_hkl) == set(second.tick_hkl)
 
 
+def test_each_histograms_view_names_its_own_radiation(two_patterns):
+    """The other half of a second builder (WP-2042): ``for_histogram(h)``
+    copies the top-level fields, so a radiation recorded only there would label
+    histogram 1's figure with histogram 0's λ."""
+    structure, instruments = perturbed_inputs()
+    result = MultiHistogramRefinement(structure, instruments).fit(
+        two_patterns, plan="mccusker_default")
+    assert result.radiation == result.histograms[0].radiation   # mirrors hist 0
+    for h, lam in enumerate((0.41390, 0.71070)):
+        assert result.histograms[h].radiation.wavelengths == [lam]
+        label = result.for_histogram(h).plot().get_axes()[0].get_xlabel()
+        assert label.endswith(rf"$\lambda$ = {lam:g} Å"), (h, label)
+
+
 def test_bad_histogram_shows_in_its_own_rwp(two_patterns):
     # corrupt the second pattern with a large unmodelled impurity peak: the
     # shared model can still fit histogram 0, so a pooled Rwp would understate
@@ -359,12 +373,13 @@ def test_a_joint_plan_that_reaches_one_histogram_says_which_it_missed(two_patter
     a joint fit reports it the way a single one does.
     """
     structure, instruments = _hump_on_histogram_0()
+    # the declared stages' record; the closing stage is tests/test_closing_stage.py's
     plan = RefinementPlan(stages=[
         Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
               max_iter=10),
         Stage("humps", ["instrument.extra_components.*", "instrument.zero"],
               max_iter=5),
-    ])
+    ], closing_window_tol=None)
     result = refine_multi(two_patterns, structure, instruments, plan=plan)
 
     assert [s.unreached_histograms for s in result.stages] == [
@@ -710,6 +725,8 @@ def test_a_seed_one_histogram_cannot_hold_is_written_in_none():
     """
     instruments = [Instrument.debye_scherrer(wavelength=lam)
                    for lam in (0.41390, 0.71070)]
+    for ins in instruments:     # Y's own box has no floor since WP-2002
+        ins.profile.y.min = 0.0
     instruments[0].profile.y.max = 1.5e-3
     instruments[1].profile.y.max = 5e-4
     mt = MultiParameterTable(make_lab6(), instruments,
@@ -1115,7 +1132,7 @@ def _joint_cubic_pair_fit(monkeypatch, stages, script, *, full=False, log=None):
 
     monkeypatch.setattr(multi_module, "run_multi_least_squares", solve)
     monkeypatch.setattr(multi_module, "_hold_unsupported_phases_multi",
-                        lambda *a, **k: [])
+                        lambda models, *a, **k: ([], [set() for _ in models]))
     monkeypatch.setattr(multi_module, "_rehold_multi", lambda *a, **k: ([], []))
     instruments = []
     for lam in (0.41390, 0.71070):
@@ -1125,7 +1142,8 @@ def _joint_cubic_pair_fit(monkeypatch, stages, script, *, full=False, log=None):
     data = [_cubic_pair_pattern(lam, seed) for lam, seed in ((0.41390, 11),
                                                              (0.71070, 12))]
     ref = MultiHistogramRefinement(_cubic_pair(), instruments)
-    result = ref.fit(data, plan=RefinementPlan(stages=stages))
+    # the declared stages' reset; the closing stage is tests/test_closing_stage.py's
+    result = ref.fit(data, plan=RefinementPlan(stages=stages, closing_window_tol=None))
     assert len(calls) == len(stages) + len(extra), solved
     OUT.mkdir(exist_ok=True)
     name = "_".join(s.name for s in stages)

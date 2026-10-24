@@ -3,19 +3,18 @@
     .venv/bin/python docs/docs/make_figures.py
 
 They live in `figures/` beside this script, moved here from the old tree's
-`using/figures/` by WP-1986.  The old tree's chapters reference the same files
-until it retires.
+`using/figures/` by WP-1986.
 
 The figures are **committed**, not built.  Two reasons: the sphinx build stays
 seconds rather than minutes, and it stays offline and dependency-free — a docs
 build should not have to refine a real pattern.  The cost is that a figure can
 go stale, so this script is the one authority for how each was drawn, and
-``tests/test_manual_api.py`` checks that every figure a page of either tree
-references exists.
+``tests/test_manual_api.py`` checks that every figure a page references
+exists.
 
 Each figure is written twice, ``-light`` and ``-dark``, and the pages select
-between them with the ``only-light`` / ``only-dark`` classes both themes read
-(pydata-sphinx-theme here, furo in the old tree).  A single
+between them with the ``only-light`` / ``only-dark`` classes the theme reads
+(pydata-sphinx-theme).  A single
 white-ground figure on a dark page is the thing this avoids.
 
 **Every figure that shows a fit draws it from the case that is already
@@ -30,6 +29,8 @@ with the test that proves the claim, and nobody would find out.
 
 from __future__ import annotations
 
+import functools
+import re
 import sys
 from pathlib import Path
 
@@ -41,6 +42,8 @@ import matplotlib.pyplot as plt  # noqa: E402  (after the backend is fixed)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FIGURES = Path(__file__).resolve().parent / "figures"
+#: The site's colours (WP-2021), read for the light twin's ground.
+TOKENS = REPO_ROOT / "docs" / "landing" / "src" / "tokens.css"
 sys.path.insert(0, str(REPO_ROOT))
 
 import rietx as rx  # noqa: E402  (needs the repo on sys.path)
@@ -71,15 +74,35 @@ def _rc(style: str):
                              + [rc])
 
 
+@functools.cache
+def light_ground() -> str:
+    """The light page's colour, `--bg` in the token file's first (light) block.
+
+    Comments go first, as `tests/test_landing.site_tokens` reads the file, so a
+    word in the header cannot move where the light block ends."""
+    text = re.sub(r"/\*.*?\*/", "", TOKENS.read_text(encoding="utf-8"), flags=re.S)
+    return re.search(r"--bg:\s*(#[0-9a-fA-F]{6})", text.split("@media", 1)[0]).group(1)
+
+
 def _save(fig, stem: str, style: str) -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
     path = FIGURES / f"{stem}-{style}.png"
     # 200 rather than the old 110: at 110 the type and the reflection marks
     # fringe on any retina display, which is where the manual is read.
-    # The dark twin is saved on a transparent ground: furo's dark page is
-    # #131416, not black, so an opaque figure sits on the page as a rectangle.
-    # The light twin keeps its white ground, because its type is dark and a
-    # transparent PNG opened anywhere dark would be unreadable.
+    # The dark twin is saved on a transparent ground: the theme's dark page is
+    # not black, so an opaque figure sits on the page as a rectangle.
+    # The light twin stays opaque, because its type is dark and a transparent
+    # PNG opened anywhere dark would be unreadable.  Its ground is the light
+    # page's own colour rather than white (WP-2021), so on the page it shows no
+    # edge: every white patch, the figure's, each panel's and each legend's,
+    # takes it, which reaches `plot_result`'s figures without touching them.
+    if style == "light":
+        ground = light_ground()
+        legends = [ax.get_legend() for ax in fig.axes] + list(fig.legends)
+        for patch in [fig.patch, *(ax.patch for ax in fig.axes),
+                      *(legend.get_frame() for legend in legends if legend)]:
+            if tuple(patch.get_facecolor()[:3]) == (1.0, 1.0, 1.0):
+                patch.set_facecolor(ground)
     fig.savefig(path, dpi=200, bbox_inches="tight", transparent=style == "dark")
     plt.close(fig)
     print(f"  {path.relative_to(REPO_ROOT)}")
@@ -315,8 +338,8 @@ def hump() -> None:
     estimate would be claiming a truth it does not have.  Second, that fit is
     four minutes over 47 999 channels, and this script's own bargain (see the
     module docstring) is that regenerating a figure stays cheap.  The real
-    measurement is a **table**, in ``docs/manual/using/data.md``, where a number can carry
-    its own provenance.
+    measurement is a **table**, in ``docs/docs/concepts/parameters.md`` § Humps, where a
+    number can carry its own provenance.
 
     esd notation follows the decision on issue #166: ``rx.format_su``'s
     last-place digits below su = 1, decimal-in-parentheses at or above, where

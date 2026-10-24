@@ -133,10 +133,22 @@ def stated(phase_factory, candidate, moment, ion="Mn3+") -> Phase:
         magnetic=MagneticSymmetry(operations=list(ops), centerings=list(cent)))
 
 
-def simulate(phase, instrument, *, background=40.0, seed=20260906):
-    """A pattern from a stated structure, with Poisson-scale noise."""
-    ref = rx.Refinement(rx.Structure(phases=[phase]), instrument)
-    y = np.asarray(ref.predict(GRID)) + background
+def simulate(phase, instrument, *, background=40.0, seed=20260906,
+             window_area_tol=None):
+    """A pattern from a stated structure, with Poisson-scale noise: drawn by
+    ``predict``, at the closing stage's windows, or at ``window_area_tol``."""
+    if window_area_tol is None:
+        ref = rx.Refinement(rx.Structure(phases=[phase]), instrument)
+        y = np.asarray(ref.predict(GRID)) + background
+    else:
+        from rietx.model.forward import compile_model
+        from rietx.params.vector import ParameterTable
+
+        structure = rx.Structure(phases=[phase])
+        grid = rx.PatternData(two_theta=GRID.tolist(), intensity=[0.0] * len(GRID))
+        model = compile_model(structure, instrument, grid, window_area_tol=window_area_tol)
+        table = ParameterTable(structure, instrument)
+        y = np.asarray(model.evaluate(table.decode(table.x0()))) + background
     rng = np.random.default_rng(seed)
     y = y + rng.normal(scale=np.sqrt(np.maximum(y, 1.0)))
     return rx.PatternData(two_theta=GRID.tolist(), intensity=y.tolist())
@@ -1866,7 +1878,7 @@ def test_a_budget_stop_is_continued_from_where_it_stopped():
     start.cell.c.value += 0.004
     _ref, result = _fit(rx.Structure(phases=[start]), instrument,
                         data, starved)
-    assert [s.name for s in result.stages] == ["all (continued)"]
+    assert [s.name for s in result.stages] == ["all (continued)", "closing"]
     freed = {p.path for p in result.parameters if p.vary}
     assert "phases.0.scale" in freed and "phases.0.cell.a" in freed
     # each continuation keeps the last stage's one-iteration budget, so this
@@ -1882,7 +1894,7 @@ def test_a_converged_fit_is_not_refitted():
     _ref, result = _fit(rx.Structure(phases=[tetragonal()]), instrument,
                         data, NUCLEAR_PLAN)
     assert result.status == "converged"
-    assert [s.name for s in result.stages] == ["scale", "cell"]
+    assert [s.name for s in result.stages] == ["scale", "cell", "closing"]
 
 
 def _short(trial, status="max_iter"):

@@ -47,10 +47,11 @@ from ..schemas.structure import (
 
 _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 _XYZ = ("x", "y", "z")
-#: one shell of neighbouring cells for the minimum-image search — n ∈ {−1,0,1}³.
-#: One shell suffices for near-orthogonal cells; a strongly oblique cell
-#: (γ far from 90°) may need two, but powder restraints name a specific image
-#: (``op_index``) in that regime rather than trusting the auto-search.
+#: the minimum-image search's first pass, n ∈ {−1,0,1}³ around each centred
+#: image.  It only bounds the search: the second pass covers every image
+#: within the first pass's nearest distance, sized per cell, so the answer is
+#: the nearest image in any cell.  One shell alone missed 72 of 2518 pairs
+#: within 4 Å in cells stored at β 135-150° (WP-2002).
 MIN_IMAGE_SHELL = 1
 #: cos θ is clamped just inside [−1, 1] before ``arccos``: the angle derivative
 #: ∝ 1/sin θ blows up at 0°/180°, which are not supported restraint targets.
@@ -168,8 +169,12 @@ def _resolve_image(sites, j, reference, base_xyz, op_index, translation, g):
 
     With ``op_index`` given, that orbit op and the explicit ``translation`` are
     used verbatim.  Otherwise the minimum-image search enumerates the atom's
-    frozen orbit ops × the ``{−1,0,1}³`` lattice shell and keeps the closest
-    (non-coincident) image, measured with the compile-time metric ``g``.
+    frozen orbit ops × a lattice shell and keeps the closest (non-coincident)
+    image, measured with the compile-time metric ``g``.  The first pass over
+    :data:`MIN_IMAGE_SHELL` finds some image at distance d; every image nearer
+    than d lies within the shell ``geometry._shell(g, d)`` spans (the
+    plane-spacing bound), so the second pass over that shell is complete in
+    any cell, reduced or not.
 
     The shell is centred, per op, on the lattice vector that brings the image
     nearest ``reference`` (``round(reference − R·x − t)``), so the search does
@@ -191,25 +196,32 @@ def _resolve_image(sites, j, reference, base_xyz, op_index, translation, g):
         return (np.asarray(ops_r[op_index], dtype=np.float64),
                 np.asarray(ops_t[op_index], dtype=np.float64),
                 np.asarray(translation, dtype=np.float64))
+    from .geometry import _shell  # geometry imports this module
+
+    def nearest(shifts, best=None):
+        # a tie keeps the image found first, so a second pass changes the
+        # answer only where it finds a strictly nearer one
+        for mi in range(m):
+            img0 = ops_r[mi] @ base_xyz + ops_t[mi]
+            centre = np.round(reference - img0)
+            for s in shifts:
+                n = centre + s
+                dx = img0 + n - reference
+                d2 = float(dx @ (g @ dx))
+                if d2 < _COINCIDENT_D2:
+                    continue
+                if best is None or d2 < best[0]:
+                    best = (d2, mi, n)
+        return best
+
     shell = range(-MIN_IMAGE_SHELL, MIN_IMAGE_SHELL + 1)
-    best: tuple[float, int, np.ndarray] | None = None
-    for mi in range(m):
-        img0 = ops_r[mi] @ base_xyz + ops_t[mi]
-        centre = np.round(reference - img0)
-        for na in shell:
-            for nb in shell:
-                for nc in shell:
-                    n = centre + np.array([na, nb, nc], dtype=np.float64)
-                    dx = img0 + n - reference
-                    d2 = float(dx @ (g @ dx))
-                    if d2 < _COINCIDENT_D2:
-                        continue
-                    if best is None or d2 < best[0]:
-                        best = (d2, mi, n)
+    best = nearest(np.array([(na, nb, nc) for na in shell for nb in shell
+                             for nc in shell], dtype=np.float64))
     if best is None:  # every image coincident (a self-restraint at the origin)
         return (np.asarray(ops_r[0], dtype=np.float64),
                 np.asarray(ops_t[0], dtype=np.float64),
                 np.zeros(3, dtype=np.float64))
+    best = nearest(_shell(g, math.sqrt(best[0])), best)
     _, mi, n = best
     return (np.asarray(ops_r[mi], dtype=np.float64),
             np.asarray(ops_t[mi], dtype=np.float64), n)

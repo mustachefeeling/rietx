@@ -2302,7 +2302,7 @@ def test_what_would_change_the_profile_fullprof_computes_is_refused(change, matc
     elif change == "axial":
         inst.geometry.axial_sl.value = 0.02
     elif change == "harmonics":
-        inst = rx.Instrument.constant_wavelength_neutron(2.41, harmonics=True)
+        inst = rx.Instrument.constant_wavelength_neutron(2.41, harmonics=[2])
     else:
         inst = _xray(1.5405929, 1.5444274, 1.39222)
     with pytest.raises(ValueError, match=match):

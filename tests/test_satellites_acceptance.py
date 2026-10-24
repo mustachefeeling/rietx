@@ -49,6 +49,16 @@ from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
 
+
+def _draw(result, stem: str) -> None:
+    """obs/calc/diff for inspection (``tests/output/``, gitignored)."""
+    from rietx.viz.plots import plot_result
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_result(result, path=str(out / f"{stem}.png"))
+
+
 # ====================================================== synthetic, under noise
 
 LAMBDA = 2.4067
@@ -154,7 +164,7 @@ def cr2wo6(cr2wo6_nuclear):
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("magnetic-cr2wo6")
-def test_cr2wo6_4k_shows_the_k_zero_signature_and_150k_does_not(cr2wo6):
+def test_cr2wo6_4k_shows_the_k_zero_signature_and_150k_does_not(cr2wo6, cr2wo6_nuclear):
     """The positive k = 0 statement at 4 K, and its absence above T_N.
 
     Measured: 4 residual peaks on forbidden reciprocal-lattice points at 4 K
@@ -171,6 +181,8 @@ def test_cr2wo6_4k_shows_the_k_zero_signature_and_150k_does_not(cr2wo6):
     if arm150.candidates and arm150.candidates[0].matched:
         assert "runner-up" in arm150.note, arm150.note
         assert "satellite position(s) in range" in arm150.note
+    _draw(cr2wo6_nuclear["nuc4"], "satellites_cr2wo6_4K_nuclear")
+    _draw(cr2wo6_nuclear["nuc150"], "satellites_cr2wo6_150K_nuclear")
 
 
 # ====================================== Ba₆Co₆ClO₁₆, a real k = (0, 0, ½) case
@@ -310,6 +322,7 @@ def test_ba6co6_d1b_returns_the_tutorials_k_first_with_every_other_candidate_beh
     assert top.matched >= 2, arm.note
     assert all(c.matched < top.matched for c in rest), \
         [(c.vector, c.matched) for c in arm.candidates]
+    _draw(result, "satellites_ba6co6_d1b")
 
 
 # ======================================== an F-centred lattice: X, and L as control
@@ -466,10 +479,5 @@ def test_prsrmno3_ranks_the_x_point_first(tmp_path):
     assert top.vector == "(1, 0, 0)", ranked
     assert top.matched == arm.n_unexplained >= 4, ranked
     assert runner_up.matched * 2 < top.matched, ranked
-
-    # obs/calc/diff for inspection (tests/output/, gitignored)
-    from rietx.viz.plots import plot_result
-    out = Path(__file__).parent / "output"
-    out.mkdir(exist_ok=True)
-    plot_result(result, path=str(out / "satellites_prsrmno3_x_point.png"))
+    _draw(result, "satellites_prsrmno3_x_point")
 

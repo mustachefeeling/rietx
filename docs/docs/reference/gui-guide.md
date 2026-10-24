@@ -181,6 +181,11 @@ and why, and the running count of free parameters. That resolution is the real
 verb and not a preview. It is the same call the fit makes, so the ties, the
 locks and the mode's force-fixes shown are the ones you will get.
 
+Under the last stage the panel names the closing stage every plan ends with.
+It frees every stage's globs once more, on peak windows that drop 0.10% of
+each peak, and its Rwp is the answer's. The plan's `closing` line in the text
+document sets the fraction, and `none` removes the stage.
+
 The two buttons do different things:
 
 - `Run all` runs the plan from the start. A plan replaces the vary flags rather
@@ -473,8 +478,10 @@ The `FitReport` rendered. [](../concepts/report.md) is what the statements mean;
 about this panel will otherwise be misread.
 
 Above the suggestions sits a "Fit diagnostics" section. It lists every diagnostic
-the fit's result carries, errors first, then warnings, then notes, each with its
-code, message, suggestion and the parameters it names. These are the package's own
+the fit's result carries, errors first, then warnings, then notes, each under its
+code and the parameters it names; an error opens in full, and every other row stays
+folded to the purposes it is a warning under until you open it for its message and
+suggestion. These are the package's own
 findings about the answer (`BOUND_HIT`, `LEBAIL_ALTERNATION_STOPPED` and the rest),
 and no other panel shows them.
 

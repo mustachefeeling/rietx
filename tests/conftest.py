@@ -355,9 +355,15 @@ def cr2wo6_nuclear():
 
     d4 = rx.read_pattern(DATA / "gsas2_hb2a_cr2wo6_4K.dat")
     d150 = rx.read_pattern(DATA / "gsas2_hb2a_cr2wo6_150K.dat")
-    ref150, nuc150 = _fit(_trirutile(), _instrument(), d150, NUCLEAR_STAGES)
+    # the nuclear references the magnetic solve starts from, at the declared
+    # stages alone (WP-2002): ended in a closing stage, the 150 K reference moves
+    # enough that class 3's pair, which a correlation near its threshold folds,
+    # no longer folds (moduli 0.514 and 0.131 with esds 0.69 and 2.79)
+    ref150, nuc150 = _fit(_trirutile(), _instrument(), d150, NUCLEAR_STAGES,
+                          closing_window_tol=None)
     ref4, nuc4 = _fit(ref150.structure.model_copy(deep=True),
-                      ref150.instrument.model_copy(deep=True), d4, NUCLEAR_STAGES)
+                      ref150.instrument.model_copy(deep=True), d4, NUCLEAR_STAGES,
+                      closing_window_tol=None)
     return {"d4": d4, "d150": d150, "ref150": ref150, "nuc150": nuc150,
             "ref4": ref4, "nuc4": nuc4}
 

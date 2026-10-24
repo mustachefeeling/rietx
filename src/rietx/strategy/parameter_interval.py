@@ -64,6 +64,7 @@ import re
 
 from ..optimize.cancel import RefinementCancelled
 from ..schemas.interval import (
+    PARAMETER_INTERVAL_BRACKET_GROWTH,
     PARAMETER_INTERVAL_CHI2_TOL,
     PARAMETER_INTERVAL_LEVEL,
     PARAMETER_INTERVAL_MAX_REFITS,
@@ -261,7 +262,7 @@ def _walk(refinement, data, path: str, start: float, sign: int, limit: float,
     try:
         inner, k = start, 0
         while True:
-            v = start + sign * 2.0 ** k * step
+            v = start + sign * PARAMETER_INTERVAL_BRACKET_GROWTH ** k * step
             reached = v <= limit if sign < 0 else v >= limit
             if reached:
                 v = limit

@@ -280,12 +280,6 @@ class Trajectory(Base):
         head, header, rows = trajectory_sections(self)
         return "\n".join([head, *table_text(header, rows, "  ")])
 
-    def _repr_html_(self) -> str:
-        """The same rows as a table under the head line."""
-        from .._display import pre_html, table_html, trajectory_sections
-        head, header, rows = trajectory_sections(self)
-        return pre_html(head) + table_html(header, rows)
-
     def arrays(self):
         """``(x, value, stderr)`` as float arrays; missing esds become NaN."""
         import numpy as np
@@ -557,12 +551,6 @@ class MagneticTrajectory(Trajectory):
         if self.onset is not None:
             rows.append(f"  {self.onset}")
         return "\n".join([head, *rows])
-
-    def _repr_html_(self) -> str:
-        """Its own text in a ``<pre>``: the table :class:`Trajectory` draws
-        has no column for the verdicts this view carries."""
-        from .._display import pre_html
-        return pre_html(str(self))
 
 
 def locate_onset(traj: MagneticTrajectory) -> MagneticOnset:
@@ -838,7 +826,8 @@ class SeriesResult(Base):
             if e.qpa is None:
                 continue
             row = next((r for r in e.qpa.phases if r.name == phase), None)
-            if row is None:
+            # no fraction where no reflection of the phase lay in range (WP-1958)
+            if row is None or row.weight_fraction is None:
                 continue
             traj.x.append(xv)
             traj.value.append(100.0 * row.weight_fraction)
@@ -1205,7 +1194,8 @@ class SeriesResult(Base):
 
     def summary(self, *, max_entries: int = 5,
                 deliverable: str | None = None,
-                parametric: RefinementResult | None = None) -> str:
+                parametric: RefinementResult | None = None,
+                levels: dict[str, str] | None = None) -> str:
         """The series termination view (WP-1302): the trajectory table, the
         ``SEQUENTIAL_*`` rows, first and last ``max_entries`` with the count.
 
@@ -1219,9 +1209,13 @@ class SeriesResult(Base):
         ``deliverable="series"`` adds §4b's fourth deliverable — a parameter
         as a function of the series variable — as its deciding rows, printed
         **after** the trajectory: the table is the answer, and these are what
-        would have to be wrong for it to be wrong (WP-1305).  The other three
-        purposes are decided on one pattern's own fit and are refused here by
-        name.
+        would have to be wrong for it to be wrong (WP-1305).  Every other
+        purpose in :data:`~rietx.schemas.results.DELIVERABLES` — phase ID, QPA,
+        structure, cell, microstructure, calibration, magnetic — is decided on
+        one pattern's own fit and is refused here by naming
+        ``Refinement.summary``.  The diagnostics print as
+        :func:`~rietx.schemas.results.diagnostic_view` gives them under that
+        deliverable, or without one when none is given (WP-2037).
 
         ``parametric`` is a joint fit of the same patterns with parametric
         declarations (``refine_multi(..., coordinates=, parametric=)``,
@@ -1229,14 +1223,22 @@ class SeriesResult(Base):
         curve they describe, and the deliverable's functional-form row reads
         them.  A chain has no coefficients of its own, so without one that
         row says the form was not measured.
+
+        ``levels`` is the caller's per-code override,
+        ``{code: "allow" | "warn" | "deny"}`` (WP-2037 clause 4,
+        :func:`~rietx.schemas.results.diagnostic_view`).
         """
         n = len(self.entries)
         lines = [f"SeriesResult: {n} pattern(s), {self.mode}, "
                  f"direction={self.direction}"]
         # the same renderer RefinementResult.__str__ calls (schemas/results.py)
         # — one diagnostics-line format for the whole package, never a second
-        # copy that a future change to it would not know to keep in step with
-        lines += _diagnostic_lines(self.diagnostics)
+        # copy that a future change to it would not know to keep in step with.
+        # A series has one deliverable of its own; any other is refused below,
+        # by _deliverable_lines, naming where it is decided
+        lines += _diagnostic_lines(self.diagnostics,
+                                   "series" if deliverable == "series" else None,
+                                   levels=levels)
         lines.append(f"  trajectory ({self.x_label}):")
         shown = (list(range(n)) if n <= 2 * max_entries else
                 [*range(max_entries), None, *range(n - max_entries, n)])

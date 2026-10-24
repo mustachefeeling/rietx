@@ -3,7 +3,7 @@
 Every string in this package that spells the *distribution*, the on-disk
 *format tokens* or the *state directory* lives here and nowhere else.  The
 module imports nothing — not even from this package — so anything may import
-it: the forward model, the GUI server, ``docs/manual/conf.py``, the tests.
+it: the forward model, the GUI server, ``docs/docs/conf.py``, the tests.
 Its two functions, :func:`docs_version` and :func:`docs_base`, keep that rule:
 they finish the hosted manual's address from a version string the caller
 passes, since a URL's spelling belongs here and nowhere else.

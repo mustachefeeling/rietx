@@ -15,8 +15,7 @@ Provenance and licence for both: `tests/data/README.md`.
 **Two copies, held equal by a test.** The skill body cannot
 `{literalinclude}` this file, because an agent reads `SKILL.md` raw, so
 `tests/test_skill.py` asserts the two blocks agree line for line. The manual
-needs no include of its own either: it renders the whole body, this code
-included, through its skill chapter (`docs/manual/conf.py`, `_write_skill`).
+does not render the body; `docs/docs/reference/agents.md` points at it.
 It writes no output file, so it runs from any cwd.
 """
 

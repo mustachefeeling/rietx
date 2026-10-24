@@ -40,6 +40,11 @@ FRACTION_PROFILE_N_FWHM = 11
 #: sample broadening stops being visible at all.
 FRACTION_PROFILE_FWHM_MIN = 0.01
 
+#: The largest FWHM on the default grid, as a fraction of the fitted span in
+#: degrees 2θ.  Half, because on the whole span a pinned width outruns the peak
+#: windows frozen at stage compile (WP-1320; the reason above).
+FRACTION_PROFILE_FWHM_MAX_SPAN = 0.5
+
 
 class FractionProfilePoint(Base):
     """One pinned width and what the refit made of the fraction there.

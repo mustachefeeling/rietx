@@ -35,8 +35,14 @@ Discipline
 * Complex is first-class: ``exp`` must accept complex128, and ``conj``/
   ``real``/``imag`` exist for the structure factor.  complex128 on host; a
   reduced-precision policy is WP-0403's business, not this module's.
-* No ``scipy.special``: the hot path has none today; the WP-0405 Faddeeva
-  profile is built *on* this op set, not into it.
+* ``scipy.special`` enters the vocabulary twice, as ``i0e`` and ``i1e``, the
+  exponentially scaled modified Bessel functions (WP-2044).  Sabine's Laue
+  extinction factor is e^(−x)·[I₀(x) + I₁(x)] in closed form, and no
+  composition of the other ops evaluates it without truncating a series.
+  All three libraries ship both functions with derivative rules
+  (``scipy.special``, ``jax.scipy.special``, ``torch.special``), so each is
+  one binding per backend.  Nothing else from ``scipy.special`` is in it: the
+  WP-0405 Faddeeva profile is built *on* this op set, not into it.
 
 Scatter primitives
 ------------------
@@ -61,6 +67,7 @@ from contextlib import nullcontext
 from typing import Any, Protocol
 
 import numpy as np
+import scipy.special
 
 from .._about import DIST_NAME
 
@@ -91,6 +98,8 @@ class Backend(Protocol):
     minimum: Any
     where: Any
     isfinite: Any
+    i0e: Any  # exponentially scaled modified Bessel I₀ (scipy.special.i0e)
+    i1e: Any  # …and I₁ (scipy.special.i1e)
     # reductions / linear algebra
     einsum: Any
     matmul: Any
@@ -165,6 +174,8 @@ class NumpyBackend:
     minimum = staticmethod(np.minimum)
     where = staticmethod(np.where)
     isfinite = staticmethod(np.isfinite)
+    i0e = staticmethod(scipy.special.i0e)
+    i1e = staticmethod(scipy.special.i1e)
 
     einsum = staticmethod(np.einsum)
     matmul = staticmethod(np.matmul)
@@ -210,11 +221,14 @@ class NumpyBackend:
 _OP_NAMES = (
     "exp", "sqrt", "log", "sin", "cos", "tan", "arcsin", "arccos",
     "radians", "degrees", "abs", "sign", "power", "clip",
-    "maximum", "minimum", "where", "isfinite",
+    "maximum", "minimum", "where", "isfinite", "i0e", "i1e",
     "einsum", "matmul", "sum", "cumsum", "diff",
     "asarray", "zeros", "zeros_like", "full_like", "concatenate", "stack",
     "conj", "real", "imag",
 )
+#: the ops each library keeps in its special-functions module, not its top
+#: level (``scipy.special``, ``jax.scipy.special``, ``torch.special``)
+_SPECIAL_OPS = ("i0e", "i1e")
 
 
 class JaxBackend:
@@ -232,13 +246,15 @@ class JaxBackend:
     def __init__(self) -> None:
         import jax
         import jax.numpy as jnp
+        import jax.scipy.special as jsp
 
         self._jax = jax
         self.pi = jnp.pi
         self.linalg = jnp.linalg
-        # every op is jnp's by name
+        # every op is jnp's by name, except the two Bessel functions, which
+        # live in jax.scipy.special as they do in scipy
         for op in _OP_NAMES:
-            setattr(self, op, getattr(jnp, op))
+            setattr(self, op, getattr(jsp if op in _SPECIAL_OPS else jnp, op))
 
     @staticmethod
     def scalarize(x: Any) -> Any:
@@ -389,12 +405,14 @@ def _torch_matmul(torch):
     return matmul
 
 
-#: op → torch function name, for the ops that need only argument coercion
+#: op → torch function name (a dotted path under ``torch``), for the ops that
+#: need only argument coercion
 _TORCH_UNARY = {
     "exp": "exp", "sqrt": "sqrt", "log": "log", "sin": "sin", "cos": "cos",
     "tan": "tan", "arcsin": "arcsin", "arccos": "arccos",
     "radians": "deg2rad", "degrees": "rad2deg",
     "abs": "abs", "sign": "sign", "isfinite": "isfinite", "real": "real",
+    "i0e": "special.i0e", "i1e": "special.i1e",
 }
 #: …and the two-argument ones (torch rejects a bare python scalar for ``other``)
 _TORCH_BINARY = {"power": "pow", "maximum": "maximum", "minimum": "minimum"}
@@ -453,7 +471,7 @@ class TorchBackend:
         self.pi = np.pi
         self.linalg = _TorchLinalg(self)
         for op, fn in _TORCH_UNARY.items():
-            setattr(self, op, self._unary(getattr(torch, fn)))
+            setattr(self, op, self._unary(functools.reduce(getattr, fn.split("."), torch)))
         for op, fn in _TORCH_BINARY.items():
             setattr(self, op, self._binary(getattr(torch, fn)))
         self.matmul = self._binary(_torch_matmul(torch))

@@ -35,6 +35,17 @@ stage-boundary recompiles get their own tests below.  Le Bail and Pawley are
 single-histogram only — WP-0308 shipped multi-histogram as Rietveld-only,
 because per-pattern intensity extractions are not a shared quantity.
 
+**Every compile declares its windows** (WP-2002), as ``test_backend_shim``'s
+do.  ``compile_model``'s default is the closing stage's ``CLOSING_WINDOW_TOL``,
+which also takes the closing FCJ node rule, and the matrix was sized and
+measured at ``WINDOW_AREA_TOL``.  Inherited, the closing windows made
+``satellites`` 14.6x the window points (5 870 to 85 704), and its jax row
+held 17 GB and ran 273 s on an M-series Mac, past the CI runner's memory.  They
+also took the one-sided ``axial_hl`` column at H/L = 0 from 4.7e-2 to 7.1e-5,
+because the profile's first-order response to H/L there is the coarser
+quadrature's and vanishes as the nodes converge, so the WP-1953 test below
+compared two columns of noise.  Both rules run the same derivative code.
+
 Tolerances
 ----------
 The fp32 bars are **imported** from ``backend.linalg64`` (WP-0403 owns them);
@@ -82,7 +93,7 @@ from rietx.backend.linalg64 import (
     FP32_JACOBIAN,
     precision_policy,
 )
-from rietx.model.forward import compile_model
+from rietx.model.forward import WINDOW_AREA_TOL, compile_model
 from rietx.optimize.least_squares import (
     _fd_typicals,
     _jacobian_for,
@@ -143,7 +154,8 @@ def _families_state(*, shape: str = "tchz_pv", axial_hl: float | None = None):
     for path in ANALYTIC_FAMILIES:
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     assert model.shape == shape
     return model, table, {}
 
@@ -193,7 +205,8 @@ def _state_sharp_widths():
                  "instrument.zero_shift", "instrument.profile.*"):
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -227,7 +240,8 @@ def _state_families_tied():
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -254,7 +268,8 @@ def _state_toy_body():
     table.commit(theta)
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, _toy_pattern(), mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     assert model.restraints is not None
     return model, table, {}
 
@@ -303,7 +318,8 @@ def _state_families_variable():
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -334,7 +350,8 @@ def _state_centroid_origin():
                  "phases.0.atoms.*.dof.*", "phases.0.atoms.*.biso"):
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     model.origin = compile_origin(model, table)
     assert model.origin is not None and model.origin.n_rows == 1
     return model, table, {}
@@ -375,7 +392,8 @@ def _state_capillary_offsets():
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0())) + 20.0
     pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
@@ -385,7 +403,8 @@ def _state_capillary_offsets():
                   "instrument.geometry.capillary_offset_along_beam",
                   "instrument.geometry.capillary_offset_across_beam"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -434,7 +453,8 @@ def _state_extra_components():
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
@@ -446,7 +466,8 @@ def _state_extra_components():
                   "instrument.extra_components.0.height",
                   "instrument.extra_components.0.fwhm"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -499,7 +520,8 @@ def _state_extra_peak():
     grid = np.arange(15.0, 90.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
@@ -511,7 +533,8 @@ def _state_extra_peak():
                   "instrument.extra_components.0.fwhm",
                   "instrument.extra_components.0.eta"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -551,7 +574,8 @@ def _state_magnetic():
     grid = np.arange(8.0, 140.0, 0.05)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     # off the expansion point, so no column is dead by construction
@@ -564,7 +588,8 @@ def _state_magnetic():
                   "phases.0.atoms.1.dof.*", "phases.0.atoms.1.biso",
                   "instrument.background.c0", "instrument.zero_shift"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -606,7 +631,8 @@ def _state_magnetic_width():
     grid = np.arange(8.0, 140.0, 0.05)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
     # off the expansion point, so no column is dead by construction
@@ -620,7 +646,8 @@ def _state_magnetic_width():
                   "instrument.background.c0", "instrument.zero_shift",
                   "instrument.geometry.axial_sl", "instrument.geometry.axial_hl"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -667,7 +694,8 @@ def _state_satellites():
     grid = np.arange(8.0, 140.0, 0.05)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
-    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
     assert sim.phases[0].reflections.is_satellite.any()
     sim_table = ParameterTable(structure, ins)
     y = sim.evaluate(sim_table.decode(sim_table.x0()))
@@ -680,7 +708,8 @@ def _state_satellites():
                   "phases.0.atoms.0.biso", "phases.0.atoms.1.adp.*",
                   "instrument.background.c0", "instrument.zero_shift"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     assert model.structural_grad_supported(0)
     return model, table, {}
 
@@ -759,7 +788,8 @@ def _state_bodies():
         table.entries[table._paths[f"phases.0.rigid_bodies.0.torsions.{t}.twist"]].value = v
     table.refresh_ties()
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -803,7 +833,69 @@ def _state_texture():
                  "phases.0.atoms.1.dof.0", "phases.0.texture.*"):
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          moving_paths=set(table.moving_paths))
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
+    return model, table, {}
+
+
+def _state_extinction_strong():
+    """Sabine extinction strong enough that reflections sit either side of
+    x = 1 (WP-2044).
+
+    ``toy_rich`` carries extinction at 3e-4, where every x is far below 1 and
+    the Laue factor never leaves its first few series terms.  Here x reaches
+    1.8, three reflections lie above 1 and the nearest below sits at 0.86, so
+    the extinction column, and the G = E + x·dE/dx factor the analytic
+    coordinate and ADP columns carry, are measured on the closed form's whole
+    working range.  The traced backends differentiate e^(−x)·[I₀ + I₁] through
+    their own ``i0e``/``i1e`` rules, an opinion independent of the numpy
+    column.  Before WP-2044 no row could cross x = 1, where GSAS-II's two
+    branches stepped and a central difference straddling the step was
+    meaningless.
+    """
+    from rietx.crystallography.lattice import cell_volume, d_spacings
+    from rietx.crystallography.structure_factor import structure_factors_squared
+    from rietx.model.extinction import sabine_extinction_and_dx
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    structure = make_aniso_rutile()
+    structure.phases[0].scale.value = 1e-3
+    structure.phases[0].extinction.value = 30.0
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.source.dispersion = None    # declined, not inherited
+    ins.profile.w.value = 1e-2
+    grid = np.arange(20.0, 90.0, 0.02)
+    empty = PatternData(two_theta=grid.tolist(),
+                        intensity=np.zeros_like(grid).tolist())
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
+    sim_table = ParameterTable(structure, ins)
+    values = sim_table.decode(sim_table.x0())
+    y = sim.evaluate(values) + 20.0
+    pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
+
+    # the state is only worth its row while reflections straddle x = 1
+    cp = sim.phases[0]
+    cell = tuple(values[f"phases.0.cell.{k}"]
+                 for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    d = d_spacings(cp.reflections.hkl, *cell)
+    f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
+                                   *sim._site_values(0, values, cell))
+    lam = sim.line_wavelengths[0]
+    _, _, x = sabine_extinction_and_dx(f2, lam, cell_volume(*cell),
+                                       cp.reflections.two_theta(cell, lam),
+                                       values["phases.0.extinction"])
+    assert (x > 1.0).sum() >= 2 and (x[x < 1.0] > 0.5).any(), np.sort(x)[-6:]
+
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in ("phases.0.scale", "phases.0.extinction", "phases.0.cell.a",
+                 "phases.0.cell.c", "phases.0.atoms.*.dof.*",
+                 "phases.0.atoms.*.adp.*"):
+        assert table.set_vary([path], True), path
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
 
 
@@ -822,7 +914,8 @@ CONFIGS = {"families": _state_families,
            "extra_peak": _state_extra_peak,
            "magnetic": _state_magnetic,
            "magnetic_width": _state_magnetic_width,
-           "satellites": _state_satellites, **STATES}
+           "satellites": _state_satellites,
+           "extinction_strong": _state_extinction_strong, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -858,6 +951,7 @@ CONFIG_PARAMS = [
     _config("magnetic_width"),
     _config("satellites"),
     _config("bodies"),
+    _config("extinction_strong"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),
@@ -927,9 +1021,10 @@ def _analytic_jacobian(config, model, table):
     return _for_backend(config, model, table, "numpy")
 
 
-def _central_fd_jacobian(config, model, table):
+def _central_fd_jacobian(config, model, table, scale=1.0):
     """Central differences of the (augmented) numpy residual — the reference
-    independent of both the analytic chain and autodiff."""
+    independent of both the analytic chain and autodiff.  ``scale`` multiplies
+    every column's step, for the Richardson oracle of the FD_STEP test."""
     residual = _make_residual(model, table)
     # the package's own typical sizes (WP-1936): at 1 a width on its floor
     # would be differenced across zero, where the Gaussian clamps
@@ -950,7 +1045,7 @@ def _central_fd_jacobian(config, model, table):
     def jacobian(theta: np.ndarray) -> np.ndarray:
         cols = []
         for c in range(len(theta)):
-            h = fd_step(theta[c], typicals[c])
+            h = scale * fd_step(theta[c], typicals[c])
             side = 1.0 if theta[c] <= lo[c] else -1.0 if theta[c] >= hi[c] else 0.0
             if side:
                 t1, t2 = theta.copy(), theta.copy()
@@ -1198,7 +1293,8 @@ def _multi_state():
         assert mtable.set_vary(MULTI_GLOBS, True)
         mtable.apply_to_models()
         models = [compile_model(s, ins, d, mode="rietveld",
-                                moving_paths=set(t.moving_paths))
+                                moving_paths=set(t.moving_paths),
+                                window_area_tol=WINDOW_AREA_TOL)
                   for s, ins, d, t in zip(mtable.structures, mtable.instruments,
                                           data, mtable.tables, strict=True)]
         _MULTI_CACHE["state"] = (models, mtable)
@@ -1346,7 +1442,8 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld",
                     table.set_vary([path], False)
         table.apply_to_models(structure, instrument)
         fresh = compile_model(structure, instrument, data, mode=mode,
-                              moving_paths=set(table.moving_paths))
+                              moving_paths=set(table.moving_paths),
+                              window_area_tol=WINDOW_AREA_TOL)
         carried = False
         if model is not None and mode in ("lebail", "pawley"):
             _carry_lebail(model, fresh)
@@ -1512,3 +1609,218 @@ def test_pawley_intensity_columns_are_exact_across_backends():
     n_res = model.pawley.restraint.shape[0]
     np.testing.assert_allclose(aux_ref[-n_res:], model.pawley.restraint,
                                rtol=0, atol=1e-12)
+
+
+# ----------------------------------------------------------------------
+# FD_STEP over the columns that take it (WP-2002, B10)
+# ----------------------------------------------------------------------
+#: a finite-difference column's rel-L2 error against the truth may reach this.
+#: A weakly correlated column's esd goes as 1/‖J_c‖, so an error ε moves that
+#: esd by about ε, and with a noise-like residual the stopping point by about ε
+#: esd: 1e-3 keeps both near a thousandth.
+FD_COLUMN_BAR = 1e-3
+#: the answer-level bars at a protocol answer: the first-order shift of the
+#: stopping point, (JᵀJ)⁻¹·Eᵀr, in esd, and the esd ratio
+FD_ANSWER_ESD_BAR = 0.01
+FD_ESD_RATIO_BAR = 0.01
+
+
+def _fd_taken(model, table, theta, monkeypatch):
+    """The package's Jacobian, and the columns that take a finite difference:
+    those that change when ``FD_STEP`` doubles, which no analytic column can."""
+    import rietx.optimize.least_squares as ls
+
+    jac = _jacobian_for(model, table, "numpy")(theta)
+    with monkeypatch.context() as mp:
+        mp.setattr(ls, "FD_STEP", 2.0 * ls.FD_STEP)
+        doubled = _jacobian_for(model, table, "numpy")(theta)
+    return jac, [c for c in range(jac.shape[1])
+                 if not np.array_equal(jac[:, c], doubled[:, c])]
+
+
+def _richardson(config, model, table, theta):
+    """Central differences at h/2 and h, combined to O(h⁴): (4·D(h/2) − D(h))/3,
+    one-sided at a bound as :func:`_central_fd_jacobian` is.  Returns it with
+    the same combination at h and 2h, the oracle's own error; D(h) serves both."""
+    d = {s: _central_fd_jacobian(config, model, table, scale=s)(theta)
+         for s in (0.5, 1.0, 2.0)}
+    return (4.0 * d[0.5] - d[1.0]) / 3.0, (4.0 * d[1.0] - d[2.0]) / 3.0
+
+
+def _column_errors(jac, ref, ref_2h, fd, labels):
+    """(error, the oracle's own error there, label) for the worst live FD column;
+    the oracle's own error is its value at h against its value at 2h."""
+    scale = np.linalg.norm(jac, axis=0).max()
+    worst = (0.0, 0.0, None)
+    for c in fd:
+        n = np.linalg.norm(ref[:, c])
+        if n < DEAD_COL_FRAC * scale:
+            continue
+        err = np.linalg.norm(jac[:, c] - ref[:, c]) / n
+        own = np.linalg.norm(ref_2h[:, c] - ref[:, c]) / n
+        worst = max(worst, (err + own, own, labels[c]), key=lambda t: t[0])
+    return worst
+
+
+@pytest.mark.parametrize("config", CONFIG_PARAMS)
+def test_every_fd_column_meets_a_converged_oracle(config, monkeypatch):
+    """``FD_STEP`` = 1e-6 over the domain it claims: every column that takes a
+    finite difference (B10, ruled 2026-10-19).
+
+    The peak chain differences per-reflection scalars and the fallback
+    differences the whole model, both forward and at
+    :func:`~rietx.optimize.least_squares.fd_step`.  Which columns do is read
+    off the build, never off a list: a column that changes when ``FD_STEP``
+    doubles takes one.  The oracle is Richardson's O(h⁴) combination of the
+    central differences at h/2 and h, and its own error (h against 2h) is
+    added to the measured one, so the bound holds against the truth.  A
+    smaller forward step would not be an oracle: its rounding grows as it
+    shrinks (``fd_step``'s docstring).
+
+    Measured on 2026-10-21 (macOS arm64, ``[dev]``): every column but two
+    within 2.0e-5 of the oracle, most within 1.3e-6 (the cell).  The two are
+    the whole-model fallback on ``extra_peak``'s background-peak centre,
+    2.3e-4 (the oracle agrees with itself to 2.4e-10), and the SRM 660c
+    state's extinction, 2.5e-4 against an oracle good to 2.6e-4.
+
+    Made to fail on 2026-10-21: ``FD_STEP`` patched to 1e-4 failed 13 of the
+    23 configs, ``extra_peak`` among them.
+    """
+    model, table = _state(config)
+    theta = _theta(model, table)
+    jac, fd = _fd_taken(model, table, theta, monkeypatch)
+    assert fd, f"{config}: no column takes a finite difference"
+    ref, ref_2h = _richardson(config, model, table, theta)
+    bound, own, label = _column_errors(jac, ref, ref_2h, fd, _labels(model, table))
+    assert label is not None, f"{config}: every FD column was dead"
+    assert bound <= FD_COLUMN_BAR, (
+        f"{config}: {label} within {bound:.2e} of the truth (oracle's own {own:.1e}; "
+        f"bar {FD_COLUMN_BAR})")
+
+
+_PROTOCOLS: dict = {}
+
+
+def _protocol(family):
+    """A family's protocol fit (``tests/test_window_domain.py``'s builders),
+    compiled tier on, with its obs/calc/diff figure in ``tests/output/``."""
+    if family not in _PROTOCOLS:
+        from pathlib import Path
+
+        import matplotlib.pyplot as plt
+
+        import rietx as rx
+        from rietx.model import compiled
+        from tests.test_window_domain import _build
+
+        was = compiled.set_enabled(True)
+        try:
+            data, st, ins, plan, kw = _build(family)
+            assert ins.source.dispersion is None
+            ref = rx.Refinement(st, ins, history=False)
+            res = ref.fit(data, plan=plan, telemetry=False, **kw)
+        finally:
+            compiled.set_enabled(was)
+        out = Path(__file__).parent / "output"
+        out.mkdir(exist_ok=True)
+        res.plot(path=str(out / f"fd_step_{family}.png"))
+        plt.close("all")
+        _PROTOCOLS[family] = (ref, res)
+    return _PROTOCOLS[family]
+
+
+def _forward_richardson(model, table, theta):
+    """The right derivative, the side the package differences on: one-sided
+    second-order quotients at h/2 and h, combined to O(h³).  Returns it with
+    the same combination at h and 2h, the oracle's own error; the quotient at
+    h serves both."""
+    from rietx.optimize.least_squares import _fd_typicals as typicals_of
+
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    typ = typicals_of(table)
+
+    def one_sided(c, h):
+        t1, t2 = theta.copy(), theta.copy()
+        t1[c] += h
+        t2[c] += 2.0 * h
+        return (-3.0 * r0 + 4.0 * residual(t1) - residual(t2)) / (2.0 * h)
+
+    cols, cols_2h = [], []
+    for c in range(len(theta)):
+        h = fd_step(theta[c], typ[c])
+        q = {s: one_sided(c, s * h) for s in (0.5, 1.0, 2.0)}
+        cols.append((4.0 * q[0.5] - q[1.0]) / 3.0)
+        cols_2h.append((4.0 * q[1.0] - q[2.0]) / 3.0)
+    return np.column_stack(cols), np.column_stack(cols_2h)
+
+
+#: measured where the protocol answer fails, 2026-10-21 (macOS arm64, [dev])
+_FD_ANSWER_FAILS = {
+    "lab6": ("the answer holds Gamma_G^2 on the 1e-8 deg^2 floor at the Ka2 line "
+             "near 149.7 deg (CONSTRAINT_ACTIVE), where the Gaussian FWHM is curved "
+             "on the scale of the floor itself and a step of FD_STEP*|u| moves "
+             "Gamma_G^2 by about 0.7 of it: profile.u's column is 2.2e-2 off the "
+             "right derivative (oracle's own 4.9e-4), the answer shift 0.018 esd on "
+             "profile.y, the esd ratio 0.38 %"),
+    "cpd1a": ("corundum's reflections past 150 deg sit on the Gamma_G^2 floor too, "
+              "and there even the oracle does not converge: gauss_strain's column is "
+              "1.5e-2 off it and the oracle 1.6e-2 off itself, while the flat "
+              "gauss_size/w direction turns that into 100 esd and an esd ratio of 2"),
+}
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("family", [
+    pytest.param(f, marks=([pytest.mark.xfail(strict=True, reason=_FD_ANSWER_FAILS[f])]
+                           if f in _FD_ANSWER_FAILS else []))
+    for f in ("lab6", "fap", "cpd1a", "nac")])
+def test_fd_columns_hold_at_every_protocol_answer(family, monkeypatch):
+    """The same bound at four families' protocol answers, and what it does to
+    the answer.
+
+    The families are SRM 660c (LaB₆, lab), the GSAS-II FAP tutorial (lab),
+    the CPD round robin's cpd-1a (lab, three phases) and 11-BM NAC
+    (synchrotron), each under its acceptance protocol with dispersion
+    declined.  The oracle is the right derivative, the side the package
+    differences on.  At the answer the error E moves the solver's stopping
+    point by (JᵀJ)⁻¹·Eᵀr to first order; that is held to 0.01 esd, and each
+    esd to 1 % of the oracle's.  FAP and NAC meet all three bars by orders:
+    1.8e-6 and 1.0e-6 on the worst column, 3.3e-5 and 8.2e-6 esd, esd ratios
+    2.8e-6 and 1.1e-6.
+
+    SRM 660c and cpd-1a fail where a reflection sits on the Γ_G² floor
+    (``caglioti._MIN_GAMMA_G2``), which their answers reach at the
+    high-angle end.  No step fixes it: at 1e-8 SRM 660c's column error falls
+    to 2.1e-4, but a polish from its answer at 1e-8 or at 5e-7 stops 1.2
+    plain esd away on ``profile.u`` with χ² 0.25 % higher, as a floor of
+    1e-10 does, while ×2 on the step moves it 0.2 esd and ×1.01 on the
+    floor 2e-4 esd.  The answer at that face is not set by the step.
+
+    Made to fail on 2026-10-21: ``FD_STEP`` patched to 1e-4 failed FAP and
+    NAC.
+    """
+    from rietx.optimize.statistics import normal_covariance
+
+    ref, _res = _protocol(family)
+    model = ref._model
+    _result, table, theta, _se, _corr = ref._answer_covariance
+    theta = np.asarray(theta, dtype=np.float64)
+    jac, fd = _fd_taken(model, table, theta, monkeypatch)
+    oracle, oracle_2h = _forward_richardson(model, table, theta)
+    bound, own, label = _column_errors(jac, oracle, oracle_2h, fd,
+                                       list(table.free_paths))
+    r = _make_residual(model, table)(theta)
+    cov_o, chi2 = normal_covariance(oracle, r, len(theta))
+    cov_p, _ = normal_covariance(jac, r, len(theta))
+    measured = np.diag(cov_o) > 0.0
+    esd = np.sqrt(np.diag(cov_o)[measured])
+    shift = ((cov_o / chi2) @ ((jac - oracle).T @ r))[measured] / esd
+    ratio = np.sqrt(np.diag(cov_p)[measured] / np.diag(cov_o)[measured]) - 1.0
+    paths = [p for p, m in zip(table.free_paths, measured, strict=True) if m]
+    k, j = int(np.argmax(np.abs(shift))), int(np.argmax(np.abs(ratio)))
+    assert (bound <= FD_COLUMN_BAR and abs(shift[k]) <= FD_ANSWER_ESD_BAR
+            and abs(ratio[j]) <= FD_ESD_RATIO_BAR), (
+        f"{family}: {label} within {bound:.2e} of the right derivative (oracle's own "
+        f"{own:.1e}); answer shift {abs(shift[k]):.2e} esd on {paths[k]}; esd ratio "
+        f"{abs(ratio[j]):.2e} on {paths[j]}")
