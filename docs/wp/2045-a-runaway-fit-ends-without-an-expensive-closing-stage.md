@@ -81,7 +81,7 @@ skips the closing stage.
 
 **What the runaway is, measured 2026-10-24 after the cut** (Linux x86-64
 cloud container, 4 cores, `[dev]`, Python 3.12, `OPENBLAS_NUM_THREADS=1`,
-tree `7d24e09e7`; probes in that session's scratchpad, not committed). The
+tree `7d24e09e7`; the probes are in [`2045-batch/`](2045-batch/README.md)). The
 probes ran cpd-1a → cpd-1b under `chained_all`'s protocol. They wrapped
 `refine.compile_model` and stopped at the runaway closing compile, which they
 reached in 13.6 s. The warm stage ended "converged" at `axial_sl` 555, with

@@ -26,7 +26,8 @@ the frozen model.
 
 **Measured by WP-2045's ruling session** (2026-10-24, Linux x86-64 cloud
 container, 4 cores, `[dev]`, Python 3.12, `OPENBLAS_NUM_THREADS=1`; the
-runs are in WP-2045's Context, the probes in that session's scratchpad).
+runs are in WP-2045's Context, the probes in
+[`2045-batch/`](2045-batch/README.md)).
 The case is the hostile series' cpd-1a → cpd-1b
 (`tests/test_acceptance_sequential.py`, `chained_all`):
 
