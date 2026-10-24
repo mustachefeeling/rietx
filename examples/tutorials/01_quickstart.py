@@ -77,7 +77,7 @@ diag
 # The background is a six-term [Chebyshev polynomial](https://rietx.org/docs/stable/reference/instrument.html#chebyshev-polynomial).
 # Its constant term starts at the 5th percentile of the counts, and its other five terms at zero.
 # Left at zero, the first Le Bail extraction would count all the background under each peak as peak intensity.
-# [`rx.auto_background`](https://rietx.org/docs/stable/guides/check.html#size-the-background-from-the-diagnostics) would size a penalised spline instead.
+# [`rx.auto_background(data).background`](https://rietx.org/docs/stable/guides/check.html#size-the-background-from-the-diagnostics) would size a penalised spline instead.
 # On this pattern the spline reports hundreds of correlated coefficient pairs.
 # They would crowd the diagnostics below.
 

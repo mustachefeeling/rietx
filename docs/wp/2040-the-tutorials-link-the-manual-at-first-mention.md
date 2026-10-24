@@ -20,7 +20,9 @@ comes before it is explained or linked.
 - Counted on `bc71dec`, the tutorials carry 4 to 7 links each to
   `https://rietx.org/docs/stable/…` (01: 4, 02: 4, 02b: 5, 03: 4, 04: 4, 05: 7, 06: 6).
 - `tests/test_tutorials.py::test_a_tutorial_links_only_pages_the_manual_has` fails on a link
-  to a page or anchor the manual does not have, so a link added here is checked.
+  to a page the manual does not have. It reads the Markdown sources, so it cannot see an
+  anchor. `tests/test_manual.py::test_every_anchor_a_tutorial_links_is_on_its_page` checks
+  each anchor against the built manual.
 - WP-1986 is still moving Guides pages into the new tree. A link written before it lands may
   point at a page that is about to move, which is why this WP waits for it. *Superseded in
   part, 2026-10-24:* WP-1986 retired the old tree on 2026-10-22, so every page now has its
@@ -56,6 +58,7 @@ Every concept in the table either links at its first mention or is named as havi
 ```sh
 .venv/bin/python examples/tutorials/build.py --check
 .venv/bin/python -m pytest tests/test_tutorials.py -q
+.venv/bin/python -m pytest tests/test_manual.py -k anchor -q
 ```
 
 ## References
