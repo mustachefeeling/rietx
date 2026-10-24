@@ -241,7 +241,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
       site; a `warning` sentence names a result number or plan outcome; no `where` and
       no scope fails). Existing rows enter with `response` unset and a shrink-only
       baseline, so 2004-2007 fill it as they tier.
-- [ ] The derived level: one function `level_under(diagnostic, purpose)` in
+- [x] The derived level: one function `level_under(diagnostic, purpose)` in
       `schemas/results.py` (or beside `Diagnostic`), unit-tested on the four FAP codes.
 - [ ] One filter function and the four renderers: `summary()`, `str(result)`, the HTML
       (`viz`), the GUI diagnostics panel (collapsed `info` beside help; rebuilt dist;

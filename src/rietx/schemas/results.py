@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from typing import Any, ClassVar, Literal
 
 import numpy as np
@@ -1411,6 +1412,68 @@ def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
 #: :meth:`rietx.schemas.sequential.SeriesResult.summary` the fourth, and each
 #: refuses the other's by naming where it lives — a vocabulary neither owns.
 DELIVERABLES = ("phase_id", "qpa", "structure", "series")
+
+#: The first segment of a parameter dot-path, a joint fit's ``hist.{h}.``
+#: scope included.  A ``where`` entry starting with none of them names
+#: something other than a parameter, and :func:`level_under` reads it as no
+#: path at all.
+_PATH_ROOTS = ("phases.", "instrument.", "vars.", "hist.")
+
+
+def _bears_on(path: str, globs: tuple[str, ...]) -> bool:
+    """Whether a ``where`` path names a parameter one of ``globs`` matches, or
+    an object holding one: ``phases.0.atoms.0`` is the whole site, so a glob
+    over its coordinates matches it once cut to the path's own depth."""
+    from fnmatch import fnmatchcase
+
+    if path.startswith("hist."):
+        path = path.split(".", 2)[2] if path.count(".") >= 2 else path
+    depth = path.count(".") + 1
+    return any(fnmatchcase(path, g) or fnmatchcase(path, ".".join(g.split(".")[:depth]))
+               for g in globs)
+
+
+@functools.cache
+def _code_scopes() -> dict[str, tuple[str, ...]]:
+    """Each code's declared ``scope`` from the audit table, read once a
+    process (importing the table costs about 25 ms)."""
+    from .. import _audit
+
+    return {row.name: row.scope for row in _audit.ROWS
+            if row.kind == "code" and row.scope}
+
+
+def level_under(diagnostic: Diagnostic, purpose: str) -> str:
+    """The level ``diagnostic`` carries for a caller whose purpose is ``purpose``
+    (WP-2037, clause 2 of ``docs/milestones/generality.md`` § The rule).
+
+    A level is the response a reader owes, and whether it is owed depends on
+    what the reader will quote.  So it is **derived**, never authored per code
+    per purpose: the diagnostic's own level where any of its ``where`` paths
+    is one the purpose's result numbers depend on
+    (:data:`rietx.purposes.PURPOSES`), ``info`` elsewhere.  A diagnostic
+    naming no parameter path falls back on its code's ``scope`` in the audit
+    table (the purposes it bears on, or ``("all",)``).  With neither it keeps
+    its own level under every purpose: a pairing nobody checked must not read
+    as "not your concern" (WP-1076).  An ``error`` is an error for every
+    purpose, since an unusable fit is unusable for all of them, and an
+    ``info`` stays one.
+    """
+    from ..purposes import PURPOSES
+
+    if purpose not in PURPOSES:
+        raise ValueError(f"unknown purpose {purpose!r}; one of "
+                         f"{', '.join(repr(p) for p in PURPOSES)}")
+    if diagnostic.level != "warning":
+        return diagnostic.level
+    paths = [w for w in diagnostic.where if w.startswith(_PATH_ROOTS)]
+    if paths:
+        globs = PURPOSES[purpose].depends
+        return "warning" if any(_bears_on(w, globs) for w in paths) else "info"
+    scope = _code_scopes().get(diagnostic.code)
+    if scope is None or scope == ("all",) or purpose in scope:
+        return "warning"
+    return "info"
 
 
 def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
