@@ -921,3 +921,90 @@ def test_gating_leaves_the_structural_and_po_columns_bit_identical():
     theta = table.x0()
     assert np.array_equal(_make_jacobian(gated, table)(theta),
                           _make_jacobian(ungated, table)(theta))
+
+
+# -- the column on a real fit whose reflections cross x = 1 (WP-2044) --------
+
+
+def _nac_and_fluorite():
+    """The QPA guide's first model (``examples/guides/qpa.py``), restated: the
+    guide runs on import, so it cannot be imported."""
+    import rietx as rx
+    from rietx.examples import examples_dir
+
+    def site(label, species, xyz, biso):
+        x, y, z = (rx.Parameter(value=v) for v in xyz)
+        return rx.Atom(label=label, species=species, x=x, y=y, z=z,
+                       biso=rx.Parameter(value=biso, min=0.0, max=25.0))
+
+    structure = rx.Structure.from_cif(examples_dir() / "cod_1000236.cif")
+    structure.phases.append(rx.Phase(
+        name="CaF2", space_group="F m -3 m", cell=rx.Cell.cubic(5.4631),
+        atoms=[site("Ca", "Ca2+", (0, 0, 0), 0.6),
+               site("F", "F1-", (0.25, 0.25, 0.25), 0.9)]))
+    instrument = rx.Instrument.debye_scherrer(wavelength=0.4139090)
+    instrument.profile.w.value = 2e-5
+    instrument.profile.x.value = 2e-3
+    instrument.background = rx.BackgroundChebyshev.with_terms(6)
+    return rx.Refinement(structure, instrument)
+
+
+@pytest.mark.slow
+def test_the_extinction_column_agrees_with_central_differences_on_the_qpa_fit():
+    """At the QPA guide's answer CaF₂'s reflections run past x = 1, where
+    GSAS-II's two Laue branches stepped by 3.6 %. A central difference at a
+    1e-4 relative step then straddled the step (column norm 22.47 against
+    0.1957, cosine −0.19, WP-2043), and the esd depended on whether the
+    solver's last Jacobian did. With the closed form the solver's
+    forward-difference column agrees with a central difference at every step
+    to its own truncation error (measured 6.7e-7 of the norm at 1e-4 and 1e-6),
+    so it needs no analytic replacement."""
+    import rietx as rx
+    from rietx import PatternData
+    from rietx.crystallography.lattice import cell_volume, d_spacings
+    from rietx.crystallography.structure_factor import structure_factors_squared
+    from rietx.examples import examples_dir
+    from rietx.model.forward import compile_model
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.params.vector import ParameterTable
+
+    data = rx.read_pattern(examples_dir() / "11BM_NAC.fxye")
+    ref = _nac_and_fluorite()
+    ref.fit(data, plan="mccusker_structural", two_theta_limits=(2, 24))
+
+    tt = np.asarray(data.two_theta)
+    keep = (tt >= 2) & (tt <= 24)
+    pattern = PatternData(two_theta=tt[keep].tolist(),
+                          intensity=np.asarray(data.intensity)[keep].tolist(),
+                          sigma=np.asarray(data.sigma)[keep].tolist())
+    table = ParameterTable(ref.structure, ref.instrument)
+    table.set_vary(["*"], False)
+    assert table.set_vary(["phases.1.extinction"], True)
+    model = compile_model(ref.structure, ref.instrument, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    values = table.decode(table.x0())
+
+    # the answer is only worth testing while CaF₂'s reflections cross x = 1
+    cp = model.phases[1]
+    cell = tuple(values[f"phases.1.cell.{k}"]
+                 for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    d = d_spacings(cp.reflections.hkl, *cell)
+    f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
+                                   *model._site_values(1, values, cell))
+    lam = model.line_wavelengths[0]
+    _, _, x = sabine_extinction_and_dx(f2, lam, cell_volume(*cell),
+                                       cp.reflections.two_theta(cell, lam),
+                                       values["phases.1.extinction"])
+    assert (x > 1.0).sum() >= 3, np.sort(x)[-6:]     # measured five of 11
+
+    theta = table.x0()
+    column = _make_jacobian(model, table)(theta)[:, 0]
+    residual = _make_residual(model, table)
+    for rel in (1e-4, 1e-6):
+        h = rel * abs(theta[0])
+        up, down = theta.copy(), theta.copy()
+        up[0] += h
+        down[0] -= h
+        central = (residual(up) - residual(down)) / (2.0 * h)
+        miss = np.linalg.norm(column - central) / np.linalg.norm(central)
+        assert miss < 1e-5, (rel, miss)              # measured 6.7e-7 at both

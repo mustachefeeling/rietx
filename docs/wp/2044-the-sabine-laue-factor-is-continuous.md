@@ -133,10 +133,14 @@ two truncated expansions. No threshold or automatic action is added.
       exact form if TOPAS's expression language has the functions, otherwise
       the closest it can spell, with the difference measured and reported at
       write. Its round-trip test re-run
-- [ ] The column: a test that the extinction column on the QPA guide's fit
+- [x] The column: a test that the extinction column on the QPA guide's fit
       agrees with a central difference at 1e-4 and at 1e-6. Whether an
       analytic column (`sabine_extinction_and_dx` exists) should replace the
-      forward difference is decided on that test's numbers
+      forward difference is decided on that test's numbers. *Decided
+      2026-10-24: kept.* At the answer the forward-difference column misses
+      a central difference by 6.7e-7 of its norm at every step from 1e-2 to
+      1e-8, which is its own truncation error. With GSAS-II's branches
+      patched back in, the same test misses by 100 % at 1e-4
 - [ ] `tests/test_extinction.py`: the GSAS-II transcription becomes a
       comparison within the band above, and a test asserts E_L is continuous
       at x = 1. `tests/test_cross_backend.py` rows for extinction; the
