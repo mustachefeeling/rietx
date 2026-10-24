@@ -331,20 +331,22 @@ def _cartesian_gap(cell, d) -> float:
 
 
 def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
-    """A site within :data:`TWIN_COORD_TOL` of a special position, put on it.
+    """A site within :data:`TWIN_COORD_TOL` of a special position, put on it where the gate says.
 
     ``site_orbit`` snaps a site within ``SITE_TOL`` (1e-4, fractional) of a
     special position.  A file stating the 6h site (x, 2x, ¼) of P6₃/mmc as
     (0.828, 0.657, ¼) is 1e-3 off it, so every image counts as a distinct atom
     0.005 Å from its twin and the site scatters as two atoms per position.
     Where the special position is within :data:`TWIN_COORD_TOL` of every
-    coordinate (fractional) — at any
-    occupancy, since no split site is that tight, and a co-occupant of a
-    doubled site is doubled with it — the site is taken at the special
-    position its orbit collapses to, and ``CIF_SITE_TWINS_MERGED`` says so,
-    with the site's atoms per cell before and after (the occupancy is kept,
-    so a part-occupied split pair stated that tight loses content, #1088).
-    A split site, whose images stay apart, is untouched.
+    coordinate (fractional) and the occupancy summed over the atoms at that
+    position, each × (images before / images after), is above 1
+    (:func:`.twins.applied_twin_merges`, the one gate at every boundary), the
+    unmerged model puts more than one atom at one place: the site is taken at
+    the special position its orbit collapses to, and ``CIF_SITE_TWINS_MERGED``
+    says so, with the site's atoms per cell before and after.  At most 1 the
+    stated numbers read both as one atom off its position and as a split pair
+    of part-atoms (#1088); the site is kept as stated and ``SITE_TWINS_KEPT``
+    gives both readings.  A split site, whose images stay apart, is untouched.
 
     The rule is :func:`.symmetry.site_twin_merge`'s, which
     :func:`.twins.merge_site_twins` applies at every other boundary that builds
@@ -355,13 +357,23 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
     vol. A (Wyckoff positions), with the tolerance-based site-symmetry search
     of Grosse-Kunstleve & Adams (2002), Acta Cryst. A58, 60.
     """
-    from .symmetry import site_twin_merge
-    from .twins import _content_change
+    from .twins import _content_change, _kept_message, applied_twin_merges
 
+    xyzs = [np.array([a.x.value, a.y.value, a.z.value]) for a in atoms]
+    applied, kept = applied_twin_merges(sg, cell, xyzs,
+                                        [a.occ.value for a in atoms])
     out = []
-    for atom in atoms:
-        xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
-        merge = site_twin_merge(sg, cell, xyz)
+    for j, atom in enumerate(atoms):
+        xyz = xyzs[j]
+        if j in kept and diagnostics is not None:
+            merge = kept[j]
+            message, suggestion = _kept_message(
+                atom, None, path, xyz, merge,
+                [float(v) for v in merge.position])
+            diagnostics.append(Diagnostic(
+                level="warning", code="SITE_TWINS_KEPT", where=[atom.label],
+                value=merge.gap, message=message, suggestion=suggestion))
+        merge = applied.get(j)
         if merge is None:
             out.append(atom)
             continue
@@ -371,7 +383,7 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
             n: getattr(atom, n).model_copy(update={"value": v})
             for n, v in zip("xyz", snapped)}))
         if diagnostics is not None:
-            content, keep = _content_change(atom.occ.value, merge)
+            content = _content_change(atom.occ.value, merge)
             diagnostics.append(Diagnostic(
                 level="warning", code="CIF_SITE_TWINS_MERGED",
                 where=[atom.label], value=gap,
@@ -383,8 +395,7 @@ def _merge_twins(path: str, sg, cell, atoms, diagnostics) -> list:
                     f"{[round(v, 6) for v in snapped]} "
                     f"({merge.after} positions), with its occupancy unchanged. "
                     f"{content}"),
-                suggestion=("Check the coordinates against the source."
-                            + (f" {keep}" if keep else ""))))
+                suggestion="Check the coordinates against the source."))
     return out
 
 
@@ -926,7 +937,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     if diagnostics is not None:
         # after the last site is merged or dropped, so every path below names
         # the site it is about
-        _locate(diagnostics, atoms, {"CIF_SITE_TWINS_MERGED", "CIF_SITE_LISTED_TWICE",
+        _locate(diagnostics, atoms, {"CIF_SITE_TWINS_MERGED", "SITE_TWINS_KEPT", "CIF_SITE_LISTED_TWICE",
                                       "SITE_SNAPPED_TO_SPECIAL_POSITION",
                                       "CIF_SITE_MULTIPLICITY_DISAGREES"},
                 start=first_own, repeats=repeats)

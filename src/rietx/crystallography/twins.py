@@ -14,7 +14,7 @@ to the next result they return.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 import numpy as np
 
@@ -37,35 +37,18 @@ def _num(v: float) -> str:
     return f"{v:.4g}"
 
 
-def _content_change(occ: float, merge: TwinMerge) -> tuple[str, str]:
-    """The merge's atoms per cell both ways, and how to keep a split pair's content.
+def _content_change(occ: float, merge: TwinMerge) -> str:
+    """The merge's atoms per cell both ways, for the message.
 
-    Returns ``(observation, keep)``: two sentences for the message and one for
-    the suggestion.  The merge keeps the stated occupancy (#765's reading: the
-    occupancy is the special position's), so the site's content goes from
-    ``before × occ`` to ``after × occ`` atoms per cell.  That is right for a
-    special position stated off by rounding.  For a split pair of
-    part-atoms that a fit or a file left within the merge's reach of its own image it
-    divides the content by ``before/after`` (#1088), so where that reading is
-    possible (occupancy below 1, and the pair's summed occupancy ``occ ×
-    before/after`` not above 1) the message says so, and ``keep`` gives the
-    occupancy that restores it.  Otherwise ``keep`` is empty.
+    The merge keeps the stated occupancy, so the site's content goes from
+    ``before × occ`` to ``after × occ`` atoms per cell.  It happens only where
+    the unmerged model puts more than one atom at one place
+    (:func:`applied_twin_merges`), so the split-pair reading, which would
+    divide the content by ``before/after``, is the kept branch's to say.
     """
-    ratio = merge.before / merge.after
-    sentences = (f"Atoms per cell (multiplicity × occupancy): {merge.before} × {_num(occ)} = "
-                 f"{_num(merge.before * occ)} → {merge.after} × {_num(occ)} = "
-                 f"{_num(merge.after * occ)}.")
-    restated = occ * ratio
-    if not (occ < 1.0 and round(restated, 6) <= 1.0):
-        return sentences, ""
-    how = "halved" if merge.before == 2 * merge.after else f"divided by {_num(ratio)}"
-    sentences += (f" If the site was a split pair of part-atoms rather than "
-                  f"one atom stated off its position, the merge {how} its "
-                  f"content.")
-    keep = (f"To keep a split pair's content, restate the site on the "
-            f"special position at occupancy {_num(restated)}, or state it "
-            f"more than {_num(TWIN_COORD_TOL)} (fractional) from that position.")
-    return sentences, keep
+    return (f"Atoms per cell (multiplicity × occupancy): {merge.before} × {_num(occ)} = "
+            f"{_num(merge.before * occ)} → {merge.after} × {_num(occ)} = "
+            f"{_num(merge.after * occ)}.")
 
 
 def _fixed_by_symmetry(atom, sg, position: np.ndarray, diagnostics_note: list[str]):
@@ -119,14 +102,14 @@ def _fixed_by_symmetry(atom, sg, position: np.ndarray, diagnostics_note: list[st
     return update
 
 
-def _kept_message(atom, phase, source: str | None, xyz, merge: TwinMerge,
+def _kept_message(atom, phase_name: str | None, source: str | None, xyz, merge: TwinMerge,
                   position: list[float]) -> tuple[str, str]:
     """Message and suggestion for a site left as stored, whose merge would lose content."""
     occ = atom.occ.value
     ratio = merge.before / merge.after
     message = (
-        f"{source + ': ' if source else ''}site {atom.label!r} of phase "
-        f"{phase.name!r} is stated at {[round(float(v), 6) for v in xyz]}, "
+        f"{source + ': ' if source else ''}site {atom.label!r}"
+        f"{f' of phase {phase_name!r}' if phase_name else ''} is stated at {[round(float(v), 6) for v in xyz]}, "
         f"where it puts {merge.before} positions in the cell in pairs "
         f"{merge.gap:.2g} Å apart; nothing was moved. The coordinates cannot "
         f"say which of two things this is. One atom stated off its special "
@@ -176,6 +159,46 @@ def _dof_moves(sg, before: np.ndarray, after: np.ndarray, prefix: str
     return moves
 
 
+def numbering_moves(old: Structure, new: Structure
+                    ) -> dict[str, tuple[str | None, float]]:
+    """Where each coordinate DOF of ``old`` goes in ``new``, wherever a site's DOFs differ.
+
+    The one reading of "this structure's DOF numbering changed", whatever
+    changed it: a merge, a coordinate a fit landed within 5e-5 of a mirror
+    (which :func:`~.symmetry.site_orbit` already counts as special, so no
+    merge fires), a value ``set_values`` wrote.  A holder of a hold, tie, free
+    path or stored path applies it with :func:`carry_constraints`, so the
+    carry does not depend on which route moved the site (#1014 round 5, items
+    2-6).  Phases and atoms are matched by position and label; a phase whose
+    group or atom list changed is a different model and is left to the
+    caller's own reconciliation.
+    """
+    moves: dict[str, tuple[str | None, float]] = {}
+    for i, (po, pn) in enumerate(zip(old.phases, new.phases, strict=False)):
+        if (po.space_group != pn.space_group
+                or [a.label for a in po.atoms] != [a.label for a in pn.atoms]):
+            continue
+        try:
+            sg = resolve_group(pn.space_group, pn.symmetry_operations)
+        except (ValueError, RuntimeError):
+            continue
+        for j, (ao, an) in enumerate(zip(po.atoms, pn.atoms, strict=True)):
+            xo = np.array([ao.x.value, ao.y.value, ao.z.value])
+            xn = np.array([an.x.value, an.y.value, an.z.value])
+            if np.array_equal(xo, xn):
+                continue
+            try:
+                bo = coordinate_basis(stabilizer_rotations(sg, xo))
+                bn = coordinate_basis(stabilizer_rotations(sg, xn))
+            except ValueError:
+                continue
+            if len(bo) == len(bn) and np.array_equal(
+                    np.asarray(bo), np.asarray(bn)):
+                continue
+            moves.update(_dof_moves(sg, xo, xn, f"phases.{i}.atoms.{j}"))
+    return moves
+
+
 def carry_constraints(moves: dict[str, tuple[str | None, float]], *,
                       holds: Iterable[str] = (),
                       ties: dict[str, TieSpec] | None = None,
@@ -204,7 +227,7 @@ def carry_constraints(moves: dict[str, tuple[str | None, float]], *,
             new = one(path)
             if new is None:
                 notes.append(f"the {what} on {path} was dropped: the special "
-                             f"position fixes that direction")
+                             f"position fixes or couples that direction")
                 continue
             if new != path:
                 notes.append(f"the {what} on {path} now reads {new}")
@@ -254,20 +277,87 @@ def carry_state_constraints(state, moves: dict[str, tuple[str | None, float]],
 
 
 def _same_site(sg, a: np.ndarray, b: np.ndarray) -> bool:
-    """Whether ``b`` is, to roundoff, an image of ``a`` under the group."""
+    """Whether ``b`` is an image of ``a`` under the group, within the merge's reach.
+
+    Grouped at :data:`~.symmetry.TWIN_COORD_TOL` per coordinate, the reach the
+    merge itself moves a site by: an unmerged model puts co-occupants that
+    close at one place, and a fit moves them apart by that much unless they
+    are tied (#1014, round 5).
+    """
     for image in expand_positions(sg, a):
         d = np.asarray(image, dtype=np.float64) - b
-        if np.all(np.abs(d - np.round(d)) <= 1e-6):
+        if np.all(np.abs(d - np.round(d)) <= TWIN_COORD_TOL * (1.0 + 1e-9)):
             return True
     return False
 
 
+def applied_twin_merges(sg, cell, xyzs: Sequence[np.ndarray | None],
+                        occs: Sequence[float]
+                        ) -> tuple[dict[int, TwinMerge], dict[int, TwinMerge]]:
+    """Which sites' coinciding images the merge acts on, and which it leaves as stored.
+
+    ``xyzs[j]`` is site j's stated position, ``None`` for a site that takes no
+    part (a rigid-body atom); ``occs[j]`` its occupancy.  Returns
+    ``(applied, kept)``, each ``{j: TwinMerge}``.  One gate at every boundary,
+    readers included (maintainer's ruling, #1014 round 5): where the occupancy
+    at the site's position, summed over every atom there with each × (images
+    before / images after), is above 1, the unmerged model puts more than one
+    atom at one place and the merge is arithmetic.  At most 1 the stated
+    numbers read both as one atom off its position and as a split pair of
+    part-atoms (#1088): that site is *kept*, and the caller says both readings.
+    The sum is over the atoms sharing the position (Fe 0.5 and Mn 0.5 on one
+    site is 1 per position, doubled by the collapse), never per atom.  GSAS-II
+    drops an image only within 2e-4 fractional, FullProf and BGMN not at all,
+    TOPAS only on request.
+    """
+    found: dict[int, TwinMerge] = {}
+    for j, xyz in enumerate(xyzs):
+        if xyz is None:
+            continue
+        try:
+            merge = site_twin_merge(sg, cell, xyz)
+        except ValueError:
+            continue             # an orbit refusal speaks at compile
+        if merge is not None:
+            found[j] = merge
+
+    def position_of(j: int) -> np.ndarray | None:
+        """Where atom j sits as the merge would leave it, for sharing."""
+        if j in found:
+            return found[j].position
+        xyz = xyzs[j]
+        if xyz is None:
+            return None
+        try:
+            return np.asarray(site_orbit(sg, xyz).position)
+        except ValueError:
+            return None
+
+    def per_position(j: int) -> float:
+        here = found[j].position
+        total = 0.0
+        for k in range(len(xyzs)):
+            if k != j:
+                other = position_of(k)
+                if other is None or not _same_site(sg, here, other):
+                    continue
+            ratio = found[k].before / found[k].after if k in found else 1.0
+            total += occs[k] * ratio
+        return total
+
+    applied: dict[int, TwinMerge] = {}
+    kept: dict[int, TwinMerge] = {}
+    for j, merge in found.items():
+        if round(per_position(j), 6) <= 1.0:
+            kept[j] = merge
+        else:
+            applied[j] = merge
+    return applied, kept
+
+
 def merge_site_twins(structure: Structure, *,
                      diagnostics: list[Diagnostic] | None = None,
-                     source: str | None = None,
-                     keep_part_occupied: bool = False,
-                     moves: dict[str, tuple[str | None, float]] | None = None
-                     ) -> Structure:
+                     source: str | None = None) -> Structure:
     """``structure`` with every site whose own images coincide moved onto its position.
 
     A site whose special position lies within
@@ -283,24 +373,14 @@ def merge_site_twins(structure: Structure, *,
     position fixes lose ``vary``, and an anisotropic tensor is projected onto
     the allowed patterns, each said in the message (otherwise the parameter
     table refuses the merged model, #1014).  The coordinate DOFs of a site that
-    gains symmetry renumber, and ``moves``, when given, receives for each old
-    ``…dof.k`` its new path (or ``None``) and scale, for
-    :func:`carry_constraints`.
+    gains symmetry renumber; :func:`numbering_moves` reads that off two
+    structures, for :func:`carry_constraints`.
 
-    ``keep_part_occupied`` is the stance of a boundary that holds a *model*
-    rather than reads a file (``RefinementTree.load`` and the ``Refinement``
-    verbs).  Where the occupancy summed over every atom at that position,
-    each × (images before / images after), is at most 1, the stated numbers
-    read both as one atom off its position and as a split pair of part-atoms
-    (#1088), and no other code merges a fit-made coordinate by default
-    (GSAS-II drops an image only within 2e-4 fractional, FullProf and BGMN not
-    at all, TOPAS only on request).  There the site is **left as stored** and
-    ``SITE_TWINS_KEPT`` gives both readings.  Above 1 the unmerged model puts
-    more than one atom at one place, so the merge is physics and happens either
-    way; the sum is over the atoms sharing the position (Fe 0.5 and Mn 0.5 on
-    one site is 1 per position, doubled by the collapse), never per atom.  A
-    file reader keeps the occupancy the file states per site and merges as
-    before.
+    Which sites merge is :func:`applied_twin_merges`'s one gate: a site whose
+    occupancy summed over the atoms at its position, each × (images before /
+    images after), is at most 1 is **left as stored** and ``SITE_TWINS_KEPT``
+    gives both readings; above 1 the merge is arithmetic and happens, with the
+    stated occupancy kept.
 
     ``source`` prefixes the message (a file path, as the readers' messages do).
 
@@ -318,50 +398,23 @@ def merge_site_twins(structure: Structure, *,
         bodied = {label for body in phase.rigid_bodies for label in body.atoms}
         cell = phase.cell.lengths_angles()
         atoms = list(phase.atoms)
-        found: dict[int, TwinMerge] = {}
-        stated: dict[int, np.ndarray] = {}
-        for j, atom in enumerate(atoms):
-            if atom.label in bodied:
-                continue
-            xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
-            stated[j] = xyz
-            try:
-                merge = site_twin_merge(sg, cell, xyz)
-            except ValueError:
-                continue         # an orbit refusal speaks at compile
-            if merge is not None:
-                found[j] = merge
-
-        def position_of(j: int) -> np.ndarray | None:
-            """Where atom j sits as the merge would leave it, for sharing."""
-            if j in found:
-                return found[j].position
-            try:
-                return np.asarray(site_orbit(sg, stated[j]).position)
-            except ValueError:
-                return None
-
-        def per_position(j: int) -> float:
-            """Occupancy at atom j's position, each atom weighted by its own collapse."""
-            here = found[j].position
-            total = 0.0
-            for k in stated:
-                other = position_of(k)
-                if k != j and (other is None or not _same_site(sg, here, other)):
-                    continue
-                ratio = found[k].before / found[k].after if k in found else 1.0
-                total += atoms[k].occ.value * ratio
-            return total
+        stated = {j: np.array([a.x.value, a.y.value, a.z.value])
+                  for j, a in enumerate(atoms)}
+        applied, kept = applied_twin_merges(
+            sg, cell,
+            [None if a.label in bodied else stated[j] for j, a in enumerate(atoms)],
+            [a.occ.value for a in atoms])
+        found = {**applied, **kept}
 
         moved_any = False
         for j, merge in found.items():
             atom = atoms[j]
             xyz = stated[j]
             position = [float(v) for v in merge.position]
-            if keep_part_occupied and round(per_position(j), 6) <= 1.0:
+            if j in kept:
                 if diagnostics is not None:
                     message, suggestion = _kept_message(
-                        atom, phase, source, xyz, merge, position)
+                        atom, phase.name, source, xyz, merge, position)
                     diagnostics.append(Diagnostic(
                         level="warning", code="SITE_TWINS_KEPT",
                         where=[f"phases.{i}.atoms.{j}"], value=merge.gap,
@@ -371,11 +424,8 @@ def merge_site_twins(structure: Structure, *,
             atoms[j] = atom.model_copy(update=_fixed_by_symmetry(
                 atom, sg, np.array(position), notes))
             moved_any = True
-            if moves is not None:
-                moves.update(_dof_moves(sg, xyz, np.array(position),
-                                        f"phases.{i}.atoms.{j}"))
             if diagnostics is not None:
-                content, keep = _content_change(atom.occ.value, merge)
+                content = _content_change(atom.occ.value, merge)
                 diagnostics.append(Diagnostic(
                     level="warning", code="SITE_TWINS_MERGED",
                     where=[f"phases.{i}.atoms.{j}"], value=merge.gap,
@@ -392,9 +442,9 @@ def merge_site_twins(structure: Structure, *,
                         "check the coordinate against its source: a special "
                         "position stated a few 1e-5 off (a hand edit, a "
                         "rounded project file) is the usual cause. "
-                        + (keep or f"To keep a genuinely displaced atom, state "
-                           f"it more than {_num(TWIN_COORD_TOL)} (fractional) "
-                           f"from the special position."))))
+                        + f"To keep a genuinely displaced atom, state "
+                        f"it more than {_num(TWIN_COORD_TOL)} (fractional) "
+                        f"from the special position.")))
         if moved_any:
             # model_copy skips validation on purpose: the move is the repair,
             # and an assignment would re-run every validator of the phase

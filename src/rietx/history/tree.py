@@ -13,7 +13,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ..crystallography.twins import carry_state_constraints, merge_site_twins
+from ..crystallography.twins import (
+    carry_state_constraints,
+    merge_site_twins,
+    numbering_moves,
+)
 from ..schemas.common import SCHEMA_VERSION, Diagnostic
 from ..schemas.history import (
     Annotation,
@@ -41,6 +45,10 @@ def _utcnow() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+#: What ``carry_state_constraints`` puts between a message and its constraint note.
+_CONSTRAINTS = " Constraints: "
+
+
 def _merge_stored_twins(pending: Sequence[Any]) -> list[Diagnostic]:
     """Put each stored site whose own images coincide on its special position.
 
@@ -57,11 +65,10 @@ def _merge_stored_twins(pending: Sequence[Any]) -> list[Diagnostic]:
         if not isinstance(item, HistoryNode):
             continue
         local: list[Diagnostic] = []
-        moves: dict = {}
         merged = merge_site_twins(item.state.structure, diagnostics=local,
-                                  source="this history",
-                                  keep_part_occupied=True, moves=moves)
+                                  source="this history")
         if local:
+            moves = numbering_moves(item.state.structure, merged)
             item.state.structure = merged
             carry_state_constraints(item.state, moves, local)
         for d in local:
@@ -69,8 +76,16 @@ def _merge_stored_twins(pending: Sequence[Any]) -> list[Diagnostic]:
     out: list[Diagnostic] = []
     for group in found.values():
         first = group[0]
-        out.append(first if len(group) == 1 else first.model_copy(update={
-            "message": f"{first.message} (stored in {len(group)} nodes)"}))
+        # every node's own constraint note, said once: the first node is often
+        # the root, which holds nothing, while a later one holds the hold
+        # (#1014, round 5)
+        head = first.message.split(_CONSTRAINTS, 1)[0]
+        notes = list(dict.fromkeys(
+            part for d in group for part in d.message.split(_CONSTRAINTS)[1:]))
+        message = head + "".join(_CONSTRAINTS + n for n in notes)
+        if len(group) > 1:
+            message += f" (stored in {len(group)} nodes)"
+        out.append(first.model_copy(update={"message": message}))
     return out
 
 

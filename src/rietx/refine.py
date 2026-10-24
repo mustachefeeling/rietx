@@ -49,6 +49,7 @@ from .crystallography.twins import (
     carry_constraints,
     carry_state_constraints,
     merge_site_twins,
+    numbering_moves,
 )
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
@@ -2241,11 +2242,10 @@ class Refinement:
         assigned after a phase was built never re-validates it.  What moved is
         held in ``_twin_findings`` for the next result.
         """
-        moves: dict = {}
+        before = self.structure
         found: list[Diagnostic] = []
-        self.structure = merge_site_twins(self.structure, diagnostics=found,
-                                          keep_part_occupied=True, moves=moves)
-        self._carry_twin_moves(moves, found)
+        self.structure = merge_site_twins(self.structure, diagnostics=found)
+        self._carry_twin_moves(numbering_moves(before, self.structure), found)
         self._twin_findings.extend(found)
 
     def _carry_twin_moves(self, moves: dict, found: list[Diagnostic]) -> None:
@@ -2279,6 +2279,15 @@ class Refinement:
                     found[n] = d.model_copy(update={
                         "message": d.message + " Constraints: "
                         + "; ".join(notes) + "."})
+                    break
+            else:
+                found.append(Diagnostic(
+                    level="warning", code="SITE_DOFS_RENUMBERED", where=[site],
+                    message=(f"site {site} gained symmetry, so its coordinate "
+                             f"directions were renumbered: " + "; ".join(notes)
+                             + "."),
+                    suggestion="check the holds and ties on this site's "
+                               "coordinates against parameters()."))
 
     def _drain_twin_findings(self) -> list[Diagnostic]:
         """The merges no result has reported yet; each is reported once."""
@@ -2385,6 +2394,10 @@ class Refinement:
         # rather than aliased so a later ``edit`` on either side cannot mutate
         # the other's reference.
         ref._declared_wavelengths = list(self._declared_wavelengths)
+        # ``ref`` was built from this structure and merged it on construction,
+        # before it held any constraint; they follow its DOFs now
+        ref._carry_twin_moves(numbering_moves(self.structure, ref.structure),
+                              ref._twin_findings)
 
     def edit(self, *, structure: Structure | None = None,
              instrument: Instrument | None = None, label: str = "") -> str | None:
@@ -2424,9 +2437,8 @@ class Refinement:
         # a proposed structure meets the twin merge before its table is built,
         # since moving a site changes the symmetry its table is checked against
         merged: list[Diagnostic] = []
-        moves: dict = {}
-        candidate = merge_site_twins(candidate, diagnostics=merged,
-                                     keep_part_occupied=True, moves=moves)
+        if structure is not None:
+            candidate = merge_site_twins(candidate, diagnostics=merged)
         # No magnetic-group judgement here: ``edit`` receives refined state
         # plus one change (the GUI's funnel for every model edit), which is the
         # case :func:`_refined_state` exists for (issue #597).
@@ -2442,8 +2454,7 @@ class Refinement:
         # register it leaves is the one the node carries, and a tie that stopped
         # applying is said once — at the edit that ended it — instead of on
         # every listing afterwards (WP-1070).
-        if structure is not None:
-            self._carry_twin_moves(moves, merged)
+        self._carry_twin_moves(numbering_moves(self.structure, candidate), merged)
         self._declare_variables(table)
         applied = self._apply_ties(table)
         self._ties = {p: s for p, s in self._ties.items() if p in applied}
@@ -2781,7 +2792,13 @@ class Refinement:
         parameter nothing writes is the shape WP-1076 removes, and one added
         here would fail no test.
         """
+        before = self.structure.model_copy(deep=True)
         table.apply_to_models(self.structure, self.instrument)
+        # a coordinate written within reach of a special position renumbers
+        # its DOFs, and the constraints must follow wherever it was written
+        # (#1014, round 5)
+        self._carry_twin_moves(numbering_moves(before, self.structure),
+                               self._twin_findings)
         if not self._variables:
             return
         values = {e.path: e.value for e in table.entries}
@@ -9853,10 +9870,9 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
 
     state = node.state
     twins: list[Diagnostic] = []
-    moves: dict = {}
     structure = merge_site_twins(state.structure.model_copy(deep=True),
-                                 diagnostics=twins, keep_part_occupied=True,
-                                 moves=moves)
+                                 diagnostics=twins)
+    moves = numbering_moves(state.structure, structure)
     if moves:
         state = state.model_copy(deep=True)
         carry_state_constraints(state, moves, twins)

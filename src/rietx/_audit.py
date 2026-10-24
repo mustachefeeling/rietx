@@ -754,29 +754,35 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code"),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code"),
+    Row("SITE_DOFS_RENUMBERED", "code", tier=1, ambiguity=1,
+        evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
+                  "between two structures (a coordinate a fit or set_values left within "
+                  "reach of a special position, with no merge) and a hold, user tie or free "
+                  "path sat on one of them; it names what followed its direction and what "
+                  "was dropped because the position fixes or couples it. The direction of a "
+                  "DOF is the nullspace of the site group, so the map is derived, never "
+                  "chosen (#1014, round 5)")),
     Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,
-        evidence=("arithmetic: fires exactly when a model-side boundary (RefinementTree.load, a "
-                  "Refinement verb) finds a site within TWIN_COORD_TOL of its special position "
-                  "and the occupancy at that position, summed over the atoms sharing it and each "
-                  "x (images before / after), is <= 1, so the numbers read both as one atom off "
-                  "its position and as a split pair (#1088). It acts on nothing: it reports two "
-                  "readings with their occupancies and stops, because which one the file meant "
-                  "is a fact outside it (DESIGN.md Rules, 1, third kind; maintainer's review of "
-                  "#1014, round 4). Maintainer's ruling on #1014 (round 3): no other code merges "
-                  "a fit-made coordinate by default")),
-    Row("SITE_TWINS_MERGED", "code", tier=2, ambiguity=1,
-        evidence=("fires when a site within TWIN_COORD_TOL of its special position was moved "
-                  "onto it; reports the atoms per cell before and after (multiplicity x "
-                  "occupancy), and what became of a hold or tie on a renumbered coordinate "
-                  "DOF. The whole code is tier 2 because its two branches share one row and "
-                  "one row takes one tier (maintainer's review of #1014, round 4). Model-side "
-                  "branch: merges only where the occupancy at the position, summed over the "
-                  "atoms sharing it, x (before / after) exceeds 1, since the unmerged model "
-                  "then puts more than one atom at one place (arithmetic, tier 1). Reader "
-                  "branch: the file's stated occupancy is kept, as GSAS-II's GenAtom keeps it "
-                  "when it drops an image within 2e-4 fractional (GSASIIspc.py 2236-2239, per "
-                  "the maintainer's reading of 5.8.4): the evidence for that branch is "
-                  "GSAS-II's default, hence tier 2 (PR #1014)")),
+        evidence=("arithmetic: fires exactly when a boundary, reader or model side, finds a "
+                  "site within TWIN_COORD_TOL of its special position and the occupancy at "
+                  "that position, summed over the atoms sharing it and each x (images before "
+                  "/ after), is <= 1, so the numbers read both as one atom off its position "
+                  "and as a split pair (#1088). It acts on nothing: it reports two readings "
+                  "with their occupancies and stops, because which one the file meant is a "
+                  "fact outside it (DESIGN.md Rules, 1, third kind; maintainer's review of "
+                  "#1014, round 4). One gate at every boundary, readers included "
+                  "(maintainer's ruling, round 5): GSAS-II drops an image only within 2e-4 "
+                  "fractional, FullProf and BGMN not at all")),
+    Row("SITE_TWINS_MERGED", "code", tier=1, ambiguity=1,
+        evidence=("arithmetic: fires when a site within TWIN_COORD_TOL of its special "
+                  "position was moved onto it, and under the one gate at every boundary "
+                  "(reader or model side) only where the occupancy at the position, summed "
+                  "over the atoms sharing it, x (images before / after), exceeds 1: the "
+                  "unmerged model then puts more than one atom at one place. It reports the "
+                  "atoms per cell before and after (multiplicity x occupancy), and what "
+                  "became of a hold or tie on a renumbered coordinate DOF (maintainer's "
+                  "review of #1014, round 5; the GSAS-II citation of round 4 no longer "
+                  "supports the row)")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code"),
     Row("SIZE_UNUSUALLY_SMALL", "code"),
     Row("SOLVE_B_TIED_PER_PARENT_SITE", "code", tier="caller", ambiguity=2,
@@ -1104,16 +1110,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry.SITE_TOL", "constant", value=0.0001),
     Row("rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG", "constant", value=0.001),
     Row("rietx.crystallography.symmetry.TWIN_COORD_TOL", "constant", tier=1, value=0.0005,
-        evidence=("arithmetic on print precision, the maintainer's proposal on #1014 (round 4): "
-                  "a coordinate printed to three decimals is consistent with a special position "
-                  "when it lies within half a unit of its last digit, 5e-4. It covers 0.333 for "
-                  "1/3 (3.3e-4) and y = 0.2504 for 1/4 (4e-4), and not y = 0.251, which at its "
-                  "own precision excludes 0.25: a caller with y = 0.251 on a Pnma mirror site "
-                  "sees nothing moved, nothing said, and the 8 positions the coordinates state. "
-                  "Fractional, so the reach in A does not grow with the cell. For comparison "
-                  "GSAS-II 5.8.4 drops an image within 2e-4 per coordinate. The case the "
-                  "arithmetic does not cover is a coordinate printed to two decimals (0.33 "
-                  "for 1/3, 3.3e-3 off), which is outside the reach and so stays general")),
+        evidence=("arithmetic on the gate's role: under the one gate the reach decides only "
+                  "whether atoms that would overfill one place are the same place, so the "
+                  "bar is a distance. 5e-4 of a cell edge is 0.002 A on a 4 A axis and 0.02 "
+                  "A on a 40 A one (fractional, so it follows the cell), against the ~1 A "
+                  "at which two different atoms can share a cell. A fit's coordinate carries no "
+                  "precision, so none is assumed. The cell edge at which a real split pair "
+                  "0.2 A apart enters the reach is 400 A (0.2 / 5e-4)")),
     Row("rietx.crystallography.symmetry.TWIN_DISTANCE", "constant", value=0.02,
         evidence=("unaudited, for the maintainer's tier and approval. After #1014's round 4 it "
                   "no longer decides a site's own twin (TWIN_COORD_TOL does); it remains the "
@@ -2674,15 +2677,17 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_UNRECOVERED.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_WIDTH_GROWTH.suggestion", "suggestion", value=1),
     Row("SERIES_PATTERN_FAILED.suggestion", "suggestion", value=1),
+    Row("SITE_DOFS_RENUMBERED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: points at parameters() for the site, where the renumbered "
+                  "paths are listed; it states no value")),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION.suggestion", "suggestion", value=2),
-    Row("SITE_TWINS_KEPT.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+    Row("SITE_TWINS_KEPT.suggestion", "suggestion", tier=1, ambiguity=1, value=2,
         evidence=("arithmetic: names the special-position occupancy each reading implies "
                   "(occ for one atom off its position, occ x before/after for a split pair) "
                   "and TWIN_COORD_TOL, read from the constant")),
     Row("SITE_TWINS_MERGED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
-        evidence=("arithmetic: names the coordinate's source and the restatement (special "
-                  "position at the occupancy that keeps a split pair, or at least "
-                  "more than TWIN_COORD_TOL from the position, read from the constant) that keeps a "
+        evidence=("arithmetic: names the coordinate's source and the restatement (more than "
+                  "TWIN_COORD_TOL from the position, read from the constant) that keeps a "
                   "real displacement")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", value=1),
     Row("SIZE_UNUSUALLY_SMALL.suggestion", "suggestion", value=1),

@@ -82,12 +82,11 @@ The multiplicity decides how many atoms a site puts in the cell, so it sets the 
 Compare it against the file's own `_atom_site_symmetry_multiplicity`.
 
 Two more repairs guard the same count.
-A site within 5e-4 (fractional, per coordinate) of a special position, further off than a snap reaches, is one atom counted twice (a coordinate printed to three decimals is consistent with a special position within half its last digit: `y = 0.2504` is, `y = 0.251` is not), so it is moved onto the special position they collapse to, at every boundary that can say so.
-A CIF read says so with [`CIF_SITE_TWINS_MERGED`](diagnostics-structures.md#cif_site_twins_merged).
-The project readers' `to_structure` say `SITE_TWINS_MERGED` on their own `diagnostics=`, keeping the occupancy the file states.
-`RefinementTree.load` and `Refinement` construction, `edit`, `set_values` and `checkout` hold a model rather than a file.
-There a site is merged only where occupancy × (images before / images after) is above 1, since the site left as stored would put more than one atom at one place, and the result says `SITE_TWINS_MERGED` (on `RefinementTree.load`'s `diagnostics=`, or on the next `fit` or `run_stage` result).
+A site within 5e-4 (fractional, per coordinate) of a special position, further off than a snap reaches, may be one atom counted twice, so it is moved onto the special position they collapse to, at every boundary that can say so, where the site as stored would put more than one atom at one place.
+The gate is the same at every boundary, readers included: the occupancy at the position, summed over the atoms sharing it and each × (images before / images after), must be above 1.
+A CIF read says a merge with [`CIF_SITE_TWINS_MERGED`](diagnostics-structures.md#cif_site_twins_merged); the project readers' `to_structure` say `SITE_TWINS_MERGED` on their own `diagnostics=`; `RefinementTree.load` and `Refinement` construction, `edit`, `set_values` and `checkout` say it on `RefinementTree.load`'s `diagnostics=` or on the next `fit` or `run_stage` result.
 Where the product is 1 or below, the stated numbers read both as one atom off its position and as a split pair of part-atoms, so the site is left as stored and `SITE_TWINS_KEPT` gives both readings and the occupancy each implies.
+A hold, user tie or free path on a coordinate degree of freedom follows its direction when a site gains symmetry, on every route that moves the site (a fit's write-back, `set_values`, `edit`, a branch, a stored history); one on a direction the position fixes or couples is dropped, and `SITE_TWINS_MERGED` or `SITE_DOFS_RENUMBERED` names it.
 A merged site's coordinates that the position fixes lose `vary`, and an anisotropic tensor is projected onto the tensors the position allows, so the merged model still builds its table.
 `Phase` itself stays strict: a phase built in code with a twin site is held as stated until it enters one of those.
 The merge keeps the occupancy, so the site's atoms per cell change with its multiplicity, and each message gives both counts (multiplicity × occupancy).

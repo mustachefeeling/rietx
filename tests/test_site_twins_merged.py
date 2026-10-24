@@ -196,26 +196,23 @@ def _atoms_per_cell(xyz, occ: float) -> float:
     return site_orbit(resolve_group(_PNMA[0], None), np.array(xyz)).multiplicity * occ
 
 
-def test_a_half_occupied_site_says_its_content_was_halved():
-    """The positive arm: 8 × ½ = 4 → 4 × ½ = 2, said in the message, and the
-    suggestion's occupancy restores the content the site was stated with."""
+def test_a_half_occupied_site_is_kept_with_both_readings():
+    """The gate is one at every boundary, readers included (ruling 1, round 5):
+    8 × ½ = 4 → 4 × ½ = 2 would lose content if the site were a split pair, so
+    the site stays as stated and both readings are said."""
     assert (_atoms_per_cell(_OFF, 0.5), _atoms_per_cell(_ON, 0.5)) == (4.0, 2.0)
-    merged, found = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
-    assert _counts(merged.phases[0])["Fe"] == 2                # what the merge left
+    structure = Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)])
+    merged, found = _merge(structure)
+    assert merged is structure
     (d,) = found
-    assert d.code == "SITE_TWINS_MERGED" and d.value < 0.01
-    assert ("Atoms per cell (multiplicity × occupancy): "
-            "8 × 0.5 = 4 → 4 × 0.5 = 2.") in d.message
-    assert "split pair" in d.message and "halved its content" in d.message
-    assert "at occupancy 1," in d.suggestion
-    # the suggestion's route is the right one: on 4c at occupancy 1 the site
-    # holds the 4 atoms per cell it was stated with
-    restated = _phase(*_PNMA, _ON, occ=1.0)
-    assert _counts(restated)["Fe"] == _atoms_per_cell(_OFF, 0.5) == 4
+    assert d.code == "SITE_TWINS_KEPT" and d.value < 0.01
+    assert "or at occupancy 1 if it is a split pair" in d.suggestion
+    # the stated site holds the 4 atoms per cell it was stated with
+    assert _counts(merged.phases[0])["Fe"] == 4
 
 
-def test_the_cif_route_states_the_same_content(tmp_path):
-    """``CIF_SITE_TWINS_MERGED`` carries the same numbers on the reader's channel."""
+def test_the_cif_route_keeps_a_half_occupied_site_and_says_both_readings(tmp_path):
+    """The CIF reader meets the same gate on its own channel."""
     path = tmp_path / "half.cif"
     path.write_text(
         "data_half\n_cell_length_a 7.0\n_cell_length_b 8.0\n_cell_length_c 6.0\n"
@@ -225,10 +222,28 @@ def test_the_cif_route_states_the_same_content(tmp_path):
         "_atom_site_fract_z\n_atom_site_occupancy\nFe1 Fe 0.1 0.2501 0.3 0.5\n",
         encoding="utf-8")
     found: list = []
-    structure_from_cif(path, diagnostics=found)
+    structure = structure_from_cif(path, diagnostics=found)
+    assert [d.code for d in found if "TWINS" in d.code] == ["SITE_TWINS_KEPT"]
+    assert structure.phases[0].atoms[0].y.value == 0.2501
+    (d,) = [d for d in found if d.code == "SITE_TWINS_KEPT"]
+    assert d.where == ["phases.0.atoms.0"] and str(path) in d.message
+
+
+def test_the_cif_route_merges_where_the_site_would_overfill(tmp_path):
+    """The positive arm: at occupancy 1 the unmerged model puts two atoms at one place."""
+    path = tmp_path / "full.cif"
+    path.write_text(
+        "data_full\n_cell_length_a 7.0\n_cell_length_b 8.0\n_cell_length_c 6.0\n"
+        "_cell_angle_alpha 90\n_cell_angle_beta 90\n_cell_angle_gamma 90\n"
+        "_symmetry_space_group_name_H-M 'P n m a'\nloop_\n_atom_site_label\n"
+        "_atom_site_type_symbol\n_atom_site_fract_x\n_atom_site_fract_y\n"
+        "_atom_site_fract_z\n_atom_site_occupancy\nFe1 Fe 0.1 0.2501 0.3 1.0\n",
+        encoding="utf-8")
+    found: list = []
+    structure = structure_from_cif(path, diagnostics=found)
     (d,) = [d for d in found if d.code == "CIF_SITE_TWINS_MERGED"]
-    assert "8 × 0.5 = 4 → 4 × 0.5 = 2." in d.message
-    assert "halved its content" in d.message and "at occupancy 1," in d.suggestion
+    assert "8 × 1 = 8 → 4 × 1 = 4." in d.message
+    assert structure.phases[0].atoms[0].y.value == 0.25
 
 
 def test_a_fully_occupied_site_names_no_split_pair():
@@ -598,10 +613,10 @@ def test_a_refinement_still_merges_where_the_site_would_overfill():
     assert [d.code for d in ref._twin_findings] == ["SITE_TWINS_MERGED"]
 
 
-def test_a_file_reader_merges_a_half_occupied_site_as_before():
+def test_a_file_reader_keeps_a_half_occupied_site():
     merged, found = _merge(_half_pnma())
-    assert _y(merged, "X") == 0.25
-    assert [d.code for d in found] == ["SITE_TWINS_MERGED"]
+    assert _y(merged, "X") == _OFF[1]
+    assert [d.code for d in found] == ["SITE_TWINS_KEPT"]
 
 
 def test_a_history_stored_with_a_half_occupied_site_keeps_it_and_says_so_once(tmp_path):
@@ -712,10 +727,8 @@ def test_the_suggestions_read_the_reach_constant(monkeypatch):
     monkeypatch.setattr(twins, "TWIN_COORD_TOL", 0.0003)
     _, merged = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=1.0)]))
     assert "0.0003 (fractional)" in merged[0].suggestion and "0.0005" not in merged[0].suggestion
-    _, half = _merge(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
-    assert "0.0003 (fractional)" in half[0].suggestion and "0.0005" not in half[0].suggestion
     kept: list = []
-    merge_site_twins(_half_pnma(), diagnostics=kept, keep_part_occupied=True)
+    merge_site_twins(_half_pnma(), diagnostics=kept)
     assert "0.0003 (fractional)" in kept[0].suggestion and "0.0005" not in kept[0].suggestion
 
 
@@ -836,3 +849,211 @@ def test_the_adp_projection_of_a_merge_is_positive_definite_and_allowed():
         if k < 20:
             ParameterTable(merged, INSTRUMENT)
     assert bad == 0
+
+
+# ------------------------------------------------ round 5: Yue's review at 7b9a18b4
+
+
+@pytest.mark.parametrize("z, after", [
+    (5.0e-4, 2), (6.0e-4, 4), (7.0e-4, 4), (8.0e-4, 4), (2.4e-3, 4)])
+def test_the_partial_merge_does_not_switch_off_when_a_second_coordinate_is_further_out(z, after):
+    """P m m m, c = 40 Å, (2e-4, 0.3, z): x is within reach throughout, z only up
+    to 5e-4.  Past it the z operation is dropped and x still merges (8 → 4)."""
+    sg = resolve_group("P m m m", None)
+    merge = site_twin_merge(sg, (4.0, 4.0, 40.0, 90, 90, 90), np.array([2e-4, 0.3, z]))
+    assert merge is not None and (merge.before, merge.after) == (8, after)
+    assert merge.position[0] == pytest.approx(0.0, abs=1e-12)
+    assert merge.position[2] == pytest.approx(0.0 if after == 2 else z, abs=1e-12)
+
+
+def test_a_group_that_cannot_close_on_the_kept_operations_merges_nothing():
+    """The negative arm: both coordinates beyond the reach leave the site alone."""
+    sg = resolve_group("P m m m", None)
+    assert site_twin_merge(sg, (4.0, 4.0, 40.0, 90, 90, 90),
+                           np.array([6e-4, 0.3, 7e-4])) is None
+
+
+def test_every_rotation_in_gemmis_settings_has_row_sums_of_at_most_two():
+    """Pins ``_TWIN_SEARCH_FACTOR``: |(R − I)d| ≤ 3|d| because |row sum of R| ≤ 2."""
+    import gemmi
+    worst = 0
+    for sg in gemmi.spacegroup_table():
+        for op in resolve_group(sg.xhm(), None).operations():
+            rot = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
+            worst = max(worst, np.abs(rot).sum(axis=1).max())
+    assert worst <= 2.0 + 1e-12
+
+
+def _o5_state(pbso4):
+    j = _o5(pbso4)
+    site = f"phases.0.atoms.{j}"
+    ref = rx.Refinement(Structure(phases=[pbso4]), INSTRUMENT, history=False)
+    return ref, j, site
+
+
+def _z_dofs(ref, j) -> list[int]:
+    """Indices of the DOFs of atom j whose direction is z, in the model as it is now."""
+    sg = resolve_group(ref.structure.phases[0].space_group, None)
+    a = ref.structure.phases[0].atoms[j]
+    from rietx.crystallography.wyckoff import coordinate_basis, stabilizer_rotations
+    basis = coordinate_basis(stabilizer_rotations(
+        sg, np.array([a.x.value, a.y.value, a.z.value])))
+    return [k for k, v in enumerate(basis) if np.allclose(np.abs(v), (0, 0, 1))]
+
+
+def _drift_y(ref, j, y):
+    """A coordinate written as a stage writes it back: into the model, merging nothing."""
+    ref.structure.phases[0].atoms[j].y.value = y
+
+
+def test_a_branch_and_a_trial_carry_the_constraints_through_their_own_merge(pbso4):
+    ref, j, site = _o5_state(pbso4)
+    ref.hold([f"{site}.dof.1"])                          # y
+    ref.tie(f"{site}.dof.2", f"{site}.dof.0")            # z follows x
+    _drift_y(ref, j, 0.2502)
+    for make in (lambda r: r._trial(record=False), lambda r: r._trial()):
+        other = make(ref)
+        assert _y(other.structure, "O5") == 0.25
+        assert other._user_holds == set()                # y is fixed on the mirror
+        assert list(other._ties) == [f"{site}.dof.1"]    # z is dof.1 there
+        assert other._ties[f"{site}.dof.1"].sources == [f"{site}.dof.0"]
+        assert _z_dofs(other, j) == [1]
+
+
+def test_an_instrument_edit_keeps_a_user_tie_on_a_site_a_fit_left_near_the_mirror(pbso4):
+    ref, j, site = _o5_state(pbso4)
+    ref.tie(f"{site}.dof.2", f"{site}.dof.0")
+    _drift_y(ref, j, 0.2502)
+    ref.edit(instrument=ref.instrument.model_copy(deep=True))
+    assert ref._ties, "the tie fell off in an edit that touched only the instrument"
+    rows = {r.path: r for r in ref.parameters()}
+    assert any(r.tie is not None for p, r in rows.items() if p.startswith(site))
+
+
+def test_an_edit_reads_the_old_numbering_off_the_current_model_not_the_candidate(pbso4):
+    """O5 on the mirror: DOFs x, z; a hold on ``dof.1`` is z.  An edit moving it to
+    y = 0.2502 merges it back onto the mirror, so z stays held and nothing is dropped."""
+    ref, j, site = _o5_state(pbso4)
+    ref.set_values({f"{site}.dof.1": 0.25 - pbso4.atoms[j].y.value})   # y onto the mirror
+    assert _z_dofs(ref, j) == [1]
+    ref.hold([f"{site}.dof.1"])
+    candidate = ref.structure.model_copy(deep=True)
+    candidate.phases[0].atoms[j].y.value = 0.2502
+    ref.edit(structure=candidate)
+    assert ref._user_holds == {f"{site}.dof.1"}
+    assert not any("dropped" in d.message for d in ref._twin_findings)
+
+
+@pytest.mark.parametrize("y", [0.25004, 0.2501])
+def test_a_site_that_becomes_special_without_a_merge_carries_its_constraints(pbso4, y):
+    """5e-5 of the mirror ``site_orbit`` already counts the site as special, so no
+    merge fires, but the DOFs still renumber."""
+    ref, j, site = _o5_state(pbso4)
+    ref.hold([f"{site}.dof.1", f"{site}.dof.2"])
+    ref.set_values({f"{site}.dof.1": y - pbso4.atoms[j].y.value})
+    assert ref._user_holds == {f"{site}.dof.1"}          # z, renumbered; y's hold dropped
+    assert _z_dofs(ref, j) == [1]
+    said = [d for d in ref._twin_findings
+            if d.code in ("SITE_TWINS_MERGED", "SITE_DOFS_RENUMBERED")]
+    assert said and any("dropped" in d.message for d in said)
+
+
+def test_a_loaded_history_keeps_the_constraints_note_when_only_later_nodes_hold_it(
+        tmp_path, pbso4, pattern):
+    j = _o5(pbso4)
+    site = f"phases.0.atoms.{j}"
+    path = tmp_path / "held.jsonl"
+    ref = rx.Refinement(Structure(phases=[pbso4]), INSTRUMENT, history=path)
+    ref.run_stage(pattern, Stage("scale", ["phases.*.scale"]))
+    ref.hold([f"{site}.dof.1"])                          # y, held after the first stage
+    ref.run_stage(pattern, Stage("scale2", ["phases.*.scale"]))
+    lines = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        doc = json.loads(line)
+        if doc.get("node") is not None:
+            doc["node"]["state"]["structure"]["phases"][0]["atoms"][j]["y"]["value"] = 0.2501
+        lines.append(json.dumps(doc))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    found: list = []
+    RefinementTree.load(path, diagnostics=found)
+    (d,) = [d for d in found if d.code == "SITE_TWINS_MERGED" and d.where == [site]]
+    assert f"Constraints: the hold on {site}.dof.1 was dropped" in d.message
+    assert d.message.count("Constraints:") == 1
+
+
+@pytest.mark.parametrize("dx", [0.0, 1e-5, 2e-4])
+def test_co_occupants_are_grouped_at_the_merges_own_reach(dx):
+    """Fe and Mn at 0.5 each, the second ``dx`` along x: one place to within the reach."""
+    structure = _shared_site(0.5, 0.5)
+    atoms = list(structure.phases[0].atoms)
+    atoms[1] = atoms[1].model_copy(update={"x": Parameter(value=_OFF[0] + dx)})
+    structure = Structure(phases=[structure.phases[0].model_copy(update={"atoms": atoms})])
+    ref = rx.Refinement(structure, INSTRUMENT, history=False)
+    assert [d.code for d in ref._twin_findings] == ["SITE_TWINS_MERGED"] * 2
+    assert {a.y.value for a in ref.structure.phases[0].atoms} == {0.25}
+
+
+def test_co_occupants_further_apart_than_the_reach_are_not_one_place():
+    structure = _shared_site(0.5, 0.5)
+    atoms = list(structure.phases[0].atoms)
+    atoms[1] = atoms[1].model_copy(update={"x": Parameter(value=_OFF[0] + 2e-3)})
+    structure = Structure(phases=[structure.phases[0].model_copy(update={"atoms": atoms})])
+    _, found = _merge(structure)
+    assert [d.code for d in found] == ["SITE_TWINS_KEPT"] * 2
+
+
+def _route_set_values(ref, j, site, y0):
+    ref.set_values({f"{site}.dof.1": 0.25004 - y0})
+    return ref
+
+
+def _route_set_values_merge(ref, j, site, y0):
+    ref.set_values({f"{site}.dof.1": 0.2501 - y0})
+    return ref
+
+
+def _route_write_back(ref, j, site, y0):
+    table = ref._working_table()
+    {e.path: e for e in table.entries}[f"{site}.dof.1"].value = 0.25004 - y0
+    table.refresh_ties()
+    ref._write_back(table)
+    return ref
+
+
+def _route_edit_structure(ref, j, site, y0):
+    candidate = ref.structure.model_copy(deep=True)
+    candidate.phases[0].atoms[j].y.value = 0.2502
+    ref.edit(structure=candidate)
+    return ref
+
+
+def _route_edit_instrument(ref, j, site, y0):
+    _drift_y(ref, j, 0.2502)
+    ref.edit(instrument=ref.instrument.model_copy(deep=True))
+    return ref
+
+
+def _route_branch(ref, j, site, y0):
+    _drift_y(ref, j, 0.2502)
+    return ref._trial()
+
+
+def _route_trial(ref, j, site, y0):
+    _drift_y(ref, j, 0.2502)
+    return ref._trial(record=False)
+
+
+@pytest.mark.parametrize("route", [
+    _route_set_values, _route_set_values_merge, _route_write_back,
+    _route_edit_structure, _route_edit_instrument, _route_branch, _route_trial])
+def test_every_route_keeps_a_hold_on_z_and_a_tie_to_it_on_z(pbso4, route):
+    """The class pin (round 5, items 2-6): a hold on z and a tie from x to z on a
+    near-special site, through every route that can move the site — z stays held
+    and the tie's source is still z."""
+    ref, j, site = _o5_state(pbso4)
+    ref.hold([f"{site}.dof.2"])                          # z on the general position
+    ref.tie(f"{site}.dof.0", f"{site}.dof.2")            # x follows z
+    out = route(ref, j, site, pbso4.atoms[j].y.value)
+    (k,) = _z_dofs(out, j)
+    assert out._user_holds == {f"{site}.dof.{k}"}
+    assert [s for s, _ in out._ties[f"{site}.dof.0"].terms] == [f"{site}.dof.{k}"]

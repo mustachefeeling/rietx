@@ -45,8 +45,8 @@ from ..crystallography.symmetry import (
     as_group,
     expand_positions,
     resolve_group,
-    site_twin_merge,
 )
+from ..crystallography.twins import applied_twin_merges
 from ..schemas.common import Diagnostic
 from ..schemas.results import (
     MicroabsorptionCorrection,
@@ -154,6 +154,13 @@ def phase_zmv(space_group, cell: tuple[float, float, float, float, float, float]
     moves it there (issue #1007).
     """
     sg = as_group(space_group) if multiplicities is None else None
+    atoms = list(atoms)
+    applied: dict = {}
+    if sg is not None:
+        applied, _ = applied_twin_merges(
+            sg, cell, [np.array([x, y, z], dtype=np.float64)
+                       for _, x, y, z, _ in atoms],
+            [float(occ) for *_, occ in atoms])
     volume = cell_volume(*cell)
     cell_mass = 0.0
     element_counts: dict[str, float] = {}
@@ -165,10 +172,10 @@ def phase_zmv(space_group, cell: tuple[float, float, float, float, float, float]
             # a site whose own images coincide counts once, on the special
             # position its orbit collapses to — what a ``Phase`` holding
             # these coordinates would be moved to at construction (#1007)
-            xyz = np.array([x, y, z], dtype=np.float64)
-            merge = site_twin_merge(sg, cell, xyz)
+            merge = applied.get(idx)
             multiplicity = (merge.after if merge is not None
-                            else len(expand_positions(sg, xyz)))
+                            else len(expand_positions(
+                                sg, np.array([x, y, z], dtype=np.float64))))
         count = float(occ) * multiplicity
         cell_mass += count * atomic_weight(species)
         sym = element_symbol(species)
