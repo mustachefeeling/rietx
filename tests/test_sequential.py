@@ -114,11 +114,7 @@ def thermal_patterns():
 
 @pytest.fixture(scope="module")
 def thermal_series(thermal_patterns):
-    structure, ins = _start_models()
-    return refine_sequential(thermal_patterns, structure, ins,
-                             x=TEMPERATURES, x_label="T (K)",
-                             labels=[f"{int(t)}K" for t in TEMPERATURES],
-                             plan="mccusker_default")
+    return _thermal_series(thermal_patterns)
 
 
 @pytest.fixture(scope="module")
@@ -1156,39 +1152,51 @@ def test_only_a_converged_first_rung_becomes_evidence(thermal_patterns):
 
 
 def chain_answer(series):
-    """Every value a chain accepted, with its esd, its rung and its codes."""
-    return [(e.label, e.status, tuple(e.rungs_tried), e.statistics.rwp,
-             [(p.path, p.value, p.stderr) for p in e.parameters],
-             [d.code for d in e.diagnostics]) for e in series.entries]
+    """Every number a chain reports, and which rung each pattern kept: per
+    pattern its values, esds, rungs, fence and codes, then the series' own
+    codes and steps.  The tree and node ids a history writes are names, not
+    answers, and are left out."""
+    entries = [(e.label, e.status, e.rung, tuple(e.rungs_tried), e.reseeded,
+                e.rwp_warm, e.rwp_fence, e.statistics.rwp,
+                [(p.path, p.value, p.stderr) for p in e.parameters],
+                [d.code for d in e.diagnostics])
+               for e in series.entries]
+    return entries, [d.code for d in series.diagnostics], series.discontinuities
 
 
 def first_rung_ratios(series):
     """Each kept first rung's cost over the most expensive one before it.
 
     Replays :func:`~rietx.sequential._first_rung_budget`'s sample from the
-    record: a warm pattern that kept its first rung and converged reports
-    that rung's evaluations as ``n_iterations``, and only those join the
-    sample.  A ratio is reported once the sample holds
-    :data:`~rietx.sequential.FIRST_RUNG_SAMPLES`, the point the bound arms.
+    record: a warm pattern that kept its first rung reports that rung's
+    evaluations as ``n_iterations``, and only a *converged* one joins the
+    sample.  Once the sample holds :data:`~rietx.sequential.FIRST_RUNG_SAMPLES`
+    (the point the bound arms) every kept first rung gets a ratio, a
+    ``max_iter`` one included: that is the rung a bound would cut.
     """
     from rietx.sequential import FIRST_RUNG_SAMPLES
 
     sample, ratios = [], []
     for e in series.entries[1:]:
-        if e.rungs_tried == ["warm"] and e.status == "converged":
+        if e.rungs_tried == ["warm"]:
             if len(sample) >= FIRST_RUNG_SAMPLES:
                 ratios.append(e.n_iterations / max(sample))
-            sample.append(e.n_iterations)
+            if e.status == "converged":
+                sample.append(e.n_iterations)
     return ratios
+
+
+def _thermal_series(patterns, **kw):
+    structure, ins = _start_models()
+    return refine_sequential(patterns, structure, ins,
+                             x=TEMPERATURES, x_label="T (K)",
+                             labels=[f"{int(t)}K" for t in TEMPERATURES],
+                             plan="mccusker_default", **kw)
 
 
 @pytest.fixture(scope="module")
 def thermal_series_unbounded(thermal_patterns):
-    structure, ins = _start_models()
-    return refine_sequential(thermal_patterns, structure, ins,
-                             x=TEMPERATURES, x_label="T (K)",
-                             labels=[f"{int(t)}K" for t in TEMPERATURES],
-                             plan="mccusker_default", first_rung_factor=None)
+    return _thermal_series(thermal_patterns, first_rung_factor=None)
 
 
 def test_the_first_rung_bound_moves_no_accepted_value(thermal_series,

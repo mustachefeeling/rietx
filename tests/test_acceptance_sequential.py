@@ -153,15 +153,19 @@ def chained():
     return result
 
 
-@pytest.fixture(scope="module")
-def chained_all():
-    """The naive default: carry everything, scales included."""
+def _chained_all(**kw):
     _require_data()
     structure = rx.Structure(phases=_phases())
     ins = qarr_instrument()
     seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
     return rx.SequentialRefinement(structure, ins).fit(
-        _patterns(), labels=list(SAMPLE1), plan=qpa_plan())
+        _patterns(), labels=list(SAMPLE1), plan=qpa_plan(), **kw)
+
+
+@pytest.fixture(scope="module")
+def chained_all():
+    """The naive default: carry everything, scales included."""
+    return _chained_all()
 
 
 # -- accuracy: a chained fit must be as good as an unchained one ----------
@@ -293,12 +297,7 @@ def test_the_hostile_series_exercises_the_reseed_fence(chained_all):
 @pytest.fixture(scope="module")
 def chained_all_unbounded():
     """``chained_all`` with WP-1127's first-rung bound switched off."""
-    _require_data()
-    structure = rx.Structure(phases=_phases())
-    ins = qarr_instrument()
-    seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
-    return rx.SequentialRefinement(structure, ins).fit(
-        _patterns(), labels=list(SAMPLE1), plan=qpa_plan(), first_rung_factor=None)
+    return _chained_all(first_rung_factor=None)
 
 
 @pytest.mark.slow

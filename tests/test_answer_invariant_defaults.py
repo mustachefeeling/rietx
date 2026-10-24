@@ -8,6 +8,9 @@ history tree) are that class: each is switched on here against a fit with
 every channel at its default, and the answer is asserted equal to the bit.
 So are ``auto_background``'s ``wavelength`` and ``source``, which reach only
 the contamination screen of ``diagnose``, a finding the verb does not read.
+WP-2003 adds the series seat: ``refine_sequential`` and
+``SequentialRefinement.fit``'s channels, ``on_result`` and ``history``, each
+switched on against a three-pattern chain.
 """
 
 from __future__ import annotations
@@ -153,22 +156,11 @@ def ramp():
     return [_simulate(A0 * (1.0 + RAMP * k), seed=11 + k) for k in range(3)]
 
 
-def _series_answer(series):
-    """Every number a chain reports, and which rung each pattern kept; the
-    tree and node ids a history writes are names, not answers."""
-    entries = [(e.label, e.status, e.rung, tuple(e.rungs_tried), e.reseeded,
-                e.rwp_warm, e.rwp_fence, e.statistics.rwp,
-                [(p.path, p.value, p.stderr) for p in e.parameters],
-                [d.code for d in e.diagnostics])
-               for e in series.entries]
-    return entries, [d.code for d in series.diagnostics], series.discontinuities
-
-
 def _chain(ramp, **kw):
-    from tests.test_sequential import _start_models
+    from tests.test_sequential import _start_models, chain_answer
 
     structure, ins = _start_models()
-    return _series_answer(rx.refine_sequential(ramp, structure, ins, plan=PLAN, **kw))
+    return chain_answer(rx.refine_sequential(ramp, structure, ins, plan=PLAN, **kw))
 
 
 @pytest.fixture(scope="module")
