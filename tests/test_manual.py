@@ -245,6 +245,60 @@ def test_the_build_copies_exactly_the_committed_tutorials(built_docs_tree):
 
 
 @pytest.mark.xdist_group("manual-build")
+def test_every_anchor_a_tutorial_links_is_on_its_page(built_docs_tree):
+    """A tutorial's `#anchor` into the manual names an id on that page of the build.
+
+    `test_tutorials.py` checks the page against the Markdown sources, and that
+    check cannot see an anchor: a heading's slug is generated, so only the
+    output says what a link will find.  A renamed heading would otherwise
+    leave the reader at the top of the page with every test green (WP-2040).
+    """
+    out, result = built_docs_tree
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    texts = {nb.with_suffix(".py").name: nb.with_suffix(".py").read_text(encoding="utf-8")
+             for nb in _tutorial_notebooks()}
+    assert any(_ANCHOR_LINK.search(text) for text in texts.values()), \
+        "no tutorial links an anchor, so this test checks nothing"
+    broken = _broken_anchors(texts, out)
+    assert not broken, ("links whose anchor is no id on that page of the built manual:\n"
+                        + "\n".join(broken))
+
+
+#: A link into the published manual with an anchor, its page and anchor apart.
+_ANCHOR_LINK = re.compile(re.escape(DOCS_URL)
+                          + r"/docs/stable/([^\s#)>\]\"'`]+)#([^\s)>\]\"'`]+)")
+
+
+def _broken_anchors(texts: dict[str, str], out: Path) -> list[str]:
+    """Each `page#anchor` link in `texts` whose anchor is no id on that page under `out`."""
+    ids: dict[str, set[str]] = {}
+    broken = []
+    for name, text in texts.items():
+        for page, anchor in _ANCHOR_LINK.findall(text):
+            if page not in ids:
+                built = out / page
+                ids[page] = (set(re.findall(r'id="([^"]+)"', built.read_text(encoding="utf-8")))
+                             if built.is_file() else set())
+            if anchor not in ids[page]:
+                broken.append(f"{name}: {page}#{anchor}")
+    return broken
+
+
+def test_the_anchor_check_sees_a_missing_id_and_a_missing_page(tmp_path):
+    """The guard can fail: a renamed heading and a page the build lacks are both reported."""
+    (tmp_path / "reference").mkdir()
+    (tmp_path / "reference" / "result.html").write_text(
+        '<section id="diagnostics"><h2>Diagnostics</h2></section>', encoding="utf-8")
+    stable = f"{DOCS_URL}/docs/stable"
+    text = (f"[ok]({stable}/reference/result.html#diagnostics) "
+            f"[renamed]({stable}/reference/result.html#printing-a-result) "
+            f"[gone]({stable}/reference/nowhere.html#x)")
+    assert _broken_anchors({"t.py": text}, tmp_path) == [
+        "t.py: reference/result.html#printing-a-result",
+        "t.py: reference/nowhere.html#x"]
+
+
+@pytest.mark.xdist_group("manual-build")
 def test_every_tutorial_renders_with_its_outputs_and_the_index_links_it(built_docs_tree):
     """Each notebook is a page carrying its committed outputs, reached from its index page.
 

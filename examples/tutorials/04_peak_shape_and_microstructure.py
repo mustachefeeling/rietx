@@ -12,7 +12,7 @@
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces plans and the parameter table.
 #
-# **The data** is made in the notebook: LaB₆ as the standard and CeO₂ as the sample, each computed with `predict` and given Poisson noise.
+# **The data** is made in the notebook: LaB₆ as the standard and CeO₂ as the sample, each computed with [`predict`](https://rietx.org/docs/stable/reference/refinement.html#entry-points) and given Poisson noise.
 #
 # **Runtime** is under 30 seconds on a laptop.
 
@@ -24,7 +24,7 @@
 #
 # Each peak has a Gaussian part and a Lorentzian part, and each part has an instrument term and a specimen term.
 # Gaussian variances add, and Lorentzian FWHMs add.
-# The specimen terms are each phase's `gauss_size`, `lor_size`, `gauss_strain` and `lor_strain`.
+# The [specimen terms](https://rietx.org/docs/stable/reference/data.html#broadening) are each phase's `gauss_size`, `lor_size`, `gauss_strain` and `lor_strain`.
 # Over angle, each one follows an instrument term or a sum of two, so a fit to one pattern cannot tell them apart.
 # The instrument is therefore measured on its own, on a standard with no size or strain broadening.
 # [The instrument ⊕ sample width split](https://rietx.org/docs/stable/theory/profiles.html#the-instrument-sample-width-split) gives the equations.
@@ -79,7 +79,7 @@ ceo2 = rx.Structure.from_cif(ceo2_cif)
 
 # %% [markdown]
 # Next, the instrument both patterns are measured on.
-# Its five width terms and its zero shift are what the calibration should recover.
+# Its five [width terms](https://rietx.org/docs/stable/reference/instrument.html#peak-width) and its zero shift are what the calibration should recover.
 
 # %%
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
@@ -115,7 +115,7 @@ standard_data.plot(two_theta_range=(15, 70))
 # %% [markdown]
 # Measure the sample the same way, with a crystallite size and a microstrain added.
 # Both go into the Lorentzian terms, so the sample's Gaussian terms are truly zero.
-# `size_coefficient_for_size` converts a size to the `lor_size` coefficient at a given wavelength.
+# [`size_coefficient_for_size`](https://rietx.org/docs/stable/theory/microstructure.html#reading-a-width-as-a-size) converts a size to the `lor_size` coefficient at a given wavelength.
 # rietx reads a size back at the source's longest emission line, so the conversion uses that line too.
 
 # %%
@@ -140,8 +140,9 @@ sample_data = rx.PatternData(
 # Start from a default copper instrument, as you would with a real diffractometer, and give it a four-term background.
 # The standard's cell is known.
 # On a real standard it comes from the certificate, and here we set it.
-# Hold the cell, so that no stage of the plan refines it.
+# [Hold](https://rietx.org/docs/stable/guides/hold.html#hold-the-parameter) the cell, so that no stage of the plan refines it.
 # A held cell is what lets the fit separate the zero shift and the specimen displacement from the cell.
+# [How to calibrate an instrument on a standard and reuse it](https://rietx.org/docs/stable/guides/calibrate.html) gives this procedure as a guide.
 
 # %%
 start = rx.Instrument.bragg_brentano(radiation="CuKa")
@@ -185,7 +186,7 @@ TRUE_INSTRUMENT = [
 #
 # ## Carry the instrument to the sample
 #
-# `save_instrument_profile` writes the calibrated instrument to a JSON file.
+# [`save_instrument_profile`](https://rietx.org/docs/stable/reference/instrument-files.html#instrument-profile) writes the calibrated instrument to a JSON file.
 # It leaves out the background and the specimen displacement, because they belong to one measurement and not to the instrument.
 
 # %%
@@ -193,7 +194,7 @@ profile_file = work / "instrument.json"
 rx.save_instrument_profile(calibration.instrument, profile_file)
 
 # %% [markdown]
-# `load_instrument_profile` reads it back with every term held.
+# [`load_instrument_profile`](https://rietx.org/docs/stable/reference/instrument-files.html#instrument-profile) reads it back with every term held.
 
 # %%
 calibrated_instrument = rx.load_instrument_profile(profile_file)
@@ -204,7 +205,7 @@ calibrated_instrument.profile
 #
 # ## Measure the sample
 #
-# Give the loaded instrument a background of its own and fit the sample with `lab_sample_refine`.
+# Give the loaded instrument a background of its own and fit the sample with [`lab_sample_refine`](https://rietx.org/docs/stable/reference/plans.html#lab-sample-refine).
 # The plan refines the sample's four broadening terms, its cell, its specimen displacement, its scale, its background and its Biso.
 # The sample starts from the CIF, with no broadening, so the fit has to find it.
 
@@ -218,18 +219,18 @@ result
 # Both diagnostics say a Gaussian term refined to its floor of zero.
 # The sample was made with no Gaussian broadening, so zero is the right answer.
 #
-# `result.microstructure` reads the four broadening terms as sizes and strains, one block a phase.
+# [`result.microstructure`](https://rietx.org/docs/stable/reference/derived.html#size-and-strain) reads the four broadening terms as sizes and strains, one block a phase.
 
 # %%
 result.microstructure[0]
 
 # %% [markdown]
 # The Lorentzian size and strain each lie within one esd of `TRUE_SIZE` and `TRUE_STRAIN`.
-# The two Gaussian rows have no reading, and `unavailable` says why.
+# The two Gaussian rows have no reading, and [`unavailable`](https://rietx.org/docs/stable/reference/derived.html#esds-and-absent-readings) says why.
 # Their coefficients are at zero.
 #
 # The last two lines compare readings.
-# `size_agreement` divides the Gaussian size by the Lorentzian one, and is `None` here because the Gaussian size has no reading.
+# [`size_agreement`](https://rietx.org/docs/stable/reference/derived.html#separating-size-from-strain) divides the Gaussian size by the Lorentzian one, and is `None` here because the Gaussian size has no reading.
 # `separable` says whether size and strain can be told apart over the angles fitted.
 # A result does not assess it.
 # `sample.report()` attaches the verdict when its width trend has misfit regions to read, and this fit leaves none.

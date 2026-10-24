@@ -12,7 +12,7 @@
 # **You need** rietx 1.10 or later, which the next cell installs.
 # Notebook 02 introduces plans and a single refinement.
 #
-# **The data** is made in the notebook: seven LaB₆ patterns on a synchrotron capillary instrument, each computed with `predict` and given Poisson noise.
+# **The data** is made in the notebook: seven LaB₆ patterns on a synchrotron capillary instrument, each computed with [`predict`](https://rietx.org/docs/stable/reference/refinement.html#entry-points) and given Poisson noise.
 #
 # **Runtime** is under 30 seconds on a laptop.
 
@@ -96,7 +96,7 @@ patterns[0]
 # %% [markdown]
 # ## Load a series from files
 #
-# To rietx a series is an ordinary Python list of `PatternData`, in the order to fit them.
+# To rietx a series is an ordinary Python list of [`PatternData`](https://rietx.org/docs/stable/reference/data.html#pattern), in the order to fit them.
 # A real series arrives as a folder of files, so the work is putting them in that order with the right temperatures.
 # Write the synthetic patterns out as an instrument might: numbered by scan from 8, with the temperatures in a separate log.
 
@@ -165,18 +165,19 @@ instrument.profile.w.value = 2.5e-4 * 1.5
 instrument.background = rx.BackgroundChebyshev.with_terms(3)
 
 # %% [markdown]
-# `refine_sequential` works on copies of the two, so the same pair starts every series in this notebook.
+# [`refine_sequential`](https://rietx.org/docs/stable/reference/series.html#entry-points) works on copies of the two, so the same pair starts every series in this notebook.
 #
 # ## Fit the series
 #
 # `refine_sequential` fits the patterns in list order, and starts each fit from the parameters the previous one finished with.
-# `x` places each pattern on the series axis, and `labels` names it.
+# [`x`](https://rietx.org/docs/stable/reference/series.html#series-coordinate) places each pattern on the series axis, and `labels` names it.
 #
-# `carry` says which parameters pass along the chain.
-# It is a list of parameter-path globs, as in a plan's stages.
+# [`carry`](https://rietx.org/docs/stable/reference/series.html#carried-parameters) says which parameters pass along the chain.
+# It is a list of [parameter-path globs](https://rietx.org/docs/stable/reference/parameter-table.html#names), as in a plan's stages.
 # A parameter that matches one starts each fit from the previous fit's value, and any other restarts from the starting model on every pattern.
 # `["*"]` carries everything and is the default, written out here.
 # `carry=["phases.*", "instrument.zero_shift"]` would restart the background and the peak widths on every pattern.
+# Each fit runs the [`mccusker_default`](https://rietx.org/docs/stable/reference/plans.html#mccusker-default) plan.
 
 # %%
 series = rx.refine_sequential(
@@ -193,11 +194,11 @@ series
 
 # %% [markdown]
 # Every pattern converged.
-# Both diagnostics are `SEQUENTIAL_PERSISTENT_FINDING`, a per-pattern finding that fired on every pattern of the series.
+# Both diagnostics are [`SEQUENTIAL_PERSISTENT_FINDING`](https://rietx.org/docs/stable/reference/diagnostics-series.html#sequential-persistent-finding), a per-pattern finding that fired on every pattern of the series.
 # Such a finding describes the model rather than any one fit.
 # [Read the diagnostics first](https://rietx.org/docs/stable/guides/series.html#read-the-diagnostics-first) explains these two.
 #
-# Each entry records which attempt gave its values.
+# Each entry records [which attempt](https://rietx.org/docs/stable/reference/series.html#restart-ladder) gave its values.
 
 # %%
 [entry.rung for entry in series]
@@ -209,7 +210,7 @@ series
 #
 # ## The trajectory
 #
-# `series.trajectory` returns one parameter across the series, with each point's esd.
+# [`series.trajectory`](https://rietx.org/docs/stable/reference/series.html#trajectories) returns one parameter across the series, with each point's esd.
 
 # %%
 a = series.trajectory("phases.0.cell.a")
@@ -241,10 +242,10 @@ series.plot("phases.0.cell.a")
 #
 # Each answer depends on the one before it.
 # An error in one fit can therefore travel down the chain and still draw a smooth curve.
-# `direction="both"` fits the chain from cold to hot and again from hot to cold, and compares the two.
-# A parameter they disagree on is flagged `SEQUENTIAL_PATH_DEPENDENT`.
+# [`direction="both"`](https://rietx.org/docs/stable/reference/series.html#forward-and-backward-chains) fits the chain from cold to hot and again from hot to cold, and compares the two.
+# A parameter they disagree on is flagged [`SEQUENTIAL_PATH_DEPENDENT`](https://rietx.org/docs/stable/reference/diagnostics-series.html#sequential-path-dependent).
 #
-# `summary(deliverable="series")` prints the rows that decide whether a trajectory can be quoted.
+# [`summary(deliverable="series")`](https://rietx.org/docs/stable/reference/result.html#printing-a-result) prints the rows that decide whether a trajectory can be quoted.
 
 # %%
 both = rx.refine_sequential(
@@ -292,7 +293,7 @@ series_jump = rx.refine_sequential(
 series_jump
 
 # %% [markdown]
-# `SEQUENTIAL_DISCONTINUITY` marks the step, once for each of a, b and c, because the cubic cell ties b and c to a.
+# [`SEQUENTIAL_DISCONTINUITY`](https://rietx.org/docs/stable/reference/diagnostics-series.html#sequential-discontinuity) marks the step, once for each of a, b and c, because the cubic cell ties b and c to a.
 # It cannot tell a real change from a failed fit, so check the pattern's own fit before reading the jump as physics.
 # [Check a step against two independent fits](https://rietx.org/docs/stable/guides/path.html#check-a-step-against-two-independent-fits) shows the check rietx runs for you.
 #
@@ -308,7 +309,7 @@ series_jump.trajectory("phases.0.cell.a")
 [entry.rung for entry in series_jump]
 
 # %% [markdown]
-# Every pattern after the first took its values from the plain `warm` attempt, the 700 K one included.
+# Every pattern after the first took its values from the plain [`warm`](https://rietx.org/docs/stable/reference/series.html#restart-ladder) attempt, the 700 K one included.
 # Started from the 600 K answer, that fit reached the cell 2 % larger on its own.
 # When a warm start fails, the series fits the pattern again with the whole plan from the same start.
 # That attempt is `warm_staged`, and this list is where it would show.
@@ -332,7 +333,7 @@ series_broken = rx.refine_sequential(
 series_broken
 
 # %% [markdown]
-# `SEQUENTIAL_RWP_OUTLIER` names the 700 K pattern.
+# [`SEQUENTIAL_RWP_OUTLIER`](https://rietx.org/docs/stable/reference/diagnostics-series.html#sequential-rwp-outlier) names the 700 K pattern.
 # Every attempt left its Rwp far above the fence, the limit the series sets from the patterns accepted before it.
 # The series kept the best attempt and moved on.
 # Read that pattern's own diagnostics.
@@ -341,9 +342,9 @@ series_broken
 series_broken[4].diagnostics
 
 # %% [markdown]
-# The best attempt put the LaB₆ scale on its floor of zero (`FLOOR_HIT`).
-# `MODEL_FAR_FROM_DATA` says not to read any of this pattern's values.
-# `PHASE_UNCONSTRAINED` says the cell was held, because a phase with no scale does not constrain it.
+# The best attempt put the LaB₆ scale on its floor of zero ([`FLOOR_HIT`](https://rietx.org/docs/stable/reference/diagnostics-refinement.html#floor-hit)).
+# [`MODEL_FAR_FROM_DATA`](https://rietx.org/docs/stable/reference/diagnostics-refinement.html#model-far-from-data) says not to read any of this pattern's values.
+# [`PHASE_UNCONSTRAINED`](https://rietx.org/docs/stable/reference/diagnostics-refinement.html#phase-unconstrained) says the cell was held, because a phase with no scale does not constrain it.
 # A held value is not a measurement, so the trajectory has no 700 K point.
 
 # %%
@@ -353,7 +354,7 @@ series_broken.trajectory("phases.0.cell.a")
 # The other six points match the clean series to every printed digit.
 #
 # A fit that diverges on every attempt goes one step further.
-# [`SEQUENTIAL_UNRECOVERED`](https://rietx.org/docs/stable/reference/diagnostics-series.html#sequential-unrecovered) names it, and the pattern is quarantined: it seeds no successor, and its Rwp stays out of the median that sets the fence.
+# [`SEQUENTIAL_UNRECOVERED`](https://rietx.org/docs/stable/reference/diagnostics-series.html#sequential-unrecovered) names it, and the pattern is [quarantined](https://rietx.org/docs/stable/reference/series.html#quarantine): it seeds no successor, and its Rwp stays out of the median that sets the fence.
 # The 700 K fit here converged, so it still seeded the 800 K fit.
 #
 # A hold or a tie belongs to one refinement, so a series declares it per pattern.
