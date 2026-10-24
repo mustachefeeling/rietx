@@ -5547,19 +5547,7 @@ class Refinement:
             ((model.y_obs - model.evaluate(values)) / model.sigma) ** 2))
         chi2_fresh = float(np.sum(
             ((fresh.y_obs - fresh.evaluate(values)) / fresh.sigma) ** 2))
-        rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
-               if chi2_frozen > 0 else 0.0)
-        if not rel > FROZEN_COMPILE_CHI2_REL:
-            return fresh, []
-        return fresh, [Diagnostic(
-            level="info", code="FROZEN_COMPILE_STALE",
-            message=(
-                f"A fresh compile at the returned parameters gives "
-                f"chi2 = {chi2_fresh:.6g}. The last stage's own compile gives "
-                f"{chi2_frozen:.6g} at the same parameters, "
-                f"{100 * rel:.2g} % apart. The result reports the fresh "
-                f"figure and the history node keeps the frozen one."),
-            value=rel)]
+        return fresh, _frozen_compile_findings(chi2_frozen, chi2_fresh)
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
                       guard, stage_diagnostics, *, significance=None
@@ -8333,6 +8321,28 @@ def _restore_lebail(states: list[ReflectionState], model: CompiledModel) -> None
 #: issue's 1.38 % on Si is the compile that claims nothing moves
 #: (``moving_paths=None``), not the frozen one, and would still fire.
 FROZEN_COMPILE_CHI2_REL = 1e-2
+
+
+def _frozen_compile_findings(chi2_frozen: float, chi2_fresh: float) -> list[Diagnostic]:
+    """``FROZEN_COMPILE_STALE`` when the two χ² differ past :data:`FROZEN_COMPILE_CHI2_REL`.
+
+    One comparison for both runners: the single fit's
+    :meth:`Refinement._final_compile` and the joint fit's
+    ``MultiHistogramRefinement._final_compiles``, which sums its histograms.
+    """
+    rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
+           if chi2_frozen > 0 else 0.0)
+    if not rel > FROZEN_COMPILE_CHI2_REL:
+        return []
+    return [Diagnostic(
+        level="info", code="FROZEN_COMPILE_STALE",
+        message=(
+            f"A fresh compile at the returned parameters gives "
+            f"chi2 = {chi2_fresh:.6g}. The last stage's own compile gives "
+            f"{chi2_frozen:.6g} at the same parameters, "
+            f"{100 * rel:.2g} % apart. The result reports the fresh "
+            f"figure and the history node keeps the frozen one."),
+        value=rel)]
 
 
 #: a Pawley overlap group is reported unresolved when *any* member carries a

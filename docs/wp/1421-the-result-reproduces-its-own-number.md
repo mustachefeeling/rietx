@@ -176,7 +176,7 @@ below are folded here, and their mailbox is emptied.
       stage, an empty stage).
 - [x] `Refinement.report` reads the answer frozen with the result, as the
       joint `report(h)` does (`multi._freeze_answer`).
-- [ ] The joint result is measured on a compile at its answer, as the single
+- [x] The joint result is measured on a compile at its answer, as the single
       fit's is, and `MultiHistogramRefinement.report`'s docstring and
       `reference/joint.md` say so.
 - [ ] #774's zero case: the maintainer's ruling on (a)/(b)/(c), then its

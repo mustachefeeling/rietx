@@ -90,6 +90,7 @@ from .refine import (
     _far_from_data_diagnostics,
     _fixed_literal_diagnostics,
     _flat_moment_scan,
+    _frozen_compile_findings,
     _guard_diagnostics,
     _harmonic_diagnostics,
     _held_scale_phases,
@@ -1289,14 +1290,11 @@ class MultiHistogramRefinement:
         exchangeability table, because the joint path does not run those
         screens.
 
-        The report reads the result's curves, and a joint result's curves come
-        from the last stage's compile, sized at the values that stage started
-        from.  The single fit recompiles at its answer (#272) and the joint
-        path does not yet.  So a last stage that broadened the peaks leaves
-        their tails cut at the old windows, and Layer 0 reads the cut as
-        unmatched peaks.  On test_multi_histogram's WP-1131 size pair that is
-        44 and 27, where a compile at the answer gives 0 and 0 (WP-1341's
-        handover has the numbers).
+        The report reads the result's curves and models, which come from a
+        compile at the answer (:meth:`_final_compiles`, WP-1421), as a single
+        fit's do.  Read off the last stage's own compile, a stage that
+        broadened the peaks left their tails cut at windows sized where it
+        started, and Layer 0 read the cut as unmatched peaks (WP-1341).
         """
         from .report import build_report
 
@@ -1676,8 +1674,45 @@ class MultiHistogramRefinement:
                                 n_histograms=self.n_histograms, histograms=rows)
 
         assert models is not None and outcome is not None
+        # the result's curves and statistics from a compile at the values it
+        # returns, never the last stage's start-of-stage one (#272, WP-1421)
+        models, recompiled = self._final_compiles(models, outcome, data, limits,
+                                                  window_tol)
+        opening_diags = [*opening_diags, *recompiled]
         return (models, outcome, stage_results, cell_runaway_diags,
                 answer_runaway, opening_diags)
+
+    def _final_compiles(self, models, outcome, data, limits, window_tol):
+        """One compile per histogram at the values the result returns.
+
+        ``Refinement._final_compile``'s rule, one runner over (WP-1421): each
+        stage's compile froze its windows and FCJ node counts at the values
+        the stage started from, so a last stage that broadened the peaks left
+        their tails cut, and the joint report read the cut as unmatched peaks
+        (WP-1341: 44 and 27 on the WP-1131 size pair, 0 and 0 here).  Built
+        with the last stage's own discrete settings and nothing else changed.
+        The solve, the covariance, every esd, the weights (the solve's σ,
+        WP-1309) and the origin rows (WP-1912) stay the solve's, exactly as
+        there.  ``FROZEN_COMPILE_STALE`` compares χ² summed over histograms.
+        """
+        values = [t.decode(th) for t, th in zip(
+            self.mtable.tables, self.mtable.split(outcome.theta), strict=True)]
+        fresh = [
+            compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
+                          moving_paths=set(tab.moving_paths),
+                          window_area_tol=recorded_window_tol(window_tol))
+            for s, ins, d, lim, tab in zip(
+                self.mtable.structures, self.mtable.instruments, data, limits,
+                self.mtable.tables, strict=True)]
+        # the solve's moment frames, never the fresh compiles' (#598)
+        self.mtable.push_moment_frames(fresh)
+        chi2_frozen = chi2_fresh = 0.0
+        for old, new, v in zip(models, fresh, values, strict=True):
+            new.sigma = old.sigma
+            new.origin = old.origin
+            chi2_frozen += float(np.sum(((old.y_obs - old.evaluate(v)) / old.sigma) ** 2))
+            chi2_fresh += float(np.sum(((new.y_obs - new.evaluate(v)) / new.sigma) ** 2))
+        return fresh, _frozen_compile_findings(chi2_frozen, chi2_fresh)
 
     def _emit_stage_start(self, stream, stage, index, n_stages, models, *,
                           freed, held, unknown_paths, unreached, **extra) -> None:
