@@ -168,6 +168,20 @@ def test_every_histograms_ticks_name_their_reflections(two_patterns):
     assert set(first.tick_hkl) == set(second.tick_hkl)
 
 
+def test_each_histograms_view_names_its_own_radiation(two_patterns):
+    """The other half of a second builder (WP-2042): ``for_histogram(h)``
+    copies the top-level fields, so a radiation recorded only there would label
+    histogram 1's figure with histogram 0's λ."""
+    structure, instruments = perturbed_inputs()
+    result = MultiHistogramRefinement(structure, instruments).fit(
+        two_patterns, plan="mccusker_default")
+    assert result.radiation == result.histograms[0].radiation   # mirrors hist 0
+    for h, lam in enumerate((0.41390, 0.71070)):
+        assert result.histograms[h].radiation.wavelengths == [lam]
+        label = result.for_histogram(h).plot().get_axes()[0].get_xlabel()
+        assert label.endswith(rf"$\lambda$ = {lam:g} Å"), (h, label)
+
+
 def test_bad_histogram_shows_in_its_own_rwp(two_patterns):
     # corrupt the second pattern with a large unmodelled impurity peak: the
     # shared model can still fit histogram 0, so a pooled Rwp would understate
