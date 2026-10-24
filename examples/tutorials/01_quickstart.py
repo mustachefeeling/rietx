@@ -153,8 +153,8 @@ result
 #    The `closing` stage runs at the solver's default, and its values are the ones to quote.
 #    `max|Δθ|/esd` is the largest final step of any parameter in units of its own esd.
 # 2. The diagnostics outrank every statistic.
-#    Under each one, `help:` says what to do and `means:` says what the code means.
-#    A finding about particular parameters names them on an `at:` line.
+#    With no deliverable given, each prints on one line.
+#    The line names the parameters the finding is about and the purposes it is a warning under.
 #    `PATTERN_UNDERSAMPLED` is the step count from `diagnose`.
 # 3. The agreement indices come last. Rwp compares two fits of the same data over the same channels, and says little on its own.
 #
@@ -197,7 +197,8 @@ best
 
 # %% [markdown]
 # The kept pass carries its own diagnostics, and they differ from the first pass's.
-# `RESOLUTION_UNCONSTRAINED` is new, and its `at:` line names U, V and W.
+# `RESOLUTION_UNCONSTRAINED` is new.
+# Its line names U, V and W.
 # It says the peak widths are not quotable until the instrument's own widths are calibrated on a standard.
 # Notebook 04 does that calibration.
 #
