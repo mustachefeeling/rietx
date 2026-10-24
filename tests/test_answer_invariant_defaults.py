@@ -135,3 +135,61 @@ def test_auto_background_chooses_alike_with_the_beam_declared(kind):
         declared = rx.auto_background(data, kind=kind, source=source,
                                       wavelength=WAVELENGTH)
     assert declared.model_dump() == bare.model_dump()
+
+
+# -- the series seat (WP-2003) ------------------------------------------------
+#
+# ``refine_sequential`` and ``SequentialRefinement.fit`` carry the same
+# observation channels, plus ``on_result`` (a callback handed each kept fit)
+# and ``history`` (one tree per pattern).  A chain is switched on against the
+# same chain with every channel at its default: three patterns of the
+# thermal ramp under the default plan, so a cold fit and two warm rungs run.
+
+
+@pytest.fixture(scope="module")
+def ramp():
+    from tests.test_sequential import A0, RAMP, _simulate
+
+    return [_simulate(A0 * (1.0 + RAMP * k), seed=11 + k) for k in range(3)]
+
+
+def _series_answer(series):
+    """Every number a chain reports, and which rung each pattern kept; the
+    tree and node ids a history writes are names, not answers."""
+    entries = [(e.label, e.status, e.rung, tuple(e.rungs_tried), e.reseeded,
+                e.rwp_warm, e.rwp_fence, e.statistics.rwp,
+                [(p.path, p.value, p.stderr) for p in e.parameters],
+                [d.code for d in e.diagnostics])
+               for e in series.entries]
+    return entries, [d.code for d in series.diagnostics], series.discontinuities
+
+
+def _chain(ramp, **kw):
+    from tests.test_sequential import _start_models
+
+    structure, ins = _start_models()
+    return _series_answer(rx.refine_sequential(ramp, structure, ins, plan=PLAN, **kw))
+
+
+@pytest.fixture(scope="module")
+def series_baseline(ramp):
+    return _chain(ramp)
+
+
+@pytest.mark.parametrize("channel", ["events", "progress", "cancel", "label",
+                                     "on_result", "history"])
+def test_a_series_observed_is_the_series_unobserved(ramp, series_baseline, tmp_path,
+                                                    channel):
+    seen = []
+    kw = {"events": tmp_path / "events.jsonl", "progress": io.StringIO(),
+          "cancel": CancelToken(), "label": "observed",
+          "on_result": lambda k, result: seen.append(k), "history": True}
+    assert _chain(ramp, **{channel: kw[channel]}) == series_baseline
+    if channel == "on_result":
+        assert seen == [0, 1, 2], "the callback ran, once a pattern"
+
+
+def test_a_recorded_series_is_the_series_unrecorded(ramp, series_baseline, tmp_path,
+                                                    recording):
+    assert _chain(ramp) == series_baseline
+    assert _recorded(tmp_path) == 1, "one run directory for one job"
