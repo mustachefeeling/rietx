@@ -26,6 +26,25 @@ comes before it is explained or linked.
 - Edit each `examples/tutorials/NN_*.py` and rebuild with `build.py`. Never edit the
   `.ipynb`.
 
+### Inherited
+
+- **2026-10-24, from WP-2037: two tutorial gaps no open WP owns, left here because this is
+  the next WP to edit the tutorials.** Fold each into a task or file it.
+  1. Notebook 03 no longer shows the indexer abstaining. Since WP-2002 removed the U, V and
+     Y width floors (`879fb1bcc`), its candidate validates with 0 of 105 reflections absent
+     and grades `high`, so the verdict line names the cell. Checked on an `origin/main`
+     snapshot (`e921947a0`), so it is not WP-2037's doing. WP-2037 rewrote the section to
+     what the output shows and gave the search `budget_seconds=120`, because at the 30 s
+     default a busy machine left svd unfinished and flipped the verdict to NO CELL. The
+     lesson "why the indexer abstains" now has no example in the tutorials.
+  2. `best.plot()` names no radiation, while `data.plot()` now does (WP-2037). A
+     `RefinementResult` carries no field naming its source, so `plot_result` can only
+     take `wavelength=`. Closing it needs a recorded field on the result, a schema
+     change.
+- **2026-10-24, from WP-2037: `build.py` now lists every cell whose text output a rebuild
+  changed, with the first line of the markdown under it.** Reread each one it lists before
+  committing a rebuild.
+
 ## Non-goals
 
 - The prose and display fixes: WP-2037.

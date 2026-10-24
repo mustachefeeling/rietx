@@ -205,8 +205,10 @@ a change to what `diagnose` computes, so it stays inside the non-goal below.
       `notebooks.githubusercontent.com` frame: the sanitiser strips `<details>`/`<summary>`,
       so every explanation renders open in the body font between two `<pre>` blocks, and
       the parameter table renders in the body font with right-aligned paths.
-- [ ] Fold the rules into the local skills (maintainer's machine, no commit here). Record the
+- [x] Fold the rules into the local skills (maintainer's machine, no commit here). Record the
       final wording, and anything `yue-prose` already covered, in the handover entry.
+      Handed over 2026-10-24 as paste text for a claude-config session (the handover
+      entry has it): a rietx worktree cannot commit to that repository.
 - [x] `examples/tutorials/README.md`: the repo-side tutorial rules (prose matches the output,
       and a rebuild rereads it; each model piece shown before a fit uses it; code layout).
 - [x] Quickstart prose: each stale line and each word in § What the quickstart shows today.
