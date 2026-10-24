@@ -236,7 +236,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
       § Acceptance; the decisions above dated into § Decisions.
 - [x] The help seat for result fields in `help.py`, crossed both ways against the live
       result schemas (`tests/test_help.py`'s pattern), with `rx.explain("<Type>.<field>")`.
-- [ ] `_audit.Row.response` and `Row.scope`, the purpose table (one module, about eight
+- [x] `_audit.Row.response` and `Row.scope`, the purpose table (one module, about eight
       rows with their physics), and the three meta-tests (response equals every raise
       site; a `warning` sentence names a result number or plan outcome; no `where` and
       no scope fails). Existing rows enter with `response` unset and a shrink-only

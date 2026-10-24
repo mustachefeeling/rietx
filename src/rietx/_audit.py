@@ -39,6 +39,19 @@ its switch stays off the default paths (the record's § The rule, ruled
 Constant, default and suggestion rows store the live value, so a retune fails
 ``tests/test_audit_table.py`` and reopens the row's audit.
 
+**A code row also says what its reader does** (WP-2037, the record's
+§ The rule, "Attention is a cost").  ``response`` is the level the reader
+owes the code, and it equals the literal ``level=`` every raise site passes,
+held by test: two consequences are two codes, never a threshold between
+levels.  ``responds`` is the one sentence on what the reader does, and a
+``warning`` one names a result number or a plan outcome.  ``scope`` is for a
+code no raise site gives a ``where``: the purposes of
+:data:`rietx.purposes.PURPOSES` it bears on, or ``("all",)``.  A code's level
+under a purpose is computed from those two tables, never authored per code
+per purpose.  :data:`RESPONSE_BASELINE` lists the code rows still without a
+response, and shrinks the way :data:`UNAUDITED_BASELINE` does, so a new code
+enters with one.
+
 **The suite's growth guard reads no git.**  CI's test jobs have no
 ``origin/main``, so a comparison against the base table would skip exactly
 where it gates a merge.  A local ``origin/main`` can be stale.
@@ -82,9 +95,11 @@ from typing import Literal
 Kind = Literal["code", "action", "constant", "default", "suggestion"]
 Tier = Literal[1, 2, 3, "invariant", "caller", "unaudited"]
 Ambiguity = Literal[1, 2, 3]
+Response = Literal["error", "warning", "info"]
 
 KINDS: tuple[str, ...] = Kind.__args__
 TIERS: tuple[object, ...] = Tier.__args__
+RESPONSES: tuple[str, ...] = Response.__args__
 _VALUED = ("constant", "default", "suggestion")
 _STATES_AMBIGUITY = ("code", "action", "default")
 
@@ -95,7 +110,9 @@ class Row:
     row and on a tier-2 action row; ``ambiguity`` is DESIGN.md § Rules, 1's
     kind, required on an audited code, action or default row (DESIGN.md
     § Rules, 4 asks a new default or action for it) and allowed on a
-    suggestion row."""
+    suggestion row.  ``response``, ``responds`` and ``scope`` are a code
+    row's alone (the module docstring); ``responds`` is required beside a
+    ``response``, and ``scope`` where no raise site passes a ``where``."""
 
     name: str
     kind: Kind
@@ -105,6 +122,9 @@ class Row:
     grounds: str = ""
     approved: str | None = None
     value: object = None
+    response: Response | None = None
+    responds: str = ""
+    scope: tuple[str, ...] = ()
 
 
 _PACKAGE = pathlib.Path(__file__).resolve().parent
@@ -125,6 +145,7 @@ WALKED: dict[str, int] = {
     "sequential.py": 2003,
     "multi.py": 2003,
     "report": 2004,
+    "purposes.py": 2004,
     "io/readers.py": 2006,
     "io/formats/base.py": 2006,
     "crystallography": 2006,
@@ -397,17 +418,21 @@ def _literal(value: object) -> str:
     return repr(value)
 
 
-#: What a printed row holds where the author's answer goes.  Neither is a tier
-#: or a kind of ambiguity, so a row pasted unfilled fails the table's tests.
+#: What a printed row holds where the author's answer goes.  It is no tier,
+#: kind of ambiguity or response, so a row pasted unfilled fails the table's
+#: tests.
 PENDING = "?"
 
 
 def row_source(name: str, kind: str, value: object = None) -> str:
     """The line a failure prints for ``name``: its tier, its kind of
-    ambiguity where the row must state one, and its evidence left for the
-    author.  A name new to the table may not enter at ``unaudited``."""
+    ambiguity where the row must state one, a code's response, and its
+    evidence and a code's sentence left for the author.  A name new to the
+    table may not enter at ``unaudited``, nor a code without a response."""
     ambiguity = f", ambiguity={_literal(PENDING)}" if kind in _STATES_AMBIGUITY else ""
     tail = f", value={_literal(value)}" if kind in _VALUED else ""
+    if kind == "code":
+        tail += f', response={_literal(PENDING)}, responds=""'
     return (f"Row({_literal(name)}, {_literal(kind)}, tier={_literal(PENDING)}{ambiguity}, "
             f'evidence=""{tail}),')
 
@@ -540,7 +565,10 @@ ROWS: tuple[Row, ...] = (
     Row("EXTRA_PEAK_ON_REFLECTION", "code"),
     Row("FLAT_DIRECTION", "code"),
     Row("FLAT_DIRECTION_OMITTED", "code"),
-    Row("FLOOR_HIT", "code"),
+    Row("FLOOR_HIT", "code", response="warning",
+        responds=("quote an upper limit, not a value, for the parameter on its floor, and "
+                  "check whatever trades against it before quoting an ADP, an occupancy or "
+                  "a scale")),
     Row("FROZEN_COMPILE_STALE", "code"),
     Row("FULLPROF_MAGNETIC_PHASE_OMITTED", "code"),
     Row("FULLPROF_MAGNETIC_PHASE_READ", "code"),
@@ -695,7 +723,11 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
-    Row("PATTERN_UNDERSAMPLED", "code"),
+    Row("PATTERN_UNDERSAMPLED", "code", response="warning",
+        responds=("do not quote an intensity- or width-derived number (a fraction, an ADP, "
+                  "a size, a strain, an instrument width) until the pattern is collected at "
+                  "a step near FWHM/5"),
+        scope=("qpa", "structure", "microstructure", "calibration")),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),
     Row("PAWLEY_OFF_DATA_RIDGED", "code"),
@@ -741,7 +773,9 @@ ROWS: tuple[Row, ...] = (
     Row("RECIPE_SCHEMA_UNTESTED", "code"),
     Row("RECIPE_ZERO_WEIGHT_EXCLUDED", "code"),
     Row("RESOLUTION_NOT_POSITIVE", "code"),
-    Row("RESOLUTION_UNCONSTRAINED", "code"),
+    Row("RESOLUTION_UNCONSTRAINED", "code", response="warning",
+        responds=("do not quote a width, a crystallite size or a strain from this fit; "
+                  "calibrate the instrument on a standard first")),
     Row("RESTRAINT_TENSION", "code"),
     Row("RIGID_BODY_MISFIT", "code"),
     Row("RIGID_BODY_UNSUPPORTED", "code"),
@@ -761,7 +795,9 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_UNRECOVERED", "code"),
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code"),
-    Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code"),
+    Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code", response="warning",
+        responds=("check the site's multiplicity against the source before quoting a weight "
+                  "fraction, a density or a site's occupancy from this fit")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code"),
     Row("SIZE_UNUSUALLY_SMALL", "code"),
     Row("SOLVE_B_TIED_PER_PARENT_SITE", "code", tier="caller", ambiguity=2,
@@ -4306,4 +4342,263 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.strategy.staged.HUMP_MIN_WIDTH_MULT",
     "rietx.strategy.staged.ROUGHNESS_ABSORPTION_GUARD",
     "rietx.strategy.suggest.SUGGEST_SEED_ROUGHNESS",
+)
+
+#: The code rows still without a response, sorted.  Written once when the
+#: column opened (WP-2037, 2026-10-24); it shrinks as WPs 2004-2007 give each
+#: code its response, so a code new to the table enters with one.
+RESPONSE_BASELINE: tuple[str, ...] = (
+    "ABSORPTION_ESTIMATE_UNAVAILABLE",
+    "ABSORPTION_MU_R_OUT_OF_RANGE",
+    "ABSORPTION_PLATE_THICKNESS",
+    "ABSORPTION_THICKNESS_MATTERS",
+    "ADP_NOT_POSITIVE_DEFINITE",
+    "AIR_SCATTER_UNDECLARED",
+    "BACKGROUND_ABSORPTION",
+    "BACKGROUND_ORDER_AT_CAP",
+    "BISO_NEGATIVE",
+    "BISO_UNUSUALLY_LARGE",
+    "BOUND_HIT",
+    "BRINDLEY_OUTSIDE_REGIME",
+    "BRML_ABSORBER_ENGAGED",
+    "CAPILLARY_OFFSET_UNAVAILABLE",
+    "CELL_DEGENERATE_PROBE",
+    "CELL_RUNAWAY",
+    "CHILD_GROUP_UNNAMED",
+    "CIF_CELL_ANGLE_CORRECTED",
+    "CIF_MAGNETIC_CENTERING_ASSUMED",
+    "CIF_MAGNETIC_ION_UNCHARGED",
+    "CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED",
+    "CIF_MAGNETIC_MOMENT_ON_ALLOWED",
+    "CIF_MAGNETIC_NUCLEAR_GROUP",
+    "CIF_MAGNETIC_NUCLEAR_SETTING",
+    "CIF_MAGNETIC_NUMBER_MISMATCH",
+    "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED",
+    "CIF_MAGNETIC_SYMMFORM",
+    "CIF_MAGNETIC_UNIDENTIFIED",
+    "CIF_SITE_LISTED_TWICE",
+    "CIF_SITE_MULTIPLICITY_DISAGREES",
+    "CIF_SITE_TWINS_MERGED",
+    "CIF_SPECIES_NORMALISED",
+    "CONSTRAINT_ACTIVE",
+    "COVARIANCE_DIRECTION_DISCARDED",
+    "COVARIANCE_UNAVAILABLE",
+    "DATA_SUPPORT_LOW",
+    "DECLARED_RANGE_NOT_RESTORED",
+    "DECLARED_RANGE_RESTORED",
+    "DISPERSION_NEGLECTED",
+    "EXTINCTION_CONDITIONS_PARTIAL",
+    "EXTINCTION_FORBIDDEN_INTENSITY",
+    "EXTINCTION_GROUPS_NOT_SEPARABLE",
+    "EXTINCTION_PRIOR_APPLIED",
+    "EXTINCTION_SCREEN_FAILED",
+    "EXTINCTION_SYMBOL_AMBIGUOUS",
+    "EXTRA_PEAK_NO_INTENSITY",
+    "EXTRA_PEAK_ON_REFLECTION",
+    "FLAT_DIRECTION",
+    "FLAT_DIRECTION_OMITTED",
+    "FROZEN_COMPILE_STALE",
+    "FULLPROF_MAGNETIC_PHASE_OMITTED",
+    "FULLPROF_MAGNETIC_PHASE_READ",
+    "FULLPROF_OCCUPANCY_UNCHECKED",
+    "FULLPROF_ORIGIN_CHOICE",
+    "FULLPROF_RHOMBOHEDRAL_RESTATED",
+    "FULLPROF_SPECIES_NORMALISED",
+    "FULLPROF_SPECIES_WRITTEN_NEUTRAL",
+    "FULLPROF_TIE_DROPPED",
+    "GSAS2_CIF_DEUTERIUM_AS_D",
+    "GSAS2_CIF_FIELD_NOT_WRITTEN",
+    "GSAS2_CIF_RHOMBOHEDRAL_RESTATED",
+    "GSAS2_CIF_SETTING_IN_OPERATORS",
+    "GSAS2_CIF_SPECIES_WRITTEN_NEUTRAL",
+    "GSAS2_GPX_BACKGROUND_NOT_CARRIED",
+    "GSAS2_GPX_CONSTRAINT_NOT_CARRIED",
+    "GSAS2_GPX_COORDINATES_SYMMETRY_FIXED",
+    "GSAS2_GPX_ITEM_NOT_READ",
+    "GSAS2_GPX_PHASE_MAGNETIC",
+    "GSAS2_GPX_SCALE_NOT_COMPARABLE",
+    "GSAS2_GPX_SETTING_FROM_OPERATORS",
+    "GSAS2_GPX_SPECIES_NORMALISED",
+    "GSAS2_GPX_TEXTURE_CONVERTED",
+    "GSAS2_GPX_TEXTURE_NOT_CARRIED",
+    "GSAS2_INSTPRM_CONVENTION_ASSUMED",
+    "GSAS2_INSTPRM_FIELD_DROPPED",
+    "GSAS2_INSTPRM_FIELD_NOT_READ",
+    "GSAS2_INSTPRM_FIELD_NOT_WRITTEN",
+    "GSAS2_INSTPRM_GEOMETRY_ASSUMED",
+    "GSAS2_INSTPRM_VALUE_DEFAULTED",
+    "GSAS2_INSTPRM_VALUE_FLOORED",
+    "GSAS2_INSTPRM_VALUE_MERGED",
+    "GSAS_BANK_COMMENTED",
+    "GSAS_EXP_BACKGROUND_NOT_CARRIED",
+    "GSAS_EXP_COORDINATES_SYMMETRY_FIXED",
+    "GSAS_EXP_HISTOGRAM_NOT_READ",
+    "GSAS_EXP_PHASE_MAGNETIC",
+    "GSAS_EXP_REFINE_FLAG_MERGED",
+    "GSAS_EXP_SCALE_NOT_COMPARABLE",
+    "GSAS_EXP_SPECIES_NORMALISED",
+    "GSAS_EXP_SPECIES_WRITTEN_NEUTRAL",
+    "GSAS_EXP_VALUE_NARROWED",
+    "GSAS_FIELD_OVERFLOW",
+    "GSAS_IPARM_FIELD_DROPPED",
+    "GSAS_IPARM_LEGACY_LAYOUT",
+    "GSAS_IPARM_PROFILE_DECLINED",
+    "GSAS_IPARM_PROFILE_READ",
+    "GSAS_PRM_FIELD_DROPPED",
+    "GSAS_PRM_FIELD_NOT_WRITTEN",
+    "GSAS_PRM_GEOMETRY_ASSUMED",
+    "GSAS_PRM_PROFILE_SET_DEFAULTED",
+    "GSAS_PRM_VALUE_NARROWED",
+    "HARMONIC_ABSENT",
+    "HARMONIC_FRACTION",
+    "HARMONIC_HELD",
+    "HIGH_CORRELATION",
+    "HIGH_CORRELATION_OMITTED",
+    "HOLD_BLOCKED_PLAN",
+    "HUMP_TOO_NARROW",
+    "INDEX_ABSTAINED",
+    "INDEX_BRAVAIS_AMBIGUOUS",
+    "INDEX_BUDGET_EXHAUSTED",
+    "INDEX_CANDIDATES_TRUNCATED",
+    "INDEX_CELL_SYSTEMATIC_UNQUANTIFIED",
+    "INDEX_DATA_INSUFFICIENT",
+    "INDEX_DOMINANT_ZONE",
+    "INDEX_GEOMETRIC_AMBIGUITY",
+    "INDEX_IMPURITY_LINES",
+    "INDEX_INLIER_RETRY",
+    "INDEX_MULTIPLE_SOLUTIONS",
+    "INDEX_NOT_VALIDATED",
+    "INDEX_PANEL_REDUCED",
+    "INDEX_PREDICTED_BUT_ABSENT",
+    "INDEX_PRIOR_USED",
+    "INDEX_SEARCH_INCOMPLETE",
+    "INDEX_SHIFT_ALLOWANCE",
+    "INDEX_SHIFT_DETECTED",
+    "INDEX_SHIFT_FROM_PAIRS",
+    "INDEX_SHIFT_MODEL_AMBIGUOUS",
+    "INDEX_SINGLE_ENGINE",
+    "INDEX_SUPERCELL_REFUTED",
+    "INDEX_SYSTEMS_NOT_COVERED",
+    "INDEX_VALIDATION_FAILED",
+    "INDEX_VOLUME_UNPHYSICAL",
+    "INDEX_Z_NOT_INTEGER",
+    "K_VECTOR_UNSEPARATED",
+    "LANDE_G_ASSUMED",
+    "LAUE_CLASS_NOT_SEPARABLE",
+    "LEBAIL_ALTERNATION_STOPPED",
+    "LOW_ANGLE_UNMODELLED",
+    "MAGNETIC_ION_ASSUMED",
+    "MAGNETIC_SUBGROUP_PREFERRED",
+    "MAGNETIC_WIDTH_MOVED_MOMENT",
+    "MAGNETIC_WIDTH_UNMEASURED",
+    "MAGNETIC_WIDTH_UNMODELLED",
+    "MICROABSORPTION_SKIPPED",
+    "MODEL_FAR_FROM_DATA",
+    "MOMENT_ANGLE_STATIONARY",
+    "MOMENT_PAIR_DEGENERATE",
+    "NEUTRON_RESONANT_ABSORBER",
+    "OCCUPANCY_ABOVE_ONE",
+    "ORIGIN_FIXED_ON_POLAR_AXIS",
+    "ORIGIN_NOT_FIXED",
+    "PARAMETRIC_FORM_REJECTED",
+    "PARAMETRIC_OUT_OF_RANGE",
+    "PARAMETRIC_TARGET_UNSEEN",
+    "PATTERN_DEAD_CHANNELS",
+    "PATTERN_DUPLICATE_POINTS",
+    "PATTERN_INTENSITY_SCALED",
+    "PATTERN_MULTISCAN_DEFAULTED",
+    "PATTERN_ROWS_DROPPED",
+    "PATTERN_SCAN_REVERSED",
+    "PATTERN_SIGMA_CONSTANT",
+    "PATTERN_X_AXIS_ASSUMED",
+    "PATTERN_X_AXIS_IMPLAUSIBLE",
+    "PAWLEY_OFF_DATA_RIDGED",
+    "PAWLEY_OVERLAP_UNRESOLVED",
+    "PEAK_ASYMMETRY_UNMODELLED",
+    "PEAK_AXIAL_TAIL",
+    "PEAK_CONTAMINATION_LINE",
+    "PEAK_EXPECTED_FALSE_LINES",
+    "PEAK_KALPHA2_ALIAS",
+    "PEAK_KALPHA2_RESIDUAL",
+    "PEAK_LIST_TOO_SHORT",
+    "PEAK_NOT_SEPARABLE",
+    "PEAK_POSITION_PRECISION",
+    "PEAK_SHOULDER_SEEDED",
+    "PEAK_SIGMA_ASSUMED",
+    "PEAK_UNRESOLVED_SHOULDER",
+    "PEAK_UNRESOLVED_SPLIT",
+    "PEAK_WIDTH_CAPPED",
+    "PEAK_WIDTH_LAW_MISMATCH",
+    "PHASE_UNCONSTRAINED",
+    "QPA_ESD_UNAVAILABLE",
+    "QPA_FRACTION_RANGE",
+    "QPA_UNAVAILABLE",
+    "RAS_ATTENUATOR_PRESENT",
+    "READER_OPTION_IGNORED",
+    "RECIPE_BACKGROUND_PEAK_DEGENERATE",
+    "RECIPE_BACKGROUND_RESEEDED",
+    "RECIPE_BOUND_HONOURED",
+    "RECIPE_CONVENTION_ASSUMED",
+    "RECIPE_DISPERSION_DECLINED",
+    "RECIPE_ENGINE_DEFAULT_DECLINED",
+    "RECIPE_FIELD_DROPPED",
+    "RECIPE_FIT_RANGE_CHANNELS",
+    "RECIPE_FLAG_DROPPED",
+    "RECIPE_FLAG_TRANSLATED",
+    "RECIPE_NOTHING_REFINED",
+    "RECIPE_PLAN_STAGED",
+    "RECIPE_SCALE_RESEEDED",
+    "RECIPE_SCHEMA_UNTESTED",
+    "RECIPE_ZERO_WEIGHT_EXCLUDED",
+    "RESOLUTION_NOT_POSITIVE",
+    "RESTRAINT_TENSION",
+    "RIGID_BODY_MISFIT",
+    "RIGID_BODY_UNSUPPORTED",
+    "ROUGHNESS_ABSORPTION",
+    "ROUGHNESS_OUTSIDE_REGIME",
+    "ROUGHNESS_UNCONSTRAINED",
+    "SCALE_B_INSEPARABLE",
+    "SEQUENTIAL_CANCELLED",
+    "SEQUENTIAL_DISCONTINUITY",
+    "SEQUENTIAL_MOMENT_HOLD",
+    "SEQUENTIAL_MOMENT_ONSET",
+    "SEQUENTIAL_PATH_CHECK_INCOMPLETE",
+    "SEQUENTIAL_PATH_DEPENDENT",
+    "SEQUENTIAL_PERSISTENT_FINDING",
+    "SEQUENTIAL_RESEED",
+    "SEQUENTIAL_RWP_OUTLIER",
+    "SEQUENTIAL_UNRECOVERED",
+    "SEQUENTIAL_WIDTH_GROWTH",
+    "SERIES_PATTERN_FAILED",
+    "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
+    "SIZE_UNUSUALLY_SMALL",
+    "SOLVE_B_TIED_PER_PARENT_SITE",
+    "SPACE_GROUP_SETTING_ASSUMED",
+    "SPECIES_FALLBACK_NEUTRAL",
+    "STAGE_FREED_NOTHING",
+    "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
+    "STAGE_MAX_ITER",
+    "STAGE_PATH_NOT_FREE",
+    "STAGE_PATH_UNKNOWN",
+    "STEPHENS_STRAIN_NOT_POSITIVE",
+    "STRAIN_UNUSUALLY_LARGE",
+    "TEXTURE_NOT_POSITIVE",
+    "TOPAS_BLOCK_SKIPPED",
+    "TOPAS_CELL_COUPLING_DROPPED",
+    "TOPAS_FEATURES_NOT_IMPORTED",
+    "TOPAS_FEATURE_REFUSED",
+    "TOPAS_FIELD_NOT_WRITTEN",
+    "TOPAS_FIRST_RUN_READ",
+    "TOPAS_MAGNETIC_GROUP_READ",
+    "TOPAS_MAGNETIC_PART_MERGED",
+    "TOPAS_MOMENT_CONVENTION",
+    "TOPAS_MOMENT_G_HELD",
+    "TOPAS_MOMENT_ION_UNCHARGED",
+    "TOPAS_ORIGIN_TRANSLATED",
+    "TOPAS_PHASE_RESTATED_IN_P1",
+    "TOPAS_PHASE_TERM_READ",
+    "TOPAS_SPECIES_NORMALISED",
+    "TOPAS_SPECIES_WRITTEN_NEUTRAL",
+    "WAVELENGTH_CALIBRATION",
+    "XRDML_ATTENUATOR_APPLIED",
 )
