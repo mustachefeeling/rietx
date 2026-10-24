@@ -915,7 +915,7 @@
   },
   "rietx.io.instrument_tof.PRCF_COEFFICIENT_NAMES": {
    "role": "vocabulary / lookup",
-   "decides": "Documented coefficient names, in the manual's \"respectively\" order (p.",
+   "decides": "Documented coefficient names, in the manual's \"respectively\" order (p. 144, 147, 148) — the only ordering the documentation offers.",
    "file": "src/rietx/io/instrument_tof.py",
    "line": 151
   },
@@ -933,37 +933,37 @@
   },
   "rietx.io.instrument_tof._BANK_FIELDS": {
    "role": "format layout",
-   "decides": "Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p.",
+   "decides": "Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p. 221-223) — what `_Record.check_columns` tests for a number crossing a boundary.",
    "file": "src/rietx/io/instrument_tof.py",
    "line": 182
   },
   "rietx.io.instrument_tof._ICONS_FIELDS": {
    "role": "format layout",
-   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p.",
+   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p. 221-223) — what `_Record.check_columns` tests for a number crossing a boundary.",
    "file": "src/rietx/io/instrument_tof.py",
    "line": 183
   },
   "rietx.io.instrument_tof._BNKPAR_FIELDS": {
    "role": "format layout",
-   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p.",
+   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p. 221-223) — what `_Record.check_columns` tests for a number crossing a boundary.",
    "file": "src/rietx/io/instrument_tof.py",
    "line": 186
   },
   "rietx.io.instrument_tof._ITYP_FIELDS": {
    "role": "format layout",
-   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p.",
+   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p. 221-223) — what `_Record.check_columns` tests for a number crossing a boundary.",
    "file": "src/rietx/io/instrument_tof.py",
    "line": 189
   },
   "rietx.io.instrument_tof._PRCF_FIELDS": {
    "role": "format layout",
-   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p.",
+   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p. 221-223) — what `_Record.check_columns` tests for a number crossing a boundary.",
    "file": "src/rietx/io/instrument_tof.py",
    "line": 191
   },
   "rietx.io.instrument_tof._E15_FIELDS": {
    "role": "format layout",
-   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p.",
+   "decides": "Same group as _BANK_FIELDS: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)`` column spans (GSAS Technical Manual p. 221-223) — what `_Record.check_columns` tests for a number crossing a boundary.",
    "file": "src/rietx/io/instrument_tof.py",
    "line": 192
   },
@@ -975,7 +975,7 @@
   },
   "rietx.io.legacy.lansce_iparm.LEGACY_PRCF1_SLOT_NAMES": {
    "role": "vocabulary / lookup",
-   "decides": "The eight slots, named as slots 1-8 of the documented twelve (GSAS Technical Manual p.",
+   "decides": "The eight slots, named as slots 1-8 of the documented twelve (GSAS Technical Manual p. 144) — confirmed by GSAS-II v5.8.2 reading an 8-slot and a 12-slot block slot for slot alike.",
    "file": "src/rietx/io/legacy/lansce_iparm.py",
    "line": 79
   },
@@ -1389,13 +1389,13 @@
   },
   "rietx.crystallography.magnetic.form_factor._J0_LISHER": {
    "role": "tabulated data (cited)",
-   "decides": "Lisher & Forsyth (1971) ⟨j₀⟩, Table 1 p.",
+   "decides": "Lisher & Forsyth (1971) ⟨j₀⟩, Table 1 p. 545, and ⟨j₂⟩, Table 2 p. 546, in their 5-parameter form.",
    "file": "src/rietx/crystallography/magnetic/form_factor.py",
    "line": 376
   },
   "rietx.crystallography.magnetic.form_factor._J2_LISHER": {
    "role": "tabulated data (cited)",
-   "decides": "Same group as _J0_LISHER: Lisher & Forsyth (1971) ⟨j₀⟩, Table 1 p.",
+   "decides": "Same group as _J0_LISHER: Lisher & Forsyth (1971) ⟨j₀⟩, Table 1 p. 545, and ⟨j₂⟩, Table 2 p. 546, in their 5-parameter form.",
    "file": "src/rietx/crystallography/magnetic/form_factor.py",
    "line": 379
   },

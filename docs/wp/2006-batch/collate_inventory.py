@@ -34,7 +34,7 @@ HELPERS = {  # codes raised through a helper that takes `code=` and builds the D
 }
 
 
-ABBREV_STOP = re.compile(r"(?:\bet al|\bVol|\bi\.e|\be\.g|\bcf|\bca|\bvs|\bFig|\bEq|\bNo|\bTable)\.$")
+ABBREV_STOP = re.compile(r"(?:\bet al|\bVol|\bi\.e|\be\.g|\bcf|\bca|\bvs|\bFig|\bEq|\bNo|\bTable|\bpp?)\.$")
 
 
 def cut_texts(judg: dict) -> list[str]:
@@ -43,14 +43,16 @@ def cut_texts(judg: dict) -> list[str]:
     Covers every constant's `decides`, every code's `condition` and every reader
     decision; a code's `note` is a label, not a sentence.  A text is whole when it ends in a full stop or a closing bracket and the full
     stop is not an abbreviation's.  A cut one (at a length cap, a semicolon, "et al.",
-    "i.e.") reads as a half reason in a ruling, so part 2 must never inherit one.
+    "i.e.", "p.", an unclosed bracket) reads as a half reason in a ruling, so part 2 must never inherit one.
     """
     texts = ({f"constants:{k}": v["decides"] for k, v in judg["constants"].items()}
              | {f"codes:{k}": v["condition"] for k, v in judg["codes"].items()}
              | {f"reader_decisions:{r['name']}": r["decides"]
                 for r in judg["reader_decisions"]})
+    # an opening bracket left unclosed is a cut; a stray ")" (the half-open "[0, 1)") is not
     return [k for k, t in texts.items()
-            if not t.rstrip().endswith((".", ")")) or ABBREV_STOP.search(t.rstrip())]
+            if not t.rstrip().endswith((".", ")")) or ABBREV_STOP.search(t.rstrip())
+            or t.count("(") > t.count(")")]
 
 
 def rel(p: Path) -> str:
