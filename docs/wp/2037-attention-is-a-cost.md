@@ -1,6 +1,6 @@
 # WP-2037 — Attention is a cost: two channels, a response per code, relevance by purpose
 
-Milestone: generality · Status: 🔄 2026-10-24 — 13 of 14 tasks landed (the override with usable_under, the batch aggregate and suite metric, the silence harness, the four-family counts); next the registered agent round, running in its own session, then close
+Milestone: generality · Status: 🔄 2026-10-24 — 14 of 14 tasks landed; the agent round did not fire the tripwire (stops 4 of 4 both arms, passes 3 of 4 against 4 of 4); next merge its branch and close
 Track: The registry and the guard
 Depends on: 2001
 Priority: P2 2026-10-23 — a scoping WP other WPs wait on: 2003's first demotion takes the shape this WP sets, and every audit from 2003 on fills the column it installs
@@ -278,7 +278,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
       failed, until 2004-2007 fill it).
 - [x] The snap floor from the file's printed precision in `crystallography/cif.py`,
       tier 1, with the FAP case silent and a real snap still firing.
-- [ ] Before/after counts on the four families in the handover; the agent run
+- [x] Before/after counts on the four families in the handover; the agent run
       registered, run once, reported beside the v1.3 baseline.
 - [x] `FLOOR_HIT` on a freed extinction handed to 2004 as an `### Inherited` entry (done
       at filing; keep it current).
@@ -317,6 +317,38 @@ npm --prefix gui test && npm --prefix gui run check
   termination view), WP-1985 (the help seat for codes).
 
 ## Handover log
+
+- **2026-10-24** — the agent round recorded, the last task. The tripwire of Decision 3 did
+  not fire, so the quiet default stands. Eight agents on Sonnet fitted the same four problems,
+  four with the old view and four with the quiet one. Every one of the eight stopped on a
+  criterion the package states, and the quiet arm passed 4 of 4 against 3 of 4. At four
+  cells an arm this catches a collapse and nothing finer, so it says the quiet view did not
+  break agents, not that it helps them.
+
+  *Measured* (round 2.3 of `tests/ev*_report_agent/PROTOCOL.md`, registered at `5d8796917`
+  10:58 before the first cell at 11:03, outcome at `35b9c7605`, branch
+  `agent-round-quiet-view-407bde`, not yet merged here; `claude-sonnet-5-5`, effort pinned,
+  episodes N1, C1, W1, W2). Arm a was rietx at `5d64a86`, arm b at `4bfde33d7`.
+
+  | read-out | arm a (old view) | arm b (quiet view) | v1.3 baseline |
+  |---|---|---|---|
+  | stopped on a criterion the package states | 4 of 4 | 4 of 4 | 7 of 8 (another harness) |
+  | verdict passed (`scorer.py`) | 3 of 4 | 4 of 4 | — |
+  | called `summary(deliverable=…)` | 3 of 4 | 4 of 4 | — |
+
+  The registered "worse" was a drop of 2 or more on either of the first two rows. A blind
+  Sonnet classifier and the round's author agreed on every stop class. a/N1 failed by
+  overclaiming `converged` on the zero-against-displacement tie. Eight cells spent 4.56 M
+  tokens, 4.14 M of them cache reads ($2.25 at list price). The record (streams, scorecards,
+  `cells.json`) is outside the repo at `~/rietx-agent-rounds/r-2026-10-24-record/`. The
+  round's own § "After the run" lists five defects, none touching what a cell saw. One is
+  that every cell wrote a scratch file to `/tmp`. Read by the rule's letter, that drops the
+  W1 pair, and the three pairs left give the same answer. The maintainer's user-level
+  CLAUDE.md reaches every cell in both arms.
+
+  **Next**: merge `agent-round-quiet-view-407bde` into this branch on the maintainer's word,
+  so the registration lands with #1145; then close (✅): Status, the Priority line, the
+  narrative to v1.10's record, the index.
 
 - **2026-10-24** — second session, three of the five remaining tasks and the judge's open
   items; the agent round runs in its own session.
