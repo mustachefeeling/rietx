@@ -458,7 +458,6 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
     "rietx.schemas.results.RefinementResult.parametric_form_joint",
     "rietx.schemas.results.RefinementResult.phase_agreement",
     "rietx.schemas.results.RefinementResult.provenance",
-    "rietx.schemas.results.RefinementResult.qpa",
     "rietx.schemas.results.RefinementResult.restraints",
     "rietx.schemas.results.RefinementResult.sigma",
     "rietx.schemas.results.RefinementResult.stages",
@@ -830,17 +829,22 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 22
+    # action: 23
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
                   "FullProf and TOPAS hold nothing by default, TOPAS's Remove_Phase is opt-in "
                   "(Tech Ref V9 § 20.19); the collapse restore also appends here, and "
-                  "StageResult.collapsed says which (B14)"),
+                  "StageResult.collapsed says which (B14); WP-1958 (#954, decided "
+                  "2026-10-16): with no line in range the scale is held too, its column "
+                  "zero at every value (tier 1), and TRF walked bcc Fe's to 164.7 on "
+                  "WP-1534's fixture"),
         grounds=("No competent refiner lets a phase the data cannot see refine its cell, and the "
                  "hold touches only what the data cannot determine; on by default, which no "
-                 "program does (B1, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "program does (B1, ruled 2026-10-19). The lineless branch, which holds the "
+                 "scale, is tier-1 arithmetic (a zero column) inside a row tiered on its "
+                 "contested part."),
+        approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.scale_b_held", "action", tier=1, ambiguity=1,
         evidence=("numerical floor: under 2*sqrt(PINV_RCOND) the covariance's pinv cut cannot see "
                   "scale and B as two directions (WP-1534 derivation); measured cases read 1e-12 or"
@@ -1000,6 +1004,20 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in: Geometry.mu_r/mu_t or capillary_radius_mm/thickness_mm, default None "
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "
                   "Acta Cryst. A26, 682 (docstring)")),
+    Row("rietx.schemas.results.RefinementResult.qpa", "action", tier=1, ambiguity=1,
+        evidence=("arithmetic: a phase's scale is not measured where its column is zero at the "
+                  "answer (no reflection in the fitted range), or where the last stage held it "
+                  "(zero when that stage compiled; a refined zero shift can bring a line in by "
+                  "the answer), so the value is the one handed in "
+                  "and a fraction read off it is that start (WP-1958, #954, decided 2026-10-16): "
+                  "such a phase has no fraction (weight_fraction None, unmeasured_phases names it) and "
+                  "the others are normalised over the phases seen, absent rather than zero "
+                  "(WP-1072, WP-1110 item 14); before, TRF read 99.99 wt% iron off a walked "
+                  "scale and LM 0.61 wt%, the start; Brindley is skipped, its mean mu needing "
+                  "every fraction; the set is what the last stage held plus the answer's own "
+                  "no-line count, so a line a zero shift moved into range cannot quote the "
+                  "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
+                  "histogram that has lines counts as measured in every histogram (item 2)")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "

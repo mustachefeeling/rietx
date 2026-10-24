@@ -2365,10 +2365,23 @@ class CompiledModel:
         a margin) has an empty window and contributes exactly as much as one
         that does not exist.  Frozen at stage compile like everything else the
         windows carry, so this is a fact about the stage, not about θ.
+
+        A window is the reflection's profile reach, not its centre: a
+        reflection whose centre lies outside the fitted range while its tail
+        reaches into it **counts as a line**, since its column is not zero
+        there (stated on #1103's follow-up).
+
+        A phase drawing its magnetic component on its own, wider windows
+        (``win_mag``, WP-1343) counts a reflection either window brings into
+        range, since either one gives the scale a column; zero then means
+        what the hold and the QPA read it as (WP-1958).
         """
         out = np.zeros(len(self.phases), dtype=np.int64)
         for ip, cp in enumerate(self.phases):
-            out[ip] = int(np.count_nonzero(cp.win[:, :, 1] > cp.win[:, :, 0]))
+            inside = cp.win[:, :, 1] > cp.win[:, :, 0]
+            if cp.win_mag is not None:
+                inside = inside | (cp.win_mag[:, :, 1] > cp.win_mag[:, :, 0])
+            out[ip] = int(np.count_nonzero(inside))
         return out
 
     # ------------------------------------------------------------------
