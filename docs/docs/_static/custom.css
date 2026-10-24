@@ -432,6 +432,41 @@ pre {
   border-radius: 8px;
 }
 
+/* A signature short enough to stay on one line can still be wider than a phone, and
+ * `rx.save_instrument_profile(instrument:` has no break in it: it scrolls on its own line
+ * where the column would otherwise cut it (WP-2022). */
+dt.sig {
+  overflow-x: auto;
+}
+
+/* A signature is coloured as a Python code block is (WP-2023): `docs/py_highlight.py`
+ * puts `highlight` on it and Pygments' token names on its pieces, so every colour is
+ * `pygments.css`'s.  It takes the token colours and not the block's ground, which would
+ * hide the tint of a signature reached by its permalink; and its parameter names are
+ * upright, where an italic would fight the colours. */
+html[data-theme] dt.sig.highlight {
+  background-color: transparent;
+}
+
+html[data-theme] dt.sig.highlight:target {
+  background-color: var(--pst-color-target);
+}
+
+dt.sig.highlight em.sig-param {
+  font-style: normal;
+}
+
+/* A model's fields (`py:fields`, WP-2022) are one object's signatures, a line each, and
+ * carry no body of their own. */
+dl.py.fields > dt {
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+
+dl.py.fields > dd:empty {
+  display: none;
+}
+
 /* A tab set (macOS, Linux, Windows) is a row of words over a rule, the current one
  * underlined, and draws no box round the panel, which is not a control. */
 .bd-content .sd-tab-set > label {

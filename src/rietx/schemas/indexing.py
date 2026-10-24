@@ -159,6 +159,14 @@ from .structure import Cell
 #: where it was the constant, so a high-resolution list now matches within its
 #: own widths.  A run whose first pass finds an agreed lattice, and a lab list
 #: with lines 0.05 degrees or wider, answer as at 1.9.
+#: Also in 1.11 (WP-1969, #933): ``indexed_fraction_low`` reads the share of the
+#: usable lines' *intensity* a cell indexes, where it read their count, so a
+#: cell leaving weak foreign lines unindexed can grade above ``low`` and one
+#: missing a strong line cannot.  On SRM 660c with three or six weak impurity
+#: lines the certified cell goes from ``low`` to ``medium``: a line count under
+#: the bar adds the capping caveat ``indexed_lines_low`` (a vocabulary member
+#: of ``IndexCaveat``, no new field); no other indexing acceptance row changes
+#: grade by the intensity reading.
 INDEXING_THRESHOLDS_VERSION = "1.11"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
@@ -508,7 +516,11 @@ SMITH_VOLUME_C1, SMITH_VOLUME_C2 = 0.6, 0.0052
 # Consensus and the confidence gate (WP-1024)
 # ----------------------------------------------------------------------
 #: Share of the **whole usable line list** a candidate must index before it can
-#: be called ``"high"`` confidence.  Note the denominator: the search is driven
+#: be called ``"high"`` confidence, read in two roles against the one bar: the
+#: share of the lines' *intensity* gates the refuting ``indexed_fraction_low``
+#: caveat, and the share of their *count* below it caps the grade at
+#: ``"medium"`` through ``indexed_lines_low`` (see the last paragraph).  Note the
+#: denominator: the search is driven
 #: by the first :data:`~rietx.indexing.engines.DEFAULT_SEARCH_LINES` lines and
 #: may leave ``n_unindexed`` of *those* unexplained, so a cell can pass the
 #: search having said nothing at all about lines 21 onwards — the first of the
@@ -521,6 +533,27 @@ SMITH_VOLUME_C1, SMITH_VOLUME_C2 = 0.6, 0.0052
 #: 20-line list it would demand only 90 % anyway.  A fixed fraction lets a couple
 #: of foreign lines through on a long list and still refuses a cell that explains
 #: only the low-angle half.
+#:
+#: **Read on the intensity the cell explains, not the line count** (WP-1969,
+#: issue #933; ``indexed_intensity_fraction``, falling back to
+#: ``indexed_fraction`` only for a panel built without it).  A count charges a
+#: cell for its own impurities twice, once in the search's acceptance and again
+#: here: on SRM 660c with k weak impurity lines (drawn from the weaker half of
+#: the observed intensities) the certified cell indexes exactly its own 25
+#: lines, so the count put it at 25/(25 + k) and refuted it from k = 3, while it
+#: explains 0.93-1.00 of the intensity through k = 6.  The weighted reading also
+#: refutes what the count passes: a cell missing one strong line.  The same six
+#: impurity lines drawn from the *stronger* half take the share to 0.73-0.74,
+#: and the caveat fires.  The bar is unchanged; on a position-only list every
+#: line weighs 1 and the two readings are one number.
+#:
+#: **The count still acts, as a cap** (yue-here's ruling on #1042).  From the
+#: line list alone a superlattice line and an impurity line look the same, and a
+#: sub-cell missing a superstructure explains every strong line, so on intensity
+#: alone it could reach ``"high"`` with nothing else refuting a smaller cell.  A
+#: line count under this bar therefore adds ``indexed_lines_low``, which caps
+#: and does not refute (GSAS-II scores cells by count only, M20 and X20).  The
+#: weak-impurity LaB6 cell grades ``"medium"`` rather than ``"low"``.
 INDEX_MIN_INDEXED_FRACTION = 0.9
 #: Confidence in one candidate cell.  Three levels, and the top one is
 #: **agreement between independent engines** rather than any statistic: the same
@@ -545,7 +578,13 @@ Confidence = Literal["high", "medium", "low"]
 #: therefore not each other's negation.  ``predicted_but_absent`` — the Le Bail fit found reflections where
 #: the pattern has no intensity, the classic oversized-cell false positive M₂₀
 #: cannot see.  ``indexed_fraction_low`` — below
-#: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines.  ``search_incomplete``
+#: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines' intensity.
+#: ``indexed_lines_low`` — the intensity passes that bar but the cell indexes
+#: fewer than :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines by count
+#: (both numbers are on the panel as ``indexed_intensity_fraction`` and
+#: ``indexed_fraction``); capping, because from the line list alone a sub-cell
+#: missing a superstructure and a cell beside an impurity look the same.
+#: ``search_incomplete``
 #: — a budget expired, so a *negative* result elsewhere in the domain means
 #: nothing.  ``shift_allowance_assumed`` — the matching window was widened by an
 #: *assumed* systematic (``INDEX_SHIFT_ALLOWANCE``), and a cell found inside a
@@ -574,6 +613,7 @@ IndexCaveat = Literal[
     "validation_failed",
     "predicted_but_absent",
     "indexed_fraction_low",
+    "indexed_lines_low",
     "search_incomplete",
     "shift_allowance_assumed",
     "bravais_ambiguous",
@@ -967,10 +1007,10 @@ class PeakList(Base):
         each peak's flags, as :meth:`IndexingResult.best_or_none` is over the
         candidates.
         """
-        head, rows, tail = self._text_sections()
-        return "\n".join(head + rows + tail)
+        return "\n".join(self._text_lines())
 
-    def _text_sections(self) -> tuple[list[str], list[str], list[str]]:
+    def _text_lines(self, notebook: bool = False) -> list[str]:
+        from .._display import diagnostic_lines
         head = [f"PeakList: {len(self.peaks)} peaks, {len(self.usable())} usable, "
                 f"{self.two_theta_min:g}–{self.two_theta_max:g}° 2θ, "
                 f"λ = {self.wavelength:g} Å, source {self.source}",
@@ -983,19 +1023,14 @@ class PeakList(Base):
         # before the list was built, so it prints as IndexingResult's does
         tail = []
         for d in self.diagnostics:
-            tail += [f"  {line}" for line in str(d).splitlines()]
-        return head, rows, tail
+            tail += diagnostic_lines(d, "  ", notebook=notebook)
+        return head + rows + tail
 
     def _repr_html_(self) -> str:
-        """The peaks as a table between the count line and the diagnostics."""
-        from .._display import diagnostics_html, pre_html, table_html
-        head, _, _ = self._text_sections()
-        rows = [(str(i), f"{p.two_theta:.4f}", f"{p.two_theta_esd:.4f}",
-                 f"{p.intensity:.1f}", f"{p.fwhm:.3f}", p.origin, ", ".join(p.flags))
-                for i, p in enumerate(self.peaks)]
-        table = table_html(("#", "two_theta", "two_theta_esd", "intensity", "fwhm",
-                            "origin", "flags"), rows) if rows else ""
-        return pre_html(head[0]) + table + diagnostics_html(self.diagnostics)
+        """The notebook form: the text in one ``<pre>``, each diagnostic's
+        explanation under its ``help:`` line (WP-2039)."""
+        from .._display import pre_html
+        return pre_html("\n".join(self._text_lines(notebook=True)))
 
     @classmethod
     def from_positions(cls, two_theta: np.ndarray, wavelength: float, *,
@@ -1870,7 +1905,7 @@ class IndexingEvidence(Base):
 
 
 def _candidate_label(c: CellCandidate) -> str:
-    """Which candidate a finding is about, as the text and HTML views say it."""
+    """Which candidate a finding is about, as its ``on:`` line says it."""
     return f"candidate {c.system} {c.centring} V={c.volume:.1f}"
 
 
@@ -1940,13 +1975,13 @@ class IndexingResult(Base):
         :meth:`best_or_none` is the one rule it calls, a filter over the
         candidates.
         """
-        head, candidates, tail = self._text_sections()
-        return "\n".join(head + candidates + tail)
+        return "\n".join(self._text_lines())
 
-    def _text_sections(self) -> tuple[list[str], list[str], list[str]]:
-        """The run line, the candidate lines, and the verdict with every
-        diagnostic: :meth:`__str__` joins them, ``_repr_html_`` swaps the middle
-        one for a table."""
+    def _text_lines(self, notebook: bool = False) -> list[str]:
+        """The run line, the candidate lines, the verdict and every
+        diagnostic; ``notebook`` adds each code's explanation
+        (:func:`rietx._display.diagnostic_lines`)."""
+        from .._display import diagnostic_lines
         result = self
         lines: list[str] = []
         lines.append(f"engines: {', '.join(result.engines_run) or 'none'}   "
@@ -1958,7 +1993,6 @@ class IndexingResult(Base):
             lines.append(f"search INCOMPLETE in: {', '.join(incomplete)} — a negative "
                          "result there is not evidence")
         lines.append("")
-        head, lines = lines, []
         if not result.candidates:
             lines.append("no candidate cell in the systems searched.")
         for i, c in enumerate(result.candidates, start=1):
@@ -1974,19 +2008,16 @@ class IndexingResult(Base):
                             if c.lebail is not None else ""))
             if c.confidence_caveats:
                 lines.append(f"      not higher because: {', '.join(c.confidence_caveats)}")
-        candidates, lines = lines, self._verdict_lines()
+        lines += self._verdict_lines()
         # ``where`` is load-bearing for the run-level codes: it names which
         # systems INDEX_BUDGET_EXHAUSTED left truncated or unreached, which no
         # message restates, and ``str(diag)`` prints it as ``at:``
         for diag in result.diagnostics:
-            lines += [f"  {line}" for line in str(diag).splitlines()]
+            lines += diagnostic_lines(diag, "  ", notebook=notebook)
         for c in result.candidates:
             for diag in c.diagnostics:
-                # ``on:`` straight under the headline, where the HTML fold has it
-                first, *rest = str(diag).splitlines()
-                lines += [f"  {first}", f"    on: {_candidate_label(c)}",
-                          *(f"  {line}" for line in rest)]
-        return head, candidates, lines
+                lines += diagnostic_lines(diag, "  ", on=_candidate_label(c), notebook=notebook)
+        return lines
 
     def _verdict_lines(self) -> list[str]:
         best = self.best_or_none()
@@ -1997,26 +2028,10 @@ class IndexingResult(Base):
                 f"{best.cell[3]:.3f} {best.cell[4]:.3f} {best.cell[5]:.3f}°"]
 
     def _repr_html_(self) -> str:
-        """The candidates as a table between the run line and the verdict,
-        then the diagnostics with their detail folded."""
-        from .._display import diagnostics_html, pre_html, table_html
-        head, _, _ = self._text_sections()
-        rows = []
-        for i, c in enumerate(self.candidates, start=1):
-            a, b, cc, al, be, ga = c.cell
-            rows.append((str(i), c.confidence, f"{c.system} {c.centring}",
-                         f"{a:.5f} {b:.5f} {cc:.5f}", f"{al:.3f} {be:.3f} {ga:.3f}",
-                         f"{c.volume:.2f}", f"{c.n_indexed}/{c.n_lines}",
-                         f"{c.chi2_red:.2f}",
-                         f"{c.lebail.rwp:.4f}" if c.lebail is not None else "",
-                         ", ".join(c.confidence_caveats)))
-        table = table_html(("#", "confidence", "lattice", "a b c (Å)", "α β γ (°)",
-                            "V (Å³)", "indexed", "chi2_red", "Le Bail Rwp",
-                            "confidence_caveats"), rows) if rows else ""
-        folds = diagnostics_html(self.diagnostics) + "".join(
-            diagnostics_html(c.diagnostics, context=_candidate_label(c)) for c in self.candidates)
-        return (pre_html("\n".join(head)) + table
-                + pre_html("\n".join(self._verdict_lines()).lstrip("\n")) + folds)
+        """The notebook form: the text in one ``<pre>``, each diagnostic's
+        explanation under its ``help:`` line (WP-2039)."""
+        from .._display import pre_html
+        return pre_html("\n".join(self._text_lines(notebook=True)))
 
     def best_or_none(self) -> CellCandidate | None:
         """The single candidate, or None.

@@ -51,6 +51,7 @@ import numpy as np
 from ..schemas.common import Diagnostic
 from ..schemas.fraction import (
     FRACTION_PROFILE_DCHI2,
+    FRACTION_PROFILE_FWHM_MAX_SPAN,
     FRACTION_PROFILE_FWHM_MIN,
     FRACTION_PROFILE_N_FWHM,
     FractionProfile,
@@ -90,7 +91,7 @@ def width_value(term: str, fwhm: float, theta_deg: float) -> float:
 
 def default_fwhm_grid(span_deg: float) -> list[float]:
     """0, then log-spaced from the grid minimum to half the fitted span."""
-    top = 0.5 * span_deg
+    top = FRACTION_PROFILE_FWHM_MAX_SPAN * span_deg
     if top <= FRACTION_PROFILE_FWHM_MIN:
         raise ValueError(f"a fitted range of {span_deg:g}° leaves no room for a "
                          "width profile")
@@ -163,6 +164,10 @@ def profile_fraction(refinement, data, phase: int | str, *,
         raise ValueError("a fraction needs two phases: one phase is 100 % by "
                          "definition, and a result without QPA has none to profile")
     index = _phase_index(refinement.structure, phase)
+    if result.qpa.phases[index].weight_fraction is None:
+        raise ValueError(f"phase {index} ({result.qpa.phases[index].name}) has no "
+                         "reflection in the fitted range, so it has no weight "
+                         "fraction to profile")
     if axes is None:
         axes = _default_axes(refinement, index)
     else:

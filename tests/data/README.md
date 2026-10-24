@@ -560,6 +560,21 @@ moved such a width by about 1e-20, below rounding.  `lebail_intensity` and
 `pawley_x0` moved by at most 5.8e-16 relative, since both are seeded from the
 decoded values.
 
+**WP-2044 re-baseline (2026-10-24)**: `srm660c` and `toy_rich`, the two states
+that free extinction, on macOS 26.6.2 arm64 (Python 3.12.10, numpy 2.5.4, scipy
+1.18.1). Sabine's Laue factor became e^(−x)·[I₀ + I₁] in place of GSAS-II's
+series and asymptote. In `srm660c` only the extinction column of `jacobian`
+moved, by 9.3e-6 of its norm, and every other key is bit-identical. In
+`toy_rich` the extinction column moved by 1.2e-5 of its norm. Every other column
+moved by at most 4e-13 of its own norm, and `y_calc` and `residual` by at most
+4.3e-16 of their largest value. Both states hold extinction at or near 0, where
+the column's step is 1e-9 µm² (`FLOOR_SEEDS`' size) and x is about 1e-10. The
+difference quotient then subtracts two numbers within 1e-10 of 1, so it carries
+the function's own rounding: about 1e-6 for scipy's `i0e`, against 8e-8 for the
+old polynomial. At x ≥ 1e-3 the two slopes agree to the last digit. The other
+nine states reproduced bit-for-bit and were not re-captured. Both recaptured
+states pass twice over.
+
 These are *environment-pinned* bit patterns, not physical reference values: a
 different BLAS/numpy build may legitimately differ in final bits.  **WP-1002
 measured which half of that sentence is true.**  The *numpy* half is not:

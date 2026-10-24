@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: magnetic · Status: 🔄 2026-10-21 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853), #820's option (a) (PR #953), #565's certificates part 5 (PR #936), #458's recipe as a guide (PR #1074); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
+Milestone: magnetic · Status: 🔄 2026-10-22 — M-6 and M-7 landed (PR #389), the #439 row (PR #449), M-7's frame fix (PR #536), #455's Gram path (PR #535) and basis fix (PR #532), #563's sign text (PR #564), M-9's verb `solve_magnetic` with its Part 1 section and skill rows (PR #592), #565's certificates part 1 (PR #582), #679's displacive group (PR #680), #607's operator-list check (PR #785), #608's domain count (PR #786), #565's certificates part 2 (PR #772), #724's `tie_to_parent` opt-in (PR #746), #565's certificates part 3 (PR #809), #820's first test made machine-independent (PR #829), #565's certificates part 4 (PR #853), #820's option (a) (PR #953), #565's certificates part 5 (PR #936), #458's recipe as a guide (PR #1074), the LaMnO₃ acceptance on real data (PR #1086); M-8, M-9's `help.py` entries, Part 2 and the M-9 PNGs remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -82,11 +82,11 @@ tree depends on, plus tests.
   the published group of ≥ 10 MAGNDATA parents is in the list with its
   label; Pnma at Γ gives four maximal candidates; Shirane's cubic collinear
   degeneracy comes out as one class.
-- **M-8 — the k-search beyond {0, ½}³.** 1326's arm with a pluggable
-  candidate generator (issue #257 A1): every special point and line of the
-  zone, labelled, then a general-k grid, an incommensurate k admitted as a
-  *position* hypothesis and reported as such. Same files as 1326, so after
-  it lands.
+- **M-8 — the k-search beyond {0, ½}³.** 1326's arm takes a pluggable
+  candidate generator (`generator=`, issue #257 A1, landed with 1326's close).
+  M-8 adds a generator with every special point and line of the zone,
+  labelled, then a general-k grid, with an incommensurate k admitted as a
+  *position* hypothesis and reported as such.
 - **M-9 — the determination verb.** k candidates → M-7 candidates → one
   trial refinement per class under 1327's hold → ranking by ΔBIC at equal
   parameter count (with 1417's caveat on N) and a magnetic-only R over the
@@ -125,6 +125,17 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-10-23, from [1326](1326-satellites-without-a-moment.md)'s close
+  (originally WP-1541, 2026-10-03): the satellite types have no provisional
+  declaration a test can see.** `SatelliteEvidence` and `SatelliteCandidate`
+  are still defined in `rietx.report.schemas` (`:610`, `:649` at `12f459e`).
+  That module defines stable names too, so no `PROVISIONAL_MODULES` prefix can
+  cover them, and only prose in the compatibility page and the 1.6.0 notes
+  calls them provisional. The proposed fix is to move both into
+  `rietx.report.satellites`, re-export them from `rietx.report.schemas`, and
+  declare that prefix with a reason. M-8's decision 3 (new fields on
+  `SatelliteCandidate`, or a `KSearchResult` beside `SatelliteEvidence`) is
+  where they change, so it moves here.
 - **2026-10-22, from WP-2002 (PR #1085): `solve_magnetic`'s winner ends in a closing stage.**
   When the package chose the plan, the trials and the nuclear reference still
   run no closing stage and are ranked there, and the winner then runs one from
@@ -298,9 +309,9 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
      position half out of #678 for this.
   3. Schema: new fields on `SatelliteCandidate` with a schema and
      `REPORT_THRESHOLDS` bump, or a `KSearchResult` beside
-     `SatelliteEvidence`. 1326's Inherited entry from WP-1541 already
-     proposes moving both satellite types into `rietx.report.satellites` as
-     provisional.
+     `SatelliteEvidence`. WP-1541's proposal to move both satellite types
+     into `rietx.report.satellites` as provisional is in this WP's Inherited
+     (2026-10-23, from 1326's close).
   4. Which of K3, K4, K6 and K7 this WP takes, and which wait behind the
      fence or another WP. K4's complex S_k is M-11a's object.
 
@@ -782,8 +793,8 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
       only; the Pnma 4b/4c checks and the 230-group intertwiner test.
 - [x] M-7: isotropy subgroups → operator lists, absences, powder-equivalence
       classes; ≥ 10 MAGNDATA parents recover their published group.
-- [ ] M-8: 1326's candidate generator made pluggable and the zone's special
-      points and lines added, labelled.
+- [ ] M-8: the zone's special points and lines as a generator for 1326's
+      arm (`generator=`, already pluggable), labelled.
 - [ ] M-9: the verb, the ranking, the abstention, the magCIF per candidate;
       `capabilities()` feature flag; `help.py` entries.
 - [ ] Manual Part 2: the projection operator, the return-vector phase, the
@@ -832,6 +843,26 @@ no magnetic model declared.
 
 ## Handover log
 
+- **2026-10-22** — PR #1086 (outside contributor, head `643430a0`), merged as
+  `6a135459` by `/pr-review`, puts the first clause of § Acceptance under a
+  real-data test, the magnetic milestone's row J. The slow
+  `test_lamno3_at_50k_ranks_a_type_first_of_four` runs `solve_magnetic` on the
+  `Magnetic-I` BT-1 pattern. It finds k = 0 by the forbidden-lattice-point
+  route and ranks 62.448 (Pn′ma′, A-type) first of four classes, each listing
+  only itself. Its lead is more than ten tie widths
+  (`SOLVE_TIE_DELTA_BIC`), and its moment lies between 3.3 μ_B and three esds
+  below spin-only 4 μ_B. The same call carries the negative control: 62.446
+  comes back unsupported, with Rwp within 1e-3 of the nuclear one. The
+  nuclear fit moved into a session fixture, `conftest.lamno3_nuclear`, which
+  WP-1327's LaMnO₃ acceptance now shares. Each test in the file carries its
+  own `xdist_group`, because xdist joins every group mark an item carries into
+  one name. The test draws the winner's obs/calc/diff PNG, so the 4 K and
+  LaMnO₃ winners both draw now. The PNG task stays open for the 150 K
+  abstention. It ticks no task: M-9's `help.py` entries, M-8 and Part 2
+  remain. Gate: stacked with #1071 on `main` `1661895e`, macOS arm64,
+  `[dev,jax]`: `-m slow` 326 passed, 12 skipped, 1 xfailed; `main` after both
+  merges is content-identical to that tree. The record of #1071 is in
+  WP-1326's log.
 - **2026-10-21** — #458's recipe landed from outside as a guide, with no
   package code: PR #1074 (head `60a1822e`) merged as `1e876eaf` by
   `/pr-review` after three rounds. `docs/docs/guides/moment.md` ("How to

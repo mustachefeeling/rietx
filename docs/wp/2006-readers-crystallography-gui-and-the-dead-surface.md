@@ -1,6 +1,6 @@
 # WP-2006 — Readers, crystallography and GUI codes, and the dead surface
 
-Milestone: generality · Status: ⬜
+Milestone: generality · Status: 🔄 2026-10-24 — part 1 merged from outside (PR #1101, `50bc4555`): the inventory and the reachability walk; the tiers wait on the gate ruling
 Track: The audits
 Depends on: 2001
 Priority: P3 2026-10-19 — 2001 closed, so nothing blocks it; expected mostly tier 1 (records of what was done to a file); the fast one
@@ -46,6 +46,12 @@ promise stages every break).
 
 ### Inherited
 
+- **2026-10-23, from [1510](1510-what-the-chemist-knows-reaches-the-search.md) (closed):
+  `VOLUME_RATIO_BOUNDS` (`_audit.py:1038`) fails on inorganic cells.** The formula window
+  misses the true cell for 7 of 9 known cells measured (WP-2030's table). Hofmann's (2002)
+  citation covers organic and metal-organic crystals only, so a tier-2 reading would cover a
+  population the source excludes. [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md)
+  owns the rule. Tier the row with that evidence, or leave it to 2030.
 - **From WP-2002 (2026-10-21, 4th session): tier 2 names seven programs.** `docs/milestones/generality.md` § The rule's tier 2 now reads "by default in an established Rietveld program": GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, the list rietx-bench runs (the maintainer's instruction). A row resting on a program default names the programs it checked and what each does; a program doing otherwise by default is a dissenter, one without the feature is neither. What each does on peak windows, staging, roughness starts, width limits, dispersion, solver, mode and background seed is in `docs/wp/2002-batch/practice.md`; where each program's manual or source sits is in the maintainer's memory (`foreign-code-sources-on-disk`), and rietx-bench's `tools/` holds BGMN, MAUD, RIETAN-FP and EasyDiffraction's environment beside GSAS-II and FullProf.
 - **2026-10-20, from [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md), found while moving the manual's reference pages: declared names with no writer.** `PhaseMicrostructure.separable` and `.size_strain_collinearity` are `None` on every `RefinementResult.microstructure`; only the report's deep copy writes them (`report/__init__.py:190-212,273-274`). `ProjectFormat.refuses` is set by no registry member, and no member produces `reports_at="read"` (`io/projects/registry.py:107,128-132`). `SuggestedAction.vetoed_by`'s docstring adds "or a guard forbids it", which no code writes (`report/schemas.py:1150`; `layer2.py:1059-1062` sets it from the plan and already-free paths only). Each Reference page states what the code does today (`derived.md`, `foreign-files.md`, `report.md`); the surface walk is where write, retire or document gets decided.
 
@@ -63,7 +69,7 @@ promise stages every break).
 
 ## Tasks
 
-- [ ] Inventory the 142 codes (io 90 literals plus five by name, crystallography 20, gui
+- [x] Inventory the 142 codes (io 90 literals plus five by name, crystallography 20, gui
       27): raise site, `level`, condition, whether it records an act or asserts a
       judgement. `LANDE_G_ASSUMED` and `MAGNETIC_ION_ASSUMED` are raised here and in
       `strategy/magnetic.py`; 2002 tiers them on both sites and this WP reads the row.
@@ -72,7 +78,7 @@ promise stages every break).
       few thresholds named above.
 - [ ] Tier each; for the few thresholds (`CIF_ANGLE_CORRECT_MAX_DEG`, the attenuator
       conventions measured per format, the axis refusal), evidence and families.
-- [ ] The reachability walk over `derive_surface()`'s 2 238 entries, as a script in
+- [x] The reachability walk over `derive_surface()`'s 2 238 entries, as a script in
       `tests/` run by hand (a Haiku-grade task: collate, do not judge), its output a table
       with one row per unreached entry and where it *is* referenced.
 - [ ] The batch to the maintainer: tier-3 rows with grounds, plus the unreached-entry
@@ -96,5 +102,21 @@ promise stages every break).
   derived surface).
 
 ## Handover log
+
+- **2026-10-24** — PR #1101 merged (`50bc4555`, review round 4), by `/pr-review`.
+  *Done*: part 1, which removes and rules on nothing.
+  `tests/reachability_walk.py` (run by hand, not collected) writes
+  `docs/wp/2006-batch/reachability.csv`, one row per `derive_surface()` entry
+  (2 267). `collate_inventory.py` writes `inventory.json` from the tree and the
+  one hand-written input, `judgements.json`: 115 codes with raise site, level,
+  condition and act or judgement; 225 module-level numbers with what each
+  decides; the reader decisions; the GUI's HTTP error names. The maintainer
+  accepted the folder's place under `docs/wp/2006-batch/` (2026-10-24).
+  *Measured*: `cut_texts()` over `judgements.json` returns nothing at the merged
+  head; the review re-scanned all 346 texts by hand over three rounds.
+  *Gotchas*: the walk reads text, not imports, so a common member name
+  over-counts and a `getattr` with a built string is missed; each cell carries
+  its evidence grade. The GUI side has 32 names by AST where the WP says 27.
+  Next: part 2, the tiers, after the gate ruling (WP-2004).
 
 - **2026-10-18** — created, from the milestone's opening session.

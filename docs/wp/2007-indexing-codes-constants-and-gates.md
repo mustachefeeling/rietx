@@ -40,6 +40,12 @@ ranking over one population and is the regression gate, not a family.
 
 ### Inherited
 
+- **2026-10-23, from [1510](1510-what-the-chemist-knows-reaches-the-search.md) (closed):
+  `Z_INTEGER_TOLERANCE` and `INDEX_Z_NOT_INTEGER` (`_audit.py:1155`, `:625`) rest on a
+  volume that misses inorganic cells.** On fluorapatite's true cell the implied Z is 1.14, so
+  the code fires on the right answer. The window misses 7 of 9 known cells measured
+  (WP-2030's table). Hofmann's citation reaches organic and metal-organic crystals only.
+  [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md) owns the rule.
 - **From WP-2002 (2026-10-21, 4th session): tier 2 names seven programs.** `docs/milestones/generality.md` § The rule's tier 2 now reads "by default in an established Rietveld program": GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, the list rietx-bench runs (the maintainer's instruction). A row resting on a program default names the programs it checked and what each does; a program doing otherwise by default is a dissenter, one without the feature is neither. What each does on peak windows, staging, roughness starts, width limits, dispersion, solver, mode and background seed is in `docs/wp/2002-batch/practice.md`; where each program's manual or source sits is in the maintainer's memory (`foreign-code-sources-on-disk`), and rietx-bench's `tools/` holds BGMN, MAUD, RIETAN-FP and EasyDiffraction's environment beside GSAS-II and FullProf.
 - **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2007, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand: `indexing.engines.SEARCH_PRESETS` holds the `quick` 120 s budget that way.
 - **From WP-2001's generality judge (2026-10-19).** `index_pattern`'s `preset=None` resolves to `DEFAULT_SEARCH_PRESET = "quick"`, a string the walk drops (numbers only), so WP-1042's default has a row only as the `None` it starts from. `SearchSpec` is now a seat, since `spec=None` resolves to it.

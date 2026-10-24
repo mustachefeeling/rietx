@@ -343,6 +343,14 @@ class NodeMetrics(Base):
     cost_initial: float | None = None
     cost_final: float | None = None
     stderr: dict[str, float] = Field(default_factory=dict)  # physical esds by path
+    #: the phases whose own ``scale`` the stage held (``StageResult.held``,
+    #: WP-1958), by index.  A node keeps state, not the stage record, and
+    #: ``replay`` has no record to read the held set from: without this it
+    #: recounts lines at the end values and quotes a fraction for a scale the
+    #: stage held (#1103).  Written by ``Refinement._record`` from the stage
+    #: it commits; ``[]`` on every other kind of node and on one written
+    #: before the field, which replays by the recount as it always did.
+    held_scale_phases: list[int] = Field(default_factory=list)
 
 
 class HistoryNode(Base):

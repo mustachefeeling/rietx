@@ -482,8 +482,8 @@ A nonzero count raises [`INDEX_PREDICTED_BUT_ABSENT`](diagnostics-indexing.md#in
 - `medium` otherwise: at least two finders, and only capping caveats.
 
 Every reason a candidate falls short is a member of a closed vocabulary in `CellCandidate.confidence_caveats`.
-Seven of the thirteen refute the candidate, each being evidence against the cell or evidence that the data cannot choose.
-The other six cap it.
+Seven of the fourteen refute the candidate, each being evidence against the cell or evidence that the data cannot choose.
+The other seven cap it.
 The count of caveats decides nothing.
 
 | Caveat | Written when | Effect |
@@ -491,10 +491,11 @@ The count of caveats decides nothing.
 | `geometric_ambiguity` | the candidate has an ambiguity partner, or the ambiguity walk never reached it | refutes |
 | `fom_panel_disagrees` | the panel's members put different candidates first; written on every candidate of the run | refutes |
 | `predicted_but_absent` | the Le Bail fit ran and `LeBailValidation.predicted_but_absent` is above zero | refutes |
-| `indexed_fraction_low` | the `indexed_fraction` member is below 0.9, or missing | refutes |
+| `indexed_fraction_low` | the intensity share the cell explains (`indexed_intensity_fraction`, falling back to the `indexed_fraction` line count where there is none) is below 0.9, or missing | refutes |
 | `volume_unphysical` | the volume is below 15 Å³, or above 1.5 times Smith's envelope for its system | refutes |
 | `validation_failed` | the Le Bail fit's status is `"failed"` or `"diverged"` | refutes |
 | `supercell_refuted` | a `SupercellCheck` on this candidate reads `"refuted"` | refutes |
+| `indexed_lines_low` | the intensity share passes 0.9 but the `indexed_fraction` line count is below 0.9, as a sub-cell missing a superstructure would be | caps |
 | `engines_disagree` | some engine that ran did not find this lattice | caps |
 | `not_validated` | this candidate has no Le Bail fit behind it | caps |
 | `search_incomplete` | the candidate's own crystal system was not searched to completion | caps |

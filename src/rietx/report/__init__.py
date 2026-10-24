@@ -432,11 +432,11 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # arm sorts them itself so one radius decides both the tick test and the
     # satellite test (``report/satellites.py``'s docstring has the measurement)
     tt_res = np.asarray(result.two_theta)
-    residual_peaks = tt_res[residual_peak_indices(
-        _resid_norm(result), min_peak_sigma=min_peak_sigma)]
+    resid = _resid_norm(result)
+    peak_idx = residual_peak_indices(resid, min_peak_sigma=min_peak_sigma)
     report.satellites = analyse_satellites(
-        model, values, residual_two_theta=residual_peaks, ticks=sat_ticks,
-        structure=structure)
+        model, values, residual_two_theta=tt_res[peak_idx], ticks=sat_ticks,
+        structure=structure, residual_height_over_sigma=resid[peak_idx])
     # The Le Bail gap is measured, never linearised, so it too speaks on both
     # branches (None outside Rietveld mode — absent for cause).  The summary
     # quotes it only when notable: a converged fit reads ratio ≲ 1 and saying

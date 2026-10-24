@@ -18,7 +18,7 @@ This fits a straight line a(T) = a₀ + a₁(T − T<sub>ref</sub>) to the seven
 
 <!-- output of examples/guides/equation.py -->
 ```text
-[1] 4.1628327116 +/- 1.6e-06 Å
+[1] 4.1628327119 +/- 1.6e-06 Å
 [T] 0.0000207819 +/- 8.0e-09 Å/K
 form rejected: False (statistic 9.3, cut 11.1)
 ```

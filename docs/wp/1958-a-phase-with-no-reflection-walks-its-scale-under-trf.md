@@ -1,6 +1,6 @@
 # WP-1958 — A phase with no reflection in range walks its scale under TRF
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-24 — merged from outside as PR #1103 (`594d7beb`); the close is owed (the v1.10 record's narrative and ✅)
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P3 2026-10-13 — a quoted fraction is wrong, but `PHASE_UNCONSTRAINED` and `QPA_ESD_UNAVAILABLE` fire, and only `solver="trf"` reaches it
@@ -73,12 +73,12 @@ Relevant rules, restated:
 
 ## Tasks
 
-- [ ] Reproduce under `solver="trf"` and the default LM in a test, and
+- [x] Reproduce under `solver="trf"` and the default LM in a test, and
       record the scale and the fraction at each stage.
-- [ ] Decide: hold the scale of a phase with no reflection in range, or have
+- [x] Decide: hold the scale of a phase with no reflection in range, or have
       the QPA report no fraction for it. Record the choice and what moves on
       `tests/test_scale_b_ridge.py` and `tests/test_qpa.py`.
-- [ ] Land it, with a test under both solvers.
+- [x] Land it, with a test under both solvers.
 
 ## Acceptance
 
@@ -94,6 +94,82 @@ Relevant rules, restated:
 - #954, the public report of this defect.
 
 ## Handover log
+
+- **2026-10-24** — PR #1103 merged (`594d7beb`, review round 3), by `/pr-review`.
+  *Done*: every task. A phase with no reflection in the fitted range keeps the
+  scale it was given and has no weight fraction. The round-2 review added the
+  case where a stage held the scale and a refined zero shift brings a line in by
+  the answer. `QuantitativePhaseAnalysis.unmeasured_held` names that case, and
+  `NodeMetrics.held_scale_phases` lets `replay` quote it the same way.
+  Every text (summary row, CSV caveat, `MICROABSORPTION_SKIPPED`,
+  `PHASE_UNCONSTRAINED`) reads its cause from that set.
+  *Measured*: the whole suite on main `99b00b82` with this PR and four others
+  stacked (macOS arm64, `[dev,jax]`): 12 063 passed, 3 failed, none of them this
+  PR's; the fast selection on the final stack `bb654fd0`: 11 655 passed.
+  *Gotchas*: the `RefinementResult.qpa` audit row's evidence first said a held
+  scale's column "is zero"; at the answer it need not be, and the maintainer's
+  commit `b6103ead` on the branch rewords it. #1128 (WP-2028) rebases onto this
+  merge; both edit the joint report's `_phase_support_diagnostics` call.
+  *Not done*: round 2's three read-only observations (a `vars.` variable's reach
+  in the message, per-histogram scales tied to one variable, the radii wording)
+  stay with the contributor as follow-ups.
+  Next: close the WP, moving the 2026-10-22 narrative to the v1.10 record.
+
+- **2026-10-22** — built both halves of the #954 decision. A phase with no
+  reflection in the fitted range now keeps the scale it was given under LM and
+  TRF alike, single and joint fits, and has no weight fraction; the other
+  fractions are fractions of the phases seen in range, and the finding, the
+  QPA table and the text summary say so. On the WP's repro the TRF walk to
+  164.7 and the 99.99 wt% iron are gone, and the three seen phases now carry
+  esds, since the zero column no longer sits in their sum.
+  *Done*: the support hold takes a lineless phase whole, scale included
+  (`refine._lineless_phases`, read off `phase_line_counts`), whatever
+  `phase_support_sigma` says, and never releases it; the joint runner's
+  `_unseen` does the same per histogram. `_quantify_phases` drops the phase
+  from the sum and from the esd block; `PhaseQuantity.weight_fraction` is
+  `None` for it and `QuantitativePhaseAnalysis.unmeasured_phases` names it
+  (schema 0.59, additive). `PHASE_UNCONSTRAINED`'s third wording says the
+  scale was held and what the fractions are relative to. Brindley is skipped
+  with its reason while a phase is unmeasured (its µ̄ needs every fraction); a
+  lone phase seen is 1 with no esd; `profile_fraction` refuses an unmeasured
+  phase; `qpa_trajectory` skips its patterns. A scale a `ValueRestraint`
+  pulls is left free (the restraint gives it a column), and
+  `phase_line_counts` counts a reflection a magnetic window (`win_mag`)
+  brings into range, both from the generality review below.
+  *Measured* (`main` 4ca36160, the repro): LM scale 1e-4, iron 0.61 wt%; TRF
+  164.73, 99.99 wt%; `QPA_ESD_UNAVAILABLE` on both. Here both 1e-4 exactly,
+  iron `None`, corundum/zincite/fluorite 72.44/3.68/23.88 wt% ± 0.40/0.16/0.35.
+  Joint fit of two copies under TRF on `main`: 214.1 and 2.31, now 1e-4 each.
+  What moved on the tests: `test_held_phase.py`'s blind-range test asserted
+  the old rule (scale never held) and now asserts the new one; seven new
+  functions (ten items) in `test_scale_b_ridge.py` (acceptance under both
+  solvers, the seen phases' positive arm, iron with a reflection under TRF,
+  `phase_support_sigma=None`, a restrained scale, a magnetic window, the joint
+  hold) and four in `test_qpa.py`. The first batch failed on `main`'s `src`
+  (8 of 10 run there). Fast selection on the final tree (Mac, worktree
+  `.venv`, Python 3.12, `-n 4`): 11 039 passed, 191 skipped, 2 xfailed; the
+  12 added items cost 3.3 s locally (`tests.added_test_times`).
+  *Gotchas*: with `phase_support_sigma=None` a lineless phase is still held,
+  which `PlanSpec`'s description, `RefinementPlan`'s comment, the skill row
+  and the 1.10.0 note now say. `RefinementResult.qpa` moved from
+  `OTHER_RECORD_FIELDS` to a tier-1 action row; the `StageResult.held` row
+  carries the extension in its evidence.
+  *Generality* (the judge ran on the first commit; answers below each):
+  `StageResult.held` (changed evidence) **holds**; weak case against: a
+  `ValueRestraint` on the scale, and a magnetic-only window, could give a
+  "lineless" scale a column. Author: both fixed and tested.
+  Lineless hold at any `phase_support_sigma` **holds on substance, record
+  weak**: three declarations still said `None` holds nothing, no test ran
+  `None`. Author: the three amended, a `None` test added.
+  QPA leaving the phase out **weak**: Brindley over the seen phases assumed
+  the unseen one absent (kind 3); a lone seen phase read 1.000 ± 0.000; the
+  action had no row (`RefinementResult.qpa` declared in
+  `OTHER_RECORD_FIELDS`); `qpa_trajectory` changes basis unflagged if a line
+  crosses the range edge mid-series. Author: Brindley now skipped with its
+  reason, the lone phase carries no esd, `qpa` moved to a tier-1 action row;
+  the trajectory flag is left to the reviewer (a series rarely moves a line
+  across its edge, and `PHASE_UNCONSTRAINED` fires on each such pattern).
+  Next: review on the PR; closing moves this narrative to the v1.10 record.
 
 - **2026-10-13** — filed from WP-1523's close. No open WP owns it: 1534 and
   1463 are closed, 1420 is about a held phase re-entering a chain, and 1523's

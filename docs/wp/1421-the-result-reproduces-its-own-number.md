@@ -235,7 +235,13 @@ comparing them can say they agree.
   path now owes the fresh compile for the report's sake, not only the
   statistics'. It moves joint-fit numbers, which WP-1341 promised not to do,
   and `multi.MultiHistogramRefinement._build_result` is where it would go.
-  The report's docstring and `using/series.md` state the gap until then.
+  The report's docstring and `docs/docs/reference/joint.md` (§ around line 328) state the gap until then.
+- **2026-10-23, from [1341](1341-a-joint-fit-has-no-report.md) (closed): `Refinement.report` pairs
+  `result_` with the live models.** `report()` (`refine.py:5564-5571`) builds a fresh
+  `ParameterTable(self.structure, self.instrument)` beside `self.result_`, so after a cancelled
+  second fit or a `set_values` its Layers 1-2 read values that are not the result's. The joint
+  `report(h)` was fixed by freezing the answer with the result (`multi._freeze_answer`, PR #937).
+  The single fit's twin was left "to its own change" (1341's PR-review item 9) and no WP took it.
 
 ## Non-goals
 

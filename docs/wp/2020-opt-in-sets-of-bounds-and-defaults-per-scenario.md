@@ -59,7 +59,7 @@ of the seven programs rietx-bench runs, from source or manual.
 - [ ] Survey the seven programs (GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD,
       EasyDiffraction): how a user shares or loads a set of starting values, bounds and
       refinement settings, what such a file may contain, and how a result records it.
-      Checked from source or manual, as `docs/wp/2002-batch/practice.md` was.
+      Checked from source or manual, as `docs/practice.md` was.
 - [ ] Inventory the candidate settings from `_audit.ROWS` and the rulings: each with its
       evidence, the scenario it serves, and the datasets it was measured on.
 - [ ] A design brief for the maintainer: what a set may contain, where it lives (package

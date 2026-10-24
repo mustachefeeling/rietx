@@ -269,6 +269,7 @@ Several banks are what a time-of-flight instrument is, so none is picked.
 |---|---|
 | `ICONS`: DIFC, DIFA, ZERO | `TOFSource.difc`, `TOFSource.difa`, `TOFSource.tzero`; `TOFSource.difb` is 0, GSAS-I having no such field |
 | `BNKPAR`: DIST, TTHETA | `TOFSource.l2_m` and `TOFSource.two_theta_bank_deg`; TTHETA is required |
+| `FPATH1`, one number for the file | `TOFSource.l1_m` on every bank. The manual does not list this record; SNS files write it, so it is read as one number and anything else on it is refused |
 | `I ITYP`: ITYP, TMIN, TMAX | `IncidentSpectrum.itype` and its window, converted from ms to µs |
 | `ICOFF` and `IECOF` | `IncidentSpectrum.coefficients`, with the esds on `stderr` |
 | `PRCF` set 1 | `ProfileTOF` |
@@ -281,7 +282,8 @@ The reader holds to the layout the GSAS manual documents and refuses anything el
 - A default set of profile function 2, 4 or 5, which this package does not evaluate, is refused.
 - A non-zero anisotropic or peak-shift coefficient is refused rather than dropped, and so is a negative `sig` variance.
 - A non-zero fifth coefficient pair of an `ITYP` 1 or 2 incident spectrum is refused, since the documented layout stops short of it. `ITYP` 10, whose spectrum is in another file, is refused too.
-- Non-blank `POLA`, `IPOLA` or `KRATIO` columns on `ICONS` are refused, since the manual says they are absent for neutron data.
+- A non-zero `POLA`, `IPOLA` or `KRATIO` on `ICONS` is refused, naming its columns, since the manual says they are absent for neutron data.
+  Each field may be blank or zero, which the record's Fortran format reads identically.
 - A bank with no `PRCF` set keeps its calibration and gets an all-zero `ProfileTOF`, reported as `GSAS_IPARM_PROFILE_DECLINED`.
 
 Fields with no place in the schema, such as the incident spectrum's `CHKSUM` and `IECOR`, are reported as [`GSAS_IPARM_FIELD_DROPPED`](diagnostics-files.md#gsas_iparm_field_dropped).

@@ -101,8 +101,8 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The next release is 1.10** (`pyproject.version` `1.10.0.dev0`), cut from what `main` holds
-([record](milestones/v1.10.md), [staged notes](releases/1.10.0.md)). 1.9.0 shipped 2026-10-14 ([notes](releases/1.9.0.md)).
+**1.10.0 is cut** (`pyproject.version` `1.10.0`) from what `main` held on
+2026-10-24, on WP-2037's second merge (#1145) ([record](milestones/v1.10.md), [notes](releases/1.10.0.md)). 1.9.0 shipped 2026-10-14 ([notes](releases/1.9.0.md)).
 
 **Two milestones are open and three are queued, by name.** [magnetic](#magnetic--the-magnetic-structure)
 opened 2026-09-18 as v1.6; [generality](#generality--every-decision-rietx-makes-holds-beyond-the-data-it-was-tuned-on)
@@ -150,7 +150,7 @@ covers (1119 § Gotchas).
 | v1.7 | The first weekly cut: what `main` held on 2026-10-08, completing no milestone | ✅ **shipped 2026-10-08** ([record](milestones/v1.7.md), [notes](releases/1.7.0.md)) | 89 pull requests since v1.6.0, every user-facing change named in the notes or dispositioned in WP-1546's handover; rigid bodies ship as a provisional first piece; the Windows pre-upload gate, red since 2026-10-05, green on the release commit; VALIDATION.md's measured column, Part 1 and the skill re-run on the release tree; suite counts in the record's ship appendix |
 | v1.8 | Every parameter in its own units: what `main` held on 2026-10-12, completing no milestone | ✅ **shipped 2026-10-12** ([record](milestones/v1.8.md), [notes](releases/1.8.0.md)) | 47 pull requests since v1.7.0, every user-facing change named in the notes or dispositioned in WP-1954's handover; cut on the merge of WP-1929, a P1 fix for esds that followed where the solver stopped; WP-1953's large Pawley stage ships as a stated limit, and so does the Windows pre-upload gate's one red test, a report-loop stop that differs on Windows; VALIDATION.md's moved rows, Part 1 and the skill re-run on the release tree; suite counts in the record's ship appendix |
 | v1.9 | A parameter as a function of each pattern's coordinates: what `main` held on 2026-10-14, completing no milestone | ✅ **shipped 2026-10-14** ([record](milestones/v1.9.md), [notes](releases/1.9.0.md)) | 41 pull requests since v1.8.0, every user-facing change named in the notes or dispositioned in WP-1961's handover; cut early at the maintainer's ask, once WP-1959's kernel wheel was on PyPI and rietx's floor rose to it; VALIDATION.md re-measured on the release tree; suite counts in the record's ship appendix |
-| v1.10 | The next release: what `main` carries when it is cut, and the milestones complete by then | 🔄 **accumulating since 2026-10-14** ([record](milestones/v1.10.md)) | written at the cut |
+| v1.10 | Every fit ends in a closing stage: what `main` held on 2026-10-24, completing no milestone | ✅ **shipped 2026-10-24** ([record](milestones/v1.10.md), [notes](releases/1.10.0.md)) | 128 pull requests since v1.9.0, every user-facing change named in the notes or dispositioned in WP-2043's handover; the tag waited on WP-2044, a P1 fix for an esd that depended on the platform; the Windows pre-upload gate, red since 2026-10-20, green on the release commit; VALIDATION.md re-measured on the release tree; suite counts in the record's ship appendix |
 | magnetic | The magnetic structure (was v1.6): the satellite, the moment, the determination, the mode amplitude — [§ magnetic](#magnetic--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/magnetic.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
 | rietview | rietview (was v1.7): the structure figure an agent composes — cuts, extents, a figure that reports on itself, a real-agent measurement, the split — [§ rietview](#rietview--the-structure-figure-an-agent-composes) | ⬜ **queued 2026-09-27** | written at the open |
 | rigid-bodies | Rigid bodies (was v1.8): a fragment refined as one body, its atoms reported with esds — [WPs](wp/README.md#rigid-bodies): 1801-1813, the seam decided by 1803 and the rest cut from its record | ⬜ **queued 2026-09-30** | written at the open |
@@ -399,7 +399,7 @@ own view (1503), the surface measured with real agents before more is added
 (1504), and the code leaving as `rietview` when a named trigger fires
 (1505). The name was chosen on 2026-09-27; the survey and the trigger are in
 1505. The maintainer asked on 2026-10-02 for an SVG (1536), POV-Ray and glTF
-(1537), and ambient occlusion (1538). It opens when 1504's first round is costed, or earlier by the maintainer's word.
+(1537), and ambient occlusion (1538). 1504 is costed and closed (2026-10-23, 40 of 42 on the fixed surface), so it opens by the maintainer's word.
 
 The WPs are in [the index](wp/README.md#rietview).
 
@@ -424,7 +424,7 @@ first, a gate after 2004; 2010 audits features against Rule 2; 2008 slims the sk
 
 #### The registry and the guard
 
-2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. 2014: that review on every other path into main, outside PRs and unwatched directories included. 2019: opt-in sets of bounds and defaults for one scenario, tested on the datasets they name, where a default too narrow for the package goes. [The WPs](wp/README.md#generality-the-registry-and-the-guard).
+2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. 2014: that review on every other path into main, outside PRs and unwatched directories included. 2019: opt-in sets of bounds and defaults for one scenario, tested on the datasets they name, where a default too narrow for the package goes. 2037: the fifth aim, attention is a cost; a number in a field and a diagnostic only where it tells fits apart, a response per code with relevance derived from the declared purpose, a default view that prints by level, and a caller override (lands before 2003). 2038: the softening of unanimity for a recorded, cheap-to-undo default, a brief for the maintainer and not a change. [The WPs](wp/README.md#generality-the-registry-and-the-guard).
 
 #### The audits
 
@@ -559,8 +559,8 @@ scope creep. Each item names what fenced it.
   without one); neutron **TOF** (CW landed in 1134; issue #193; the energy-dependent
   resonant absorption at S(Q), #113) — **built through rather than deferred**: the
   fork's branch is visible (`tof-cleanroom-20260923`); **decided 2026-09-24: held until magnetic
-  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) taken now as
-  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, the rest still waiting, with #442 (a bank's CW
+  closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) cut as
+  [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, closed 2026-10-23 with T-2's inheritance in its Context; the rest still waiting, with #442 (a bank's CW
   width rows) decided inside T-1, and #618 (Mantid's instrument values: with provenance,
   never the files) — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and

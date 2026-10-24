@@ -92,7 +92,9 @@ from .refine import (
     _flat_moment_scan,
     _guard_diagnostics,
     _harmonic_diagnostics,
+    _held_scale_phases,
     _judge_magnetic_groups,
+    _lineless_phases,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
     _occupancy_flag_diagnostics,
@@ -101,12 +103,14 @@ from .refine import (
     _phase_agreement,
     _phase_support_diagnostics,
     _quantify_phases,
+    _radiation,
     _reflection_tick_support,
     _refuse_without_phases,
     _reported_support_sigma,
     _resolve_specimen_absorption,
     _resonant_absorber_diagnostics,
     _restore_phase_cells,
+    _restrained_scale_phases,
     _roughness_regime_diagnostics,
     _scale_b_ridge_diagnostics,
     _site,
@@ -116,9 +120,11 @@ from .refine import (
     _symmetry_silence_diagnostics,
     _uncorrected,
     _unknown_path_diagnostics,
+    _unmeasured_phases,
     _utcnow,
     _wavelength_calibration_diagnostics,
     _width_census_diagnostics,
+    _width_twin_flats,
 )
 from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
@@ -421,30 +427,76 @@ def _joint_unsupported_phases(models, mtable,
             for support in per_model]
 
 
-def _unseen(mtable, name: str, absent: list[set[int]]) -> bool:
+def _joint_lineless_phases(models) -> list[set[int]]:
+    """Per histogram, the phases with no reflection in its fitted range
+    (``refine._lineless_phases``, WP-1958)."""
+    return [_lineless_phases(m) for m in models]
+
+
+def _joint_flat_scales(models, mtable, lineless: list[set[int]]
+                       ) -> list[set[int]]:
+    """Of ``lineless``, per histogram, the phases whose scale no weighted
+    ``ValueRestraint`` pulls (``refine._restrained_scale_phases``)."""
+    return [n - _restrained_scale_phases(m, t)
+            for m, t, n in zip(models, mtable.tables, lineless, strict=True)]
+
+
+def _joint_unmeasured_phases(models, mtable,
+                             stage_results: list[StageResult]
+                             ) -> list[set[int]]:
+    """Per histogram, the phases the answer left without a fraction.
+
+    ``refine._unmeasured_phases``' reading per histogram, with the one thing a
+    joint fit adds (#1103): **a shared scale that another histogram measures
+    counts as measured everywhere it is shared**, since its value is then the
+    data's.  The stage does not hold such a scale (the hold needs every
+    histogram out of range), so only the answer's recount can put it here,
+    and that recount drops a phase whose scale is shared and which some
+    histogram has a line of.
+    """
+    lineless = _joint_lineless_phases(models)
+    out = []
+    for h, m in enumerate(models):
+        own = {ip for ip in lineless[h]
+               if not (mtable.sharing.is_shared(f"phases.{ip}.scale")
+                       and any(ip not in lineless[g]
+                               for g in range(len(models)) if g != h))}
+        out.append(_unmeasured_phases(m, stage_results, hist=h, lineless=own))
+    return out
+
+
+def _unseen(mtable, name: str, absent: list[set[int]],
+            lineless: list[set[int]] | None = None) -> bool:
     """Whether ``name``, a reached entry as the joint table spells it, is
     structure of a phase below support wherever the entry lives.
 
     A ``hist.{h}.`` entry lives in histogram h, a bare (shared) one in every
-    histogram.  A phase's ``scale`` is never unseen, for
-    :func:`~rietx.refine._only_moves`' reason: it is the one direction that is
-    not flat.
+    histogram.  A phase's ``scale`` is unseen only where ``lineless`` puts the
+    phase out of range wherever the scale lives (WP-1958); otherwise never,
+    for :func:`~rietx.refine._only_moves`' reason: it is the one direction
+    that is not flat.
     """
     bare = _unscoped(name)
     m = _PHASE_PREFIX.match(bare)
-    if m is None or bare.endswith(".scale"):
+    if m is None:
         return False
+    if bare.endswith(".scale"):
+        if lineless is None:
+            return False
+        absent = lineless
     ip = int(m.group(1))
     owner = mtable._owner(name)
     return all(ip in a for a in (absent if owner is None else [absent[owner]]))
 
 
-def _only_unseen(mtable, reached: list[str], absent: list[set[int]]) -> bool:
+def _only_unseen(mtable, reached: list[str], absent: list[set[int]],
+                 lineless: list[set[int]] | None = None) -> bool:
     """:func:`~rietx.refine._only_moves` for joint entries: every model entry
     the column reaches is :func:`_unseen`.  All, never any; a variable is
     dropped before the test; a column reaching no model entry is not held."""
     moved = [q for q in reached if not is_variable_path(_unscoped(q))]
-    return bool(moved) and all(_unseen(mtable, q, absent) for q in moved)
+    return bool(moved) and all(_unseen(mtable, q, absent, lineless)
+                               for q in moved)
 
 
 def _joint_column_reach(mtable) -> dict[str, list[str]]:
@@ -490,7 +542,8 @@ def _joint_phases_reached(columns: list[str], reach: dict[str, list[str]]) -> se
 
 
 def _unsupported_paths_multi(mtable, absent: list[set[int]],
-                             reach: dict[str, list[str]] | None = None) -> list[str]:
+                             reach: dict[str, list[str]] | None = None,
+                             lineless: list[set[int]] | None = None) -> list[str]:
     """The joint columns that move nothing the data can see.
 
     ``absent`` is :func:`_joint_unsupported_phases`' answer, one set per
@@ -501,31 +554,56 @@ def _unsupported_paths_multi(mtable, absent: list[set[int]],
     prefix could neither hold it nor see it.  :func:`_only_unseen` decides
     over what each column reaches in **every** histogram, each entry judged
     where it lives: all, never any, the variable itself dropped first, and the
-    phase's scale never.
+    phase's scale only where ``lineless`` (one set per histogram) puts the
+    phase out of range wherever the scale lives (WP-1958).  ``absent``
+    already holds every ``lineless`` phase.
     """
     if not any(absent):
         return []
     reach = _joint_column_reach(mtable) if reach is None else reach
     return [p for p in mtable.free_paths
-            if _only_unseen(mtable, reach.get(p, [p]), absent)]
+            if _only_unseen(mtable, reach.get(p, [p]), absent, lineless)]
 
 
 def _hold_unsupported_phases_multi(models, mtable,
                                    reach: dict[str, list[str]] | None = None,
                                    sigma: float | None = PHASE_SUPPORT_SIGMA
-                                   ) -> list[str]:
-    """Hold what :func:`_unsupported_paths_multi` finds; returns the columns.
+                                   ) -> tuple[list[str], list[set[int]]]:
+    """Hold what :func:`_unsupported_paths_multi` finds; returns the columns
+    and, per histogram, the phases judged unseen (the width-twin hold's
+    ``unseen``, ``refine._hold_unsupported_phases``' third answer).
 
     A caller recording the hold's reach reads :func:`_joint_column_reach`
     first and passes it in, because the reach is only readable while the
     columns are still free (``refine._hold_unsupported_phases``' rule).
-    ``sigma`` is :func:`_joint_unsupported_phases`' own.
+    ``sigma`` is :func:`_joint_unsupported_phases`' own.  A phase with no
+    reflection in a histogram's range is held there whatever ``sigma`` says,
+    its scale included (WP-1958, ``refine._unsupported_phase_paths``).
     """
-    absent = _joint_unsupported_phases(models, mtable, sigma)
-    held = _unsupported_paths_multi(mtable, absent, reach)
+    lineless = _joint_lineless_phases(models)
+    absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
+                                    lineless, strict=True)]
+    held = _unsupported_paths_multi(mtable, absent, reach,
+                                    _joint_flat_scales(models, mtable, lineless))
     if held:
         mtable.set_vary(held, False)
-    return held
+    return held, absent
+
+
+def _hold_width_twins_multi(mtable, unseen: list[set[int]]
+                            ) -> tuple[list[str], dict[str, list[str]]]:
+    """``refine._hold_width_twins`` across the stack (WP-2002): one test over
+    every histogram's sums, since a shared specimen width ties them, so one
+    histogram whose instrument width is held pins the rest."""
+    names = mtable.free_paths
+    flats = _width_twin_flats(
+        [(table, np.asarray(mtable.col_map(h), dtype=np.intp), unseen[h])
+         for h, table in enumerate(mtable.tables)], len(names))
+    if not flats:
+        return [], {}
+    held = [names[c] for c in flats]
+    mtable.set_vary(held, False)
+    return held, {names[c]: [names[k] for k in ks] for c, ks in flats.items()}
 
 
 #: ``phases.i.scale``: the one entry a column must move, and nothing else, to
@@ -652,12 +730,19 @@ def _rehold_multi(models, mtable, held: list[str],
     # one measurement, two questions — the release and the collapse are
     # complementary readings of the same joint support test, at the plan's
     # threshold (``sigma``, WP-2002 B1; ``None`` releases and restores nothing)
-    absent = _joint_unsupported_phases(models, mtable, sigma)
+    # a phase with no line in range stays held whatever ``sigma`` says: its
+    # count is frozen with the stage's windows (WP-1958)
+    lineless = _joint_lineless_phases(models)
+    absent = [a | n for a, n in zip(_joint_unsupported_phases(models, mtable, sigma),
+                                    lineless, strict=True)]
+    flat_scales = _joint_flat_scales(models, mtable, lineless)
     held_set = set(held)
     held_reach = held_reach or {}
     released = [p for p in held
-                if not _only_unseen(mtable, [p, *held_reach.get(p, ())], absent)]
-    collapsed = [p for p in _unsupported_paths_multi(mtable, absent, reach)
+                if not _only_unseen(mtable, [p, *held_reach.get(p, ())], absent,
+                                    flat_scales)]
+    collapsed = [p for p in _unsupported_paths_multi(mtable, absent, reach,
+                                                     flat_scales)
                  if p not in held_set]
     if collapsed:
         for h, table in enumerate(mtable.tables):
@@ -1397,8 +1482,8 @@ class MultiHistogramRefinement:
                 # what each column moves, read while every one is still free:
                 # the hold's record (``StageResult.held_reach``, WP-1342)
                 reach = _joint_column_reach(self.mtable)
-                held = _hold_unsupported_phases_multi(models, self.mtable, reach,
-                                                      phase_support_sigma)
+                held, unseen = _hold_unsupported_phases_multi(
+                    models, self.mtable, reach, phase_support_sigma)
                 held_reach = _joint_reach_beyond_self(held, reach)
                 # a phase whose scales and displacement parameters the ranges
                 # cannot separate (WP-1534): the single runner's probe, asked of
@@ -1411,8 +1496,13 @@ class MultiHistogramRefinement:
                 # same reason — each is asked again of the answer by its own test
                 moment_hold, flat_axes, moment_turned = _hold_flat_moments_multi(
                     models, self.mtable)
+                # and an instrument width whose specimen twin is free in every
+                # histogram's sums (WP-2002), never asked again
+                twin_hold, width_twins_held = _hold_width_twins_multi(
+                    self.mtable, unseen)
+                held_reach.update(_joint_reach_beyond_self(twin_hold, reach))
                 support_hold = held
-                held = held + ridge_hold + moment_hold
+                held = held + ridge_hold + moment_hold + twin_hold
                 if held:
                     held_set = set(held)
                     freed = [p for p in declared_freed if p not in held_set]
@@ -1457,6 +1547,10 @@ class MultiHistogramRefinement:
                     models, self.mtable, list(support_hold), start_values,
                     held_reach=held_reach, reach=reach, sigma=phase_support_sigma)
                 held_reach.update(_joint_reach_beyond_self(collapsed, reach))
+                # ``StageResult.collapsed``: the restored columns alone, taken
+                # before the late scale-B hold joins ``collapsed`` below, since
+                # that one holds a released phase's B where it stands
+                restored = list(collapsed)
                 if released:
                     # a phase the support hold released is asked before its second
                     # solve, or that solve runs on the ridge unflagged (the single
@@ -1475,6 +1569,7 @@ class MultiHistogramRefinement:
                     models, self.mtable, [p for p in held if p in moment_set],
                     start_values, moment_turned)
                 released, collapsed = released + m_released, collapsed + m_collapsed
+                restored = restored + m_collapsed
                 for site, axis in m_axes.items():
                     flat_axes.setdefault(site, axis)
                 moment_turned = moment_turned + m_turned
@@ -1563,12 +1658,13 @@ class MultiHistogramRefinement:
                     held=held, released=released,
                     held_reach={c: v for c, v in held_reach.items() if c in still},
                     scale_b_held=dict(scale_b_held),
+                    width_twins_held=width_twins_held,
                     moment_flat_axes=kept_axes,
                     moment_turned=[b for b in kept_axes if b in moment_turned],
                     unknown_paths=unknown_paths, unreached_histograms=unreached,
                     seeded=seeded, blocked_by_hold=blocked_by_hold,
                     moment_angle_tests=outcome.moment_angle_tests,
-                    cell_reset=cell_reset))
+                    cell_reset=cell_reset, collapsed=restored))
                 if stream is not None:
                     rwp, rows = self._stage_end_rows(models, outcome.theta)
                     stream.emit("stage_end", stage=stage.name, status=outcome.status,
@@ -1669,6 +1765,7 @@ class MultiHistogramRefinement:
         histograms: list[HistogramResult] = []
         top_bg: list[GuardFinding] = []
         absorption_table: dict[str, float] = {}
+        joint_unmeasured = _joint_unmeasured_phases(models, mt, stage_results)
         for h in range(n):
             table = mt.tables[h]
             model = models[h]
@@ -1694,6 +1791,9 @@ class MultiHistogramRefinement:
             # (WP-1463); rows are addressed as this surface spells them
             qpa, qpa_diags = _quantify_phases(
                 table, thetas[h], s_h, corr_h, struct, values, model,
+                unmeasured=joint_unmeasured[h],
+                held=(_held_scale_phases(stage_results[-1], h)
+                      if stage_results else None),
                 where_of=lambda p, h=h: (p if mt.sharing.is_shared(p)
                                          else f"hist.{h}.{p}"))
 
@@ -1819,6 +1919,7 @@ class MultiHistogramRefinement:
                 y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
                 sigma=model.sigma.tolist(),
                 ticks=ticks, tick_hkl=tick_hkl,
+                radiation=_radiation(model, values),
                 qpa=qpa,
                 # per histogram, like the QPA and the absorption record above:
                 # the partition is of *this* pattern's counts, so a joint fit
@@ -1930,7 +2031,8 @@ class MultiHistogramRefinement:
             [_unscoped(p) for p in mt.free_paths],
             self.mtable.structures[0], stage_results,
             basis="with everything else held, in the histogram that shows it best",
-            decided=False, sigma=support_sigma)
+            decided=False, sigma=support_sigma,
+            quantified=models[0].mode == "rietveld")
         # a phase whose scales and B no histogram's range can separate, and
         # what its fraction is conditional on (WP-1534)
         diagnostics = diagnostics + _scale_b_ridge_diagnostics(
@@ -1960,6 +2062,7 @@ class MultiHistogramRefinement:
             two_theta=histograms[0].two_theta, y_obs=histograms[0].y_obs,
             y_calc=histograms[0].y_calc, y_background=histograms[0].y_background,
             sigma=histograms[0].sigma, ticks=histograms[0].ticks,
+            radiation=histograms[0].radiation,
             qpa=histograms[0].qpa,
             # WP-1131: one block per phase, read off **histogram 0** — the
             # reference wavelength, whose value scale is exactly 1.0, so its

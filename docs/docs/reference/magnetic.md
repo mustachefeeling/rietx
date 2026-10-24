@@ -84,6 +84,15 @@ A peak on a forbidden lattice point is forbidden under the space group the fit a
 The note names all four, or the first three on an X-ray pattern, and `excess_on_absent_lattice_lines` says only that these peaks need no k.
 On the Cr<sub>2</sub>WO<sub>6</sub> 4 K pattern four residual peaks sit on forbidden lattice points, among them the (0 0 1) and (1 0 2) regions, and on the 150 K pattern none do.
 
+### Centring-forbidden positions
+
+An integer (h k l) that the lattice's centring forbids, such as (1 0 0) on an F lattice, is not a reciprocal-lattice point, so a peak there is counted in neither of the two lists above.
+It stays among the unexplained peaks and is scored like any other.
+The note then says how many unexplained peaks sit on such positions, out of how many such positions lie in range, and names the strongest by its height in σ, with its (h k l).
+It also lists the causes it cannot separate: a lattice less centred than the one assumed, λ/2 contamination when the group allows (2h 2k 2l) (centring, glides and screws all count), an impurity line, and on neutrons a magnetic structure whose propagation vector is such an integer vector.
+A lattice with no centring has no such positions, so the sentence never appears for one.
+On the GSAS-II *Magnetic-IV* (Pr,Sr)MnO<sub>3</sub> pattern (space group `F m m m`) the strongest residual peak sits on (1 0 0).
+
 ## Moments
 
 A moment is a site attribute, `Atom.moment`, holding a `Moment`.
@@ -190,8 +199,8 @@ print(row.magnitude, row.magnitude_esd, row.supported, row.unmeasured_directions
 The support test is a ratio.
 Refine a moment against a pattern above the ordering temperature and the modulus has nowhere to go, because |F<sub>m</sub>|² ∝ m² and the only way to lower χ² is to remove the magnetic intensity.
 Where it stops depends on the rest of the model, so a small value is not a measurement.
-On the Cr<sub>2</sub>WO<sub>6</sub> tutorial pattern at 150 K, refined from the ideal trirutile positions with the protocol in `tests/test_acceptance_magnetic.py`, the modulus stops at 0.067 μ<sub>B</sub> with an esd of 0.33, so `supported` is false.
-At 4 K the same model gives 2.124 ± 0.043 μ<sub>B</sub>, a ratio of 50, and `supported` is true.
+On the Cr<sub>2</sub>WO<sub>6</sub> tutorial pattern at 150 K, refined from the ideal trirutile positions with the protocol in `tests/test_acceptance_magnetic.py`, the modulus stops at 0.059 μ<sub>B</sub> with an esd of 0.39, so `supported` is false.
+At 4 K the same model gives 2.125 ± 0.045 μ<sub>B</sub>, a ratio of 47, and `supported` is true.
 
 ### Directions a powder cannot see
 
