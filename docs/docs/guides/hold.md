@@ -60,11 +60,11 @@ Nothing is wrong when it appears.
 It records that your hold overrode the plan.
 
 Without the hold, the same plan moves `a` by about 300 ppm.
-The script rounds the figure to 100 ppm, because its last digits differ between platforms:
+The figure differs between platforms by tens of ppm, so the script prints the floor they all clear:
 
 <!-- output of examples/guides/hold.py -->
 ```text
-without the hold: a moves about 300 ppm
+without the hold: a moves by more than 250 ppm
 ```
 
 The full script is `examples/guides/hold.py`.
