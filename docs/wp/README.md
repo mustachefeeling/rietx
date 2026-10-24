@@ -22,7 +22,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-21 | P2 | [magnetic](#magnetic) |
 | [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-22 | P2 | [magnetic](#magnetic) |
 | [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-22 | P3 | [magnetic](#magnetic) |
-| [1421](1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | 2026-10-25 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-10-03 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -525,7 +524,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1414](1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — ([1341](1341-a-joint-fit-has-no-report.md) soft) |
 | [1415](1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ✅ 2026-09-24 | — | — |
 | [1417](1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ✅ 2026-09-27 | — | — ([1339](1339-where-the-improvement-lives.md) soft) |
-| [1421](1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | 🔄 2026-10-25 | P2 | — ([1310](1310-report-repeats-itself.md) soft) |
+| [1421](1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ✅ 2026-10-25 | — | — ([1310](1310-report-repeats-itself.md) soft) |
 | [1432](1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — | — ([1119](1119-named-variables.md) soft) |
 | [1434](1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — | — |
 | [1442](1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | ✅ 2026-09-22 | — | — ([1415](1415-a-sigma-column-smaller-than-root-y.md) soft) |

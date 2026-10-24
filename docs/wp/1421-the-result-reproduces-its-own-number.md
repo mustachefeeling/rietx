@@ -1,9 +1,8 @@
 # WP-1421 — the result reproduces its own number
 
-Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-25 — every task landed or closed by ruling; the joint fit and every view of a result read the answer
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
-Priority: P2 2026-10-25 — WP-1986's 9.5 % gap is closed for plans by WP-2002's closing stage (re-measured this day); left: a finding that claims more than it measured, a report reading the live models, the joint fit's frozen compile
 
 ## Goal
 
@@ -144,8 +143,6 @@ below are folded here, and their mailbox is emptied.
   0.19838 with esd 2.26e-3 where the row once said 1.7e-3. #674 only shrinks
   esds, so something else moved it; nobody has looked for when.
 
-### Inherited
-
 ## Non-goals
 
 - Window sizing (`WINDOW_AREA_TOL`, `WINDOW_MIN_DEG`) and the frozen-per-stage
@@ -215,6 +212,146 @@ below are folded here, and their mailbox is emptied.
 - `schemas/history.py`'s as-optimised docstring; `docs/manual/using/history.md`.
 
 ## Handover log
+
+### 2026-10-25 — closed: the joint fit and every view of a result read the answer; the zero case documented
+
+A result now describes one state wherever it is read. A joint fit's curves and statistics come
+from a compile at its answer, as a single fit's have since #432, so its report no longer reads
+cut peak tails as unmatched peaks. `report()`, the reflection table, `predict()` and the CIF
+writer read the answer saved with the result, so a later fit that is cancelled no longer mixes
+its values into the previous result. `FROZEN_COMPILE_STALE` no longer claims the fit is
+unbiased: two measured cases contradict that, and its text now says how to re-solve. The large
+inherited gap, a plan stopping 9 % above the χ² a re-solve reaches, was already closed for
+plans by WP-2002's closing stage, and this session measured that rather than building on the
+older finding. A hand-run `run_stage` still has the gap, which is WP-2047's subject.
+
+**Inherited, pruned on arrival** (commit `28e1ef62`): every entry folded into Context, re-checked
+at `7e69f974`. WP-1986's and WP-1341's gaps re-measured under the closing stage (Context has the
+numbers); the 2026-09-23 reporter claim and the 2026-10-08 "PR #776 open" entry were stale (the
+PR merged 2026-10-08); the 2026-10-23 claim that `set_values` leaves `result_` standing was wrong
+(`set_values` calls `_invalidate_fit`), so the live-model pairing reached only a cancelled fit.
+WP-1432's and WP-1342's instances were folded as one paragraph; WP-1541's boron esd question is
+parked in Context, unexamined.
+
+**Done.**
+- `FROZEN_COMPILE_STALE`'s help text, `_final_compile`'s docstring and the skill's
+  `diagnostics.md` row no longer say "the fit is not biased"; they say a small value or no row
+  is not proof of a settled fit, and that one empty stage re-solves (a plan's closing stage does
+  it already).
+- `Refinement._freeze_answer`, taken where `result_` is built (both runners and the Le Bail
+  alternation's kept pass), read by `report()`, `reflection_table()`, `predict()` with no grid
+  and `write_cif` (the last two from the code review). Dropped with the result.
+- `MultiHistogramRefinement._final_compiles`: one compile per histogram at the answer, the last
+  stage's settings, the solve's σ and origin rows carried; `_frozen_compile_diagnostics` is the
+  one comparison both runners call; the joint fit tests each histogram and names the worst
+  (from the generality judge), with a `(FIT,)` scope row.
+- Tasks 2 and 6 closed by the maintainer's ruling (no statistics field; no `judging.md` row).
+- #774's zero case ruled (c) after a practice survey (`docs/practice.md` § Axial divergence at
+  zero: GSAS-II never computes zero, flooring SH/L at 0.002 in the physics; RIETAN-FP and
+  FullProf size from values; TOPAS not read) and a probe of (a). Documented in `help.py`'s axial
+  entries and `predict()`'s docstring. The maintainer asked for a re-check when WP-2047 lands;
+  the note is in WP-2045's `### Inherited`, since WP-2047 is not on `main` yet.
+- `predict()`'s docstring said its two forms differ by the stage-start freeze; since #432 they
+  agree bit for bit after a default fit (0 of 5751 channels, fluorapatite).
+
+**Measured** (`[dev]` venv, darwin/arm64, this worktree):
+- Closing stage against one more empty stage, fluorapatite tutorial: `mccusker_default` 0.00 %
+  (Rwp 0.0945), `mccusker_structural` 0.00 %, `lab_sample_refine` 0.00 %; with
+  `closing_window_tol=None` 9.26 %, −1.05 %, −1.08 %.
+- Joint WP-1131 size pair, closing off, before the joint compile: reported Rwp 0.09658 / 0.12971,
+  38 / 28 unmatched peaks; after: 0.10207 / 0.11839, 0 / 0. Closing on: 0.04078 / 0.08166 either
+  way, 0 / 0.
+- #774 zero case: 4.8e-5 of the strongest peak today (1.66e-4 on 2026-10-16). Option (a): exactly
+  0, and a default fluorapatite fit 0.64-0.71 s → 1.32-1.35 s, Rwp 0.0944624 → 0.0944623.
+- After a cancelled second fit, `predict()` differed from `result_.y_calc` by 1041 counts on an
+  85 967-count peak before the review's fix; 0 after.
+- COUNTS
+
+**Code review** (`/code-review high --fix`): findings 1-4, 6, 7 applied (commit `5ee469ad`).
+(5), testing each histogram's staleness instead of the sum, was declined here and then taken
+on the generality judge's verdict (below). Declined: (8) the
+fresh curve is evaluated twice per histogram, once for the comparison and once for `y_calc`; a
+forward evaluation is small next to a solve, and avoiding it changes the shared helper's shape.
+
+**Generality** (the `generality-review` judge, on the branch at `5ee469ad`; its sections
+with some long cells shortened, the author's answer under each verdict short of "holds").
+
+#### 1. The joint fit recompiles at its answer (`MultiHistogramRefinement._final_compiles`, multi.py)
+
+**holds.** The case for acting is much stronger. Every established program that I could check in this repository reports curves built at the final values. The only cost found is one compile per pattern.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides unasked | "the result's curves and statistics from a compile at the values it returns, never the last stage's start-of-stage one" (multi.py comment). Solve, esds, σ and origin rows "stay the solve's" (`_final_compiles` docstring). | It decides which model the reported y_calc, per-pattern Rwp/χ² and the per-pattern report (`report(h)`) are measured on. The as-optimised figure is still on the stage record (`StageResult.cost_final`). The joint path is Rietveld-only (multi.py:1469, :1707), so a hard-coded `mode="rietveld"` loses nothing. | clear |
+| 2. Kind | Not stated as a kind. The dispatch calls it "mirroring the single fit's existing `Refinement._final_compile` (#272)". | Kind 1 (arithmetic). A reported curve should be the model evaluated at the reported parameters. Nothing is ranked, and nothing depends on facts outside the pattern. No table row exists to agree or disagree, because the table cannot see an always-on action. | kind 1, unrecorded |
+| 3. Case against | — | none found. The figure the solver actually minimised is not lost: it stays on `stages[-1]`. The only visible effect is that the last `stage_end` Rwp now differs from the result's. The test was loosened from `==` to `approx(rel=FROZEN_COMPILE_CHI2_REL/2)` (test_joint_report.py:126-134). | — |
+| 4. Case for | WP-1341's numbers, quoted in the WP Context: "38 and 28 unmatched" peaks with the closing stage off, "0 unmatched peaks on each" from a compile at the answer. The removed inherited entry adds "`add_impurity_phase` among the actions". | Strong. Without the recompile, the report told a user to add an impurity phase to a single-phase synthetic. Leaving it to the caller would mean a manual recompile before every report is read. Under default plans the closing stage already hides the gap: "the same five digits" (WP Context). So default joint numbers move only past the fifth digit. No golden file is in the diff. | strong |
+| 5. Tier and source | none given | Tier 2 practice, from this repository and not from the programs themselves. practice.md's new section says GSAS-II "windows come from values each evaluation". The `PlanSpec:closing_window_tol` row (_audit.py:2953) says RIETAN-FP's and MAUD's windows also move "every evaluation". Their reported curve is therefore always the model at its values. I did not check FullProf, TOPAS, BGMN or EasyDiffraction. | 2, partly checked |
+| 6. Dataset families | One fixture: the WP-1131 size pair (two-wavelength synthetic LaB6, test_multi_histogram.py:490). | One family, synthetic. Its reference is a known truth: one phase, so any unmatched peak is a false finding. That is adequate for a kind-1 act with no threshold. Run-time cost on a joint fit: **none given**. The single fit's cost was measured at 0.024-0.055 s per fit in the 2026-09-24 handover. | adequate |
+| 7. Record of firing | The task-2 closure: "which compile produced the figures is a function of `result.mode`". | It always fires, so no field is needed. `FROZEN_COMPILE_STALE` marks a large gap. The frozen cost stays on the last `StageResult`. | adequate |
+
+What would change the verdict: a named workflow that needs the reported χ² to be the minimised objective rather than the value at the answer.
+
+#### 2. `FROZEN_COMPILE_CHI2_REL` (1e-2) now gates `FROZEN_COMPILE_STALE` on the joint fit, tested on χ² summed over the patterns
+
+**weak.** The case against the pooled test is stronger. The package's own joint-fit scope table already says a pooled figure can hide one pattern. The fixture this WP measured has per-pattern gaps 30× apart. And the threshold row the dispatch calls audited is not audited.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides unasked | Scope reason: "χ² summed over the histograms, the joint solve's objective (WP-1421)". The dispatch: "A reviewer noted one stale histogram can hide inside the sum; the author kept the pooled test." | It decides whether a joint result carries the finding at all. Pooling also decides that one pattern's gap is judged against every pattern's χ² together. The kept decision has no written reason beyond the scope string. | reason thin |
+| 2. Kind | none given. The code row is `Row("FROZEN_COMPILE_STALE", "code")` (_audit.py:573), with no ambiguity field. | Kind 3 in shape: level `info`, it quotes both χ² and stops. But the threshold decides whether the diagnostic exists, which is the generality record's Demotion case ("there is no verdict to keep"). | unrecorded |
+| 3. Case against | none given | (a) Package precedent, multi.py:246: `MODEL_FAR_FROM_DATA` is per-pattern because "a pooled Rwp can hide one histogram the model does not describe". (b) On this WP's own fixture with the closing stage off, the quoted Rwp give per-pattern χ² gaps of about 74 % and 2.5 % (my arithmetic). Parameters private to one pattern are fitted by that pattern's χ² alone. That is reasoning, not measured. (c) The threshold does not separate a settled fit from one that stopped short in any case: on the fluorapatite tutorial a 0.8 % gap sat beside a 9.5 % χ² drop on re-solve. | moderate |
+| 4. Case for | The scope string: the sum is "the joint solve's objective". | Partly right. A per-pattern test could fire up to N rows, each with an attention cost. Firing rate on joint fits: **none given**. | weak |
+| 5. Tier and source | The dispatch: "existing threshold … audited row exists". | **Not so.** `Row("rietx.refine.FROZEN_COMPILE_CHI2_REL", "constant", value=0.01)` has no tier (_audit.py:2280). It is on `UNAUDITED_BASELINE` (:4291), and the code is on it too (:3646) and on `RESPONSE_BASELINE` (:4506). Tier 2: no program has such a diagnostic, since GSAS-II, RIETAN-FP and MAUD re-size windows every evaluation. | unaudited, tier 3 at best |
+| 6. Dataset families | For single fits, the constant's comment: Si SRM 640c, FAP, Stephens brucite, a synthetic held-phase ramp, the QPA sample-1 chain. | For single fits: several families, measured against firing rate rather than a known fault. The one known fault (FAP, WP-1986) is a miss. For joint fits: **zero families**. No test makes the joint branch fire. | weak |
+| 7. Record of firing | `FROZEN_COMPILE_STALE`, `value` = the relative gap. | It carries no `where`, so it cannot name the pattern responsible. Its row has no `scope` (it sits on `RESPONSE_BASELINE`). | partial |
+
+What would change the verdict: per-pattern gaps measured on joint fits, showing that no single pattern exceeds 1 % while the sum stays under it. Or a written reason why a gap private to one pattern does not matter, plus a test that makes the joint branch fire.
+
+*Author:* taken (commit `0b521af5`). Each pattern's gap is tested and one finding names the worst pattern in its message; the size pair with the closing stage off now fires it on histogram 1 at 17 %, asserted by `test_a_joint_result_is_measured_on_a_compile_at_its_answer`. The judge's 74 % used a compile that ignores the free set, so it is not the pattern's gap. The threshold's tier stays on `UNAUDITED_BASELINE` as it was; this branch adds no row.
+
+#### 3. The skill and help text: silence is not proof, run one empty stage; "the fit is not biased" removed
+
+**holds.** The case for the change is stronger. The removed claim has two measured counterexamples, and the new advice is keyed by a code and backed by a practice outside rietx. One sentence of the shared help text is now wrong for joint fits.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides unasked | Skill row and help.py: run one more stage with nothing new freed and compare. | It tells the caller to spend one more stage when the finding fires, and to treat the absence of the finding as saying nothing. | clear |
+| 2. Kind | none given | Kind 1 for the advice: re-cycling until nothing moves is what every refiner does. The removal corrects a false statement. | — |
+| 3. Case against | none given | The same act fails in two recorded cases on the `closing_window_tol` row (_audit.py:2953): SRM 660c's closing solve 0.908 esd from the fixed point in u, and CPD brucite's S_HKL under TRF. The advice says "compare" rather than "accept", which limits that risk. A joint fit has no `run_stage`, so for it "one more stage" means writing a plan. | weak |
+| 4. Case for | WP-1986 (fluorapatite, 0.8 % gap beside a 9.5 % re-solve) and WP-1930 (3.1e4 %, `converged`, "not biased"). | Strong. Two counterexamples against a claim that rested on #272's two good fixtures. BGMN ends every refinement with a closing run by default (Doebelin & Kleeberg 2015, cited on the `closing_window_tol` row; not checked by the judge). | strong |
+| 5. Tier and source | — | Prose, so no tier. | — |
+| 6. Dataset families | FAP and synthetic Si. | Enough to withdraw a claim, not to set a threshold. | adequate for a withdrawal |
+| 7. Record of firing | — | **Defect:** help.py still says "The history node keeps the earlier figure"; a joint fit keeps no history node. | one fix owed |
+
+What would change the verdict: a case where an empty stage moved a well-determined parameter away from a certified reference.
+
+*Author:* the defect is fixed in `0b521af5`.
+
+#### 4. The axial-divergence sizing floor at zero, documented
+
+**holds as documentation.** A measured 2× slowdown against a 4.8e-5 effect, ruled by the maintainer. The number is inconsistent within the diff, and the floor's row does not record that rietx sits outside the surveyed practice.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides unasked | help.py: windows sized for 0.02 at zero when refined. | "Windows" understates this: the floor sizes the FCJ nodes too (forward.py:3792-3795). | wording incomplete |
+| 2. Kind | Row: "A numerical setting whose domain test fails over part of the domain it claims; tier 3" (_audit.py:1593). | Kind 1, a numerical setting: a usable derivative from zero. The row agrees. | agrees |
+| 3. Case against | — | practice.md: "No program read makes a calculation depend on whether a parameter is refined." The `AXIAL_SIZING_FLOOR` row (_audit.py:1583-1599) does not mention the free-set dependence, the survey or the ruling. `MAGNETIC_SIZING_FLOOR` has the same zero-case shape (forward.py:4008-4013) and is not documented here. | moderate |
+| 4. Case for | Option (a) 2.0× slower for a 4.8e-5 gap; ruled (c); re-check owed when WP-2047 lands. | Strong. | strong |
+| 5. Tier and source | Row: tier 3, approved 2026-10-22. | Unchanged. | as recorded |
+| 6. Dataset families | The rutile reproducer; FAP for the cost. | **Defect:** practice.md says 1.66e-4, help.py about 5e-5, the docstring 4.8e-5. | inconsistent |
+| 7. Record of firing | none given | No field records that a compile was sized at the floor. | none |
+
+What would change the verdict: a default in TOPAS, BGMN, MAUD or EasyDiffraction that also lets a refine flag reach the curve, or a second specimen putting the gap near the closing stage's tolerance.
+
+*Author:* wording and number fixed in `0b521af5`. The `AXIAL_SIZING_FLOOR` row's text is left as it is: amending a tiered row's grounds is the maintainer's call, and the departure from practice is recorded in `docs/practice.md` and this WP. The magnetic sibling is unmeasured; it is named in WP-2045's note for WP-2047 beside the axial check.
+
+**Gotchas.** `run_stage` has no closing stage, so the guides' quoted gaps (`next.md`,
+`stage.md`) still stand and are correct. The joint event-log test now reads the last
+`stage_end` Rwp as the as-optimised figure, within half of `FROZEN_COMPILE_CHI2_REL`.
+
+**Next.** None in this WP. When WP-2047 lands, its session folds WP-2045's note and tests the
+split sizing at zero (nodes from the free set, windows from the value).
 
 ### 2026-09-24 — landed from outside under shape (a); a result is measured on a compile at its own values
 
