@@ -189,16 +189,18 @@ gh run list --workflow nightly.yml --branch main --limit 1
 
 ## Handover log
 
+- **2026-10-24** — re-rated P1 → P2 by the maintainer's session after the 1.10.0 cut,
+  with no code changed. The P1 reason was the `qpa` esd split, and WP-2044 fixed it
+  before the tag. #1146 fixed the two Windows failures, so three tasks are ticked with
+  pointers. WP-2045 is now a hard dependency, because the `full` job cannot finish
+  until it lands. The same session later ruled 2045's design: the stage before the
+  closing stage converges at the solver's tolerance. Two tasks were added from the
+  Inherited entries: the Windows job's 45-minute limit, which threatens the next
+  release gate, and the Le Bail NaN raise. Next: the Windows limit before the next
+  cut. The `full` leg re-run waits on 2045.
 - **2026-10-23** — created by the maintainer's `/pr-review` session, which found these
   failures while gating #1122. No open WP owns them as a set. WP-2002 is in flight and
   caused items 1, 3 and 4, but its file is waiting on rulings, and item 2 comes from
   WP-1994, which is closed. WP-2012 owns two of the degeneracies and none of the
   failing rows. Next: task 1, since items 3 and 4 cannot be read on Linux until the full
   job finishes.
-- **2026-10-24** — re-rated P1 → P2 by the maintainer's session after the 1.10.0 cut,
-  with no code changed. The P1 reason was the `qpa` esd split, and WP-2044 fixed it
-  before the tag. #1146 fixed the two Windows failures, so three tasks are ticked with
-  pointers. WP-2045 is now a hard dependency, because the `full` job cannot finish
-  until it lands. Two tasks were added from the Inherited entries: the Windows job's
-  45-minute limit, which threatens the next release gate, and the Le Bail NaN raise.
-  Next: the Windows limit before the next cut. The `full` leg re-run waits on 2045.

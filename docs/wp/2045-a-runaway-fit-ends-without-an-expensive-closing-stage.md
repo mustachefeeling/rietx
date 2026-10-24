@@ -1,6 +1,6 @@
 # WP-2045 — A runaway fit ends without an expensive closing stage
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-24 — ruled: the stage before the closing stage converges at the solver's tolerance; measuring its cost on the four standards next
 Track: A long run is not one fit
 Depends on: —
 Priority: P2 2026-10-24 — a defect that costs a user a workaround: a fit that runs away now seems to hang, where 1.9.0 ended it in seconds; 1.10.1 waits on it
@@ -284,18 +284,55 @@ committed) ran `SequentialRefinement(...).fit` on cpd-1a and cpd-1b under
 
 ## Handover log
 
+### 2026-10-24 (2nd session) — ruled: the stage before the closing stage converges, and windows that follow the parameters get a WP of their own
+
+The runaway that stalls the hostile series is not a real answer. It exists
+only because each stage freezes its peak windows. As the axial ratio grows,
+each peak spreads past its frozen window and the overflow drops out of the
+model. So growing the ratio can only remove intensity, and with the warm
+start's scales too strong for the next mixture, that lowers the error. The
+warm stage stops there only because a closing stage now follows it, which
+loosens its tolerance; at the tolerance it ran at before 1.10, the same
+stage from the same start finds a sane answer. Windows recompiled every few
+iterations avoid the runaway entirely and give the best answer measured.
+The maintainer ruled the tolerance change for 1.10.1 and the recompiling
+windows into WP-2047.
+
+*Done.* The design was put to the maintainer in three rounds: options 1-3
+(work ratio, axial reset, fence first), then how the rounds missed it and
+what practice says, then whether windows that move at every evaluation were
+considered. Each answer is in Context: "What the runaway is", "Moving
+windows were described but never offered", "How the rounds missed it" and
+the Practice paragraph (GSAS-II's `dropOOBvars`, checked on its `main`).
+Candidates 4-7 were added and the ruling recorded above them. Goal and tasks
+were rewritten to option 5. WP-2047 was filed for option 4. WP-2036 was
+re-rated P1 → P2 with this WP as a hard dependency. The five probes are in
+`2045-batch/`. No code changed.
+
+*Measured* (Linux x86-64 cloud container, 4 cores, `[dev]`, Python 3.12,
+`OPENBLAS_NUM_THREADS=1`, tree `7d24e09e7`). The runaway reproduces in
+13.6 s at `axial_sl` 555. Its closing compile is 873.7 M point-nodes, 1 608×
+the warm stage's, against 19× for cpd-1a's normal one. The full set (frozen
+against fresh Rwp, intensity dropped, the `ftol` and K tables, the
+re-solves) is in Context's four bullets.
+
+*Gotchas.*
+- `rietx.refine` is the exported function. The module is
+  `sys.modules["rietx.refine"]`, where the probes patch `compile_model`.
+- The probes are records, not tests, and nothing runs them
+  (`2045-batch/README.md`).
+- A force push to the session's branch was refused by the harness. The
+  branch's old tip was an ancestor of `main`, so a fast-forward push did
+  the job.
+
+Next: measure option 5 on the four standards before building it (the
+second task), by setting the last declared stage's own `ftol` to the
+solver's. If its cost beats what `intermediate_ftol` saves, build it (third
+and fourth tasks). If not, the numbers go to the maintainer before any code.
+
 - **2026-10-24** — filed by WP-2043's session (the 1.10 cut), after its
   VALIDATION lane found the hostile series never finishing and the session
   reproduced the cause. No open WP owns the closing stage's cost: 2036 owns
   the nightly legs being green and gets an Inherited pointer, 2012 owns the
   axial pair's identity, 2020 owns opt-in bound sets. The maintainer chose to
   cut 1.10.0 with the limit stated and fix it here.
-- **2026-10-24 (ruling session, after the cut)** — the design was put to the
-  maintainer over three rounds. The first two were options 1-3. The
-  maintainer then asked how the rounds had missed this, what practice said,
-  and whether windows that follow every evaluation had been considered. The
-  session reproduced the runaway on Linux and measured what it is (Context,
-  the four "measured" bullets). It recorded how the rounds missed it and
-  GSAS-II's `dropOOBvars`, and added candidates 4-7. Ruled: option 5 here,
-  option 4 as WP-2047. No code changed. Next: measure option 5 on the four
-  standards (the second task) before building it.
