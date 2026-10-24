@@ -478,8 +478,10 @@ The `FitReport` rendered. [](../concepts/report.md) is what the statements mean;
 about this panel will otherwise be misread.
 
 Above the suggestions sits a "Fit diagnostics" section. It lists every diagnostic
-the fit's result carries, errors first, then warnings, then notes, each with its
-code, message, suggestion and the parameters it names. These are the package's own
+the fit's result carries, errors first, then warnings, then notes, each under its
+code and the parameters it names; an error opens in full, and every other row stays
+folded to the purposes it is a warning under until you open it for its message and
+suggestion. These are the package's own
 findings about the answer (`BOUND_HIT`, `LEBAIL_ALTERNATION_STOPPED` and the rest),
 and no other panel shows them.
 

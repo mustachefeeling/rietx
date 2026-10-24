@@ -145,7 +145,7 @@ result.plot()
 # ## What the fit says about itself
 #
 # Read every diagnostic before quoting a number.
-# `deliverable` picks the rows that decide whether the fit is done for one purpose: `"structure"`, `"qpa"`, `"phase_id"` or `"series"`.
+# `deliverable` picks the rows that decide whether the fit is done for one purpose: `"structure"`, `"qpa"`, `"phase_id"`, `"cell"`, `"microstructure"`, `"calibration"`, `"magnetic"` or `"series"`.
 
 # %%
 print(ref.summary(deliverable="structure"))

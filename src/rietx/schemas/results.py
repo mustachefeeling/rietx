@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import functools
+from dataclasses import dataclass
 from typing import Any, ClassVar, Literal
 
 import numpy as np
 from pydantic import Field, model_validator
 
 from .._about import DIST_NAME
+from ..purposes import PURPOSES
 from .common import Base, Diagnostic, Mode, Provenance
 from .interval import ParameterInterval
 from .parametric import (
@@ -1353,6 +1356,9 @@ _CAPPED_PAIR_CODES = (
     ("FLAT_DIRECTION", "FLAT_DIRECTION_OMITTED", "flat direction"),
 )
 
+#: The rows :func:`_cap_high_correlation` writes about what it left out.
+_OMITTED_CODES = frozenset(omitted for _, omitted, _ in _CAPPED_PAIR_CODES)
+
 
 def _cap_one_code(diagnostics: list[Diagnostic], code: str, omitted_code: str,
                   noun: str) -> list[Diagnostic]:
@@ -1394,32 +1400,270 @@ def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
 
 
 #: What ``summary(deliverable=…)`` accepts, on a result and on a series alike
-#: (the agent skill §4b's four purposes).  Data rather than two literal lists:
-#: :meth:`rietx.refine.Refinement.summary` implements the first three and
-#: :meth:`rietx.schemas.sequential.SeriesResult.summary` the fourth, and each
-#: refuses the other's by naming where it lives — a vocabulary neither owns.
-DELIVERABLES = ("phase_id", "qpa", "structure", "series")
+#: (the agent skill §4b's purposes).  Derived, never listed: the purpose table
+#: :data:`rietx.purposes.PURPOSES` is the one authority for which purposes
+#: exist (WP-2037), so a purpose added there is a deliverable here.
+#: :meth:`rietx.refine.Refinement.summary` implements every one but
+#: ``series`` and :meth:`rietx.schemas.sequential.SeriesResult.summary` that
+#: one, and each refuses the other's by naming where it lives — a vocabulary
+#: neither owns.
+DELIVERABLES = tuple(PURPOSES)
+
+#: The first segment of a parameter dot-path, a joint fit's ``hist.{h}.``
+#: scope included.  A ``where`` entry starting with none of them names
+#: something other than a parameter, and :func:`level_under` reads it as no
+#: path at all.
+_PATH_ROOTS = ("phases.", "instrument.", "vars.", "hist.")
 
 
-def _diagnostic_lines(diagnostics: list[Diagnostic], notebook: bool = False) -> list[str]:
-    """Section 2a: the first stop condition — every diagnostic, resolved or not.
+def _bears_on(path: str, globs: tuple[str, ...]) -> bool:
+    """Whether a ``where`` path names a parameter one of ``globs`` matches, or
+    an object holding one: ``phases.0.atoms.0`` is the whole site, so a glob
+    over its coordinates matches it once cut to the path's own depth.  A
+    ``vars.`` name bears on every purpose, because which paths it drives is
+    a fact of the table, not of the record (WP-1342's blind spot)."""
+    from fnmatch import fnmatchcase
+
+    if path.startswith("hist."):
+        path = path.split(".", 2)[2] if path.count(".") >= 2 else path
+    if path.startswith("vars."):
+        return True
+    depth = path.count(".") + 1
+    return any(fnmatchcase(path, g) or fnmatchcase(path, ".".join(g.split(".")[:depth]))
+               for g in globs)
+
+
+@functools.cache
+def _code_scopes() -> dict[str, tuple[str, ...]]:
+    """Each code with a declared ``response`` in the audit table, mapped to its
+    ``scope`` (``()`` where it declares none), read once a process (importing
+    the table costs about 25 ms).  A code absent here has not had its
+    pairings checked."""
+    from .. import _audit
+
+    return {row.name: row.scope for row in _audit.ROWS
+            if row.kind == "code" and row.response is not None}
+
+
+def level_under(diagnostic: Diagnostic, purpose: str) -> str:
+    """The level ``diagnostic`` carries for a caller whose purpose is ``purpose``
+    (WP-2037, clause 2 of ``docs/milestones/generality.md`` § The rule).
+
+    A level is the response a reader owes, and whether it is owed depends on
+    what the reader will quote.  So it is **derived**, never authored per code
+    per purpose: the diagnostic's own level where any of its ``where`` paths
+    is one the purpose's result numbers depend on
+    (:data:`rietx.purposes.PURPOSES`), ``info`` elsewhere.  A diagnostic
+    naming no parameter path falls back on its code's ``scope`` in the audit
+    table (the purposes it bears on, or ``("all",)``).  With neither it keeps
+    its own level under every purpose: a pairing nobody checked must not read
+    as "not your concern" (WP-1076).  Nor has any pairing of a code still on
+    ``rietx._audit.RESPONSE_BASELINE`` been checked, so such a code keeps
+    its level everywhere too, and the view grows quieter as the audits give
+    each code its response.  An ``error`` is an error for every
+    purpose, since an unusable fit is unusable for all of them, and an
+    ``info`` stays one.
+    """
+    if purpose not in PURPOSES:
+        raise ValueError(f"unknown purpose {purpose!r}; one of "
+                         f"{', '.join(repr(p) for p in PURPOSES)}")
+    if diagnostic.level != "warning":
+        return diagnostic.level
+    scope = _code_scopes().get(diagnostic.code)
+    globs = PURPOSES[purpose].depends
+    # a code still on the audit's response baseline has had no pairing
+    # checked, and a purpose following every path ("series") reads every
+    # code: both keep the warning
+    if scope is None or globs == ("*",):
+        return "warning"
+    paths = [w for w in diagnostic.where if w.startswith(_PATH_ROOTS)]
+    if paths:
+        return "warning" if any(_bears_on(w, globs) for w in paths) else "info"
+    if not scope or scope == ("all",) or purpose in scope:
+        return "warning"
+    return "info"
+
+
+def _check_deliverable(deliverable: str) -> None:
+    """Refuse a deliverable outside :data:`DELIVERABLES`, naming every one."""
+    if deliverable not in DELIVERABLES:
+        raise ValueError(f"unknown deliverable {deliverable!r}; one of "
+                         f"{', '.join(repr(d) for d in DELIVERABLES)}")
+
+
+@dataclass(frozen=True)
+class DiagnosticRow:
+    """One diagnostic as a renderer shows it (WP-2037, clause 3): a view of a
+    stored record, never stored itself.
+
+    ``level`` is the diagnostic's level under the deliverable the view was
+    asked for (:func:`level_under`), or its own level with none.  ``full``
+    says whether it prints in full (message, paths, suggestion) or as one
+    line (code and paths).  ``warning_under`` names the purposes it is a
+    warning under, in the purpose table's order and never ``series``: that
+    purpose follows every path (``"*"``), so on a single result it would be
+    listed wherever any other is and says nothing a reader can act on.
+    """
+
+    diagnostic: Diagnostic
+    level: str
+    full: bool
+    warning_under: tuple[str, ...]
+
+
+#: The purposes a row's ``warning_under`` can name: every one but ``series``
+#: (:class:`DiagnosticRow` says why).
+_NAMED_PURPOSES = tuple(p for p in PURPOSES if p != "series")
+
+#: The order a view lists its rows in: errors, then warnings, then the rest.
+_VIEW_RANK = {"error": 0, "warning": 1}
+
+
+def diagnostic_view(diagnostics: list[Diagnostic],
+                    deliverable: str | None = None) -> list[DiagnosticRow]:
+    """The rows every renderer of a diagnostics list prints (WP-2037, clause 3):
+    the text summary, ``str(result)``, the notebook HTML and the GUI panel.
+
+    Under a deliverable, a row at ``error`` and one at ``warning`` *for that
+    purpose* (:func:`level_under`) print in full and the rest as one line
+    each.  With none, only the errors print in full: every other row is one
+    line naming the purposes it is a warning under, since which of them
+    decides the caller's numbers is the caller's to say, and the summary does
+    not infer it.  Rows come errors first, then warnings, then the rest, each
+    in stored order.  An unknown deliverable is refused, naming every one.
+
+    Every row of ``diagnostics`` comes back, uncapped: a renderer that prints
+    bounds the pair-keyed codes first (:func:`_cap_high_correlation`), and
+    the stored list stays the one its counts are taken from.
+    """
+    if deliverable is not None:
+        _check_deliverable(deliverable)
+    rows = []
+    for d in diagnostics:
+        under = (tuple(p for p in _NAMED_PURPOSES if level_under(d, p) == "warning")
+                 if d.level == "warning" else ())
+        level = d.level if deliverable is None else level_under(d, deliverable)
+        full = level == "error" or (deliverable is not None and level == "warning")
+        rows.append(DiagnosticRow(d, level, full, under))
+    return sorted(rows, key=lambda r: _VIEW_RANK.get(r.level, 2))
+
+
+#: The reading rule, closing a summary that was given no deliverable: the
+#: output says how to see more, so the skill need only name the field
+#: (WP-2037 clause 3; WP-1338's cheapest place, the package's own output).
+DIAGNOSTICS_READING_RULE = ("pass deliverable= for the rows that decide your "
+                            "purpose; every row is in result.diagnostics")
+
+
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}{'' if n == 1 else 's'}"
+
+
+def _compress_paths(paths: list[str]) -> str:
+    """``where`` as one line: a sibling of the last path printed in full (the
+    same prefix up to its last dot) prints as its ``.leaf``, so
+    ``instrument.profile.u, .v, .w``.  Only a parameter path is a stem: a
+    ``where`` naming a region (``12.300-12.550``) or a peak (``12.3400°``)
+    has decimal points, not path segments, and always prints whole."""
+    out: list[str] = []
+    stem = ""
+    for path in paths:
+        leaf = path[len(stem):]
+        if stem and path.startswith(stem) and leaf and "." not in leaf:
+            out.append(f".{leaf}")
+        else:
+            out.append(path)
+            stem = path[:path.rfind(".") + 1] if path.startswith(_PATH_ROOTS) else ""
+    return ", ".join(out)
+
+
+def _warning_under_text(names: tuple[str, ...]) -> str:
+    if not names:
+        # level_under puts a warning with a path under ``series`` always, so a
+        # warning no named purpose reads is one only a trajectory does
+        return "warning under series only"
+    if names == _NAMED_PURPOSES:
+        return "warning under every purpose"
+    return f"warning under {', '.join(names)}"
+
+
+def _one_line(row: DiagnosticRow, deliverable: str | None) -> str:
+    """A row printed short: its code and paths, and what it is a warning under."""
+    d = row.diagnostic
+    head = d.code + (f" at {_compress_paths(d.where)}" if d.where else "")
+    if deliverable is None:
+        return f"{head}: {_warning_under_text(row.warning_under)}" \
+            if d.level == "warning" else f"{head}: {d.level}"
+    # under a deliverable a short row is one at ``info`` for it
+    if d.level == "warning":
+        return f"info: {head} ({_warning_under_text(row.warning_under)})"
+    return f"info: {head}"
+
+
+def _diagnostic_header(rows: list[DiagnosticRow], deliverable: str | None) -> str:
+    n_errors = sum(r.level == "error" for r in rows)
+    if deliverable is None:
+        shown = ("none is printed in full" if not n_errors else
+                 "only the error is printed in full" if n_errors == 1 else
+                 "only the errors are printed in full")
+        return (f"  diagnostics: {_count(len(rows), 'row')}, {_count(n_errors, 'error')}; "
+                f"no deliverable given, so {shown}")
+    n_warnings = sum(r.level == "warning" for r in rows)
+    n_info = len(rows) - n_errors - n_warnings
+    return (f"  diagnostics under {deliverable}: {_count(n_warnings, 'warning')}, "
+            f"{_count(n_errors, 'error')}, {n_info} info")
+
+
+def _diagnostic_parts(diagnostics: list[Diagnostic], deliverable: str | None = None
+                      ) -> tuple[str, list[tuple[DiagnosticRow, str | None]], str | None]:
+    """The diagnostics section as its header, its printed rows each with its
+    one-line form (``None`` for a row printed in full), and the reading rule
+    that closes it (``None`` under a deliverable, or with nothing to print).
+
+    The counts in the header are the *stored* list's, accurate and uncapped;
+    only the rows printed are bounded (:func:`_cap_high_correlation`), so a
+    header counting 23 rows can be followed by fewer lines without lying.
+    The rows printed in full and the rows printed short are bounded apart, so
+    a pair that is a warning under the deliverable is never cut to make room
+    for stronger pairs that are ``info`` for it.
+    """
+    stored = diagnostic_view(diagnostics, deliverable)
+    if not stored:
+        return "  diagnostics: none", [], None
+    rows = []
+    for full in (True, False):
+        pool = [r for r in stored if r.full is full]
+        found = [r.diagnostic for r in pool]
+        capped = _cap_high_correlation(found)
+        rows += pool if capped is found else diagnostic_view(capped, deliverable)
+    # the cap's own row says how many it left out, which its code alone does not
+    printed = [(r, None if r.full or r.diagnostic.code in _OMITTED_CODES
+                else _one_line(r, deliverable)) for r in rows]
+    return (_diagnostic_header(stored, deliverable), printed,
+            DIAGNOSTICS_READING_RULE if deliverable is None else None)
+
+
+def _diagnostic_lines(diagnostics: list[Diagnostic], deliverable: str | None = None,
+                      *, notebook: bool = False) -> list[str]:
+    """Section 2a: the first stop condition, as :func:`diagnostic_view` prints it.
 
     Present even at zero (WP-1302's acceptance: the stop-condition lines are
     on *every* fit, including one with nothing to report), so a caller never
     has to distinguish "no diagnostics" from "this section did not run".
-
-    The header count is the *stored* list's — accurate, uncapped; only the
-    rows actually printed below are bounded (:func:`_cap_high_correlation`),
-    so "23 unresolved" can be followed by fewer than 23 lines without lying
-    about how many there are.  ``notebook`` adds each code's explanation
-    (:func:`rietx._display.diagnostic_lines`).
+    ``notebook`` wraps every row at the notebook's width and adds each code's
+    explanation as ``means:``, under ``help:`` on a full row and under the one
+    line on a short one (:mod:`rietx._display`), so a notebook still says what
+    each row means while ``print`` stays one line a row (WP-2039, WP-2037).
     """
-    from .._display import diagnostic_lines
-    if not diagnostics:
-        return ["  diagnostics: none"]
-    lines = [f"  diagnostics: {len(diagnostics)} unresolved"]
-    for d in _cap_high_correlation(diagnostics):
-        lines += diagnostic_lines(d, "    ", notebook=notebook)
+    from .._display import diagnostic_lines, short_lines, wrapped_note
+    header, printed, rule = _diagnostic_parts(diagnostics, deliverable)
+    lines = [header]
+    for row, short in printed:
+        lines += (diagnostic_lines(row.diagnostic, "    ", notebook=notebook)
+                  if short is None else
+                  short_lines(row.diagnostic, short, "    ", notebook=notebook))
+    if rule:
+        lines += wrapped_note(rule, "    ", notebook=notebook)
     return lines
 
 
@@ -1942,7 +2186,10 @@ class RefinementResult(Base):
 
     def __str__(self) -> str:
         """The termination view a bare result can answer (WP-1302): per-stage
-        status, every diagnostic, provenance, agreement indices last.
+        status, every diagnostic, provenance, agreement indices last.  It takes
+        no deliverable, so the diagnostics print as :func:`diagnostic_view`
+        gives them without one: the errors in full, every other row on one
+        line (WP-2037).
 
         Not the full view — ``Refinement.summary()`` adds the rows that need
         the compiled model (Layer 1's summary sentence, the next suggestion,
@@ -1958,7 +2205,7 @@ class RefinementResult(Base):
         explanation (:func:`_diagnostic_lines`)."""
         lines = [f"RefinementResult: {self.status} ({self.mode})"]
         lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
-        lines += _diagnostic_lines(self.diagnostics, notebook)
+        lines += _diagnostic_lines(self.diagnostics, notebook=notebook)
         lines += _parametric_lines(self.parametric, self.parametric_form,
                                    self.parametric_form_joint)
         lines.append(_provenance_line(self.provenance))

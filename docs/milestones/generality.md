@@ -21,12 +21,19 @@ and installs a guard so the next WP cannot add one unaudited. The maintainer's w
 open were "rietx pays the tab for any well-established heuristic and leaves reasoning to
 agents or humans"; DESIGN.md § History records how that became the purpose.
 
+**A fifth aim sits beside the four rules: rietx must not flood a user or an agent with
+noise**, because attention spent on noise lowers the quality of the refinement (WP-2037,
+2026-10-23). It adds the cost of reading to Rule 1's pricing of a rerun and moves Rule 1's
+line nowhere; § The rule carries its four clauses.
+
 Ten WPs, 2001 to 2010. 2001 is the rule written down, the audit table and the guard, and
 it lands first. 2002 to 2007 are audits, one per seam. 2010 audits features rather than
 decisions: each names what verifies its code and what validates its physics (Rule 2). 2008 slims the agent skill to the
 API, the feedback surface and sourced traps. 2009 rewrites the rulebook rules that generated the overfit. 2014, filed
 2026-10-20, carries 2001's guard to outside PRs, unwatched directories and fixes made after the handover. Each WP file states
-its own context; nothing is restated here except the rule, which every WP applies.
+its own context; nothing is restated here except the rule, which every WP applies. 2037,
+filed 2026-10-23, is the fifth aim's redesign of what a reader is shown, and lands inside
+the milestone (§ Decisions, 2026-10-23).
 
 **Not in scope.** No new physics, no new correction, no new plan preset. A heuristic the
 audit finds wanting is demoted, and anything needing a redesign rather than a demotion is a
@@ -178,6 +185,46 @@ yet fails when a default path reaches the switch. Ruled 2026-10-21 from the `/pr
 inside the opt-in TRF solver, moved to tier 3, and a harmonic's order lost its default of 2,
 since which orders a monochromator passes depends on its crystal.
 
+**Attention is a cost** (the fifth aim, WP-2037, ruled 2026-10-23). The rule above prices
+a rerun and not reading. Under-alerting costs as much as flooding: the v1.3 round's agents
+stopped on a criterion the package stated seven times in eight, and never without one. Four
+clauses give the aim teeth.
+
+1. **Two channels.** A number lives in a result field and costs nothing until read. A
+   diagnostic is a message, and it earns its place by telling one fit from another: it
+   fires on some fits, stays silent on others, and a careful refiner does something
+   different when it fires. A demotion moves the statistic into a record field, with its
+   explanation in `rietx.help` keyed to that field, and emits no diagnostic that fires on
+   every run. The field is a structured record the CIF writer, the report and the GUI
+   read, never a dump.
+2. **A level is the response the reader owes, and relevance follows from the purpose.**
+   `error`: do not read the values, for any purpose (`RefinementResult.usable` reads it).
+   `warning`: act before quoting a result number of this purpose, or the plan did not
+   reach what it asked; a result number is a cell, a fraction, a coordinate, an ADP or a
+   size, and an agreement index is not one. `info`: nothing to do for this purpose. A
+   code's audit row carries one **response** and one sentence on what the reader does.
+   The magnitude goes in the message, and where two consequences genuinely differ there
+   are two codes, never a threshold between levels. A **purpose** declares the parameter
+   paths its result numbers depend on, as globs in one table, each row citing the physics
+   that couples the number to the path. A diagnostic's level under a purpose is then
+   computed: its response where any of its `where` paths matches the purpose's globs,
+   `info` elsewhere. A code with no `where` declares its scope in its audit row (the
+   purposes it bears on, or all), and a code with neither fails a test rather than
+   reading `info` by default: by WP-1076's rule, a pairing nobody checked must not read as
+   "not your concern". A level is never authored per code per purpose, and a new purpose
+   is one row.
+3. **The default view prints by level, and with no purpose it says so.** Under a
+   deliverable the summary prints the errors and that purpose's warnings in full and its
+   `info` rows one line each. With none it prints the errors in full and one line for
+   every other row, naming the purposes it is a warning under, and says how to see more.
+   That sentence is the reading rule, carried by the output (WP-1338's cheapest place).
+   This is the summary's existing refusal to infer a purpose, applied to its diagnostics.
+   The GUI orders the same way with the `info` rows collapsed beside their help, so
+   nothing is hidden from the student or the expert.
+4. **The audited response is a default, and the caller may set it**, per code, in the
+   compiler's allow, warn and deny form, on `summary()` and in settings. The override is
+   the audit's caller class and needs no tier.
+
 **Demotion** moves an item to the kind of DESIGN.md § Rules, 1 its ambiguity belongs to.
 Where the alternatives are enumerable and the data score them, the result is a ranking with
 each alternative's evidence and no pick. Otherwise it is the number with its meaning, held
@@ -185,14 +232,18 @@ in the package's own output (Rule 3) and never in the skill alone. A code whose 
 rests on a tier-3 threshold keeps its text and loses the action keyed on it; its `level`
 drops to `info` where the code still fires on a tier-1 or tier-2 fact. Where the threshold
 decides whether the diagnostic exists at all (`SEQUENTIAL_DISCONTINUITY` at 5× median and
-3σ), there is no verdict to keep. The code becomes an `info` record with no threshold: it
-fires on every run it applies to and states the statistic for every candidate, largest
-first, under a name that asserts no verdict. Its explanation keeps the seat in
-`rietx.help`, so the meaning stays where the GUI, `explain()` and the manual already show
-it, and the number stays in its record field too (ruled 2026-10-18, over a help section
-for result fields, which needs that seat built; GSAS-II and TOPAS print the largest
-shift/esd every cycle in the same shape). `Diagnostic.level` has no
-"none" value and gets none. The maintainer's breaking appetite is high (every user is in
+3σ), there is no verdict to keep, so no diagnostic remains (clause 1 of *Attention is a
+cost*). The statistic becomes a record field with no threshold, stating it for every
+candidate, largest first, under a name that asserts no verdict. Its explanation is keyed
+to the field in `rietx.help`, so the meaning reaches the GUI, `explain()` and the manual
+through the seat they already read, and the full report carries one line naming the field.
+**A log, not a list.** GSAS-II and TOPAS print the largest shift/esd every cycle, which is
+tier-2 practice for *printing a statistic*. They print it to a log, and neither puts it in a
+list the reader is told to resolve. A record field plus a line in the report is that
+practice in rietx's shape, and a row under "unresolved" is not. Ruled 2026-10-23
+(WP-2037), reversing the shape ruled 2026-10-18: an `info` record firing on every run,
+chosen then over a help seat for result fields that did not exist. WP-2037 builds the
+seat. `Diagnostic.level` has no "none" value and gets none. The maintainer's breaking appetite is high (every user is in
 direct contact), so demotions land now; a removed or renamed code is staged in the release notes.
 
 **A pick on top of a ranking** is allowed in two cases, and the whole ranking travels with
@@ -271,7 +322,9 @@ WP is held to. 2002 second and alone: `_run_stage`'s holds run inside every fit,
 the fits the package runs for itself (the report's rival fits, the extinction screen, every
 pattern of a chain), so 2003 and 2004 read a tree 2002 has settled. 2003 before 2004: 2004
 owns the one `THRESHOLDS_VERSION` bump and 2003 hands its width-growth rulings to it, so
-2004 depends on 2003. 2005, 2006 and 2007 run any time after 2001. 2010 depends on
+2004 depends on 2003. 2037 lands before 2003: its clause 1 is the shape 2003's first
+demotion takes, and every audit from 2003 on fills the response column it installs. 2005,
+2006 and 2007 run any time after 2001. 2010 depends on
 nothing and stands outside the gate below. 2008 after the audits,
 since a demoted code's skill row changes. 2009 last.
 
@@ -345,6 +398,12 @@ sharpens its own row here.
   the handover reports the rate beside the v1.3 baseline (seven of eight stopped on a
   stated criterion, none of 86 without one). The milestone promises no rate. It records
   the gap per model generation, so a later session can see it move.
+- **A row is worth its reader's attention** (2037; 2003 to 2007 fill the column). Every
+  code carries a declared response held to its raise sites, a scope where it carries no
+  path, and a silence fixture where it is a warning; the default view prints no row
+  outside its purpose in full and names the purposes a row is a warning under; the suite
+  metrics and the four-family counts are in 2037's handover, with the agent-run rate
+  beside the v1.3 baseline.
 
 ## Decisions with the maintainer, 2026-10-18
 
@@ -434,7 +493,8 @@ reverse it knowing what it would be giving up.
   Three more rulings followed. **A code whose threshold decided its existence becomes an
   `info` record with no threshold** (§ Demotion), chosen over a help section for result
   fields (84 entries over four result types, and a GUI seat to build), because the
-  record keeps the explanation where readers already find it. **Defaults are walked at
+  record keeps the explanation where readers already find it (reversed 2026-10-23 by
+  WP-2037's clause 1, which builds that seat; below). **Defaults are walked at
   declared seats** (WP-2001 § The seams), about ten that decide behaviour among 347,
   chosen over walking all 347 and over leaving defaults to the reviewer agent. **WP-2010
   audits features against Rule 2**, inside this milestone and outside the gate after
@@ -566,6 +626,20 @@ reverse it knowing what it would be giving up.
   is that brief's content, not a process. Reopened by a batch whose `none found` classes
   still cost real ruling time, or by a tier-3 item shown to move a reported quantity past
   its reference on a family where its brief read `none on disk`.
+- **Attention is a cost: two channels, a response per code, relevance by purpose**
+  (2026-10-23, WP-2037's proposal, written in three drafts and reviewed adversarially
+  against both the same day). The four clauses of § The rule were adopted, with the fifth
+  aim in § Scope. The WP lands inside the milestone and before 2003, though § Scope sends a
+  redesign to a follow-up WP, because the 2026-10-18 demotion shape made every demotion
+  from 2003 on add a row to the view this changes. Clause 3's quiet default lands with the
+  ordering, and one registered agent run on `tests/eval_report_agent` is its tripwire: a
+  worse result reverts the quiet default and keeps the ordering, while clauses 1, 2 and 4
+  stand either way. The deliverable vocabulary gains `cell`, `microstructure`,
+  `calibration` and `magnetic`. Chosen over the 2026-10-18 `info`-record shape (§ Demotion
+  gives the log-versus-list answer) and over authoring a level per code per purpose, which
+  for 285 codes and eight purposes nobody writes by hand. The softening of unanimity for a
+  recorded, cheap-to-undo default was deferred to its own brief, WP-2038: it reopens the
+  fourth review for a reason unrelated to attention.
 
 ## The two reviews at the open
 

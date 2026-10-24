@@ -227,8 +227,9 @@ def parameter_map() -> str:
 # ----------------------------------------------------------------------
 # The other vocabularies
 #
-# `rietx.help` holds nine.  Parameters, plans and diagnostic codes have pages
-# of their own, and the other six share `reference/settings.md`, in the
+# `rietx.help` holds ten.  Parameters, plans, diagnostic codes and result
+# fields have pages of their own, and the other six share
+# `reference/settings.md`, in the
 # order and under the lead sentences `_VOCABULARIES` gives (the old tree's
 # glossary, WP-1986).  That list is the one hand-written thing here, so an arm
 # added to the registry and missing from both raises rather than rendering
@@ -236,7 +237,7 @@ def parameter_map() -> str:
 # ----------------------------------------------------------------------
 
 #: The arms with a page of their own.
-_OWN_PAGE = {"parameters", "plans", "diagnostics"}
+_OWN_PAGE = {"parameters", "plans", "diagnostics", "result_fields"}
 
 #: Section heading and lead sentence per arm, in the order the page shows them.
 _VOCABULARIES = [
@@ -295,6 +296,53 @@ def vocabularies() -> str:
         out += [f"## {heading}", "", lead, ""]
         for name, entry in registry[key].items():
             out += _vocabulary_entry(name, entry)
+    return "\n".join(out)
+
+
+# ----------------------------------------------------------------------
+# The result fields
+#
+# A page of their own because the four result types' fields put
+# `settings.md` over the page cap (WP-2037).  One section per type, in
+# `RESULT_FIELD_TYPES` order, so a field is found under the type a reader
+# is holding; each entry keeps its full `Type.field` key, which is what
+# `rietx.help.explain` takes.
+# ----------------------------------------------------------------------
+
+#: The lead sentence under each type's heading, keyed as `RESULT_FIELD_TYPES`.
+_RESULT_TYPE_LEADS = {
+    "RefinementResult": (
+        "What a fit returns: the answer, its statistics, its curves and what the "
+        "engine found wrong with it."),
+    "StageResult": (
+        "One stage's record in `RefinementResult.stages`: what it freed, what it "
+        "held and why, and what it cost."),
+    "SeriesEntry": (
+        "One pattern's summary in `SeriesResult.entries`: what was fitted and how "
+        "the chain reached it."),
+    "SeriesResult": (
+        "What a sequential refinement returns: one entry per pattern, and what the "
+        "chain found about the series as a whole."),
+}
+
+
+def result_field_page() -> str:
+    """The body of `reference/result-fields.md`: every result field, by type."""
+    from rietx.help import RESULT_FIELD_TYPES
+
+    unled = sorted(set(RESULT_FIELD_TYPES) ^ set(_RESULT_TYPE_LEADS))
+    if unled:
+        raise RuntimeError(
+            f"result types with no lead sentence, or leads for no type: {unled}. "
+            "Keep _RESULT_TYPE_LEADS in docs/reference_pages.py equal to "
+            "rietx.help.RESULT_FIELD_TYPES")
+    registry = help_registry()["result_fields"]
+    out = [_BANNER.format(source="rietx.help.RESULT_FIELD_HELP"), ""]
+    for type_name in RESULT_FIELD_TYPES:
+        out += [f"## {type_name}", "", _RESULT_TYPE_LEADS[type_name], ""]
+        for key, entry in registry.items():
+            if key.startswith(f"{type_name}."):
+                out += _vocabulary_entry(key, entry)
     return "\n".join(out)
 
 
@@ -390,21 +438,38 @@ def _code_literals(node) -> set[str]:
             and isinstance(n.value, str) and _CODE_SHAPE.fullmatch(n.value)}
 
 
-def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]]:
-    """Code -> {"levels": the literal `level=` values beside it, "files": where}.
+def _passes_where(keywords: dict) -> bool | None:
+    """Whether a call's keywords give a `where`: a literal `[]`, `()` or `None`
+    names no path, and a `**` splat might hold one, so it is unknown (None)."""
+    if "where" not in keywords:
+        return None if None in keywords else False
+    given = keywords["where"]
+    return not ((isinstance(given, (_ast.List, _ast.Tuple)) and not given.elts)
+                or (isinstance(given, _ast.Constant) and given.value is None))
+
+
+def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set]]:
+    """Code -> {"levels": the literal `level=` values beside it, "files": where,
+    "where": whether each keyword raise site passes a `where=`}.
 
     A level computed at run time is recorded as "".  A `*_CODES` table often
     lists codes raised elsewhere, to filter or cap them, so a table names a
-    code's file only when nothing else in the tree does.
+    code's file only when nothing else in the tree does.  "where" holds True
+    for a `code=` site passing a `where=` and False for one passing none or
+    a literal empty one; a site splatting `**` keywords, or raising through a
+    helper, adds nothing, since the walk cannot tell (WP-2037, read by
+    `tests/test_audit_table.py`).
     """
-    out: dict[str, dict[str, set[str]]] = {}
+    out: dict[str, dict[str, set]] = {}
     tabled: dict[str, set[str]] = {}
 
-    def add(code: str, rel: str, level: str | None) -> None:
-        entry = out.setdefault(code, {"levels": set(), "files": set()})
+    def add(code: str, rel: str, level: str | None, where: bool | None = None) -> None:
+        entry = out.setdefault(code, {"levels": set(), "files": set(), "where": set()})
         entry["files"].add(rel)
         if level is not None:
             entry["levels"].add(level)
+        if where is not None:
+            entry["where"].add(where)
 
     for path in sorted(root.rglob("*.py")):
         rel = path.relative_to(root.parent).as_posix()
@@ -427,7 +492,7 @@ def diagnostic_index(root: _Path = SOURCE_ROOT) -> dict[str, dict[str, set[str]]
                     and _CODE_SHAPE.fullmatch(code.value)):
                 level = keywords.get("level")
                 add(code.value, rel, level.value if isinstance(level, _ast.Constant)
-                    else "" if level is not None else None)
+                    else "" if level is not None else None, _passes_where(keywords))
             callee = node.func
             name = callee.id if isinstance(callee, _ast.Name) else getattr(callee, "attr", "")
             if name in {"cls", "GuardFinding"} and node.args:
@@ -473,7 +538,7 @@ def diagnostic_group(files: set[str]) -> str:
                 if any(first.startswith(area) for area in areas))
 
 
-def _levels(entry: dict[str, set[str]]) -> str:
+def _levels(entry: dict[str, set]) -> str:
     levels = sorted(lv for lv in entry["levels"] if lv)
     if "" in entry["levels"]:
         levels.append("set at run time")
@@ -881,6 +946,7 @@ def api_everything_else() -> str:
 BODIES = {
     "parameters.md": parameter_map,
     "settings.md": vocabularies,
+    "result-fields.md": result_field_page,
     "plans.md": plan_ladder,
     "diagnostics.md": diagnostic_page,
     **{f"{stem}.md": _functools.partial(diagnostic_group_page, stem)

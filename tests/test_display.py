@@ -208,7 +208,8 @@ def test_displaying_a_refinement_runs_nothing(fap, monkeypatch):
 
 def test_html_is_escaped_and_carries_no_style(fap):
     from rietx.schemas.common import Diagnostic
-    d = Diagnostic(level="warning", code="NOT_A_CODE_HERE", message="<script> & more")
+    # an error, which every view prints in full, so its message is on the page
+    d = Diagnostic(level="error", code="NOT_A_CODE_HERE", message="<script> & more")
     html = fap["result"].model_copy(update={"diagnostics": [d]})._repr_html_()
     assert "<script>" not in html and "&lt;script&gt; &amp; more" in html
     assert "style" not in html and "<script" not in html
@@ -298,10 +299,12 @@ def test_a_result_notebook_form_says_what_each_diagnostic_means_and_print_does_n
     """WP-2039, decision 1: the explanation (``rietx.help.explain``) is in
     the notebook form, as ``means:`` under ``help:``, wrapped at the
     notebook's width with each continuation under the text after its label.
-    ``print``, which an agent reads, leaves it out (WP-1985)."""
+    ``print``, which an agent reads, leaves it out (WP-1985).  A row the view
+    prints on one line (WP-2037: with no deliverable, every row but an error)
+    carries its ``means:`` under that line."""
     from rietx._display import NOTEBOOK_WIDTH
     from rietx.schemas.common import Diagnostic
-    long = Diagnostic(level="warning", code="BOUND_HIT",
+    long = Diagnostic(level="error", code="BOUND_HIT",
                       message="a refined to its upper bound " + "and kept going " * 8,
                       where=["phases.0.cell.a"], suggestion="check the tie " * 10)
     floor = Diagnostic(level="warning", code="FLOOR_HIT", message="y refined to its floor",
@@ -314,7 +317,7 @@ def test_a_result_notebook_form_says_what_each_diagnostic_means_and_print_does_n
         assert d.explanation.split(".")[0] not in printed
     assert "means:" not in printed and _flat(notebook).count("means:") == 2
     lines = notebook.splitlines()
-    label = "    warning[BOUND_HIT]: "
+    label = "    error[BOUND_HIT]: "
     head = next(i for i, line in enumerate(lines) if line.startswith(label))
 
     def under(line, label):
@@ -324,9 +327,10 @@ def test_a_result_notebook_form_says_what_each_diagnostic_means_and_print_does_n
     means = [i for i, line in enumerate(lines) if line.startswith("      means: ")]
     assert under(lines[helps[0] + 1], "      help: ")
     assert helps[0] < means[0] and under(lines[means[0] + 1], "      means: ")
-    assert lines[means[1] - 1] == "      at: instrument.profile.y", "no help: it follows at:"
-    last = lines.index("    info[NOT_A_CODE_HERE]: from another version")
-    assert max(len(line) for line in lines[head:last + 1]) <= NOTEBOOK_WIDTH
+    assert lines[means[1] - 1].startswith("    FLOOR_HIT at instrument.profile.y: warning under"), (
+        "a short row's means: follows its one line")
+    last = lines.index("    NOT_A_CODE_HERE: info")
+    assert max(len(line) for line in lines[head:last + 3]) <= NOTEBOOK_WIDTH
     assert last > means[1] and "means:" not in lines[last + 1], "an unknown code means nothing"
 
 
@@ -482,6 +486,34 @@ def test_a_diagnostic_prints_rustc_s_form_and_a_notebook_adds_what_it_means():
     unknown = Diagnostic(level="info", code="NOT_A_CODE_HERE", message="from another version")
     assert unknown.explanation is None
     assert diagnostic_lines(unknown, notebook=True) == diagnostic_lines(unknown)
+
+
+def test_a_notebook_prints_the_views_rows_and_says_what_each_means():
+    """WP-2037 under WP-2039's one ``<pre>``: the notebook form prints the
+    text form's rows, an error in full and a short row on its one line, and
+    each with its ``means:``, then the reading rule wrapped at the width."""
+    from rietx.schemas.common import Diagnostic, Provenance
+    from rietx.schemas.results import DIAGNOSTICS_READING_RULE, RefinementResult, Statistics
+    floor = Diagnostic(level="warning", code="FLOOR_HIT", message="ext refined to its floor",
+                       where=["phases.0.extinction"], suggestion="quote a limit")
+    bound = Diagnostic(level="error", code="BOUND_HIT", message="a ran to its bound",
+                       where=["phases.0.cell.a"])
+    result = RefinementResult(
+        status="converged", mode="rietveld", parameters=[], diagnostics=[floor, bound],
+        statistics=Statistics(rwp=0.1, rp=0.08, rexp=0.05, chi2=4.0, gof=2.0,
+                              n_points=100, n_free_parameters=5),
+        provenance=Provenance(package_version="0.0.0+test"))
+    from rietx._display import NOTEBOOK_WIDTH
+    lines = _notebook_text(result).splitlines()
+    error = lines.index("    error[BOUND_HIT]: a ran to its bound")
+    short = lines.index("    FLOOR_HIT at phases.0.extinction: warning under qpa, structure")
+    assert error < short and lines[short + 1].startswith("      means: ")
+    assert any(line.startswith("      means: ") for line in lines[error:short])
+    assert "ext refined" not in "\n".join(lines), "a short row's message is in result.diagnostics"
+    text = _flat("\n".join(lines))
+    assert "no deliverable given" in text and _flat(DIAGNOSTICS_READING_RULE) in text
+    assert max(len(line) for line in lines[error:short + 4]) <= NOTEBOOK_WIDTH, "the rows and the rule"
+    assert DIAGNOSTICS_READING_RULE in str(result)  # one line in the text form
 
 
 def test_pre_fit_ticks_are_where_the_fit_puts_its_own(fap):

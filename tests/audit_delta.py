@@ -76,10 +76,14 @@ class Row:
     grounds: str = ""
     approved: object = None
     value: object = None
+    response: object = None
+    responds: str = ""
+    scope: tuple = ()
     line: int = 0
 
 
-FIELDS = ("name", "kind", "tier", "ambiguity", "evidence", "grounds", "approved", "value")
+FIELDS = ("name", "kind", "tier", "ambiguity", "evidence", "grounds", "approved", "value",
+          "response", "responds", "scope")
 
 
 class Table(NamedTuple):
@@ -255,6 +259,8 @@ def _describe(row: Row, code: Callable[[str], str]) -> str:
         bits.append(f"ambiguity {row.ambiguity}")
     if row.kind in VALUED:
         bits.append(f"value {code(repr(row.value))}")
+    if row.response is not None:
+        bits.append(f"response {row.response}")
     if row.approved:
         bits.append(f"approved {row.approved}")
     text = ", ".join(bits)
@@ -272,8 +278,8 @@ def _how_it_moved(d: Delta, code: Callable[[str], str]) -> list[str]:
         a, b = getattr(d.old, f), getattr(d.row, f)
         if f == "evidence":
             out.append("evidence changed")
-        elif f == "grounds":
-            out.append(f"grounds changed: {_cut(b) or '(none)'}")
+        elif f in ("grounds", "responds"):
+            out.append(f"{f} changed: {_cut(b) or '(none)'}")
         elif f == "value":
             out.append(f"value {code(repr(a))} → {code(repr(b))}")
         else:

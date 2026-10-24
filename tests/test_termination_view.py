@@ -84,12 +84,19 @@ def test_str_result_diagnostics_line_present_even_at_zero():
 
 
 def test_str_result_names_every_diagnostic_by_substring():
+    """No deliverable, so an error prints in full and every other row as one
+    line naming its code (WP-2037); the reading rule closes the section."""
+    from rietx.schemas.results import DIAGNOSTICS_READING_RULE
+
     _ref, result = _fit()
     assert result.diagnostics, "fixture stopped producing any — pick another"
     text = str(result)
     for d in result.diagnostics:
-        assert f"{d.level}[{d.code}]: " in text
-        assert d.message in text
+        if d.level == "error":
+            assert f"{d.level}[{d.code}]: {d.message}" in text
+        else:
+            assert f"\n    {d.code}" in text and d.message not in text
+    assert f"    {DIAGNOSTICS_READING_RULE}\n" in text
 
 
 def test_str_result_ends_with_provenance_then_agreement():

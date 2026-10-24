@@ -105,6 +105,10 @@ The full Linux job failed once before in this window, on 2026-10-17:
 `test_lebail_alternation.py::test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from`.
 It passed on every later night, so it is out of scope unless it recurs.
 
+### Inherited
+
+- **From WP-2037 (2026-10-24): `moment` fails on Linux x86-64 too, and `hold` sat on a rounding edge.** On a `[dev]` venv in a cloud container (Linux x86-64, branch `claude/focused-maxwell-app5wv` at `1174cbf`), `examples/guides/moment.py:117` fails with `steps[0][0]` = 0.1034 against its `< 0.10` (round 1's move in |m|; round 2's is 1.5e-6), identical with and without 2037's CIF change, so not 2037's. The same container's `hold.py` printed 348.5 ppm against the guide's `< 350` before 2037 read FAP's Ca1 on 1/3 and 351.9 after; 2037 changed the guide to print the floor every platform clears ("more than 250 ppm", asserting 250-400, `79bb977`), which is item 3's rule applied to one more page.
+
 ## Non-goals
 
 - Removing the S/L ↔ H/L mirror or the `x`/`lor_size` degeneracy. Those are WP-2012's.

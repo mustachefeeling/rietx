@@ -520,6 +520,34 @@ def _wrapped(line: str, label: str, width: int) -> list[str]:
                          break_long_words=False, break_on_hyphens=False) or [line]
 
 
+def short_lines(d, short: str, indent: str = "", *, notebook: bool = False) -> list[str]:
+    """A diagnostic a view prints on one line (WP-2037), ``short`` being that
+    line.  The notebook form wraps it at :data:`NOTEBOOK_WIDTH` and puts the
+    code's explanation under it as ``means:``, so a row printed short in a
+    notebook still says what it means (WP-2039's decision 1).  The text form
+    is the line alone, which is what keeps ``print`` quiet."""
+    if not notebook:
+        return [indent + short]
+    import textwrap
+    width = NOTEBOOK_WIDTH - len(indent)
+    lines = textwrap.wrap(short, width, subsequent_indent="  ", break_long_words=False,
+                          break_on_hyphens=False) or [short]
+    if d.explanation:
+        lines += _wrapped(f"  means: {d.explanation}", "  means: ", width)
+    return [indent + line for line in lines]
+
+
+def wrapped_note(text: str, indent: str = "", *, notebook: bool = False) -> list[str]:
+    """A view's own sentence (the reading rule): one line in the text form,
+    wrapped at :data:`NOTEBOOK_WIDTH` in the notebook form."""
+    if not notebook:
+        return [indent + text]
+    import textwrap
+    return textwrap.wrap(text, NOTEBOOK_WIDTH, initial_indent=indent,
+                         subsequent_indent=indent + "  ", break_long_words=False,
+                         break_on_hyphens=False) or [indent + text]
+
+
 # ---------------------------------------------------------------------------
 # Refinement (not a schema, so it has no tree)
 # ---------------------------------------------------------------------------

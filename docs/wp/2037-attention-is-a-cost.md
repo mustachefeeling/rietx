@@ -1,6 +1,6 @@
 # WP-2037 — Attention is a cost: two channels, a response per code, relevance by purpose
 
-Milestone: generality · Status: ⬜
+Milestone: generality · Status: 🔄 2026-10-24 — 9 of 14 tasks landed (the record, the result-field help, the response column and the purposes, the derived level and the view, the deliverables, the snap floor, the skill); next the caller override, the silence harness, the batch aggregate
 Track: The registry and the guard
 Depends on: 2001
 Priority: P2 2026-10-23 — a scoping WP other WPs wait on: 2003's first demotion takes the shape this WP sets, and every audit from 2003 on fills the column it installs
@@ -230,24 +230,24 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 
 ## Tasks
 
-- [ ] The record: the fifth aim in `generality.md` § Scope; the four clauses in § The
+- [x] The record: the fifth aim in `generality.md` § Scope; the four clauses in § The
       rule and § Demotion, the 2026-10-18 "fires on every run" shape reversed with the
       log-versus-list answer written beside it; the acceptance row below added to
       § Acceptance; the decisions above dated into § Decisions.
-- [ ] The help seat for result fields in `help.py`, crossed both ways against the live
+- [x] The help seat for result fields in `help.py`, crossed both ways against the live
       result schemas (`tests/test_help.py`'s pattern), with `rx.explain("<Type>.<field>")`.
-- [ ] `_audit.Row.response` and `Row.scope`, the purpose table (one module, about eight
+- [x] `_audit.Row.response` and `Row.scope`, the purpose table (one module, about eight
       rows with their physics), and the three meta-tests (response equals every raise
       site; a `warning` sentence names a result number or plan outcome; no `where` and
       no scope fails). Existing rows enter with `response` unset and a shrink-only
       baseline, so 2004-2007 fill it as they tier.
-- [ ] The derived level: one function `level_under(diagnostic, purpose)` in
+- [x] The derived level: one function `level_under(diagnostic, purpose)` in
       `schemas/results.py` (or beside `Diagnostic`), unit-tested on the four FAP codes.
-- [ ] One filter function and the four renderers: `summary()`, `str(result)`, the HTML
+- [x] One filter function and the four renderers: `summary()`, `str(result)`, the HTML
       (`viz`), the GUI diagnostics panel (collapsed `info` beside help; rebuilt dist;
       `npm --prefix gui test`). The "N unresolved" header replaced; the no-deliverable
       line and the `deliverable=` sentence as in `2037-attention/examples.md` § 1.
-- [ ] `DELIVERABLES` extended with `cell`, `microstructure`, `calibration`, `magnetic`,
+- [x] `DELIVERABLES` extended with `cell`, `microstructure`, `calibration`, `magnetic`,
       each with its deciding rows in `_deliverable_lines`, the skill § 4b table and
       `SeriesResult.summary`'s refusal text updated.
 - [ ] The caller override: `summary(levels={code: "allow"|"warn"|"deny"})`, the same map
@@ -258,14 +258,14 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 - [ ] A test of silence per warning code that has a fixture today, and the harness for
       the rest (a registry a code's silence fixture is added to; absence listed, not
       failed, until 2004-2007 fill it).
-- [ ] The snap floor from the file's printed precision in `crystallography/cif.py`,
+- [x] The snap floor from the file's printed precision in `crystallography/cif.py`,
       tier 1, with the FAP case silent and a real snap still firing.
 - [ ] Before/after counts on the four families in the handover; the agent run
       registered, run once, reported beside the v1.3 baseline.
-- [ ] `FLOOR_HIT` on a freed extinction handed to 2004 as an `### Inherited` entry (done
+- [x] `FLOOR_HIT` on a freed extinction handed to 2004 as an `### Inherited` entry (done
       at filing; keep it current).
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
-- [ ] Skill: § 4's "Act on each `d.suggestion`" becomes *declare your purpose with
+- [x] Skill: § 4's "Act on each `d.suggestion`" becomes *declare your purpose with
       `ref.summary(deliverable=…)` and act on the warnings it prints under it;
       `result.diagnostics` holds every row*; the § 4b table gains the new deliverable
       names. Nothing else; the reading rule lives in the output.
@@ -300,6 +300,185 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+- **2026-10-24** — first session (began 2026-10-23), nine of the fourteen tasks.
+  A fit's diagnostics now print by what they mean for the caller's purpose. With no
+  purpose declared, `print(result)` and `ref.summary()` print errors in full and every
+  other row as one line naming the purposes it is a warning under, closed by a sentence
+  saying how to see more; under `deliverable=` the rows that bear on that purpose print in
+  full and the rest are one line each. Which purposes a row bears on is derived from the
+  parameters its `where` names and a table of eight purposes' parameter dependencies,
+  never written per code, and a code the audit has not yet given a response keeps its
+  warning under every purpose, so the view grows quieter only as 2004-2007 audit each
+  code. The record's demotion shape is reversed (a demoted statistic is a field whose
+  explanation now has a seat in `rietx.help`), FAP's rounding snap is gone, and four new
+  deliverables exist. Not done: the caller override, the batch aggregate, the silence
+  harness, the four-family counts and the registered agent run that is clause 3's
+  tripwire, which has not been made.
+
+  *Done* (each item ticked in its commit): the record (`a34a491`); the result-field help,
+  89 entries keyed `Type.field` with `rietx.help.explain` answering them (`78ecfd0`;
+  `rx.explain` was not added as a top-level export, `rietx.help.explain` being the
+  spelling the skill already cites; the arm got its own manual page,
+  `reference/result-fields.md`, because on `settings.md` it broke the page cap); the
+  response column, `RESPONSE_BASELINE`, `rietx.purposes` and the meta-tests (`7faeb38`);
+  `level_under` (`72fc68a`, `cbc036d`); the view and its four renderers (`b6d3430`;
+  `write_html` renders no diagnostics, so the HTML renderer is the notebook form); the
+  deliverables (`1583796`); the snap floor (`e6d90c0`, `00a7f69`); the skill's § 4
+  sentence (`66feba2`); tutorial 02, its notebook and the landing panel (`1174cbf`); the
+  `hold` guide (`79bb977`); the review's fixes (`af9fbfe`) and the generality review's
+  (`386516c`); main merged (`db69b83`). No `### Inherited` to prune; the Findings named
+  no file that had moved since `5d64a86`.
+
+  *Decisions this session made, for the maintainer to reverse if wrong.* `qpa` depends on
+  extinction and the cell (W = S·ZMV) where the mock-up's did not; `PATTERN_UNDERSAMPLED`'s
+  scope is `qpa, structure, microstructure, calibration`, wider than the mock-up's two,
+  because undersampled peaks fix widths poorly (McCusker et al. 1999 §2 is the
+  five-steps bar the tree cites); `structure` reads the atoms' coordinates, occupancies
+  and ADPs and the cell, not a moment; a `vars.` path bears on every purpose (WP-1342);
+  `series` follows every path and is left out of the printed "warning under" list, where
+  it would say nothing on a single result; and the view derives a level only for a code
+  with a response (the generality review's finding). **WP-2039 (#1143) merged the same
+  day** with every notebook form one `<pre>` carrying each code's explanation as
+  `means:`; the two hold together in `db69b83`: a notebook prints the view's rows, every
+  row with its `means:`, so a notebook still explains each code while `print` stays one
+  line a row.
+
+  *Measured* (`[dev]` venv, Linux x86-64 cloud container, 4 cores, nothing else running):
+  the fast selection on the final tree (`386516c`, main merged at `db69b83`) gives `1
+  failed, 11386 passed, 277 skipped, 27 xfailed` in 40 min, the one failure being
+  `test_examples.py::…[moment]`, which fails here without this branch too. No base was
+  measured on this machine, so the +N check is the added-tests tool's own count: 52 added
+  cases, 7.2 s in all (`tests/test_summary_deliverables.py` 3.6 s for 15,
+  `test_audit_table.py` 3.4 s for 6, every other file under 0.2 s), none near the tail.
+  The full selection did not run: the change moves FAP's Ca1 by 3.3e-11, and the slow
+  FAP acceptance is the nightly's. Vitest 590 passed, svelte-check clean.
+  20 of 257 codes raise at more than one level or a computed one and 8 more through a
+  helper `diagnostic_index` cannot read; all 28 stay on the baseline until split. The FAP
+  tutorial fit prints, with no deliverable: `diagnostics: 3 rows, 0 errors; no
+  deliverable given, so none is printed in full`, then `FLOOR_HIT at
+  phases.0.extinction: warning under qpa, structure`, `RESOLUTION_UNCONSTRAINED at
+  instrument.profile.u, .v, .w: warning under microstructure, calibration`,
+  `PATTERN_UNDERSAMPLED: warning under qpa, structure, microstructure, calibration`, and
+  the reading rule; before, four rows in full under "4 unresolved" (examples.md § 1). The
+  snap floor moved the `hold` guide's free-fit cell on this machine from 348.5 to 351.9
+  ppm (macOS read 281 and 324). Lanes:
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | lane $ | main $ | in-session $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | help-seat | 35 | 131 | 240K | 83K | 0K of 32K | 57 | 117K | 20 | 0 | 9.14 | 5.49 | 18.81 | +1.66 |
+  | deliverables | 30 | 82 | 407K | 83K | 0K of 1K | 14 | 18K | 3 | 0 | 4.99 | 1.43 | 12.52 | +5.87 |
+  | filter-renderers | 45 | 136 | 430K | 84K | 0K of 10K | 23 | 66K | 1 | 0 | 18.82 | 2.89 | 21.43 | -0.77 |
+  | landing-tutorial | 20 | 35 | 496K | 115K | 0K of 0K | 22 | 22K | 3 | 0 | 2.74 | 2.61 | 5.39 | -0.02 |
+
+  Kept: snap-floor (est 15, 42 requests at 278K), level-under (est 10, 8 at 395K). The
+  audit-column lane (est 30) ran and is absent from the tool's table. Actual/estimated
+  requests 2.77; the selective policy's row: `lane when main > 150K and item >= 20
+  requests | 3 | -9%`.
+
+  *Gotchas.* The GUI's collapsed rows were checked under jsdom only (no playwright in
+  the container). Notebooks other than 02 still carry the old "N unresolved" outputs;
+  `build.py` refreshes them and no test compares outputs. `examples/guides/moment.py`
+  fails on this machine with and without this branch (`steps[0][0]` = 0.1034 against
+  `< 0.10`), handed to WP-2036's Inherited. A container restart mid-session stopped one
+  lane, which resumed from its transcript.
+
+  *Generality* (the `generality-review` judge on the branch at `db69b83`: the first section's
+  table verbatim, every verdict and would-change line verbatim, the other tables condensed
+  to their findings; the author's answer follows each `weak`):
+
+  ### `rietx.crystallography.cif.CIF_PRINTED_ROUNDING` (constant, tier 1, 0.5), with the reader action it gates
+
+  **holds.** The case for acting is stronger. Inside a file's own printed rounding, the snapped value and the printed one are the same number as far as the file can say. In the stated space group the site cannot sit anywhere else.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "a snap onto a special position that moves every coordinate of a site by no more than that is the file's own rounding … and is not reported" (cif.py comment on the constant) | Two things change. (a) `_read_rounded_sites_on_position` rewrites the stored x, y, z onto the special position and records nothing. (b) `_snap_to_stated_multiplicity` still moves the site but drops it from `SITE_SNAPPED_TO_SPECIAL_POSITION`. The move is bounded twice: the orbit tolerance `SITE_TOL` = 1e-4 in (a), or `CIF_STATED_MULTIPLICITY_SNAP_TOL` = 1e-3 plus the file's own stated multiplicity in (b), and in both cases half the last printed digit. The multiplicity was already the special one before this change. So no fitted number moves. What goes is the report, plus a stored-coordinate change below the file's own precision. | — |
+  | 2. Kind | Tier 1, "Arithmetic, not a choice" (row evidence) | Kind 1 is right, and so is tier 1 for the 0.5. A constant row states no `ambiguity`, and none is required. | holds |
+  | 3. Case against | none given | I tried to name a dissenter. Someone testing a small displacement off a special position would refine in the lower group, where the site is not special, so this never applies to them. Within the stated group, a site 3.3e-11 off a special position is an orbit of coincident atoms, which is physically impossible. One limit the row does not state: a file written by **truncating** rather than rounding has the interval [print, print + 1 digit), not ±0.5. Such a file errs toward *still reporting* (2/3 truncated to 0.6666 is 6.7e-5 off, past 5e-5), so the failure is safe. | none found |
+  | 4. Case for | the FAP case: Ca1 `0.3333333333` snapped 3.3e-11 and warned (WP Context; examples.md § 1) | Strong. One of the four warnings the worked default printed was rounding. | strong |
+  | 5. Tier and source | Tier 1. Evidence cites `_within_printed_rounding`, computed in exact decimal, and `tests/test_cif_stated_columns.py` | The three tests exist and the last covers the tie (1/8 printed `0.12`) and the lattice translation. Scope: only CIF input gets this. The fit-time check still fires on a structure from a GSAS `.EXP`, a TOPAS file or code that prints `0.33333`, since no printed digits exist there. | holds |
+  | 6. Families | tests on `tests/data/fluorapatite.cif` and edits of it | One file, with synthetic variants. A tier-1 item needs no families. | n/a |
+  | 7. Record of firing | "is not reported" (constant comment) | No field and no diagnostic record the rewrite. Defensible here, because the move is inside the file's own precision; it matches the `CIF_ANGLE_CORRECT_MAX_DEG` precedent. A move past rounding still fires `SITE_SNAPPED_TO_SPECIAL_POSITION`. | holds |
+
+  Would change the verdict: a CIF on disk whose writer truncates its coordinates, or a real site the reader silences that the source says is off the position.
+
+  ### `FLOOR_HIT`: `response="warning"` and its sentence
+
+  **holds.** The response copies the level every raise site already passes. The sentence matches the code's help text. The tier stays `unaudited` and the name stays on `UNAUDITED_BASELINE`. (Case against, weak: on FAP the floor is extinction on a lab powder at ρ = +0.057, yet it reads as a warning under qpa and structure; the rule puts magnitude in the message rather than in a level, so this is the rule's cost, not a defect of the row; WP-2004 has inherited it.)
+
+  Would change the verdict: a raise site that passes another level, or one that passes no `where`.
+
+  ### `PATTERN_UNDERSAMPLED`: response, sentence, `scope=("qpa","structure","microstructure","calibration")`
+
+  **weak.** The response copies the raise site. But the scope leaves out two purposes the row's own sentence covers (`magnetic`, whose moment is intensity-derived, and `series`, which the purpose table says follows every path). The reason given for widening the scope is not in the row and does not match the section this repository cites (McCusker 1999 §2 in `background/diagnostics.py:221`, not §3). And the sentence asks more than practice does: FAP sits at 4.6 steps per FWHM, yet GSAS-II's own converged fit of it is quoted from.
+
+  Would change the verdict: `"magnetic"` and `"series"` added to the scope (or a stated reason each is left out), and the §3 citation written into the row and checked against the paper.
+
+  *Author:* `series` now reads every code (`386516c`); the sentence now says what the help says, "read … as less certain than its esd, and re-collect … where it must be quotable" (`386516c`); the citation is §2, corrected above; `magnetic` is next action (1), because it changes tutorial 02's printed line.
+
+  ### `RESOLUTION_UNCONSTRAINED`: response and sentence
+
+  **holds.** It copies the raise site and its suggestion. One gap: under the calibration purpose the sentence's advice ("calibrate the instrument on a standard first") is circular; that follows from one sentence per code.
+
+  Would change the verdict: a calibration fit on disk where this fires and the printed advice is followed.
+
+  ### `SITE_SNAPPED_TO_SPECIAL_POSITION`: response and sentence
+
+  **holds.** It copies both raise sites. `where` = `phases.i.atoms.j` matches qpa, structure and magnetic once the globs are cut to that path's depth, and not cell, phase_id, microstructure or calibration: the right split for a multiplicity.
+
+  Would change the verdict: a raise site whose `where` keeps a bare atom label.
+
+  ### `WALKED` gains `"purposes.py": 2004`
+
+  **holds.** Walking it costs nothing and catches any number added later. Today it holds no module-level number, so the walk sees none of its real heuristics; those are judged under the purpose table.
+
+  ### `RESPONSE_BASELINE` (new, 253 names, shrink-only)
+
+  **holds as a baseline.** A new column opening on existing rows. 257 code rows minus the 4 given responses = 253. One side effect, judged under `level_under`: baseline codes that carry a `where` already get levels derived per purpose, with no one having checked them.
+
+  ### `rietx.purposes.PURPOSES`
+
+  **weak.** Each row cites physics, but four rows break the logic another row uses, each turning a real warning into `info`: (a) `structure` leaves out the cell (`CELL_RUNAWAY` reads info under structure; distances depend on the cell); (b) `magnetic` keeps the scale but leaves out extinction, Biso/ADPs and occupancy, which `qpa`'s own `why` says trade against the scale; (c) `calibration` leaves out the phase broadening that adds to the instrument widths; (d) `cell` leaves out axial divergence; weaker, (e) `qpa` leaves out coordinates and DOFs, which also set |F|². Nothing checks that the table is *complete*. No program in `docs/practice.md` keys levels to a declared purpose (not checked against the programs).
+
+  Would change the verdict: the cell glob added to `structure`, scale-trading terms added to `magnetic`, phase broadening added to `calibration` (or a written physics reason for each omission), and the before-and-after counts on the four families.
+
+  *Author:* (a), (c), (d) and (e) landed in `386516c`; (b) is next action (1), with the tutorial rebuild it forces.
+
+  ### `schemas.results.level_under`
+
+  **weak.** The fallbacks are careful, but it already demotes codes nobody has given a response (`CELL_RUNAWAY` printed `info: …` under `deliverable="structure"`), contradicting its own WP-1076 sentence, and it reads a code with a declared scope as `info` under `series`.
+
+  Would change the verdict: the derivation limited to codes with a response, or every `where`-carrying baseline code checked, plus `series` handled for scoped codes.
+
+  *Author:* both landed in `386516c`: a code still on `RESPONSE_BASELINE` keeps its warning under every purpose, and `series` reads every code.
+
+  ### `diagnostic_view` / `_diagnostic_lines`: the no-deliverable view prints every warning on one line
+
+  **weak.** This demotes what is shown. The case for showing more is the stronger side, and the WP's own tripwire has not been run: (a) agents stopped on a stated criterion seven times in eight, never without one, and the quiet view stops stating it; (b) the magnitude is withheld from the print; (c) the closing sentence says "pass deliverable=", but `RefinementResult.__str__` and a result read back from a project accept no such argument; (d) the registered agent run Decision 3 calls the tripwire has not been made. The rounding row that half the case for quiet rested on is now gone through `CIF_PRINTED_ROUNDING`.
+
+  Would change the verdict: the registered `tests/eval_report_agent` run comparing the current view with the split view, plus a deliverable-aware print on `RefinementResult` itself.
+
+  *Author:* the quiet default is the maintainer's 2026-10-23 ruling with the agent run as its tripwire (Decision 3); (c) is next action (1); the run is next action (4) and needs the maintainer's approval of its spend.
+
+  ### `Refinement.summary(deliverable=…)`: the four new deliverable blocks
+
+  **weak.** The cell and magnetic blocks only print fields the result already has. The microstructure block replaced every size and strain reading with "not quotable" whenever `RESOLUTION_UNCONSTRAINED` fired, and the calibration block told any fit whose cell refined to hold it, which is wrong for an internal-standard calibration.
+
+  Would change the verdict: the calibration line limited to the standard's own phase, and the microstructure block printing its readings under the caveat rather than in place of them.
+
+  *Author:* both landed in `386516c`: the readings print under the caveat, and the calibration line names the phases whose cell refined and says a sample's may.
+
+
+  **Next**, in order: (1) the judge's open items, done with one rebuild of tutorial 02
+  and its landing panel because each changes what it prints: `magnetic` gains the terms
+  that trade with the scale (extinction, ADPs, occupancy), `PATTERN_UNDERSAMPLED`'s scope
+  gains `magnetic`, and the reading rule must be followable on a bare result, which has
+  no `deliverable=` (a `RefinementResult` view method, or a rule naming
+  `Refinement.summary`); (2) the caller override, task 7, small; (3) the silence harness
+  and the batch aggregate, tasks 9 and 8, the aggregate run over the acceptance suites
+  being the suite metric; (4) the four-family before/after counts and the registered
+  agent run on `tests/eval_report_agent` (task 11), whose spend the maintainer approves
+  before it is made; (5) task 13's count check.
 - **2026-10-23** — created from the proposal ruled on that day. No open WP owns the
   view: 2003 owns the chain's demotions and takes the shape this sets, 2004 the report's
   codes, 2008 the skill, none the summary's rendering, the level column or the purpose

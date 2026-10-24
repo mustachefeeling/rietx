@@ -2648,13 +2648,24 @@ class GuiSession:
         state still reports ``converged``, which is WP-1028's to fix and not
         this route's).  Served here rather than derived in the client for the
         reason ``held_because`` travels on a parameter row: a threshold the
-        package owns must not have a second copy in TypeScript.
+        package owns must not have a second copy in TypeScript.  Each
+        diagnostic carries ``full`` and ``warning_under`` for the same reason:
+        how a row prints is :func:`~rietx.schemas.results.diagnostic_view`'s
+        answer, with no deliverable, as ``str(result)`` prints it (WP-2037).
         """
         from ..report.schemas import MATURITY_MAX_RWP
+        from ..schemas.results import diagnostic_view
 
         res = self._need_result()
         payload = res.model_dump(mode="json", exclude={
             "two_theta", "y_obs", "y_calc", "y_background", "sigma"})
+        # How each diagnostic prints (WP-2037): whether in full, and the
+        # purposes it is a warning under, from the one filter every renderer
+        # calls, so the panel lays the rows out and never derives either
+        view = {id(row.diagnostic): row for row in diagnostic_view(res.diagnostics)}
+        for d, item in zip(res.diagnostics, payload["diagnostics"], strict=True):
+            item["full"] = view[id(d)].full
+            item["warning_under"] = list(view[id(d)].warning_under)
         payload["curves"] = {
             "n_points": len(res.two_theta),
             "two_theta_range": ([res.two_theta[0], res.two_theta[-1]]

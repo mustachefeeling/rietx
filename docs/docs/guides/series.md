@@ -20,12 +20,10 @@ The starting model has the cell 0.1 % too large and the peaks about 20 % too wid
 <!-- output of examples/guides/series.py -->
 ```text
 SeriesResult: 7 pattern(s), rietveld, direction=forward
-  diagnostics: 2 unresolved
-    info[SEQUENTIAL_PERSISTENT_FINDING]: CAPILLARY_OFFSET_UNAVAILABLE fired on instrument.geometry.goniometer_radius_mm in 7 of 7 patterns (100% of the series).
-      at: instrument.geometry.goniometer_radius_mm
-      help: Change the model or the plan.
-    warning[SEQUENTIAL_PERSISTENT_FINDING]: PATTERN_UNDERSAMPLED fired on the fit in 7 of 7 patterns (100% of the series).
-      help: Change the model or the plan.
+  diagnostics: 2 rows, 0 errors; no deliverable given, so none is printed in full
+    SEQUENTIAL_PERSISTENT_FINDING: warning under every purpose
+    SEQUENTIAL_PERSISTENT_FINDING at instrument.geometry.goniometer_radius_mm: info
+    pass deliverable= for the rows that decide your purpose; every row is in result.diagnostics
   trajectory (T (K)):
     [1/7] p000 x=300 converged Rwp=0.0409
     [2/7] p001 x=400 converged Rwp=0.0409
@@ -43,6 +41,7 @@ SeriesResult: 7 pattern(s), rietveld, direction=forward
 
 `SEQUENTIAL_PERSISTENT_FINDING` reports a per-pattern diagnostic that fired on more than half the patterns, in a series of five patterns or more.
 Such a finding describes the model, so fix it once for the series.
+Given no deliverable, the summary prints each finding on one line; `SeriesResult.summary(deliverable="series")` prints the warning in full, and its message names the code it counts.
 Both findings here come from the synthetic setup:
 
 - `CAPILLARY_OFFSET_UNAVAILABLE` says the capillary offsets are held at zero, because the instrument declares no goniometer radius.

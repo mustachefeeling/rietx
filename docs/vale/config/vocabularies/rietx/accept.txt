@@ -79,6 +79,7 @@ Daams
 Dal
 [dD]e
 Debye
+[dD]ecompositions
 [dD]ecorrelate
 [dD]ecorrelates
 [dD]ecorrelating
