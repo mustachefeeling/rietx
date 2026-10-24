@@ -566,7 +566,10 @@ ROWS: tuple[Row, ...] = (
                   "holds on four real families, the firing side is shown on synthetic Si only"),
         grounds=("Withholds the pick and keeps the ranking, and no default path calls the "
                  "pick; ruled 2026-10-21 (PR #939)."),
-        approved="2026-10-21"),
+        approved="2026-10-21", response="warning",
+        responds=("read the classes as a ranking only, since the reference fit they are "
+                  "scored against does not model the allowed lines; refine the cell or the "
+                  "profile and screen again before quoting a symbol")),
     Row("EXTINCTION_SYMBOL_AMBIGUOUS", "code"),
     Row("EXTRA_PEAK_NO_INTENSITY", "code"),
     Row("EXTRA_PEAK_ON_REFLECTION", "code"),
