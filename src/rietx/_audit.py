@@ -805,8 +805,10 @@ ROWS: tuple[Row, ...] = (
                   "WP-1534's fixture"),
         grounds=("No competent refiner lets a phase the data cannot see refine its cell, and the "
                  "hold touches only what the data cannot determine; on by default, which no "
-                 "program does (B1, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "program does (B1, ruled 2026-10-19). The lineless branch, which holds the "
+                 "scale, is tier-1 arithmetic (a zero column) inside a row tiered on its "
+                 "contested part."),
+        approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.scale_b_held", "action", tier=1, ambiguity=1,
         evidence=("numerical floor: under 2*sqrt(PINV_RCOND) the covariance's pinv cut cannot see "
                   "scale and B as two directions (WP-1534 derivation); measured cases read 1e-12 or"
@@ -967,8 +969,10 @@ ROWS: tuple[Row, ...] = (
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "
                   "Acta Cryst. A26, 682 (docstring)")),
     Row("rietx.schemas.results.RefinementResult.qpa", "action", tier=1, ambiguity=1,
-        evidence=("WP-1958 (#954, decided 2026-10-16): a phase with no reflection in the fitted "
-                  "range has no fraction (weight_fraction None, unmeasured_phases names it) and "
+        evidence=("arithmetic: a phase's scale column is zero where it has no reflection in the "
+                  "fitted range, or where a stage held it, so the value is the one handed in "
+                  "and a fraction read off it is that start (WP-1958, #954, decided 2026-10-16): "
+                  "such a phase has no fraction (weight_fraction None, unmeasured_phases names it) and "
                   "the others are normalised over the phases seen, absent rather than zero "
                   "(WP-1072, WP-1110 item 14); before, TRF read 99.99 wt% iron off a walked "
                   "scale and LM 0.61 wt%, the start; Brindley is skipped, its mean mu needing "

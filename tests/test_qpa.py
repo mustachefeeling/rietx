@@ -359,7 +359,7 @@ def test_an_unmeasured_row_round_trips_and_says_so_in_the_table():
     qpa = compute_qpa(structure, values, unmeasured=[2])
     assert QuantitativePhaseAnalysis.model_validate_json(qpa.model_dump_json()) == qpa
     text = qpa_table_csv(qpa)
-    assert "relative to the phases seen in range; CaF2_out not measured" in text
+    assert "relative to the phases measured; CaF2_out not measured" in text
     (row,) = [line for line in text.splitlines() if line.startswith("CaF2_out,")]
     assert row.split(",")[1] == ""
 

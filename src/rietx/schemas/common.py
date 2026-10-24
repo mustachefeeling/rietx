@@ -542,6 +542,9 @@ from .._nearmiss import did_you_mean
 #: ``PhaseQuantity.weight_fraction`` widened to ``None`` for them, the others
 #: normalised over the phases seen.  Additive and defaulted to the empty list,
 #: the 0.25 → 0.26 rule; an older build refuses a row whose fraction is ``None``.
+#: And ``QuantitativePhaseAnalysis.unmeasured_held`` (which of those a stage held
+#: rather than found lineless) and ``NodeMetrics.held_scale_phases`` (the held
+#: scales a node's replay reads), both defaulting to the empty list.
 SCHEMA_VERSION = "0.59"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

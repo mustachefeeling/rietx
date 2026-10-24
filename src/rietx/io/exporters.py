@@ -38,6 +38,7 @@ from ..crystallography.cif import format_su  # noqa: F401
 from ..crystallography.lattice import d_spacings
 from ..model.components import COMPONENT_AGGREGATE
 from ..model.forward import CompiledModel
+from ..optimize.qpa import unmeasured_reason
 from ..schemas.instrument import (
     BackgroundChebyshev,
     BackgroundFixedPlusChebyshev,
@@ -250,9 +251,10 @@ def _qpa_caveats(qpa: QuantitativePhaseAnalysis) -> list[str]:
     ]
     if qpa.unmeasured_phases:
         lines.append(
-            "Fractions are relative to the phases seen in range; "
-            f"{', '.join(qpa.unmeasured_phases)} not measured (no reflection "
-            "in the fitted range, so no weight_fraction).")
+            "Fractions are relative to the phases measured; "
+            + "; ".join(f"{n} not measured ({unmeasured_reason(qpa, n)}, so "
+                        "no weight_fraction)" for n in qpa.unmeasured_phases)
+            + ".")
     if qpa.microabsorption is not None:
         m = qpa.microabsorption
         lines.append(

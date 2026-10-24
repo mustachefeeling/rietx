@@ -3011,9 +3011,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "A particle radius was given for at least one phase, but the correction "
             "could not run. Typical causes are a phase with no radius, no wavelength, or "
-            "no attenuation table for the source. Without the correction the fractions "
-            "of strong and weak absorbers are biased. Supply a radius for every phase "
-            "from microscopy or particle-size analysis, and not from peak broadening."
+            "no attenuation table for the source, or a phase with no weight fraction "
+            "(no reflection in range, or a scale a stage held), which the mixture's mean "
+            "attenuation needs. Without the correction the fractions of strong and weak "
+            "absorbers are biased. Supply a radius for every phase from microscopy or "
+            "particle-size analysis, and not from peak broadening; for an unmeasured phase, "
+            "reach one of its reflections or remove it."
         ),
     ),
     "MODEL_FAR_FROM_DATA": HelpEntry(

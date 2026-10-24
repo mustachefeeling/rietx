@@ -92,6 +92,7 @@ from .refine import (
     _flat_moment_scan,
     _guard_diagnostics,
     _harmonic_diagnostics,
+    _held_scale_phases,
     _judge_magnetic_groups,
     _lineless_phases,
     _low_angle_diagnostics,
@@ -1790,6 +1791,8 @@ class MultiHistogramRefinement:
             qpa, qpa_diags = _quantify_phases(
                 table, thetas[h], s_h, corr_h, struct, values, model,
                 unmeasured=joint_unmeasured[h],
+                held=(_held_scale_phases(stage_results[-1], h)
+                      if stage_results else None),
                 where_of=lambda p, h=h: (p if mt.sharing.is_shared(p)
                                          else f"hist.{h}.{p}"))
 

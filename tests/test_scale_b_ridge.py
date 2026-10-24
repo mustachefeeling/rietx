@@ -823,3 +823,111 @@ def test_the_answer_quotes_no_fraction_for_a_scale_the_last_stage_held(
     assert res.qpa.unmeasured_phases == ["iron"]
     (iron,) = [q for q in res.qpa.phases if q.name == "iron"]
     assert iron.weight_fraction is None and iron.weight_fraction_stderr is None
+
+
+def _simulate_a_line_entering_after_the_stages(monkeypatch):
+    """Empty the line recount whenever a result is being built, so the stages
+    hold iron's scale and the answer's own count then finds it a line (the
+    crossing a refined zero shift makes, #1103)."""
+    import importlib
+
+    refine = importlib.import_module("rietx.refine")
+    building = {"on": False}
+    real_lineless, real_build = refine._lineless_phases, refine._build_result
+
+    def lineless(model):
+        return set() if building["on"] else real_lineless(model)
+
+    def build(*args, **kw):
+        building["on"] = True
+        try:
+            return real_build(*args, **kw)
+        finally:
+            building["on"] = False
+
+    monkeypatch.setattr(refine, "_lineless_phases", lineless)
+    monkeypatch.setattr(refine, "_build_result", build)
+
+
+@pytest.fixture
+def crossed_fit(four_phase_narrow_pattern, monkeypatch):
+    _simulate_a_line_entering_after_the_stages(monkeypatch)
+    structure, instrument = _models(START_SCALES)
+    for phase in structure.phases:
+        phase.particle_radius_um = 0.4
+    ref = rx.Refinement(structure, instrument, solver="trf")
+    res = ref.fit(four_phase_narrow_pattern,
+                  plan=RefinementPlan(stages=SCALES_ONLY), telemetry=False)
+    return ref, res, four_phase_narrow_pattern
+
+
+def test_replay_quotes_no_fraction_for_a_scale_every_stage_held(crossed_fit):
+    """#1103 round 2, item 1: a node records the scales its stage held, so a
+    replay (which has no stage record) quotes iron no fraction either."""
+    ref, res, pattern = crossed_fit
+    assert res.qpa.unmeasured_phases == ["iron"]
+    assert ref.history[res.node_id].metrics.held_scale_phases == [FE]
+    replayed = rx.replay(ref.history, res.node_id, pattern)
+    assert replayed.qpa.unmeasured_phases == ["iron"]
+    assert replayed.qpa.unmeasured_held == ["iron"]
+    (iron,) = [q for q in replayed.qpa.phases if q.name == "iron"]
+    assert iron.weight_fraction is None
+
+
+def test_every_text_gives_a_held_scales_cause_not_a_missing_line(crossed_fit):
+    """Item 2: iron has a reflection at the answer, so no text says it has
+    none; each says the scale was held, and the advice is not to widen."""
+    from rietx.io.exporters import _qpa_caveats
+
+    ref, res, _ = crossed_fit
+    assert res.qpa.unmeasured_held == ["iron"]
+    texts = {
+        "caveat": " ".join(_qpa_caveats(res.qpa)),
+        "skipped": res.qpa.microabsorption_skipped or "",
+        "summary": ref.summary(deliverable="qpa"),
+    }
+    for name, text in texts.items():
+        assert "no reflection in the fitted range" not in text, name
+    assert "scale was held" in texts["caveat"]
+    assert "scale was held" in texts["skipped"]
+    (skipped,) = [d for d in res.diagnostics
+                  if d.code == "MICROABSORPTION_SKIPPED"]
+    assert "Widen the fitted range" not in skipped.suggestion
+    assert "scale was held" in skipped.suggestion
+    (finding,) = [d for d in res.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert "no weight fraction" in finding.message
+    assert "scale was held" in finding.message
+    assert "seed its scale" not in finding.suggestion
+
+
+def test_a_restraint_freed_scale_is_not_called_a_measurement():
+    """Item 3: no line in range, held in s0 and left free in the last stage
+    by a weighted restraint: the message says so, never that a reflection
+    reached the range."""
+    from rietx.refine import _phase_support_diagnostics
+
+    structure, _ = _models(START_SCALES)
+    held = StageResult(name="s0", status="converged", n_iterations=1,
+                       cost_initial=1.0, cost_final=1.0, held=[FE_SCALE])
+    free = StageResult(name="s1", status="converged", n_iterations=1,
+                       cost_initial=1.0, cost_final=1.0, held=[])
+    args = (np.full(4, 0.0), np.array([5, 5, 5, 0]), (25.0, 44.0), [FE_SCALE],
+            structure, [held, free])
+    (finding,) = _phase_support_diagnostics(*args)
+    assert "where a reflection reached the range" not in finding.message
+    assert "weighted restraint" in finding.message
+    assert "is a measurement" not in finding.message
+
+
+def test_a_joint_message_names_the_histograms_that_held_the_scale():
+    """Item 4: only histogram 0's iron scale was held."""
+    from rietx.refine import _phase_support_diagnostics
+
+    structure, _ = _models(START_SCALES)
+    held = StageResult(name="s", status="converged", n_iterations=1,
+                       cost_initial=1.0, cost_final=1.0,
+                       held=[f"hist.0.{FE_SCALE}"])
+    (finding,) = _phase_support_diagnostics(
+        np.full(4, 0.5), np.array([5, 5, 5, 0]), (25.0, 44.0), [FE_SCALE],
+        structure, [held, held])
+    assert "in histogram 0" in finding.message

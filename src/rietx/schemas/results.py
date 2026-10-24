@@ -556,12 +556,19 @@ class QuantitativePhaseAnalysis(Base):
     phases seen in range, so they are relative to those, not to the modelled
     content; a specimen known to hold the unmeasured phase has no absolute
     fractions from this range.  Empty when every phase was seen.
+    ``unmeasured_held`` says which of them a stage held with a line now in range.
     """
 
     phases: list[PhaseQuantity]
     method: Literal["zmv"] = "zmv"
     crystalline_only: bool = True
     unmeasured_phases: list[str] = Field(default_factory=list)
+    #: the subset of ``unmeasured_phases`` left out because a stage **held**
+    #: the scale (a refined zero shift can bring a line into range after the
+    #: stage's compile), not because the answer has no line; the rest have
+    #: none.  The two read differently to a caller: widening the range helps
+    #: only the second (#1103).
+    unmeasured_held: list[str] = Field(default_factory=list)
 
     # Brindley microabsorption: the mixture-level record when the correction
     # ran, or the reason it was skipped when radii were supplied but the

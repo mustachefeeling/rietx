@@ -226,6 +226,7 @@ In the walkthrough of [A first fit in Python](../start/first-fit.md#worked-examp
 | `NodeMetrics.cost_initial` | the cost the stage started from |
 | `NodeMetrics.cost_final` | the cost it reached |
 | `NodeMetrics.stderr` | esds by dot-path, in physical units |
+| `NodeMetrics.held_scale_phases` | the phases whose own scale the stage held, which `replay` reads to quote them no fraction |
 
 The cost is half the sum of squared weighted residuals, ½‖r‖², restraint and penalty rows included.
 On the walkthrough's last node it fell from 144 805 to 137 594 in 10 evaluations.
