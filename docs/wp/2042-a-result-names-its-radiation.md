@@ -31,11 +31,15 @@ without the caller passing it.
 
 ## Tasks
 
-- [ ] The field on `RefinementResult`, written where `refine` builds the result, and read by
-      `plot_result` through `_stated_radiation`'s rule.
-- [ ] Tests: a fit on a preset source labels the axis; a result from an older JSON file loads
-      and draws an unnamed axis.
-- [ ] Skill: none. A figure label changes no judgement.
+- [x] The field on `RefinementResult`, written where `refine` builds the result, and read by
+      `plot_result` through `_stated_radiation`'s rule. Also on `HistogramResult`, written by
+      the joint fit's builder and swapped in by `for_histogram`, which copies the top-level
+      fields and would otherwise label histogram 1 with histogram 0's λ. Schema 0.59 → 0.60.
+- [x] Tests: a fit on a preset source labels the axis; a result from an older JSON file loads
+      and draws an unnamed axis. Plus a refined λ and a synchrotron λ stated unnamed, and each
+      joint histogram's view naming its own λ (`tests/test_multi_histogram.py`).
+- [x] Skill: none. A figure label changes no judgement. The generated `api.md` field line
+      moves with the schema.
 
 ## Acceptance
 

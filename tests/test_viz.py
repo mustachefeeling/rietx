@@ -19,6 +19,8 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev, NeutronSource
 from rietx.schemas.pattern import PatternData
@@ -31,6 +33,7 @@ from tests.test_refine_synthetic import (
     perturbed_models,
     synthesize,
 )
+from tests.test_schemas import make_lab6
 
 pytestmark = pytest.mark.xdist_group("viz-pattern")
 
@@ -58,9 +61,12 @@ def _png(fig) -> bytes:
 
 
 def _as_pattern(result) -> PatternData:
-    """The result's own channels as a bare pattern: the same data, no model."""
+    """The result's own channels as a bare pattern: the same data, no model,
+    and the λ its file would have stated, so both figures name one radiation
+    (WP-2042)."""
     return PatternData(two_theta=list(result.two_theta),
-                       intensity=list(result.y_obs))
+                       intensity=list(result.y_obs),
+                       metadata={"wavelength": repr(result.radiation.wavelengths[0])})
 
 
 def _span(band) -> tuple[float, float]:
@@ -328,6 +334,81 @@ def test_an_explicit_wavelength_replaces_what_the_model_and_file_state(fitted):
 
 
 # ----------------------------------------------------------------------
+# a result names the radiation its fit used (WP-2042)
+# ----------------------------------------------------------------------
+def _lab6_on(instrument) -> PatternData:
+    """LaB6 at the true cell, drawn through ``instrument`` from 20 to 80° 2θ."""
+    structure = make_lab6()
+    for axis in ("a", "b", "c"):
+        getattr(structure.phases[0].cell, axis).value = TRUE_A
+    structure.phases[0].scale.value = 5e-4
+    tt = np.arange(20.0, 80.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0())) + 50.0
+    y = np.random.default_rng(1).poisson(y).astype(float)
+    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
+
+@pytest.mark.parametrize("radiation, label", [
+    ("CuKa", TWO_THETA + r", Cu Kα, $\lambda$ = 1.54059 Å"),
+    ("MoKa1", TWO_THETA + r", Mo Kα1, $\lambda$ = 0.709317 Å"),
+], ids=["doublet", "kalpha1"])
+def test_a_result_names_the_radiation_its_fit_used(radiation, label):
+    """``result.plot()`` says what ``data.plot(model=...)`` says, with nothing
+    passed: the fit records its source and the figure reads it by the same
+    rule."""
+    def preset():
+        return rx.Instrument.bragg_brentano(radiation=radiation)
+    result = rx.Refinement(make_lab6(), preset(), history=False).fit(_lab6_on(preset()))
+    assert result.radiation.kind == "xray_cw"
+    assert result.plot().get_axes()[0].get_xlabel() == label
+    # the record survives a save
+    reopened = type(result).model_validate_json(result.model_dump_json())
+    assert reopened.plot().get_axes()[0].get_xlabel() == label
+
+
+def test_a_synchrotron_or_refined_wavelength_is_stated_and_never_named(fitted):
+    """λ alone wherever the lines are not a table entry to the last digit: a
+    synchrotron's declared λ, and a tube's λ once a fit has moved it."""
+    _, synchrotron = fitted
+    assert (synchrotron.plot().get_axes()[0].get_xlabel()
+            == TWO_THETA + r", $\lambda$ = 0.4139 Å")
+
+    true = rx.Instrument.bragg_brentano(radiation="CuKa1")
+    true.source.lines[0].wavelength.value = 1.5410
+    structure = make_lab6()
+    for axis in ("a", "b", "c"):
+        getattr(structure.phases[0].cell, axis).value = TRUE_A   # held: λ is what moves
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.0.scale", "instrument.background.*"]),
+        rx.Stage("lam", ["instrument.source.lines.0.wavelength"])])
+    result = rx.Refinement(structure, rx.Instrument.bragg_brentano(radiation="CuKa1"),
+                           history=False).fit(_lab6_on(true), plan=plan)
+    (lam,) = result.radiation.wavelengths
+    assert lam == result.parameter("instrument.source.lines.0.wavelength").value
+    assert lam == pytest.approx(1.5410, abs=1e-4) and lam != 1.5405929
+    assert (result.plot().get_axes()[0].get_xlabel()
+            == TWO_THETA + rf", $\lambda$ = {lam:g} Å")
+
+
+def test_a_result_without_a_recorded_radiation_draws_an_unnamed_axis(fitted):
+    """A result written before the field existed opens, and its axis claims
+    nothing: ``None`` is "not recorded", never "no radiation".  An explicit
+    ``wavelength=`` still states one, and replaces a recorded one."""
+    _, result = fitted
+    stored = result.model_dump(mode="json")
+    del stored["radiation"]
+    old = type(result).model_validate(stored)
+    assert old.radiation is None
+    assert old.plot().get_axes()[0].get_xlabel() == TWO_THETA
+    for r in (old, result):
+        assert (r.plot(wavelength=0.5).get_axes()[0].get_xlabel()
+                == TWO_THETA + r", $\lambda$ = 0.5 Å")
+
+
+# ----------------------------------------------------------------------
 # title=
 # ----------------------------------------------------------------------
 def test_a_title_is_the_callers_words_in_the_panels_type(fitted):
@@ -382,8 +463,11 @@ PINNED_ON = (("darwin", "arm64"), "3.11.2")
 
 def _pinned_result(result):
     """A result whose drawn arrays are closed-form, so no fit's last digit
-    reaches the render; only the rendering code and its libraries do."""
+    reaches the render; only the rendering code and its libraries do.  No
+    recorded radiation, as before WP-2042, so the pin also holds that such a
+    result draws the figure it always drew."""
     pinned = result.model_copy(deep=True)
+    pinned.radiation = None
     tt = np.arange(5.0, 25.0, 0.02)
     peaks = sum(a * np.exp(-0.5 * ((tt - c) / 0.05) ** 2)
                 for a, c in ((1000.0, 8.0), (600.0, 12.5), (300.0, 19.0)))
