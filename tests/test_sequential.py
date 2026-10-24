@@ -1155,6 +1155,62 @@ def test_only_a_converged_first_rung_becomes_evidence(thermal_patterns):
     assert none[4].rungs_tried == ["warm"] and none[4].status == "max_iter"
 
 
+def chain_answer(series):
+    """Every value a chain accepted, with its esd, its rung and its codes."""
+    return [(e.label, e.status, tuple(e.rungs_tried), e.statistics.rwp,
+             [(p.path, p.value, p.stderr) for p in e.parameters],
+             [d.code for d in e.diagnostics]) for e in series.entries]
+
+
+def first_rung_ratios(series):
+    """Each kept first rung's cost over the most expensive one before it.
+
+    Replays :func:`~rietx.sequential._first_rung_budget`'s sample from the
+    record: a warm pattern that kept its first rung and converged reports
+    that rung's evaluations as ``n_iterations``, and only those join the
+    sample.  A ratio is reported once the sample holds
+    :data:`~rietx.sequential.FIRST_RUNG_SAMPLES`, the point the bound arms.
+    """
+    from rietx.sequential import FIRST_RUNG_SAMPLES
+
+    sample, ratios = [], []
+    for e in series.entries[1:]:
+        if e.rungs_tried == ["warm"] and e.status == "converged":
+            if len(sample) >= FIRST_RUNG_SAMPLES:
+                ratios.append(e.n_iterations / max(sample))
+            sample.append(e.n_iterations)
+    return ratios
+
+
+@pytest.fixture(scope="module")
+def thermal_series_unbounded(thermal_patterns):
+    structure, ins = _start_models()
+    return refine_sequential(thermal_patterns, structure, ins,
+                             x=TEMPERATURES, x_label="T (K)",
+                             labels=[f"{int(t)}K" for t in TEMPERATURES],
+                             plan="mccusker_default", first_rung_factor=None)
+
+
+def test_the_first_rung_bound_moves_no_accepted_value(thermal_series,
+                                                      thermal_series_unbounded):
+    """`FIRST_RUNG_FACTOR` is answer-invariant here, and by how much (WP-2003).
+
+    Invariance is a measured margin, not a construction: a bound that cut a
+    *winning* first rung would keep the next rung's answer instead.  So two
+    things are asserted on the default plan's chain, the bound on and off:
+    every accepted value, esd, rung and code is equal, and every first rung
+    the unbounded chain kept cost less than the budget the bound would have
+    set at that point.  Measured 2026-10-24: three armed patterns, each at
+    1.0× the running maximum (15 evaluations against 15), so the bound sits
+    3× above every rung it could have cut.  The CPD chain's twin is in
+    `test_acceptance_sequential.py`.
+    """
+    assert chain_answer(thermal_series) == chain_answer(thermal_series_unbounded)
+    ratios = first_rung_ratios(thermal_series_unbounded)
+    assert ratios, "the bound armed on no pattern, so nothing was tested"
+    assert max(ratios) < FIRST_RUNG_FACTOR
+
+
 def test_an_unrecovered_pattern_seeds_nothing_and_joins_no_median(
         thermal_patterns, tmp_path):
     """The hygiene criterion: a doubly-failed pattern is stepped over.
