@@ -212,6 +212,7 @@ DEFAULT_SEATS: dict[str, int] = {
     "rietx.refine.Refinement.fit": 2002,
     "rietx.refine.Refinement.run_stage": 2002,
     "rietx.refine.refine": 2002,
+    "rietx.refine.Refinement.summary": 2004,
     "rietx.background.auto.auto_background": 2002,
     "rietx.sequential.refine_sequential": 2003,
     "rietx.sequential.SequentialRefinement.fit": 2003,
@@ -727,7 +728,7 @@ ROWS: tuple[Row, ...] = (
         responds=("read an intensity- or width-derived number (a fraction, an ADP, a size, "
                   "a strain, an instrument width) as less certain than its esd, and "
                   "re-collect at a step near FWHM/5 where it must be quotable"),
-        scope=("qpa", "structure", "microstructure", "calibration")),
+        scope=("qpa", "structure", "microstructure", "calibration", "magnetic")),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),
     Row("PAWLEY_OFF_DATA_RIDGED", "code"),
@@ -3123,6 +3124,27 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.refine:label", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts "
                   "the answer bit-identical with it on")),
+    Row("rietx.refine.Refinement.summary:deliverable", "default", tier="invariant", ambiguity=3,
+        value=None,
+        evidence=("answer-invariant: a view of a finished fit; None infers no purpose and prints "
+                  "no purpose's rows in full (WP-2037 clause 3); "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:plot", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: None writes no picture and names the call instead; "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:plan", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: the plan the report's Layer-2 veto reads, never the fit's; "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:report", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: None builds the report a caller would have passed in; "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:levels", "default", tier="caller", ambiguity=1,
+        value=None,
+        evidence=("opt-in: the caller's per-code override, {code: allow|warn|deny}, default None "
+                  "(the audited levels stand); never lowers an error (WP-2037 clause 4)")),
     Row("rietx.background.auto.auto_background:kind", "default", tier=3, ambiguity=2, value="pspline",
         evidence=("GSAS-II 5.8.4 defaults to a 3-term Chebyshev (GSASIIdataGUI.py:2207, "
                   "inventory check), TOPAS and FullProf to polynomials (recalled); WP-1454: the "

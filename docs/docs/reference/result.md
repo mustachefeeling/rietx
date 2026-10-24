@@ -335,7 +335,12 @@ Past each cap a `HIGH_CORRELATION_OMITTED` or `FLAT_DIRECTION_OMITTED` row gives
 `print(result)`, which is `str(result)`, is the view a bare `RefinementResult` can answer on its own.
 It shows each stage's status, the last stage's convergence number (max|Δθ|/esd), every diagnostic, the provenance, and the agreement indices last.
 It is given no deliverable, so an error prints in full and every other diagnostic on one line, its code, its paths and the purposes it is a warning under.
-It needs no compiled model, so it works on a result read back from a project or handed across a process boundary.
+`RefinementResult.summary(deliverable="qpa")` prints the same view with the diagnostics read under that purpose: the errors and the warnings for it in full, the rest one line each.
+It adds nothing else, and its last diagnostic line names `Refinement.summary`, which prints the rows that decide the purpose.
+Both need no compiled model, so they work on a result read back from a project or handed across a process boundary.
+Every `summary()` also takes `levels=`, a map from a code to `"allow"`, `"warn"` or `"deny"`.
+The caller's word replaces the audited level under every purpose, so an expert can quiet a code and a pipeline can print one as an error.
+It never lowers a diagnostic raised as an error, and the diagnostics header counts the rows it set.
 It stays under 80 lines on a five-stage fit.
 [A first fit in Python](../start/first-fit.md) shows one.
 
