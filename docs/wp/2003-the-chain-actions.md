@@ -25,15 +25,62 @@ to suggest a symmetry-mode refinement, but we shouldn't enforce a test by defaul
 discontinuity test (`SEQUENTIAL_DISCONTINUITY`, 5× the median step and 3σ, ~lines
 226–227) is DESIGN.md § Rules, 1's own example of the third kind: what a jump means depends
 on facts outside the pattern (a transition, a sample shift, a beam dump), so it fails the
-judgement ground. Since its threshold is its trigger, the code becomes an `info` record
-with no threshold (the record § Demotion, ruled 2026-10-18). On every series it states each
-parameter's largest step as a multiple of its typical step, largest first, under a name
-that asserts no jump. Its explanation carries the reading: what a jump can be, and that a
-symmetry-mode refinement separates the cases. The third review had put that reading in the
-skill's `references/series.md`, because a suggestion inside the package needed a trigger;
-a record with no threshold needs none. `SeriesResult.discontinuities`, the trajectory
-plot's shading and `verify_discontinuities` all read the flagged pairs today, so each
-moves to the largest steps or is ruled in the batch.
+judgement ground. Since its threshold is its trigger, no diagnostic remains: the statistic
+becomes a **record field with no threshold**, `SeriesResult.steps` (every step in esds,
+largest first, under a name that asserts no jump), its explanation in `rietx.help` keyed to
+the field, one line naming it in the trajectory block, and **no diagnostic** (the record
+§ Demotion and *Attention is a cost* clause 1, ruled 2026-10-23 by WP-2037, reversing the
+`info`-record shape ruled 2026-10-18; `2037-attention/examples.md` § 5 is the mock-up). The
+explanation carries the reading: what a jump can be, and that a symmetry-mode refinement
+separates the cases. The third review had put that reading in the skill's
+`references/series.md`, because a suggestion inside the package needed a trigger; a field
+with no threshold needs none. `SeriesResult.discontinuities`, the trajectory plot's shading
+and `verify_discontinuities` all read the flagged pairs today, so each moves to the largest
+steps or is ruled in the batch.
+
+**The seats this WP lands in exist** (WP-2037, closed 2026-10-24). `rietx.help.RESULT_FIELD_HELP`
+describes every field of `RefinementResult`, `StageResult`, `SeriesEntry` and `SeriesResult`
+keyed `Type.field`, crossed both ways by `tests/test_help.py::test_every_result_field_has_an_entry`,
+so `SeriesResult.steps` fails until its entry is written and `rietx.help.explain(…)` then answers
+it. Every code row in `rietx._audit` carries `response`/`responds`/`scope` or sits on the
+shrink-only `RESPONSE_BASELINE`: a code this WP keeps leaves that list with a response (one
+level at every raise site), and a code given `response="warning"` adds a fire/silent pair to
+`tests/silence.py`. `SeriesResult.summary(levels=…, deliverable="series")` and
+`rx.diagnostics_summary(results)` read those responses. One cost is this WP's: with no
+deliverable a `SEQUENTIAL_PERSISTENT_FINDING` row prints as one line,
+`SEQUENTIAL_PERSISTENT_FINDING: warning under every purpose`, which no longer says *which*
+per-pattern code persisted (tutorial 05, cells 19 and 34); a wrapper code's one-line form is
+shaped when its row is tiered.
+
+**What WP-2002 handed on** (closed 2026-10-23; its rows settled, so the holds inside one stage
+are fixed ground here). Tier 2 names seven programs (GSAS-II, FullProf, TOPAS, RIETAN-FP,
+BGMN, MAUD, EasyDiffraction; `docs/practice.md` holds each one's defaults by topic), and a row
+resting on a program default names what each does. Two record fields reach a chain:
+`StageResult.collapsed` (columns a stage restored and held, from all three runners) and the
+Stephens seed's rows in `StageResult.seeded`; the joint runner seeds no Stephens block. Every
+plan ends in a closing stage and a warm refit carries it (`_collapse` passes
+`closing_window_tol`), 1.05-2.05× a single fit's time a pattern, its cost along a chain and its
+effect on path dependence unmeasured (`closing_window_tol=None` is the bit-identical way back).
+The **width twin hold** makes the carry policy matter: on CPD sample 1a-1h the chain carrying
+the widths but not the scales averages Rwp 0.1282 against 0.1256 carrying everything and 0.1258
+independent, a strict xfail in
+`tests/test_acceptance_sequential.py::test_warm_start_iteration_cost_is_reported`; the
+iteration saving stands (388 against 1218). The **held-out family** is the Nd₂Ru₂O₇ pair
+(`tests/data/mg090*`), which no audit may use as evidence. Two of 2002's clash candidates
+reach the chain (`2002-batch/clashes.md`): B16, `multi.py`'s parametric test holding at-bound
+columns through `staged.bound_findings`, whose margin falls to 13/f if class B4 lands; and B7,
+the 0.03-esd bound on `intermediate_ftol`, a one-fit bound whose chain effect is this WP's.
+
+**The table's mechanics** (WP-2001). This WP's rows are those `_audit.WALKED` and
+`_audit.DEFAULT_SEATS` map to 2003 (`sequential.py`, `multi.py`, `params/multi.py`;
+`refine_sequential` and `SequentialRefinement.fit`, the latter a seat because
+`refine_sequential` reaches its `reseed`, `refit`, `on_error` and `direction` defaults through
+`**kw`), plus the codes and suggestion rows of the subsystem. Auditing a row gives it a tier
+and evidence in place and deletes its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py`
+fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a
+number in a dict, list or array is audited by hand. The series floor-reseed of an unsupported
+moment (near the `SEQUENTIAL_MOMENT_HOLD` raise) has no record field, only that code's message,
+so it has no action row yet; `SeriesEntry.rungs_raised` and `rungs_tried` do.
 
 **The inventory**, keyed on `SeriesEntry` (`schemas/sequential.py`) fields `rung`,
 `reseeded`, `rwp_fence` and on the constants:
@@ -76,31 +123,17 @@ moves to the largest steps or is ruled in the batch.
 - `SEQUENTIAL_PERSISTENT_FINDING` ("42 of 68"): a count across patterns, tier 1 as a
   statistic; whether it carries a verdict is the question.
 - `multi.py`: the joint residual's own holds and its second builder of the extra
-  components (root CLAUDE.md § extra_components names it as the miss).
+  components (root CLAUDE.md § extra_components names it as the miss). Its cell runaway
+  resets and holds the phase's cell like the single runner's (`StageResult.cell_reset`), but
+  `_cell_runaway_diagnostic(cell_runaway)` (~line 1632) never passes
+  `refine._vars_driven_cell_escapes`, which the single runner folds into `CELL_RUNAWAY`, so a
+  `vars.X`-driven escape goes unnamed in a joint fit (WP-2002, PR #1050; checked 2026-10-24).
 
 **A chain is measured, never assumed.** Root CLAUDE.md: cumulative staging's bound holds
 for one fit and is unbounded in a chain, both signs measured. So every family here is a
 chain family: the Durham in-situ tutorials, the 13-pattern sub-onset ramp (the v1.3 row),
 the ten-pattern warm series of v1.1, the corpus series cited by number. Three families is
 the bar.
-
-### Inherited
-
-- **From WP-2037 (2026-10-24, second session, PR #1145): what this WP waited on has landed, and one cost of the quiet view is yours.** The demotion shape and the response column were part 1's; part 2 adds `summary(levels=…)` on `SeriesResult` too, `rx.diagnostics_summary(results)` (a batch's firing rate per code, warnings per result per purpose, the Pareto), and `tests/silence.py`, where a code given `response="warning"` must add a fire/silent pair. The cost: with no deliverable a `SEQUENTIAL_PERSISTENT_FINDING` row prints as one line, `SEQUENTIAL_PERSISTENT_FINDING: warning under every purpose`, which no longer says *which* per-pattern code persisted (tutorial 05, cells 19 and 34; the code is in the message). A wrapper code's one-line form is this WP's to shape when it tiers the code. WP-2037 stays open only for its registered agent round (session `agent-round-2037`, branch `agent-round-quiet-view`), which reaches no chain action.
-- **From WP-2037 (2026-10-24, first session): the seat and the view this WP's demotion lands in exist.** `rietx.help.RESULT_FIELD_HELP` describes every field of `RefinementResult`, `StageResult`, `SeriesEntry` and `SeriesResult` keyed `Type.field`, crossed both ways against `model_fields` by `tests/test_help.py::test_every_result_field_has_an_entry`, so adding `SeriesResult.steps` fails until its entry is written, and `rietx.help.explain("SeriesResult.steps")` then answers it. Every code row in `rietx._audit` now carries `response`/`responds`/`scope` or sits on the shrink-only `RESPONSE_BASELINE`, so a code this WP adds enters with a response (its level at every raise site, one level only). `schemas.results.level_under` and `diagnostic_view` decide what a summary prints in full; `SeriesResult.summary(deliverable="series")` prints its rows under `series`, which follows every path (`rietx.purposes`). Clause 1's 2026-10-18 reversal is written into `generality.md` § Demotion.
-- **From WP-2037 (2026-10-23, at filing): a demoted verdict becomes a field, not an `info` row that fires on every run.** The maintainer adopted 2037's clause 1 that day, reversing § Demotion's 2026-10-18 shape, so the discontinuity demotion in Context lands as `SeriesResult.steps` (every step in esds, largest first) with its explanation in `rietx.help` keyed to the field and one line in the trajectory block, and emits no diagnostic (`2037-attention/examples.md` § 5 is the mock-up). The `info`-record task in Tasks follows that shape once 2037 lands; 2037's response column and silence fixture apply to every code this WP keeps.
-
-- **From WP-2002 (2026-10-23, 9th session, PR #1113): the width twin hold makes a chain's carry policy matter.** The CPD QPA plan fits X and Y on each specimen before freeing the specimen widths, and the hold keeps whatever split that stage lands on, so the split now rides the warm start. On sample 1a-1h the chain carrying the widths but not the scales averages Rwp 0.1282, against 0.1256 carrying everything and 0.1258 fitted independently; `tests/test_acceptance_sequential.py::test_warm_start_iteration_cost_is_reported` is a strict xfail saying so. The chain's iteration saving stands (388 against 1218). A chain calibrated on a standard, its instrument held, is the protocol that avoids it.
-
-- **From WP-2002 (2026-10-23, 8th session, PR #1113): 2002's rows settled.** The single-fit actions are settled, bar one item still in flight (the width twin hold): every row 2002 owned is tiered, and B14's lifts put 21 inline numbers and `ProfileTCHZ`'s defaults in the table. Two new record fields reach a chain: `StageResult.collapsed` (the columns a stage restored to their stage-start values and held, a subset of `held`, from all three runners) and the Stephens seed's rows in `StageResult.seeded`. The joint runner seeds no Stephens block (WP-1467's Inherited).
-
-- **From WP-2002 (2026-10-21, 5th session, PR #1085).** Every plan now ends in a closing stage, and a series' warm refit carries it (`sequential._collapse` passes `closing_window_tol`), so every pattern pays it: 1.05-2.05× a single fit's time on four protocols. Its cost along a chain and its effect on the chain's path dependence are unmeasured. `closing_window_tol=None` is the bit-identical way back.
-- **From WP-2002 (2026-10-21, 4th session): tier 2 names seven programs.** `docs/milestones/generality.md` § The rule's tier 2 now reads "by default in an established Rietveld program": GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and EasyDiffraction, the list rietx-bench runs (the maintainer's instruction). A row resting on a program default names the programs it checked and what each does; a program doing otherwise by default is a dissenter, one without the feature is neither. What each does on peak windows, staging, roughness starts, width limits, dispersion, solver, mode and background seed is in `docs/practice.md`; where each program's manual or source sits is in the maintainer's memory (`foreign-code-sources-on-disk`), and rietx-bench's `tools/` holds BGMN, MAUD, RIETAN-FP and EasyDiffraction's environment beside GSAS-II and FullProf.
-- **From WP-2002 (2026-10-20, PR #1050): a series pays the automatic moment-angle interval on fits it discards.** A moment angle the stationary-angle test leaves out of the covariance now gets its profile interval after every single-pattern fit (`strategy/parameter_interval.attach_stationary_intervals`, gated by `Refinement._auto_intervals`). Each pattern of a chain computes its own, and so do rejected ladder rungs and `_verify_discontinuities`' cold refits, whose results the chain throws away: 20-32 refits an angle, 2.6-16.7 s on test fits of 0.2-1.2 s. Gate them (set `_auto_intervals = False` on an attempt until it is accepted) when auditing the rungs.
-- **From WP-2002 (2026-10-20, PR #1050): the joint runner names no `vars.X`-driven cell escape.** `multi.py` (~line 1480, `_cell_runaway_diagnostic(cell_runaway)`) never calls `refine._vars_driven_cell_escapes`, which the single runner folds into `CELL_RUNAWAY`. The cell runaway itself now resets the phase's cell to the stage start and holds it in both runners (`StageResult.cell_reset`).
-- **From WP-2001 (2026-10-19, PR #1047).** The table is `src/rietx/_audit.py`; this WP's rows are the ones `_audit.WALKED` and `_audit.DEFAULT_SEATS` map to 2003, plus the codes and suggestion rows of its subsystem. Auditing a row means giving it a tier and evidence in place and deleting its line from `UNAUDITED_BASELINE`; `tests/test_audit_table.py` fails until both are done. The walk sees module-level numbers and tuples of numbers only, so a number held in a dict, list or array is audited here by hand. From the generality judge's first run: the series floor-reseed of an unsupported moment (`sequential.py`, near the `SEQUENTIAL_MOMENT_HOLD` raise) has no record field, only that code's message, so it has no action row; `SeriesEntry.rungs_raised` and `rungs_tried` now do. `SequentialRefinement.fit` is a seat, since `refine_sequential` reaches its `reseed`, `refit`, `on_error` and `direction` defaults through `**kw`.
-
-- **From WP-2002 (2026-10-19, PR #1050).** 2002 named the held-out family at its open: the Nd₂Ru₂O₇ pair (`tests/data/mg090*`), which no audit may use as evidence. Two of 2002's clash candidates reach the chain (`2002-batch/clashes.md`): `multi.py`'s parametric test holds at-bound columns through `staged.bound_findings`, whose esd threshold carries the Bérar-Lelann factor, so its margin falls to 13/f if 2002's batch class B4 lands (B16). The 0.03-esd bound on `intermediate_ftol` is a one-fit bound, and a chain's effect is yours (B7).
 
 ## Non-goals
 
@@ -123,15 +156,21 @@ the bar.
       diverged, the rung it reached, and the successors seeded from an earlier pattern
       instead? Quarantine is one of Rule 1's protections and stays; a protection records
       each time it acts, so a missing field is added. The ladder's rungs and give-up point
-      are tiered as above.
+      are tiered as above. A rejected rung and `_verify_discontinuities`' cold refits each
+      pay the automatic moment-angle profile interval (20-32 refits an angle, 2.6-16.7 s on
+      fits of 0.2-1.2 s; `strategy/parameter_interval.attach_stationary_intervals`) on a
+      result the chain discards: gate them with `_auto_intervals = False` until an attempt
+      is accepted (WP-2002, PR #1050; no gate in `sequential.py` on 2026-10-24).
 - [ ] `FIRST_RUNG_FACTOR`'s invariance test (accepted values bit-identical with the bound
       on and off, on two chain families), replacing the comment's claim.
 - [ ] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
-      orderings where order matters.
+      orderings where order matters; plus the carry policy × the width twin hold, the
+      closing stage × path dependence, and 2002's B7 and B16 (Context).
 - [ ] The batch to the maintainer, each brief opening with its stakes line (the record
       § The rule, 2026-10-20); rulings dated into the table.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
-      `info` record of the largest steps, if the batch agrees; the release notes staged.
+      `SeriesResult.steps` field and its help entry (no diagnostic), if the batch agrees; the
+      release notes staged.
 - [ ] Goldens re-pinned only if no further from reference. A series golden's first
       reference is the cold-fit chain, rietx's own result on the same data, so it
       verifies and does not validate (DESIGN.md § Rules, 2). Where a series member has a
