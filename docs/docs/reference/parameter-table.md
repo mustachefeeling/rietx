@@ -163,7 +163,7 @@ If a fit lands in that corner, writing the values back to the models refuses, na
 ## A child refined on its mode amplitudes
 
 A superstructure of a known parent can refine as that parent plus a displacement field, one absolute amplitude per symmetry-adapted mode, rather than as free coordinates.
-`rietx.crystallography.representation.distortion.displacive_statement` takes the parent `Phase`, the stated child `Phase` and the transform (P, p) with `r_parent` = P·`r_child` + p, and returns a `DisplaciveStatement`: the child, with its `distortion_modes` record set and its coordinates rewritten from it, plus the per-parent-site Biso ties (`DisplaciveStatement.biso_ties`, for `Refinement.tie`) and the seed it applied (`DisplaciveStatement.seed`).
+`rietx.crystallography.representation.distortion.displacive_statement` takes the parent `Phase`, the stated child `Phase` and the transform (P, p) with `r_parent` = P·`r_child` + p, and returns a `DisplaciveStatement`: the child, with its `Phase.distortion_modes` record set and its coordinates rewritten from it, plus the per-parent-site Biso ties (`DisplaciveStatement.biso_ties`, for `Refinement.tie`) and the seed it applied (`DisplaciveStatement.seed`).
 
 The record is a `DistortionModes`.
 `DistortionModes.parent_space_group` and `DistortionModes.transform` say what the modes were built from, `DistortionModes.reference_cell` the metric of the parent cell before any strain they were normalised in, and `DistortionModes.base` the parent-derived position of each atom.
