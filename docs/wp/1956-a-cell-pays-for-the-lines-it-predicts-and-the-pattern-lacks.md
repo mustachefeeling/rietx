@@ -121,6 +121,31 @@ engine or the ranking. Indexing is provisional by declaration
   Under decision (c) an honest count caps, so the full range may drop to `medium` and
   print NO CELL unless the extinction screen clears the glide. Rebuild the notebook with
   `examples/tutorials/build.py`, which lists every cell whose output moved.
+- **2026-10-24, from PR #941's round-5 review: the aragonite case, measured on #941.** On
+  `main` `0070d696` with #941 merged (`b4190354`), the 45° cut still prints NO CELL. Its
+  true cell is now `medium`, capped by `fom_panel_reduced` and `shift_allowance_assumed`,
+  with 6 of 23 lines absent and none uncancellable. The full range stays CELL at `high`,
+  with 24 of 87 lines absent, 5 uncancellable and 0 in de Wolff's window. So the entry
+  above is answered for #941 as it stood. Re-measure at the merge before writing WP-2041's
+  `### Inherited`, since round 5 asked for changes.
+- **2026-10-24, from the same review: a pair with few extras is refuted on half the
+  draws.** `screen.containment_evidence` calls a pair refuted only when k ≤ n·p₀. When
+  n·p₀ < 1 that means no extra seen at all, so one chance pick blocks the refutation. On
+  the tetragonal fixture of `tests/test_indexing_screen.py`, the b × 1.003 orthorhombic
+  split has 7 extras at p₀ 0.055–0.066. It reads `refuted` on Poisson seeds 2, 4, 5 and 6,
+  and `undecided` on 1, 3 and 7 (1 seen) and 8 (2 seen). Its seen fraction is 0.52–0.57
+  against the truth's 1.000 on every seed, so nothing is promoted. What is lost is the
+  refutation. The maintainer ruled the same day that #941's test asserts what holds on all
+  eight seeds and that the rule stays as built. A rule that tolerates a chance hit when
+  n·p₀ < 1 is this follow-up, for example refuting when k is consistent with chance at a
+  stated level and the test has the power to tell. It moves a ruled verdict and acceptance
+  rows, so it goes to the maintainer before code.
+- **2026-10-24, from the same review: #941's release-note bullets are parked.** 1.10.0 was
+  tagged at `ac1ee1e1` without #941, so the sync merge `0f3fce6b` moved #941 to the next
+  cycle (schema 0.60, indexing thresholds 1.12). It also took the bullets out of
+  `docs/releases/1.10.0.md`. Their text is at `83cae9e9:docs/releases/1.10.0.md`. At the
+  merge they go to the 1.11 notes, with "schema 0.59, indexing thresholds 1.11" read as
+  0.60 and 1.12. WP-2043's `### Inherited` holds #1152's line the same way.
 
 ## Non-goals
 

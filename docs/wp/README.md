@@ -739,6 +739,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2040](2040-the-tutorials-link-the-manual-at-first-mention.md) | The tutorials link the manual at each concept's first mention | ✅ 2026-10-24 | — | — ([1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) soft) |
 | [2041](2041-a-tutorial-shows-the-indexer-abstain.md) | A tutorial shows the indexer abstain | 🔄 2026-10-24 | P4 | [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) |
 | [2043](2043-cut-1-10-0.md) | Cut 1.10.0 from what main holds | ✅ 2026-10-24 | — | [1961](1961-cut-1-9-0.md), [2044](2044-the-sabine-laue-factor-is-continuous.md) |
+| [2046](2046-the-claim-check-sees-a-contributors-pr.md) | The claim check sees a contributor's PR on the WP it runs for | ⬜ | P3 | — |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 
