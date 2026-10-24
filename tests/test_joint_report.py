@@ -653,3 +653,94 @@ def test_a_fit_level_finding_appears_once_in_every_view(two_patterns):
         mine = [d for d in result.for_histogram(h).diagnostics
                 if d.code == "STAGE_PATH_UNKNOWN"]
         assert mine == [top]
+
+
+# ------------------------------------------- WP-2028, review round 1 -----
+
+def test_a_phase_held_in_every_pattern_is_unconstrained_not_held_in_patterns():
+    """Two patterns, neither showing phase 1, its structure per histogram:
+    ``PHASE_UNCONSTRAINED`` says it, and ``PHASE_HELD_IN_PATTERNS`` (a hold
+    in *some* patterns) does not repeat it (review of #1128, item 1)."""
+    import rietx as rx
+    from tests.test_held_phase import _absent_phase_inputs
+    from tests.test_held_phase import synthesize as one_phase
+
+    blind, ins = _absent_phase_inputs()
+    ref = rx.MultiHistogramRefinement(
+        [blind, blind.model_copy(deep=True)], [ins, ins.model_copy(deep=True)],
+        sharing=SharingMap(per_histogram=["phases.*"]))
+    result = ref.fit([one_phase(), one_phase()], plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"])]))
+    assert result.stages[-1].held        # the control: something was held
+    assert _codes(result, "PHASE_UNCONSTRAINED")
+    assert not _codes(result, "PHASE_HELD_IN_PATTERNS")
+    for h in range(2):
+        assert not [d for d in result.for_histogram(h).diagnostics
+                    if d.code == "PHASE_HELD_IN_PATTERNS"]
+
+
+def _hold_stub(held, ridge, n):
+    from types import SimpleNamespace as NS
+    last = NS(held=held, scale_b_held=ridge, name="cell")
+    table = NS(parametric=[], n_histograms=n,
+               _owner=lambda p: int(p.split(".")[1]) if p.startswith("hist.")
+               else None)
+    structure = NS(phases=[NS(name="A"), NS(name="B")])
+    return [last], table, structure
+
+
+@pytest.mark.parametrize("leaf, ridge_phases, fires", [
+    ("adp.1", {0}, False),      # an anisotropic column the ridge took
+    ("biso", {0}, False),       # the isotropic one, as before
+    ("u12", {0}, False),
+    ("adp.1", set(), True),     # control: not a ridge hold
+    ("cell.a", {0}, True),      # control: a ridge hold takes displacements only
+])
+def test_the_ridge_exclusion_reads_the_displacement_columns_refine_does(
+        leaf, ridge_phases, fires):
+    from rietx.multi import _per_pattern_hold_diagnostics
+
+    held = [f"hist.0.phases.0.atoms.0.{leaf}"]
+    stages, table, structure = _hold_stub(held, ridge_phases, 3)
+    assert bool(_per_pattern_hold_diagnostics(stages, table, structure)) is fires
+
+
+def test_an_adp_site_is_scoped_by_the_columns_that_move_it():
+    """``adp.k`` is what a joint fit frees; ``u11`` merely follows it (review
+    of #1128, item 3)."""
+    from types import SimpleNamespace as NS
+
+    from rietx.multi import _row_shared, _specimen_path
+
+    per_adp = NS(sharing=SharingMap(per_histogram=["phases.*.atoms.*.adp.*"]))
+    assert _specimen_path(per_adp, 1, "phases.0.atoms.0") == "hist.1.phases.0.atoms.0"
+    plain = NS(sharing=SharingMap())
+    assert _specimen_path(plain, 1, "phases.0.atoms.0") == "phases.0.atoms.0"
+    # a follower row is its source's, not its own name's
+    u11 = NS(path="phases.0.atoms.0.u11",
+             tie=NS(terms=(("phases.0.atoms.0.adp.0", 1.0),)))
+    assert not _row_shared(per_adp, u11)
+    assert _row_shared(plain, u11)
+    assert _row_shared(plain, NS(path="phases.0.cell.a", tie=None))
+
+
+def test_an_occupancy_above_one_in_one_histograms_copy_is_named(two_patterns):
+    """Review of #1128, item 4: ``OCCUPANCY_ABOVE_ONE`` read histogram 0."""
+    structure, instruments = perturbed_inputs()
+    other = structure.model_copy(deep=True)
+    structure.phases[0].atoms[0].occ.value = 0.5
+    other.phases[0].atoms[0].occ.value = 1.4
+
+    def fit(sharing):
+        ref = MultiHistogramRefinement(
+            [structure.model_copy(deep=True), other.model_copy(deep=True)],
+            instruments, sharing=sharing)
+        return ref.fit(two_patterns, plan=RefinementPlan(stages=[
+            Stage("occ", ["phases.*.scale", "instrument.background.*",
+                          "phases.0.atoms.0.occ"], max_iter=2)]))
+
+    own = fit(SharingMap(per_histogram=["phases.0.atoms.*.occ"]))
+    (found,) = _codes(own, "OCCUPANCY_ABOVE_ONE")
+    assert found.where == ["hist.1.phases.0.atoms.0.occ"]
+    assert "histogram 1" in found.message

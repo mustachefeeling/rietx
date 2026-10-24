@@ -264,11 +264,11 @@ The same holds for `SPECIES_FALLBACK_NEUTRAL`, and `NEUTRON_RESONANT_ABSORBER` g
 `STAGE_MAX_ITER` and `SPACE_GROUP_SETTING_ASSUMED` appear at the top level, once each.
 
 A structural path can belong to one pattern (`SharingMap(per_histogram=...)`, or a parametric target).
-So the structure's guards, `ADP_NOT_POSITIVE_DEFINITE`, `BISO_NEGATIVE` and `BISO_UNUSUALLY_LARGE`, read every pattern's values.
+So the structure's guards, `ADP_NOT_POSITIVE_DEFINITE`, `BISO_NEGATIVE`, `BISO_UNUSUALLY_LARGE` and `OCCUPANCY_ABOVE_ONE`, read every pattern's values.
 A shared path is named once, bare, and a per-pattern one by its `hist.<h>.` path in each pattern that holds the value.
 `CELL_RUNAWAY` names a cell that a free `vars.` coefficient drives out of its window, with the coefficient, as a single fit does.
 `PHASE_HELD_IN_PATTERNS` (info) names a phase whose per-pattern structure the last stage held in the patterns that cannot see it, with their count.
-`PHASE_UNCONSTRAINED` names only a phase that no pattern sees.
+`PHASE_UNCONSTRAINED` names a phase that no pattern sees, and `PHASE_HELD_IN_PATTERNS` is not raised for a phase held in every pattern.
 
 `BACKGROUND_ABSORPTION` is the one finding on both lists.
 It is raised on its pattern's list and repeated once on `RefinementResult.diagnostics`, where it keeps its `hist.<h>.` path.

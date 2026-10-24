@@ -177,10 +177,12 @@ that caveat until 1421 lands.
       why there is none in that scope reason (Context item 8). Re-point the four
       comments naming WP-1341 as owner (`multi.py:237`, `:411`, `:1920`, `:1923`)
       to this WP or to the decision taken.
-- [x] Tests in `tests/test_joint_report.py` and
-      `tests/test_multi_diagnostics.py`, each landed with its feature.
-- [x] Skill: `watching.md` 9d.10 and `surprises.md` 8.30 (1341's rows) say
-      what the joint report now shows; each new code gets its reference row.
+- [x] Tests in `tests/test_joint_report.py`, each landed with its feature.
+      `tests/test_multi_diagnostics.py` is untouched: its scope-table tests
+      pass unchanged, and the new code's scope row is held by them.
+- [x] Skill: `surprises.md` 8.30 (1341's row) says what the joint report now
+      shows, and the new code has its `diagnostics.md` row. `watching.md`
+      9d.10 is unchanged: it says nothing the PR contradicts.
 
 ## Acceptance
 
@@ -262,3 +264,17 @@ shows the findings that name histogram h.
   *Open*: task 4's choice, task 7's census (listed in the PR; `_ticks` lacks
   the single path's magnetic tick row, issue #278, and was not folded since
   that moves a joint result's ticks), task 8.
+
+- **2026-10-24** — review round 1 on #1128 (items 1-6): a phase held in every
+  pattern is left to `PHASE_UNCONSTRAINED`; the ridge exclusion reuses
+  `refine._DISPLACEMENT_PATH` (so `adp.k` columns count); an ADP site is
+  scoped by the columns that move it (`adp.k` and `u11`..`u23`), and
+  `_parameters` reads a tied row's shared-ness off its tie sources
+  (`_row_shared`); `OCCUPANCY_ABOVE_ONE` is asked of every histogram
+  (`_occupancy_once`); the Upgrading sentence names the `hist.<h>.` path
+  change; the audit row's ambiguity is 1 with the `phase_support_sigma`
+  evidence. Item 7 (rebase onto #1103, and who names the patterns where only a
+  scale was held) waits for #1103 to merge. Follow-ups left: shared helpers
+  for `_merge_unresolved` and `_specimen_path`, a test crossing
+  `FINDINGS_IN_EVERY_VIEW` with `DIAGNOSTIC_HELP`, and the Lindemann bound's
+  histogram.
