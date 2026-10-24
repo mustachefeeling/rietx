@@ -1,6 +1,6 @@
 # WP-1997 — the direct-space solver on main: site classes, kernels, chemistry, engine and entry point
 
-Milestone: structure-solution · Status: ⬜
+Milestone: structure-solution · Status: 🔄 2026-10-23 — the site classes (PR #1013) and the solve kernels' crate source (PR #1015) landed from outside; the `kernels-v1.4.0` tag, the chemistry terms (#1016, held on its composition tolerance), the engine and the entry point remain
 Depends on: 1902 (shipped, the cost); 1901 soft (the map, needed only by completion); 1940 (shipped, the kernel crate)
 Priority: P2 2026-10-17 — a feature the open milestone was opened for, and three outside PRs (#1013, #1015, #1016) wait on this number
 
@@ -125,7 +125,7 @@ entries at the time):
 
 Each item is one PR off `main`. Check off as they land.
 
-- [ ] Site classes (#1013): `crystallography/site_classes.py`, `site_classes()`,
+- [x] Site classes (#1013): `crystallography/site_classes.py`, `site_classes()`,
       `site_assignments()`, an exact count and a named refusal past
       `MAX_SITE_ASSIGNMENTS`, checked across all 564 gemmi settings
 - [ ] Solve kernels (#1015): `kernels/src/solve.rs`, rietx-kernels 1.4.0, three
@@ -187,3 +187,9 @@ cancelled run returns what it has.
 ## Handover log
 
 - **2026-10-17** — created at the maintainer's request for the #562 chain; #1013, #1015 and #1016 are open against it, reviews in progress. Next: review each PR against this file.
+- **2026-10-23** — PR #1013 (head `019a0adc`) merged as `a1a1aa7d` and PR #1015 (head `0542346c`) as `bcdf80e0`, by `/pr-review`, in one gate with #1102.
+  *Done.* The site-classes task is checked. `site_classes()` and `site_assignments()` are on main, refusing past `MAX_SITE_ASSIGNMENTS` with the exact count. The solve kernels' source is in the crate as rietx-kernels 1.4.0, with its three entry points in `model/compiled.py`.
+  *Not done.* The solve-kernels task stays open until the `kernels-v1.4.0` tag is pushed and the wheel published. That is the maintainer's release step (`docs/RELEASING.md` § The kernel wheel), and this review did not take it. Until then every `@needs_solve` test skips against the published 1.3 wheel. Nothing in rietx calls the kernels yet.
+  *What the review established.* For #1013: an operator list whose special positions leave the 1/24 grid is refused (`SITE_CLASSES_GRID`) by two checks. (a) `_has_fixed_point` decides exactly, by integer row reduction of R − I, whether an operation fixes any point, and refuses one whose fixed points miss the grid. That covers an inversion at x = t/2 and a 3-fold at (2t/3, t/3). (b) A 1/48 scan looks for a point several operations share. Check (b) has no test of its own, because every current case trips (a) first. `MAX_SITE_ASSIGNMENTS` is tier 3, approved 2026-10-21, with grounds rewritten to what the evidence supports. For #1015: `check_cells` refuses a `g` that is not symmetric or not positive definite. The names sit in `SOLVE_NAMES` beside `KERNEL_NAMES`, and `KERNEL_FLOOR` stays 1.3. A 1.3 wheel still loads, and the three wrappers decline. The engine PR moves the names into `KERNEL_NAMES`, raises the floor, and carries round 1's notes: the N = 0 early return before the argument checks, `sig3` above 1000, references on the wrappers, a test that `SOLVE_NAMES` empties, and the numba spike's provenance line.
+  *Held.* #1016 (chemistry) waits on the maintainer's ruling on its composition tolerance. Its tolerance reads an occupancy's precision from its shortest decimal form, so a one-decimal value forgives 0.05 per atom. On a 192-fold site, 0.3 then passes 6.4 atoms short of Z = 64, while 0.32 is refused, and a plain 0.5 lets Z = 88 and Z = 104 both match 96 atoms. A float cannot say whether its file printed 0.5 or 0.500.
+  *Gate.* Main `3e0dc6f7` with #1102, #1015 and #1013 stacked (`35b9eff5`), macOS arm64, `[dev,jax]` with the published rietx-kernels 1.3.0, nothing else running. Fast suite: 11 322 passed, 195 skipped, 27 xfailed and 2 failed. Whole `-m slow`: 404 passed, 12 skipped, 14 xfailed and 4 failed. All six failures fail identically on main alone. CI's Kernels workflow built and tested the 1.4.0 wheel on #1015's head on five platforms. After the last merge, `git diff 35b9eff5 origin/main` was empty.

@@ -424,7 +424,7 @@ first, a gate after 2004; 2010 audits features against Rule 2; 2008 slims the sk
 
 #### The registry and the guard
 
-2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. 2014: that review on every other path into main, outside PRs and unwatched directories included. 2019: opt-in sets of bounds and defaults for one scenario, tested on the datasets they name, where a default too narrow for the package goes. [The WPs](wp/README.md#generality-the-registry-and-the-guard).
+2001: the rule written down, the audit table every later WP fills, the tripwire test and the fresh-context review the handover dispatches on a hit. 2014: that review on every other path into main, outside PRs and unwatched directories included. 2019: opt-in sets of bounds and defaults for one scenario, tested on the datasets they name, where a default too narrow for the package goes. 2037: the fifth aim, attention is a cost; a number in a field and a diagnostic only where it tells fits apart, a response per code with relevance derived from the declared purpose, a default view that prints by level, and a caller override (lands before 2003). 2038: the softening of unanimity for a recorded, cheap-to-undo default, a brief for the maintainer and not a change. [The WPs](wp/README.md#generality-the-registry-and-the-guard).
 
 #### The audits
 

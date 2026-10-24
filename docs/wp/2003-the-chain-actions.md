@@ -2,8 +2,8 @@
 
 Milestone: generality · Status: ⬜
 Track: The audits
-Depends on: 2002
-Priority: P2 2026-10-23 — 2002 closed (its last item, the width twin hold, reaches no chain action); the seam the maintainer's own example (a series discontinuity) lives in
+Depends on: 2002, 2037
+Priority: P2 2026-10-23 — 2002 closed (its last item, the width twin hold, reaches no chain action); the seam the maintainer's own example (a series discontinuity) lives in; waits on 2037, whose clause 1 sets the shape its first demotion takes
 
 ## Goal
 
@@ -85,6 +85,8 @@ the ten-pattern warm series of v1.1, the corpus series cited by number. Three fa
 the bar.
 
 ### Inherited
+
+- **From WP-2037 (2026-10-23, at filing): a demoted verdict becomes a field, not an `info` row that fires on every run.** The maintainer adopted 2037's clause 1 that day, reversing § Demotion's 2026-10-18 shape, so the discontinuity demotion in Context lands as `SeriesResult.steps` (every step in esds, largest first) with its explanation in `rietx.help` keyed to the field and one line in the trajectory block, and emits no diagnostic (`2037-attention/examples.md` § 5 is the mock-up). The `info`-record task in Tasks follows that shape once 2037 lands; 2037's response column and silence fixture apply to every code this WP keeps.
 
 - **From WP-2002 (2026-10-23, 9th session, PR #1113): the width twin hold makes a chain's carry policy matter.** The CPD QPA plan fits X and Y on each specimen before freeing the specimen widths, and the hold keeps whatever split that stage lands on, so the split now rides the warm start. On sample 1a-1h the chain carrying the widths but not the scales averages Rwp 0.1282, against 0.1256 carrying everything and 0.1258 fitted independently; `tests/test_acceptance_sequential.py::test_warm_start_iteration_cost_is_reported` is a strict xfail saying so. The chain's iteration saving stands (388 against 1218). A chain calibrated on a standard, its instrument held, is the protocol that avoids it.
 
