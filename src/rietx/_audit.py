@@ -2669,6 +2669,27 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
+    Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
+        evidence=("#1016 review round 4 (2026-10-23), the maintainer's suggestion: q <= 12 "
+                  "holds 1/2, 1/3, 1/4, 1/6, 1/8 and 1/12. No tool surveyed reads a printed "
+                  "occupancy as a fraction: checkCIF FORMU01 alerts past a fixed 0.01 atom per "
+                  "formula unit, pymatgen's CifParser.check warns at 0.01 in implied Z, "
+                  "cod-tools' EstimateZ.pm compares ratios exactly (the seven Rietveld programs not "
+                  "checked); fails where the true q > 12 (1/16 printed 0.06 is read as written); "
+                  "tests/test_solve_chemistry.py"
+                  "::test_the_inventory_tolerance_scales_with_the_part_occupied_multiplicity"),
+        grounds=("Judgement ground: Composition.require is a gate on a model the caller "
+                 "supplies (the S2 engine writes occupancy 1.0 on every site it places), and "
+                 "it reads 0.33, 0.333 and 0.3333 as 1/3 and 0.5 as 1/2 only, so a "
+                 "two-decimal 1/3 site holds 64 on a 192-fold site at any formula unit "
+                 "(checkCIF's fixed 0.01 refuses it written as Cu2 at Z = 32) and a half "
+                 "site holds 96 and nothing in 87-105. The as-written sum still counts, so a "
+                 "formula that says 0.17 is met by 0.17. Mechanical ground: pending; three "
+                 "published part-occupied structures from unrelated laboratories and "
+                 "materials, each accepted at its published composition and refused when "
+                 "mis-stated, before a default path calls require. Approved on the "
+                 "judgement ground while only tests call it (ruled 2026-10-24)."),
+        approved="2026-10-24"),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("magnetic.py docstring: the Ba2FeSbSe5 pair sits 0.081 deg apart, inside 0.5 deg "
