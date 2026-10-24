@@ -568,20 +568,46 @@ def _in_parse_frame(x: SuperspaceGroup, anti: SuperspaceOperator
     ref = parse_symbol(ssg_symbol(x))
     ref_of = {_rkey(o.rotation): o for o in ref.operations}
     ref_free = {tuple(abs(c) for c in f) for f in ref.q.free}
-    quarters = [Fraction(k, 4) for k in range(4)]
+    origins = _basic_origins(x, ref)
     for e, h in product((1, -1), product(range(-2, 3), repeat=3)):
         qn = SuperspaceTransform.build(s_m=h, s_eps=e).apply_to_q(x.q)
         along = {i for f in qn.free for i in range(3) if f[i]}
         if {tuple(abs(c) for c in f) for f in qn.free} != ref_free or any(
                 qn.rational[i] != ref.q.rational[i] for i in range(3) if i not in along):
             continue  # the part of q along a free direction is a label
-        for origin in product(quarters, repeat=3):
+        for origin in origins:
             t = SuperspaceTransform.build(s_m=h, s_eps=e, origin=origin)
             if _matches(t, x, ref_of):
                 return ref, t.conjugate(anti)
     raise ValueError(f"{ssg_symbol(x)!r} parses to a group that is not x moved by a "
                      f"change of origin and q → ±q + H; its 1' letter would name "
                      f"another group")
+
+
+def _basic_origins(x: SuperspaceGroup, ref: SuperspaceGroup) -> list[tuple]:
+    """Every 3D origin shift p taking the basic group of ``x`` onto that of
+    ``ref``: {v + (E − R)p} equal to ref's translations of R, as sets, for
+    every R (on the 1/24 grid every translation of the 230 settings sits on)."""
+    den = 24
+    def table(g):
+        out: dict = {}
+        for o in g.all_operations():
+            if o.theta == 1:
+                out.setdefault(_rkey(o.rotation), (o.rotation, set()))[1].add(
+                    tuple(int(t % 1 * den) for t in o.translation))
+        return out
+    mine, theirs = table(x), table(ref)
+    if set(mine) != set(theirs):
+        return []
+    found = []
+    for p in product(range(den), repeat=3):
+        for k, (r, ts) in mine.items():
+            rp = [sum(r[i][j] * p[j] for j in range(3)) for i in range(3)]
+            if {tuple((t[i] + p[i] - rp[i]) % den for i in range(3)) for t in ts} != theirs[k][1]:
+                break
+        else:
+            found.append(tuple(Fraction(c, den) for c in p))
+    return found
 
 
 def _matches(t: SuperspaceTransform, x: SuperspaceGroup, ref_of: dict) -> bool:

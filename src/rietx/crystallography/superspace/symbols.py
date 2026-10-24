@@ -444,14 +444,16 @@ def _letters_key(text: str) -> tuple:
 
 
 def _origin_shift(mine: dict, theirs: dict, den: int):
-    """p (in 1/den) with v + (E − R)p ∈ their translations for every op."""
+    """p (in 1/den) with {v + (E − R)p} equal to their translations of R, as
+    whole sets, for every R.  The identity's set is the centring vectors, so
+    I2₁2₁2₁ shifted by (¼,0,0) is not read as C222₁ (the same number of
+    centrings, a different one)."""
     for p in product(range(den), repeat=3):
         ok = True
         for r, ts in mine.items():
-            t0 = next(iter(ts))
             rp = tuple(sum(r[i][k] * p[k] for k in range(3)) for i in range(3))
-            moved = tuple((t0[i] + p[i] - rp[i]) % den for i in range(3))
-            if moved not in theirs[r]:
+            moved = {tuple((t[i] + p[i] - rp[i]) % den for i in range(3)) for t in ts}
+            if moved != theirs[r]:
                 ok = False
                 break
         if ok:

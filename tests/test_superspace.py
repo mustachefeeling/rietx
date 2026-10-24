@@ -399,6 +399,18 @@ def test_symbol_refusals(text, why):
         parse_symbol(text)
 
 
+def test_a_shifted_i_centred_group_is_not_named_as_a_c_centred_one():
+    """I2₁2₁2₁ and C222₁ both have two centrings; the centring vector decides
+    (ITC Table 4.3.2.1).  Moving I2₁2₁2₁(0,0,γ)000 by (¼,0,0) leaves its
+    symbol and class alone — it used to print as C222₁(0,0,γ)000, a different
+    group."""
+    g = parse_symbol("I 21 21 21(0,0,γ)000")
+    moved = g.transformed(SuperspaceTransform.build(origin=(F(1, 4), 0, 0)))
+    assert _setting_of(moved).xhm() == "I 21 21 21"
+    assert symbol(moved) == symbol(g) == "I2_12_12_1(0,0,γ)000"
+    assert equivalent(parse_symbol(symbol(moved)), moved)
+
+
 # ---------------------------------------------------------------------------
 # equivalence
 # ---------------------------------------------------------------------------

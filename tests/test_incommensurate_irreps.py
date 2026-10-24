@@ -373,6 +373,28 @@ def test_srfeo3_has_six_mssgs_with_figure6_degrees_of_freedom(srfeo3):
     assert all(g.group.magnetic_type == 4 for g in groups)       # all hold {1′|000½}
 
 
+@pytest.mark.slow
+def test_isotropy_groups_of_a_centred_parent_print_a_symbol_that_names_them_or_refuse():
+    """I4₁/amd at (0,0,γ), the two-dimensional irreps: some isotropy groups
+    are I-centred with their axes along the parent's diagonals, a setting no
+    table has.  Their symbol used to read C222₁(0,0,γ)00s, whose parse is
+    another group; each now round-trips, or is refused by name."""
+    named = refused = 0
+    for irr in inc.line_irreps("I 41/a m d", "(0,0,γ)", [1 / math.sqrt(7)]):
+        if irr.dimension != 2:
+            continue
+        for iso in inc.isotropy_superspace_groups(inc.line_order_parameter(irr)):
+            try:
+                text = symbol(iso.group)
+            except ValueError as err:
+                assert "tabulated setting" in str(err)
+                refused += 1
+                continue
+            assert equivalent(parse_symbol(text), iso.group), text
+            named += 1
+    assert named and refused
+
+
 def test_srfeo3_groups_are_figure6s_printed_groups(srfeo3):
     """Each printed group is one of the six, up to equivalence, after the
     change of cell its setting needs; SrFeO₃'s published group (MAGNDATA
