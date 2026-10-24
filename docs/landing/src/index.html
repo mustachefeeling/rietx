@@ -107,8 +107,7 @@ instrument.geometry.axial_hl.value = 0.02
 instrument.background = rx.BackgroundChebyshev.with_terms(6)
 
 ref = rx.Refinement(structure, instrument)
-result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
-                 two_theta_limits=(15, 130))
+result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>, two_theta_limits=(15, 130))
 <span class="k">print</span>(result)</pre></div>
     <div class="codebox"><div class="bar"><span>output</span></div>
 <pre class="out">RefinementResult: <span class="g">converged</span> (rietveld)

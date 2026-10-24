@@ -728,17 +728,17 @@ The exception carries no such field.
 print(result.provenance)
 ```
 
-A development build of 1.10 printed this on 2026-10-20, so the version strings are that build's:
+A 1.10 development build printed this:
 
 ```text
 Provenance
-  package_version: '1.10.0.dev0'
-  schema_version: '0.59'
-  backend: 'numpy'
-  dtype: 'float64'
-  solver: 'lm'
+  package_version:           '1.10.0.dev0'
+  schema_version:            '0.59'
+  backend:                   'numpy'
+  dtype:                     'float64'
+  solver:                    'lm'
   report_thresholds_version: '1.12'
-  created_utc: '2026-10-20T02:29:39Z'
+  created_utc:               '2026-10-20T02:29:39Z'
 ```
 
 | Field | Holds |
@@ -746,7 +746,7 @@ Provenance
 | `Provenance.package_version` | the rietx version that produced it |
 | `Provenance.schema_version` | the version of the data contract the objects follow |
 | `Provenance.backend` | the backend the arrays were computed on |
-| `Provenance.dtype` | the precision: `"float64"`, or `"float64/jacobian:float32"` on the Apple-GPU backend, whose Jacobian columns are single precision |
+| `Provenance.dtype` | the precision: `"float64"`, or `"float64/jacobian:float32"` on the Apple-GPU backend |
 | `Provenance.solver` | the least-squares driver |
 | `Provenance.report_thresholds_version` | the version of the thresholds a report is judged against |
 | `Provenance.created_utc` | when the result was assembled, in UTC |

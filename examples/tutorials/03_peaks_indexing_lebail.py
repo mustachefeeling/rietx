@@ -45,7 +45,8 @@ cif.write_text(
     "C1  C  0.25 0.7627 0.0850 0.80\n"
     "O1  O  0.25 0.9231 0.0952 1.25\n"
     "O2  O  0.4729 0.6801 0.0870 1.19\n",
-    encoding="utf-8")
+    encoding="utf-8",
+)
 truth = rx.Structure.from_cif(cif)
 
 # %% [markdown]
@@ -64,8 +65,10 @@ two_theta = np.arange(10, 80, 0.02)
 y = rx.Refinement(truth, true_instrument).predict(two_theta) - 200.0
 truth.phases[0].scale.value *= 20000 / y.max()
 y = rx.Refinement(truth, true_instrument).predict(two_theta)
-data = rx.PatternData(two_theta=two_theta,
-                      intensity=np.random.default_rng(0).poisson(y).astype(float))
+data = rx.PatternData(
+    two_theta=two_theta,
+    intensity=np.random.default_rng(0).poisson(y).astype(float),
+)
 data.plot()
 
 # %% [markdown]
@@ -134,9 +137,20 @@ chosen
 # `SearchSpec` limits it to orthorhombic cells, with a volume between 200 and 250 Å³ and no axis longer than 8.5 Å.
 # Those limits come from knowing the answer.
 # With a real unknown, start from the formula and a wide window, and let the search run longer.
+#
+# `budget_seconds` caps each engine's search of each crystal system, and its default is 30 s.
+# This search finishes inside that on a quiet laptop.
+# On a laptop running other work, one engine ran past 30 s and the whole call took 58 s.
+# A search stopped by its cap cannot rule anything out, so we allow 120 s.
 
 # %%
-spec = SearchSpec(systems=("orthorhombic",), min_volume=200, max_volume=250, max_d_axis=8.5)
+spec = SearchSpec(
+    systems=("orthorhombic",),
+    min_volume=200,
+    max_volume=250,
+    max_d_axis=8.5,
+    budget_seconds=120,
+)
 indexing = rx.index_pattern(peaks, data=data, instrument=lab, spec=spec)
 indexing
 
@@ -144,24 +158,28 @@ indexing
 # The top candidate is the true cell, with its axes in a different order.
 # All three search engines found it.
 #
-# Yet the verdict line says NO CELL.
-# rietx names a single cell only when exactly one candidate reaches high confidence, and this one is low for the reasons in its row.
+# The verdict line names it.
+# rietx names a single cell only when exactly one candidate reaches high confidence, and this one does.
+# Its row indexes 51 of the 54 usable lines, and none of the reflections it predicts is missing from the indexer's quick Le Bail fit.
+# The three lines it leaves are the candidate's `unindexed_two_theta`, printed below.
+# The one near 36° is two reflections 0.05° apart, fitted as one line between them.
 #
-# - `predicted_but_absent`: the indexer tests a candidate in the lattice's highest-symmetry space group, and that group has no systematic absences. Aragonite's real space group, Pmcn, has glide planes that remove some reflections. Those reflections are predicted but absent.
-# - `indexed_fraction_low`: some usable lines sit at no reflection of this lattice. Most are weak false lines the picker found near strong peaks. The line near 36° is two reflections 0.05° apart, fitted as one line between them.
+# The verdict depends on every search finishing.
+# An engine stopped by `budget_seconds` makes the row say `search_incomplete`, and the verdict line then says NO CELL.
 #
 # The candidate's `INDEX_IMPURITY_LINES` warning comes from the indexer's own quick Le Bail fit, whose Rwp in the candidate's row is poor.
 # A poor fit leaves many peaks unmatched, so that count is not evidence of a second phase.
 # Our own Le Bail fit below settles it.
 #
 # `best_or_none()` returns a cell only when the gate passes.
-# Here it returns `None`.
+# Here it returns the candidate.
 
 # %%
 print(indexing.best_or_none())
 
 # %% [markdown]
-# [`INDEX_ABSTAINED`](https://rietx.org/docs/stable/reference/diagnostics-indexing.html#index-abstained) says what the abstention means.
+# The candidate prints every field, its figures of merit included.
+# When no candidate reaches high confidence, `best_or_none()` returns `None` and the result carries [`INDEX_ABSTAINED`](https://rietx.org/docs/stable/reference/diagnostics-indexing.html#index-abstained).
 # [Indexing](https://rietx.org/docs/stable/theory/indexing.html#figures-of-merit-in-both-directions) explains the figures of merit behind the ranking.
 #
 # ## Check the candidate with Le Bail
@@ -177,12 +195,13 @@ structure = structure_from_candidate(candidate)
 structure.phases[0].space_group
 
 # %% [markdown]
-# As in notebook 01, start the background at the data's floor and run the plan twice.
+# As in notebook 01, start the background's constant term at the 5th percentile of the counts, and run the plan twice.
 
 # %%
 instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
 instrument.background = rx.BackgroundChebyshev.with_terms(4)
-instrument.background.coefficients[0].value = float(np.percentile(data.intensity, 5))
+c0 = float(np.percentile(data.intensity, 5))
+instrument.background.coefficients[0].value = c0
 
 ref = rx.Refinement(structure, instrument)
 first = ref.fit(data, mode="lebail", plan="profile_only")
@@ -201,10 +220,11 @@ ref.checkout(best.node_id)
 best
 
 # %% [markdown]
-# `FLOOR_HIT` says the profile's Y term, the Lorentzian width that grows as tan θ, refined to its lower limit.
-# The pattern was made with no such term, so here the limit is the right answer.
+# The fit raises no diagnostic.
+# The profile's Y term, the Lorentzian width that grows as tan θ, refined to zero within its esd.
+# The pattern was made with no such term, so zero is the right answer.
 #
-# The table under the summary starts with the refined cell edges.
+# The table under the summary starts with the refined lattice parameters.
 # They match the CIF's cell, in the candidate's order of axes.
 # Now look at the fit.
 
@@ -215,7 +235,7 @@ best.plot()
 # The fit puts a reflection under every peak and leaves only small residuals, so the lattice is right.
 #
 # Some ticks stand over no peak, such as those near 11° and 15.5°.
-# They are reflections P m m m allows and aragonite's glide planes remove.
+# They are reflections `P m m m` allows and aragonite's glide planes remove.
 #
 # What this does not settle is the space group.
 # That is a question about which reflections are absent, and it comes after the cell is refined.

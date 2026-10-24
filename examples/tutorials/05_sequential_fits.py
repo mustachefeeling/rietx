@@ -44,18 +44,19 @@ cif.write_text(
     "_atom_site_fract_y\n_atom_site_fract_z\n_atom_site_B_iso_or_equiv\n"
     "La1 La 0 0 0 0.4\n"
     "B1  B  0.1996 0.5 0.5 0.4\n",
-    encoding="utf-8")
+    encoding="utf-8",
+)
 lab6 = rx.Structure.from_cif(cif)
 
 # %% [markdown]
 # The ramp runs from 300 K to 900 K in steps of 100 K.
-# The cell edge grows by 5 × 10⁻⁶ of its 300 K length per kelvin, which is 0.05 % a step.
+# The lattice parameter a grows by 5 × 10⁻⁶ of its 300 K length per kelvin, which is 0.05 % a step.
 # `TRUE_A` holds the edge each pattern is made with.
 
 # %%
 TEMPERATURES = [300, 400, 500, 600, 700, 800, 900]
-A0 = 4.1566          # Å, the cell edge at 300 K
-EXPANSION = 5e-6     # per K
+A0 = 4.1566  # Å, the lattice parameter a at 300 K
+EXPANSION = 5e-6  # per K
 TRUE_A = [A0 * (1 + EXPANSION * (t - 300)) for t in TEMPERATURES]
 
 # %% [markdown]
@@ -71,7 +72,7 @@ true_instrument.background.coefficients[1].value = -6.0
 true_instrument.background.coefficients[2].value = 1.5
 
 # %% [markdown]
-# `simulate` makes one pattern at a given cell edge: `predict` computes it, and Poisson counts are drawn from it.
+# `simulate` makes one pattern at a given lattice parameter a: `predict` computes it, and Poisson counts are drawn from it.
 # It stays a function because the ramp calls it once a pattern, and the last two sections call it again.
 
 # %%
@@ -84,7 +85,8 @@ def simulate(a, seed):
         getattr(specimen.phases[0].cell, edge).value = a
     specimen.phases[0].scale.value = 5e-4
     y = rx.Refinement(specimen, true_instrument).predict(two_theta)
-    counts = np.random.default_rng(seed).poisson(np.maximum(y, 1.0)).astype(float)
+    rng = np.random.default_rng(seed)
+    counts = rng.poisson(np.maximum(y, 1.0)).astype(float)
     return rx.PatternData(two_theta=two_theta, intensity=counts)
 
 
@@ -102,9 +104,15 @@ patterns[0]
 folder = work / "ramp"
 folder.mkdir()
 for scan, pattern in enumerate(patterns, start=8):
-    np.savetxt(folder / f"scan{scan}.xy", np.column_stack([pattern.two_theta, pattern.intensity]),
-               fmt="%.4f %.0f", encoding="utf-8")
-log = "scan,temperature_K\n" + "".join(f"{scan},{t}\n" for scan, t in enumerate(TEMPERATURES, start=8))
+    np.savetxt(
+        folder / f"scan{scan}.xy",
+        np.column_stack([pattern.two_theta, pattern.intensity]),
+        fmt="%.4f %.0f",
+        encoding="utf-8",
+    )
+log = "scan,temperature_K\n" + "".join(
+    f"{scan},{t}\n" for scan, t in enumerate(TEMPERATURES, start=8)
+)
 (folder / "temperatures.csv").write_text(log, encoding="utf-8")
 
 sorted(path.name for path in folder.glob("*.xy"))
@@ -114,9 +122,15 @@ sorted(path.name for path in folder.glob("*.xy"))
 # Sort on the number in the name instead, and look each temperature up in the log rather than assuming the order.
 
 # %%
-files = sorted(folder.glob("*.xy"), key=lambda path: int(re.search(r"\d+", path.stem).group()))
+files = sorted(
+    folder.glob("*.xy"),
+    key=lambda path: int(re.search(r"\d+", path.stem).group()),
+)
 with open(folder / "temperatures.csv", encoding="utf-8", newline="") as handle:
-    temperature_of = {f"scan{row['scan']}": float(row["temperature_K"]) for row in csv.DictReader(handle)}
+    temperature_of = {
+        f"scan{row['scan']}": float(row["temperature_K"])
+        for row in csv.DictReader(handle)
+    }
 
 loaded = [rx.read_pattern(path) for path in files]
 loaded_x = [temperature_of[path.stem] for path in files]
@@ -165,13 +179,21 @@ instrument.background = rx.BackgroundChebyshev.with_terms(3)
 # `carry=["phases.*", "instrument.zero_shift"]` would restart the background and the peak widths on every pattern.
 
 # %%
-series = rx.refine_sequential(loaded, structure, instrument, carry=["*"], plan="mccusker_default",
-                              x=loaded_x, x_label="T (K)", labels=scans)
+series = rx.refine_sequential(
+    loaded,
+    structure,
+    instrument,
+    carry=["*"],
+    plan="mccusker_default",
+    x=loaded_x,
+    x_label="T (K)",
+    labels=scans,
+)
 series
 
 # %% [markdown]
 # Every pattern converged.
-# Both diagnostics are `SEQUENTIAL_PERSISTENT_FINDING`, a per-pattern finding that fired on most of the series.
+# Both diagnostics are `SEQUENTIAL_PERSISTENT_FINDING`, a per-pattern finding that fired on every pattern of the series.
 # Such a finding describes the model rather than any one fit.
 # [Read the diagnostics first](https://rietx.org/docs/stable/guides/series.html#read-the-diagnostics-first) explains these two.
 #
@@ -225,8 +247,16 @@ series.plot("phases.0.cell.a")
 # `summary(deliverable="series")` prints the rows that decide whether a trajectory can be quoted.
 
 # %%
-both = rx.refine_sequential(loaded, structure, instrument, plan="mccusker_default",
-                            x=loaded_x, x_label="T (K)", labels=scans, direction="both")
+both = rx.refine_sequential(
+    loaded,
+    structure,
+    instrument,
+    plan="mccusker_default",
+    x=loaded_x,
+    x_label="T (K)",
+    labels=scans,
+    direction="both",
+)
 print(both.summary(deliverable="series"))
 
 # %% [markdown]
@@ -250,12 +280,19 @@ both.backward.trajectory("phases.0.cell.a")
 # %%
 jumped = list(loaded)
 jumped[4] = simulate(TRUE_A[4] * 1.02, seed=15)
-series_jump = rx.refine_sequential(jumped, structure, instrument, plan="mccusker_default",
-                                   x=loaded_x, x_label="T (K)", labels=scans)
+series_jump = rx.refine_sequential(
+    jumped,
+    structure,
+    instrument,
+    plan="mccusker_default",
+    x=loaded_x,
+    x_label="T (K)",
+    labels=scans,
+)
 series_jump
 
 # %% [markdown]
-# `SEQUENTIAL_DISCONTINUITY` marks the step, once for each cell edge, because the cubic cell ties b and c to a.
+# `SEQUENTIAL_DISCONTINUITY` marks the step, once for each of a, b and c, because the cubic cell ties b and c to a.
 # It cannot tell a real change from a failed fit, so check the pattern's own fit before reading the jump as physics.
 # [Check a step against two independent fits](https://rietx.org/docs/stable/guides/path.html#check-a-step-against-two-independent-fits) shows the check rietx runs for you.
 #
@@ -271,9 +308,10 @@ series_jump.trajectory("phases.0.cell.a")
 [entry.rung for entry in series_jump]
 
 # %% [markdown]
-# The warm start from the 600 K answer failed at 700 K.
-# The series fitted that pattern again with the whole plan from the same start, which is the `warm_staged` attempt.
-# The 800 K pattern started from the larger cell and needed the same rescue.
+# Every pattern after the first took its values from the plain `warm` attempt, the 700 K one included.
+# Started from the 600 K answer, that fit reached the cell 2 % larger on its own.
+# When a warm start fails, the series fits the pattern again with the whole plan from the same start.
+# That attempt is `warm_staged`, and this list is where it would show.
 #
 # ## A pattern the chain cannot fit
 #
@@ -282,8 +320,15 @@ series_jump.trajectory("phases.0.cell.a")
 # %%
 broken = list(loaded)
 broken[4] = simulate(TRUE_A[4] * 1.05, seed=15)
-series_broken = rx.refine_sequential(broken, structure, instrument, plan="mccusker_default",
-                                     x=loaded_x, x_label="T (K)", labels=scans)
+series_broken = rx.refine_sequential(
+    broken,
+    structure,
+    instrument,
+    plan="mccusker_default",
+    x=loaded_x,
+    x_label="T (K)",
+    labels=scans,
+)
 series_broken
 
 # %% [markdown]

@@ -899,18 +899,6 @@ class PhaseMicrostructure(Base):
         body = table_text(MICROSTRUCTURE_HEADER, rows, "  ") if rows else []
         return "\n".join([head, *body, *("  " + line for line in tail)])
 
-    def _repr_html_(self) -> str:
-        """The terms as a table between the head line and the verdict lines."""
-        from .._display import (
-            MICROSTRUCTURE_HEADER,
-            microstructure_sections,
-            pre_html,
-            table_html,
-        )
-        head, rows, tail = microstructure_sections(self)
-        table = table_html(MICROSTRUCTURE_HEADER, rows) if rows else ""
-        return pre_html(head) + table + pre_html("\n".join(tail))
-
 
 class MomentAngleTest(Base):
     """One round of the stationary-angle test on a stage's covariance (WP-1929).
@@ -1645,21 +1633,27 @@ def _diagnostic_parts(diagnostics: list[Diagnostic], deliverable: str | None = N
             DIAGNOSTICS_READING_RULE if deliverable is None else None)
 
 
-def _diagnostic_lines(diagnostics: list[Diagnostic],
-                      deliverable: str | None = None) -> list[str]:
+def _diagnostic_lines(diagnostics: list[Diagnostic], deliverable: str | None = None,
+                      *, notebook: bool = False) -> list[str]:
     """Section 2a: the first stop condition, as :func:`diagnostic_view` prints it.
 
     Present even at zero (WP-1302's acceptance: the stop-condition lines are
     on *every* fit, including one with nothing to report), so a caller never
     has to distinguish "no diagnostics" from "this section did not run".
+    ``notebook`` wraps every row at the notebook's width and adds each code's
+    explanation as ``means:``, under ``help:`` on a full row and under the one
+    line on a short one (:mod:`rietx._display`), so a notebook still says what
+    each row means while ``print`` stays one line a row (WP-2039, WP-2037).
     """
+    from .._display import diagnostic_lines, short_lines, wrapped_note
     header, printed, rule = _diagnostic_parts(diagnostics, deliverable)
     lines = [header]
     for row, short in printed:
-        lines += ([f"    {line}" for line in str(row.diagnostic).splitlines()]
-                  if short is None else [f"    {short}"])
+        lines += (diagnostic_lines(row.diagnostic, "    ", notebook=notebook)
+                  if short is None else
+                  short_lines(row.diagnostic, short, "    ", notebook=notebook))
     if rule:
-        lines.append(f"    {rule}")
+        lines += wrapped_note(rule, "    ", notebook=notebook)
     return lines
 
 
@@ -2160,10 +2154,12 @@ class RefinementResult(Base):
                                            joint=self.parametric_form_joint)
 
     def _repr_html_(self) -> str:
-        """The termination view, then the refined parameters as a table
-        (WP-1544). The text is what ``print`` gives; the table is the same
-        numbers as ``parameters``."""
-        from .._display import _number, diagnostic_rows_html, pre_html, table_html
+        """The notebook form, in one ``<pre>`` (WP-1544, WP-2039): the
+        termination view ``print`` gives, with each diagnostic's explanation
+        under its ``help:`` line, then the refined parameters as a table of
+        the same numbers as ``parameters``."""
+        from .._display import _number, pre_html, table_text
+        lines = self._text_lines(notebook=True)
         rows = [(p.path, _number(p.value, p.stderr),
                  "" if p.at_bound is None else str(p.at_bound).lower())
                 for p in self.parameters]
@@ -2174,16 +2170,9 @@ class RefinementResult(Base):
             header += ("equations",)
             rows = [(*row, ", ".join(p.equations or ()))
                     for row, p in zip(rows, self.parameters, strict=True)]
-        table = table_html(header, rows) if rows else ""
-        before, after = self._text_parts()
-        # the text form's rows (WP-2037), a short one with what it leaves out folded
-        head, printed, rule = _diagnostic_parts(self.diagnostics)
-        before.append(head)
-        if rule:
-            after.insert(0, f"    {rule}")
-        return (pre_html("\n".join(before))
-                + diagnostic_rows_html([(r.diagnostic, short) for r, short in printed])
-                + pre_html("\n".join(after)) + table)
+        if rows:
+            lines += [f"  parameters: {len(rows)}", *table_text(header, rows, "    ")]
+        return pre_html("\n".join(lines))
 
     def __str__(self) -> str:
         """The termination view a bare result can answer (WP-1302): per-stage
@@ -2199,16 +2188,16 @@ class RefinementResult(Base):
         is what a caller holding only the result — the return value of
         ``fit()``, or one read back from a project — can print without it.
         """
-        before, after = self._text_parts()
-        return "\n".join(before + _diagnostic_lines(self.diagnostics) + after)
+        return "\n".join(self._text_lines())
 
-    def _text_parts(self) -> tuple[list[str], list[str]]:
-        """The lines before the diagnostics and the lines after them, so the
-        HTML view can fold each diagnostic between the two."""
-        before = [f"RefinementResult: {self.status} ({self.mode})"]
-        before += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
-        after = _parametric_lines(self.parametric, self.parametric_form,
-                                  self.parametric_form_joint)
-        after.append(_provenance_line(self.provenance))
-        after.append(_agreement_line(self.statistics))
-        return before, after
+    def _text_lines(self, notebook: bool = False) -> list[str]:
+        """The termination view's lines; ``notebook`` adds each diagnostic's
+        explanation (:func:`_diagnostic_lines`)."""
+        lines = [f"RefinementResult: {self.status} ({self.mode})"]
+        lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
+        lines += _diagnostic_lines(self.diagnostics, notebook=notebook)
+        lines += _parametric_lines(self.parametric, self.parametric_form,
+                                   self.parametric_form_joint)
+        lines.append(_provenance_line(self.provenance))
+        lines.append(_agreement_line(self.statistics))
+        return lines

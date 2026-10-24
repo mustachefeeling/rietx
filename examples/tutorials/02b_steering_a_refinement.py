@@ -47,12 +47,17 @@ result.status
 # Check that against the data before constraining anything.
 
 # %%
-OXYGENS = ["phases.0.atoms.4.biso", "phases.0.atoms.5.biso", "phases.0.atoms.6.biso"]
+OXYGENS = [
+    "phases.0.atoms.4.biso",
+    "phases.0.atoms.5.biso",
+    "phases.0.atoms.6.biso",
+]
 [result.parameter(path) for path in OXYGENS]
 
 # %% [markdown]
-# Each value lies within about one esd of the others.
-# The data cannot tell them apart, so one shared value loses nothing and spends two fewer parameters.
+# The three values agree within their esds.
+# No two differ by much more than the esd of their difference.
+# The data cannot tell them apart, so one shared value loses nothing and refines two fewer parameters.
 # `tie_equal` makes the second and third follow the first.
 # Refit with the same plan, so the tie is the only difference from the first fit.
 
@@ -76,7 +81,11 @@ tied = ref.fit(data, plan="mccusker_structural", two_theta_limits=(15, 130))
 # Run it from where the tied fit ended, and expect a warning about the pair.
 
 # %%
-SHIFTS = ["instrument.zero_shift", "instrument.geometry.sample_displacement", "phases.0.cell.a"]
+SHIFTS = [
+    "instrument.zero_shift",
+    "instrument.geometry.sample_displacement",
+    "phases.0.cell.a",
+]
 both = ref.fit(data, plan="lab_bragg_brentano", two_theta_limits=(15, 130))
 [both.parameter(path) for path in SHIFTS]
 
@@ -85,7 +94,11 @@ both = ref.fit(data, plan="lab_bragg_brentano", two_theta_limits=(15, 130))
 # Ask the diagnostics which pairs they found correlated with the zero shift.
 
 # %%
-[d for d in both.diagnostics if d.code == "HIGH_CORRELATION" and "instrument.zero_shift" in d.where]
+[
+    d
+    for d in both.diagnostics
+    if d.code == "HIGH_CORRELATION" and "instrument.zero_shift" in d.where
+]
 
 # %% [markdown]
 # The first warning says the zero shift and the displacement move together completely.
@@ -134,7 +147,7 @@ held = ref.fit(data, plan="lab_bragg_brentano", two_theta_limits=(15, 130))
 # ## The final structural fit
 #
 # `lab_bragg_brentano` refines the profile and the instrument but leaves the atoms alone.
-# Refine the structure once more, with the zero shift held, the displacement as just measured, and the tie in place.
+# Refine the structure once more, with the zero shift held, the displacement at the value the last fit measured, and the tie in place.
 
 # %%
 final = ref.fit(data, plan="mccusker_structural", two_theta_limits=(15, 130))
