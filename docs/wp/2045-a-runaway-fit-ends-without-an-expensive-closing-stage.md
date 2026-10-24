@@ -7,11 +7,13 @@ Priority: P2 2026-10-24 — a defect that costs a user a workaround: a fit that 
 
 ## Goal
 
-A fit whose last declared stage ends at a runaway answer finishes in a time
-comparable to its declared stages, and says what it skipped or held. The
+The stage before a plan's closing stage converges at the solver's tolerance,
+so it does not stop on the frozen-window plateau measured below and hand
+the closing stage a runaway to compile (ruled 2026-10-24, option 5). The
 hostile series in `tests/test_acceptance_sequential.py` (`chained_all`)
 finishes on every platform. The nightly `full` job completes inside its
-150-minute limit again.
+150-minute limit again. What the change costs the four acceptance standards
+is measured and stated.
 
 ## Context
 
@@ -116,7 +118,8 @@ declared stage's.
   0, Rwp 0.779, 261 s): the windows catch up too late.
 - **A re-solve after the runaway does not repair it.** From the answer, on
   fresh declared-precision windows, `ftol` 1e-6 goes further (`axial_sl`
-  4 114, Rwp 0.782, 32 s). So a check at the stage boundary can refuse to
+  4 114, Rwp 0.782, 32 s). At 1e-9 it reaches 4 100 and hits its
+  400-evaluation cap (156 s). So a check at the stage boundary can refuse to
   build on a runaway but cannot undo one.
 
 **Moving windows were described but never offered.** The freeze dates from
@@ -142,7 +145,14 @@ job. That job timed out as cancelled, with no durations table (WP-2036
 item 1). The one local slow run on a tree with #1085 (arm64 Mac,
 `12f459e5`, before #1113) finished in 18 min.
 
-**Design candidates, none chosen.** Each needs the maintainer's ruling, and
+**Ruled 2026-10-24: option 5 here, for 1.10.1, and option 4 as
+[WP-2047](2047-windows-follow-the-parameters-between-solves.md).** The
+maintainer's answer, to the candidates below with the measurements above:
+"5 now, 4 as own WP". Option 5 sets no threshold, so it adds no `_audit`
+row of its own. It changes what `stage_ftols` gives the last declared
+stage, so the `intermediate_ftol` rows are re-read against it.
+
+**Design candidates, as put to the maintainer.** Each needs the maintainer's ruling, and
 the generality audit table needs a row for any threshold
 (`src/rietx/_audit.py`; root CLAUDE.md § Every heuristic has a row):
 
@@ -224,12 +234,30 @@ clamps a cell after a solve", which was recalled, not checked.
 
 ## Tasks
 
-- [ ] A fast test that reproduces the cost at compile, without running the
-      expensive solve: compile cpd-1b's closing model at the runaway answer
-      and assert the decision the chosen design makes
-- [ ] The design, put to the maintainer with this file's numbers
-- [ ] The implementation, its record field and diagnostic, and its `_audit`
-      row
+- [x] The design, put to the maintainer with this file's numbers. Ruled
+      2026-10-24: option 5, and option 4 filed as WP-2047.
+- [ ] Measure option 5 before building it, as the ruling asked: on the four
+      acceptance protocols (SRM 660c LaB6, the fluorapatite tutorial,
+      cpd-1a, 11-BM NAC), the whole-fit time and the largest shift in plain
+      esd against the shipped tree, in the shape of WP-2002's eighth-round
+      table. Emulate it first with the last declared stage's own `ftol` set
+      to `optimize.lm.FTOL`, since a stage's own `ftol` wins in
+      `stage_ftols`. If the cost exceeds what `intermediate_ftol` saves
+      (1.2-1.6× fewer evaluations, WP-1123), put the numbers to the
+      maintainer.
+- [ ] The implementation: `RefinementPlan.stage_ftols` gives the last
+      declared stage the solver's tolerance when a closing stage follows it,
+      a stage's own `ftol` still winning. `PlanSpec` reaches it through
+      `resolve_plan`, and the collapsed warm plan in `sequential.py` through
+      the plan it builds. `StageResult.ftol` already records what a stage
+      ran at.
+- [ ] A test that fails before the change: the hostile series' cpd-1b warm
+      stage from cpd-1a's closing answer ends with `axial_sl` under 1 (it
+      reaches 555 on the 1.10.0 tree in about 14 s on Linux), and a fast
+      `stage_ftols` test on a plan with and without a closing stage
+- [ ] The `intermediate_ftol` rows in `src/rietx/_audit.py`, and the
+      `INTERMEDIATE_FTOL` and `CLOSING_WINDOW_TOL` docstrings, re-read
+      against the new schedule
 - [ ] `tests/test_acceptance_sequential.py` finishes; VALIDATION.md's three
       `chained_all` rows (marked unmeasured on 1.10.0) re-measured
 - [ ] Notes for 1.10.1 (`docs/releases/`), and the 1.10.0 stated limit
@@ -262,3 +290,12 @@ committed) ran `SequentialRefinement(...).fit` on cpd-1a and cpd-1b under
   the nightly legs being green and gets an Inherited pointer, 2012 owns the
   axial pair's identity, 2020 owns opt-in bound sets. The maintainer chose to
   cut 1.10.0 with the limit stated and fix it here.
+- **2026-10-24 (ruling session, after the cut)** — the design was put to the
+  maintainer over three rounds. The first two were options 1-3. The
+  maintainer then asked how the rounds had missed this, what practice said,
+  and whether windows that follow every evaluation had been considered. The
+  session reproduced the runaway on Linux and measured what it is (Context,
+  the four "measured" bullets). It recorded how the rounds missed it and
+  GSAS-II's `dropOOBvars`, and added candidates 4-7. Ruled: option 5 here,
+  option 4 as WP-2047. No code changed. Next: measure option 5 on the four
+  standards (the second task) before building it.
