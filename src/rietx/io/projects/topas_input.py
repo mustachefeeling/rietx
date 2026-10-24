@@ -65,7 +65,7 @@ _SABINE_XPOL = 0.079411
 #: AMS 55, eqs 9.8.1-9.8.4. Below the switch, I₀ and I₁/x are polynomials in
 #: (x/3.75)²; above it, √x·e^(−x)·I₀ and √x·e^(−x)·I₁ are polynomials in 3.75/x.
 #: Against scipy's ``i0e + i1e`` the spelled E_L is within 3.6e-8 relative for
-#: every x > 0, and it steps by 6e-9 at the switch (WP-2044).
+#: x in (0, 10⁴], the range tested, and it steps by 6e-9 at the switch (WP-2044).
 _BESSEL_SWITCH = 3.75
 _I0_SMALL = (1.0, 3.5156229, 3.0899424, 1.2067492, 0.2659732, 0.0360768, 0.0045813)
 _I1_SMALL = (0.5, 0.87890594, 0.51498869, 0.15084934, 0.02658733, 0.00301532,

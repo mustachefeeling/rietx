@@ -212,6 +212,17 @@ a `tests/data/README.md` row.
 
 ### Inherited
 
+- **2026-10-24, from [2044](2044-the-sabine-laue-factor-is-continuous.md):
+  two facts for C3 and the TOPAS writer.** FullProf's powder extinction is one
+  empirical parameter (`Extinc`, the SHELX-style form), with no Laue and Bragg
+  split. `Ext-Model` is single-crystal only. So a `.pcr` cannot carry rietx's
+  Sabine factor, and C3 decides between refusing a non-zero extinction and
+  writing the nearest empirical term with the difference reported
+  (`docs/practice.md` § Extinction, checked in the FullProf manual). The TOPAS
+  writer's `scale_pks` now spells rietx's e^(−x)·[I₀ + I₁] as Abramowitz &
+  Stegun's polynomials, within 3.6e-8, since TOPAS has no Bessel function. It
+  has not been run in TOPAS: the TOPAS 6 oracle at extinction 20 still
+  matches, but that case keeps x small.
 - **2026-10-23, from [1326](1326-satellites-without-a-moment.md)'s close
   (originally WP-1328, 2026-10-03): `Structure.to_cif` writes no k for a
   nuclear phase.** A phase with `Phase.propagation_vector` set carries

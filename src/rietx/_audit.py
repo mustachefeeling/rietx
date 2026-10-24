@@ -1572,8 +1572,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.extinction._ARG_SHIFT", "constant", tier="invariant",
         value=1.1754943508222875e-38,
         evidence=("answer-invariant: x + 2^-126 == x in fp64 for x >= 2^-72, and below that E_L "
-                  "rounds to 1 either way, so no selected value moves; it only gives autodiff "
-                  "the one-sided slope -1/2 at x = 0 (WP-2044); "
+                  "rounds to 1 either way, so no selected value moves; it only sets the slope "
+                  "at x = 0 to -1/2, where numpy would read 0/0 and jax and torch +1/2 (WP-2044); "
                   "tests/test_extinction.py::test_laue_shift_never_moves_a_value_that_is_actually_selected")),
     Row("rietx.model.extinction._XPOL", "constant", tier=1, value=0.079411,
         evidence=("physics: (r_e x 1e4 A/um)^2 with r_e = 2.818 fm is 0.079411; GSAS-II 5.8.4 "
