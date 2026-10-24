@@ -43,6 +43,24 @@ The Lorentzian column is the area a pure Lorentzian loses to the default cut.
 | MAUD, EasyDiffraction (cryspy) | no FCJ; an empirical or Bérar-Baldinozzi asymmetry |
 | BGMN | ray-traced instrument function, computed once before the fit and held |
 
+## Axial divergence at zero, and whether a refine flag reaches the calculation
+
+Surveyed 2026-10-25 for WP-1421 (#774's zero case). rietx sizes the FCJ nodes and the peak
+window as if S/L = H/L = 0.02 when both sit at zero and either is free, so that a refinement
+starting from zero has a live finite-difference column. A model at zero therefore draws a
+curve that depends on its free set, by 1.66e-4 of the strongest peak.
+
+| Program | At zero | Does a refine flag reach the profile? |
+|---|---|---|
+| rietx | FCJ off when both are 0; sized at 0.02 when free (`forward.AXIAL_SIZING_FLOOR`) | yes, at exactly zero only |
+| GSAS-II | never computed: one parameter SH/L = (S+H)/L, floored at 0.002 by value for the profile and its window at every evaluation, refined or not; the Fortran's zero branch gives a stand-in derivative of 0.002·sign(Δ2θ) (checked) | no; windows come from values each evaluation |
+| TOPAS, FullProf, RIETAN-FP | not read this session | not read this session |
+
+GSAS-II 5.8.4 sources: the floor at `GSASIIstrMath.py:3980` (profile) and `:4309`
+(derivatives), 0.0005 at `:3723` (`GetFobsSq`); the window `GSASIIpwd.getWidthsCW`
+(`GSASIIpwd.py:811-832`) widens its low-angle side by 50·SH/L·|cos 2θ|; the zero branch and its
+stand-in derivative in `sources/powsubs/psvfcjo.for:139` and `:288-299`.
+
 ## Reflections past the fitted range
 
 | Program | Margin |

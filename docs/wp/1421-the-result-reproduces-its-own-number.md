@@ -159,17 +159,27 @@ below are folded here, and their mailbox is emptied.
 - [x] Measure: for every acceptance fixture and every golden, χ² and Rwp on
       the last stage's compile against a fresh compile at θ\*. The table
       goes in the handover and decides (a).
-- [ ] The statistics block says which compile produced it, and carries the
+- [x] The statistics block says which compile produced it, and carries the
       fresh-compile χ² when one was measured. The writer is named at review
-      (1076).
+      (1076). **Closed without a field, 2026-10-25, by the maintainer's
+      ruling.** Every result but a Pawley one is now measured on a compile at
+      its answer (single fit since #432, joint fit since this WP), so which
+      compile produced the figures is a function of `result.mode`, and
+      `reference/result.md` says so. A field would be a name whose value the
+      mode already fixes. `FROZEN_COMPILE_STALE` quotes both χ² past 1 %.
 - [x] Decide (a) from the table. If taken, one compile after the last stage,
       and the goldens regenerated in the same commit with the diff quoted.
 - [x] `using/history.md`'s staleness sentence and the results chapter say
       which compile a result's statistics come from.
 - [x] Tests: a fixture whose last stage moves a window-sizing parameter
       asserts the statement; under (b) every golden stays bit-identical.
-- [ ] Skill: a `references/judging.md` row saying which compile a reported
-      Rwp comes from, and that the difference is not a fit defect.
+- [x] Skill: a `references/judging.md` row saying which compile a reported
+      Rwp comes from, and that the difference is not a fit defect. **Closed,
+      2026-10-25, by the maintainer's ruling**: the package's help text and the
+      skill's `diagnostics.md` row, keyed by the code and rewritten in this WP,
+      carry it, and the skill puts guidance in the cheapest place that holds
+      it (WP-1338). The premise "not a fit defect" is also false on two
+      measured cases (Context).
 - [x] `FROZEN_COMPILE_STALE` claims only what its evidence shows: drop "the
       fit is not biased" from `help.py`, `_final_compile`'s docstring and the
       skill's `diagnostics.md` row, and say what does re-solve (the closing
