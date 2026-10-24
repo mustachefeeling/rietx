@@ -3826,7 +3826,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "coordinates are moved onto the position as well. The multiplicity sets how "
             "many atoms the site puts in the cell, so it changes the density and every "
             "weight fraction. If it matches the source, the coordinates were only "
-            "rounded."
+            "rounded. A CIF site whose printed digits already round to the position, "
+            "within `rietx.crystallography.cif.CIF_PRINTED_ROUNDING` of the last digit, "
+            "is read on it and not reported, so this fires on a deviation the file "
+            "printed."
         ),
     ),
     "SIZE_NORMALISED_ACROSS_WAVELENGTHS": HelpEntry(
