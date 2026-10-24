@@ -77,6 +77,71 @@ mechanism: the closing stage compiles at whatever answer it is handed).
 2026-10-24, option A of WP-2043): `RefinementPlan.closing_window_tol=None`
 skips the closing stage.
 
+**What the runaway is, measured 2026-10-24 after the cut** (Linux x86-64
+cloud container, 4 cores, `[dev]`, Python 3.12, `OPENBLAS_NUM_THREADS=1`,
+tree `7d24e09e7`; probes in that session's scratchpad, not committed). The
+probes ran cpd-1a → cpd-1b under `chained_all`'s protocol. They wrapped
+`refine.compile_model` and stopped at the runaway closing compile, which they
+reached in 13.6 s. The warm stage ended "converged" at `axial_sl` 555, with
+`w` 0.27 and `v` −5.5. Its closing compile holds 873.7 M point-nodes
+(window points × FCJ nodes, all phases and lines). That is 1 608× the warm
+stage's own compile, where cpd-1a's normal closing compile is 19× its last
+declared stage's.
+
+- **It is a minimum of the frozen model only.** The probes evaluated the
+  answer on the model the stage solved on and on fresh compiles. On the
+  frozen windows Rwp is 0.760. On fresh windows it is 1.376 at the declared
+  precision and 1.294 at the closing precision. The stage started at 1.748.
+  At the answer the frozen windows drop **73.4 %** of the Bragg intensity
+  a fresh compile computes, and χ²(fresh)/χ²(frozen) is 3.27. On every
+  declared stage of cpd-1a's fit the same measure is 0.00-1.32 %, with a χ²
+  ratio of 0.94-1.00. The mechanism, inferred from `forward.py:3980-3990`
+  and `fcj.py:129-149`: as S/L grows, the asymmetry spreads each peak beyond
+  the window frozen at the stage's start, and the part outside drops out of
+  the model. So S/L, and the widths, act as an intensity sink, and the warm
+  start's scales, carried from cpd-1a, are too strong for cpd-1b.
+- **The tolerance stops the stage on the sink's plateau.** The same frozen
+  stage, from the same start, ends at `axial_sl` 554.99 under `ftol` 1e-6
+  and at 0.0139 (Rwp 0.196) under 1e-9. The 100-iteration cap changes
+  neither (`max_iter` 100 and 400 agree). The warm stage runs at
+  `intermediate_ftol` only because a closing stage follows it
+  (`stage_ftols`, WP-1123). Before #1085 it was the last stage, at 1e-9.
+  So #1085 combined three changes, not two: the ceiling, the closing stage,
+  and the looser tolerance the closing stage gave the stage before it.
+- **Windows that follow the parameters remove the runaway.** The probes ran
+  the same warm fit as short stages, each recompiling, closing stage off:
+  every 10 iterations ends at Rwp 0.142 (`axial_sl` 0.0077) in 11 s, and
+  every 3 at the same answer in 25 s. The independent fit gets 0.137.
+  Every 50 iterations runs further away (`axial_sl` 4 041, zincite's scale
+  0, Rwp 0.779, 261 s): the windows catch up too late.
+- **A re-solve after the runaway does not repair it.** From the answer, on
+  fresh declared-precision windows, `ftol` 1e-6 goes further (`axial_sl`
+  4 114, Rwp 0.782, 32 s). So a check at the stage boundary can refuse to
+  build on a runaway but cannot undo one.
+
+**Moving windows were described but never offered.** The freeze dates from
+v0.1 (DESIGN.md rule 1, whose stated reason, "gradient bias", the record
+never measured). WP-2002's sixth-round brief listed GSAS-II, MAUD,
+RIETAN-FP and EasyDiffraction as moving their windows at every evaluation,
+and TOPAS as rebuilding them past a tolerance. All four of its options kept
+the freeze (`2002-batch/rulings.md`, Q1). In the eighth round the maintainer
+asked what those programs do. The five variants measured were all frozen
+(`rulings.md`, § Eighth round).
+
+**How the rounds missed it.** B9's brief named the boxes it covered and not
+the axial ratios. Those sat in the `Geometry:bounds` hand row, and the
+session read "no chosen limits on quantities that remain physical" as
+covering them (WP-2002's handover). But `axial_sl` 555 is a sample
+half-length 555 goniometer radii long, and the revised pick kept "a box that
+guards a … non-physical region". The brief said each box "guards a
+runaway", yet the evidence it asked for was whether a box binds an honest
+fit. The closing stage was measured on four single fits from good starts.
+Nobody measured either change on a fit that runs away. The one test that
+does, `chained_all`, is slow-marked and runs only in the nightly `full`
+job. That job timed out as cancelled, with no durations table (WP-2036
+item 1). The one local slow run on a tree with #1085 (arm64 Mac,
+`12f459e5`, before #1113) finished in 18 min.
+
 **Design candidates, none chosen.** Each needs the maintainer's ruling, and
 the generality audit table needs a row for any threshold
 (`src/rietx/_audit.py`; root CLAUDE.md § Every heuristic has a row):
@@ -93,9 +158,37 @@ the generality audit table needs a row for any threshold
    closing stage, and run the closing stage only on the attempt kept. This
    covers series and not single fits.
 
-The frozen-per-stage invariant constrains all three: window ranges and FCJ
+Added after the measurements above:
+
+4. **Windows follow the parameters between short solves**, as TOPAS rebuilds
+   its peak buffer when a width passes a tolerance. Each solve keeps its
+   windows frozen, so the invariant holds inside it. A stage ends a solve
+   and recompiles when its windows have gone stale, and converges only on a
+   solve that needed none. Measured on this case: no runaway, Rwp 0.142.
+   Unmeasured: whether it moves the four standards' converged answers, what
+   it costs them, and which staleness test triggers the recompile (dropped
+   intensity separates 0-1.3 % from 73 % here, on one family).
+5. **The stage before the closing stage runs at the solver's tolerance.**
+   This reverses, for that one stage, what the closing stage did to
+   `stage_ftols`. Measured: no runaway, Rwp 0.196. It sets no threshold. It
+   removes this trigger and leaves the sink: a sink that is a true minimum of
+   the frozen model would still stop a stage there. Its cost on the four
+   standards is unmeasured.
+6. **The closing compile refuses a stale answer.** Before solving, it compares
+   the frozen and fresh models at the answer, using the dropped-intensity
+   measure above. On a stale answer it skips the closing stage and says so
+   rather than polishing. This guards the cost from the measured cause, not
+   a work ratio, but it cannot repair the answer (the last bullet above).
+7. **Windows move at every evaluation**, as GSAS-II, MAUD, RIETAN-FP and
+   EasyDiffraction do. This drops the frozen-per-stage invariant. The
+   analytic and FD Jacobians, FCJ node sizing, the compiled kernels' row
+   ranges, the traced backends' static shapes and `replay` all rest on that
+   invariant. It is not a patch-release change.
+
+The frozen-per-stage invariant constrains 1-3 and 5-6: window ranges and FCJ
 node counts are fixed at compile and never change inside a solve, so any
-decision is taken at compile, from values the stage cannot change.
+decision is taken at compile, from values the stage cannot change. Option 4
+keeps it per solve and gives it up per stage.
 
 **Files.** `strategy/staged.py` (`run_stages`, the closing stage),
 `model/forward.py` (`compile_model`, the window and FCJ sizing), `refine.py`
@@ -105,7 +198,18 @@ decision is taken at compile, from values the stage cannot change.
 (`GSASIIstrMath.py`, `GSASIIpwd.py`; checked in GSAS-II 5.8.4 source on
 2026-10-24). No program surveyed has a closing stage of this kind; BGMN ends
 with every parameter free and restarted from the previous answer
-(`docs/practice.md` does not yet survey either point).
+(`docs/practice.md` does not yet survey either point). BGMN holds its
+ray-traced instrument function for the whole fit (`practice.md` § Staging),
+so its closing run cannot move the axial geometry. That precedent does not
+cover a closing stage that frees `axial_sl`. GSAS-II's `dropOOBvars`
+(`GSASIIstrMain.py:1198-1230`) runs after every `Refine` and after every
+histogram of `SeqRefine`. It sets each variable that refined outside a
+user-set limit to the limit, freezes it for later refinements with esd 0,
+and warns "N variable(s) refined outside limits and were frozen". The limits
+are empty by default (`parmMinDict`), so it never fires unless the user arms
+it (read on GSAS-II's `main` on 2026-10-24). It is the nearest precedent for
+option 2's shape. It also corrects WP-2002 B8's "I know of no program that
+clamps a cell after a solve", which was recalled, not checked.
 
 ### Inherited
 
