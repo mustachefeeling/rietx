@@ -100,6 +100,28 @@ singleton; a new indexing rule lands in that file; run
 engine or the ranking. Indexing is provisional by declaration
 (`PROVISIONAL_MODULES`).
 
+### Inherited
+
+- **2026-10-24, from WP-2041: the detector also goes blind on the *correct* cell, and
+  that grade is `high`.** Tutorial 03's synthetic aragonite (P m c n, flat 200-count
+  background, `examples/tutorials/03_peaks_indexing_lebail.py`) indexes at `high` over
+  10-80° with `predicted_but_absent` 0 of 105. The validation fit's background sits at
+  125 counts over 10-11° and 46 over 75-78° against the true 200, and 10-19° holds no
+  allowed reflection, so every forbidden position reads as net intensity. Cut the same
+  pattern at 35-60° and the background holds (192 at 10-11° on the 60° cut). The count
+  then returns 4-6 absences, every one a P m c n extinction: (010) 11.09°, (001) 15.43°,
+  (101) 23.68°, (120) 28.71° and (201) 39.54°. The cell grades `low`, found by all three
+  engines. 10-60° alone holds 15 such extinctions. So aragonite is a ready fixture for
+  this WP's glide guard: a correct cell with glides, synthetic, no impurity.
+- **Its outcome decides two things outside `indexing/`.** Tutorial 03's prose reads the
+  "0 of 105" as evidence for the `high` grade ("none of the reflections it predicts is
+  missing"), and WP-2041 is held on this WP to add the notebook's abstention example
+  (a 45° cut, maintainer's choice 2026-10-24). After the repair, say in WP-2041's
+  `### Inherited` what the full range and the 45° cut grade, and with which caveats.
+  Under decision (c) an honest count caps, so the full range may drop to `medium` and
+  print NO CELL unless the extinction screen clears the glide. Rebuild the notebook with
+  `examples/tutorials/build.py`, which lists every cell whose output moved.
+
 ## Non-goals
 
 - The blind search and enumeration ceilings (WP-1924), dedup across a reduction
