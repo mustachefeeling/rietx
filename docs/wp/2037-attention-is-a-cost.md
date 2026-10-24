@@ -1,6 +1,6 @@
 # WP-2037 — Attention is a cost: two channels, a response per code, relevance by purpose
 
-Milestone: generality · Status: 🔄 2026-10-24 — 9 of 14 tasks landed (the record, the result-field help, the response column and the purposes, the derived level and the view, the deliverables, the snap floor, the skill); next the caller override, the silence harness, the batch aggregate
+Milestone: generality · Status: 🔄 2026-10-24 — claimed by @yue-here (second session); 9 of 14 tasks landed, next the judge's open items, the caller override, the silence harness, the batch aggregate
 Track: The registry and the guard
 Depends on: 2001
 Priority: P2 2026-10-23 — a scoping WP other WPs wait on: 2003's first demotion takes the shape this WP sets, and every audit from 2003 on fills the column it installs
@@ -174,6 +174,13 @@ blocking both get what they want without touching the default.
 The 248 unaudited code rows are not re-levelled here. WP-2004 to 2007 fill the response
 column as they tier each code, under the tests this WP installs, so WP-2003's first
 demotion already follows clause 1.
+
+**The tier of each rule this WP adds** (written 2026-10-24, second session; the template
+line the filing left out). The purpose table's rows are physics, tier 1: each says which
+parameters a result number depends on, citing the coupling. The caller override is the
+`caller` class: an empty map by default, so the package decides nothing until a caller
+names a code. The batch aggregate decides nothing and reports numbers (DESIGN § Rules 1,
+kind 3). The silence registry is a test, not a runtime rule. None adds a threshold.
 
 ### How it is measured
 
