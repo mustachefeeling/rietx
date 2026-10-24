@@ -302,6 +302,16 @@ def test_a_full_stop_hydrate_is_refused_naming_the_raised_dot():
     # a space after the decimal count, as a CIF _chemical_formula_sum writes it
     ("Fe2.95 O4", {"Fe": 2.95, "O": 4}),
     ("Ba2 Cu2.941 O6.822 Y", {"Ba": 2, "Cu": 2.941, "O": 6.822, "Y": 1}),
+    # doped oxides and cathodes written with no spaces: a decimal count whose
+    # tail is not an adduct molecule reads one way (the 1.9.0 reading)
+    ("Fe2.95O4", {"Fe": 2.95, "O": 4}),
+    ("Li1.05Mn1.95O4", {"Li": 1.05, "Mn": 1.95, "O": 4}),
+    ("Fe1.05S", {"Fe": 1.05, "S": 1}),
+    ("Li1.2Mn0.54Ni0.13Co0.13O2",
+     {"Li": 1.2, "Mn": 0.54, "Ni": 0.13, "Co": 0.13, "O": 2}),
+    ("Ca9.5(PO4)6F2", {"Ca": 9.5, "P": 6, "O": 24, "F": 2}),
+    ("Sr1.5La0.5MnO4", {"Sr": 1.5, "La": 0.5, "Mn": 1, "O": 4}),
+    ("Ba2Cu2.941O6.822Y", {"Ba": 2, "Cu": 2.941, "O": 6.822, "Y": 1}),
 ])
 def test_a_formula_that_reads_one_way_is_unchanged(formula, expected):
     volume, _ = formula_unit_volume(formula)
@@ -309,7 +319,9 @@ def test_a_formula_that_reads_one_way_is_unchanged(formula, expected):
         sum(n * HOFMANN_VOLUMES[el][0] for el, n in expected.items()))
 
 
-@pytest.mark.parametrize("formula", ["Fe2.95O4", "Na2CO3.10H2O"])
+@pytest.mark.parametrize("formula", [
+    "Na2CO3.10H2O", "CuSO4.5 H2O", "MgSO4.7 H2O", "CuSO4.5H2O·H2O",
+    "CoCl2.6H2O", "ZnSO4.6NH3"])
 def test_every_full_stop_that_reads_two_ways_is_refused(formula):
     with pytest.raises(ValueError, match="reads two ways"):
         formula_unit_volume(formula)

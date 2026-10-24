@@ -240,8 +240,9 @@ The floor never drops below the 15 Å³ default.
 Every other `SearchSpec` field passes through as a keyword.
 
 A formula is written as a chemist writes it, with brackets, `·` before water of crystallisation (`"CuSO4·5H2O"`) and decimal counts.
-A full stop that reads both as a decimal count and as a hydrate's dot is refused: `"CuSO4.5H2O"` could be 4.5 O or CuSO4 with 5 H2O, so `formula_unit_volume` raises `ValueError` naming `·`.
-A count under 1 reads one way (`"Mg0.5SiO3"`), and a space after a decimal count ends the doubt (`"Fe2.95 O4"`, as a CIF writes `_chemical_formula_sum`).
+A full stop that reads both as a decimal count and as a hydrate's dot is refused: `"CuSO4.5H2O"` (or `"CuSO4.5 H2O"`) could be 4.5 O or CuSO4 with 5 H2O, so `formula_unit_volume` raises `ValueError` naming `·`.
+That is a decimal count, with no leading zero in its fractional part, followed by a whole solvent molecule that ends the part: H2O, D2O, NH3, H2O2, HCl, CO2, CH3OH, CH4O, C2H5OH, C2H6O, CH3CN, C6H6 or C4H8O.
+Every other decimal count reads one way and is read as written, with or without spaces: `"Fe2.95O4"`, `"Li1.05Mn1.95O4"`, `"Ca9.5(PO4)6F2"`, `"Mg0.5SiO3"`.
 
 `from_formula` raises `ValueError` when `min_volume` or `max_volume` is passed beside the formula, for a `z` that is not a whole number of at least 1 with its minimum no larger than its maximum, when the formula's ceiling falls below the floor, and for a formula or temperature `formula_unit_volume` refuses.
 

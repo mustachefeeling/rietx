@@ -1585,6 +1585,12 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.ambiguity._DERIVATIVE_VOLUME_RTOL", "constant", value=0.01),
     Row("rietx.indexing.consensus.CONSENSUS_CHECK_TOP", "constant", value=3),
     Row("rietx.indexing.diagnostics.BRAGG_BRENTANO_CELL_PPM", "constant", value=85.0),
+    Row("rietx.indexing.diagnostics.LAB_LINE_TOLERANCE_ANGSTROM", "constant", tier=1,
+        evidence=("arithmetic: the digits a person types (1.5405, 1.540593, 1.5406 for Cu "
+                  "Ka1 1.5405929) differ from it by under 1e-4 A, and the six anodes' Ka1 "
+                  "lines are at least 0.15 A apart, so the tolerance names one anode at "
+                  "most; it gates only which instrument blocks a diagnostic names"),
+        value=0.0005),
     Row("rietx.indexing.diagnostics.WIDTH_MISMATCH_RATIO", "constant", value=3.0),
     Row("rietx.indexing.diagnostics.Z_INTEGER_TOLERANCE", "constant", value=0.08),
     Row("rietx.indexing.dichotomy.ACCEPT_SPACING_FRAC", "constant", value=0.25),

@@ -56,7 +56,7 @@ Most of the 51 left out are `duplicate_line` copies (40), the rest `no_intensity
 | `PeakList.wavelength` | the primary emission line, Å |
 | `PeakList.two_theta_min`, `PeakList.two_theta_max` | the range the lines were picked over: the first and last channel detection kept, or the lowest and highest position of a list built from positions |
 | `PeakList.source` | `"fitted"` when this package measured the lines, `"positions"` when they were handed in |
-| `PeakList.instrument_undeclared` | the instrument blocks the picker found at their defaults on a laboratory source, keyed by block; empty when nothing was, or the source is not a lab tube; `None` on a list no picker made |
+| `PeakList.instrument_undeclared` | the instrument blocks the picker found at their defaults on a laboratory source, keyed by block; empty when the source is a lab tube and nothing was; `None` when nothing was checked: a source that is not a lab tube, or a list no picker made |
 | `PeakList.thresholds_version` | which set of indexing thresholds produced the list, `rietx.schemas.indexing.INDEXING_THRESHOLDS_VERSION` at the time |
 | `PeakList.diagnostics` | what the picker noticed, as `Diagnostic` entries |
 

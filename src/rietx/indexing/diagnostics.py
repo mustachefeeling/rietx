@@ -490,16 +490,24 @@ def refinement_width_diagnostics(measured: float,
         suggestion=suggestion, value=ratio)]
 
 
+#: How far a single line may sit from an anode's Kα1 and still be that anode, Å.
+#: Four decimals typed by hand (``1.5405``, 9e-5 off) is within it; the nearest
+#: two Kα1 lines of the six anodes are 0.15 Å apart, so it names one anode at
+#: most.
+LAB_LINE_TOLERANCE_ANGSTROM = 5e-4
+
+
 def lab_source(instrument: Instrument) -> bool:
     """Does ``instrument`` declare a laboratory X-ray tube?
 
     Read off the declared source, never guessed from the pattern (WP-2030): a
     constant-wavelength X-ray source carrying a Kα doublet, or whose one line is
-    an anode's Kα1 exactly as :meth:`~rietx.schemas.instrument.Instrument.
-    bragg_brentano`'s ``radiation=`` writes it.  A synchrotron or neutron
-    source is not one, and nor is a single line typed by hand (``1.5406``): it
-    states no anode, so this answers ``False`` and nothing is said that the
-    declaration does not support.
+    an anode's Kα1 to within :data:`LAB_LINE_TOLERANCE_ANGSTROM`, so the value
+    :meth:`~rietx.schemas.instrument.Instrument.bragg_brentano`'s ``radiation=``
+    writes, GSAS-II's six-decimal ``1.540593`` and a hand-typed ``1.5406`` all
+    read alike.  A synchrotron or neutron source is not one, and nor is a single
+    line more than the tolerance from every anode: it states none, so this
+    answers ``False`` and nothing is said that the declaration does not support.
     """
     from ..schemas.instrument import _KA_DOUBLETS
 
@@ -509,7 +517,8 @@ def lab_source(instrument: Instrument) -> bool:
     if len(source.lines) >= 2:
         return True
     kalpha1 = {pair[0] for pair in _KA_DOUBLETS.values()}
-    return source.lines[0].wavelength.value in kalpha1
+    wavelength = source.lines[0].wavelength.value
+    return any(abs(wavelength - k) <= LAB_LINE_TOLERANCE_ANGSTROM for k in kalpha1)
 
 
 def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
@@ -524,7 +533,8 @@ def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
     on one lab capillary pattern (WP-1510, ``solution case 1``): declaring both
     took median σ(Q)/Q from 1.05e-3 to 6.9e-4 and the gate passed.
 
-    On any other source it is empty: a correctly declared synchrotron
+    On any other source it is empty (:func:`picked_undeclared` records ``None``
+    there, "not checked", on the list): a correctly declared synchrotron
     instrument has zero axial apertures and a narrow profile too, so the same
     two tests would name a correct declaration as missing (WP-2030).
     """
@@ -543,6 +553,14 @@ def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
             "instrument.profile is the default ProfileTCHZ, a synchrotron line "
             f"(W = {default.w.value:g} deg²)")
     return out
+
+
+def picked_undeclared(instrument: Instrument) -> dict[str, str] | None:
+    """What a picker records in ``PeakList.instrument_undeclared``:
+    :func:`undeclared_instrument` on a laboratory source, ``None`` on any other,
+    where the check does not apply.  ``{}`` therefore only ever says "checked,
+    and everything was declared"."""
+    return undeclared_instrument(instrument) if lab_source(instrument) else None
 
 
 def quality_diagnostics(report: DataQualityReport, peaks: PeakList,

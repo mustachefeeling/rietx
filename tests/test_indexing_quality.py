@@ -576,10 +576,12 @@ def test_a_lab_source_is_read_off_the_declaration():
 
     assert lab_source(Instrument.bragg_brentano())                  # Cu Kα doublet
     assert lab_source(Instrument.bragg_brentano(radiation="MoKa1"))  # Kα1 alone
-    assert lab_source(Instrument.debye_scherrer(wavelength=1.5405929))
-    # a synchrotron line states no anode, and nor does a rounded one typed by hand
+    # the same Cu Kα1 however many digits were typed (GSAS-II writes 1.540593)
+    for wavelength in (1.5405929, 1.540593, 1.5406, 1.5405):
+        assert lab_source(Instrument.debye_scherrer(wavelength=wavelength))
+    # a synchrotron line states no anode, and nor does a line far from every one
     assert not lab_source(Instrument.debye_scherrer(wavelength=0.4139090))
-    assert not lab_source(Instrument.debye_scherrer(wavelength=1.5406))
+    assert not lab_source(Instrument.debye_scherrer(wavelength=1.54))
 
 
 def test_a_synchrotron_declaration_is_never_named_as_missing():
@@ -633,7 +635,10 @@ def test_the_picker_writes_the_record():
     lab = pick_peaks(data, Instrument.bragg_brentano())
     assert set(lab.instrument_undeclared) == {"instrument.geometry",
                                               "instrument.profile"}
-    sync = pick_peaks(data, Instrument.debye_scherrer(wavelength=1.5406))
-    assert sync.instrument_undeclared == {}
+    # not a lab tube: nothing was checked, which is not "checked and declared"
+    sync = pick_peaks(data, Instrument.debye_scherrer(wavelength=0.4139090))
+    assert sync.instrument_undeclared is None
+    assert lab.model_copy(update={"instrument_undeclared": {}}
+                          ).instrument_undeclared == {}
     # a hand-built list has no picker, so no record
     assert PeakList.from_positions([20.0, 30.0], 1.5406).instrument_undeclared is None

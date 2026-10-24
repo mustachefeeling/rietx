@@ -975,10 +975,10 @@ class PeakList(Base):
     #: The instrument blocks the picker found at their defaults on a
     #: laboratory source, keyed by block, written by
     #: :func:`~rietx.indexing.pick_peaks` and :func:`~rietx.indexing.fit_peaks`
-    #: from :func:`~rietx.indexing.diagnostics.undeclared_instrument` (WP-2030).
-    #: Empty when nothing was left at default or the source is not a lab tube;
-    #: ``None`` when no picker recorded it (a position list, or one picked
-    #: before 0.59).  It is how ``index_pattern(peaks)`` with no instrument
+    #: from :func:`~rietx.indexing.diagnostics.picked_undeclared` (WP-2030).
+    #: Empty when the source is a lab tube and nothing was left at default;
+    #: ``None`` when nothing was checked: the source is not a lab tube, no picker
+    #: recorded it (a position list), or the list was picked before 0.59.  It is how ``index_pattern(peaks)`` with no instrument
     #: can still name the instrument first in ``INDEX_DATA_INSUFFICIENT``.
     instrument_undeclared: dict[str, str] | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
