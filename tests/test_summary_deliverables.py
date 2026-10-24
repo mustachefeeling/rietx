@@ -153,3 +153,20 @@ def test_a_series_refuses_each_new_deliverable_naming_refinement_summary(deliver
     with pytest.raises(ValueError, match="decided on one pattern") as err:
         _series_result().summary(deliverable=deliverable)
     assert f"Refinement.summary(deliverable={deliverable!r})" in str(err.value)
+
+
+def test_the_summary_and_the_bare_result_print_the_one_view(fitted):
+    """WP-2037 clause 3 on a real fit: ``summary(deliverable=…)`` prints the
+    view under that purpose, ``str(result)`` the view with none, and both are
+    the one text form."""
+    from rietx.schemas.results import _diagnostic_lines
+
+    ref, result, report = fitted
+    assert result.diagnostics, "the shared fit stopped producing any — pick another"
+    under = "\n".join(_diagnostic_lines(result.diagnostics, "structure"))
+    assert under.startswith("  diagnostics under structure: ")
+    assert f"\n{under}\n" in ref.summary(deliverable="structure", report=report)
+    bare = "\n".join(_diagnostic_lines(result.diagnostics))
+    assert "no deliverable given" in bare.splitlines()[0]
+    assert f"\n{bare}\n" in str(result)
+    assert f"\n{bare}\n" in ref.summary(report=report)

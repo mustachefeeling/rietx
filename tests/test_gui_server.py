@@ -2618,6 +2618,21 @@ def test_result_carries_no_curves_and_the_curves_route_serves_them(fitted):
     assert _packed(client, "/api/result/curves").header["n_fitted"] == n_points
 
 
+def test_each_diagnostic_says_how_it_prints(fitted):
+    """WP-2037: ``full`` and ``warning_under`` are ``diagnostic_view``'s, with
+    no deliverable, one entry a stored diagnostic, so the panel never derives
+    either."""
+    from rietx.schemas.results import diagnostic_view
+
+    _, client, project = fitted
+    stored = project.refinement.result_.diagnostics
+    assert stored, "the shared fit stopped producing any — pick another"
+    sent = client.get("/api/result")[1]["result"]["diagnostics"]
+    view = {id(r.diagnostic): r for r in diagnostic_view(stored)}
+    assert [(d["code"], d["full"], d["warning_under"]) for d in sent] == [
+        (d.code, view[id(d)].full, list(view[id(d)].warning_under)) for d in stored]
+
+
 def test_the_ticks_carry_their_miller_indices_only_where_they_pair(fitted):
     """``tick_hkl`` is pinned to ``ticks`` by index (WP-1438), so the curves
     header sends a row's indices only where there are as many as positions.

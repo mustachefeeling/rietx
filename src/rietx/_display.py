@@ -415,17 +415,41 @@ def diagnostics_html(diagnostics, context: str | None = None) -> str:
     (WP-1985).  ``context`` names what the findings are about, such as one
     indexing candidate.
     """
-    from html import escape
     parts = []
     for d in diagnostics:
         head, *rest = str(d).splitlines()
         if context:
             rest.insert(0, f"  on: {context}")
-        body = "".join(f"<p>{escape(line.strip())}</p>" for line in rest)
-        if d.explanation:
-            body += f"<p>{escape(d.explanation)}</p>"
-        parts.append(f"<details><summary>{escape(head)}</summary>{body}</details>")
+        parts.append(_diagnostic_fold(d, head, rest))
     return "".join(parts)
+
+
+def diagnostic_rows_html(rows) -> str:
+    """``(diagnostic, short)`` pairs from a diagnostics view (WP-2037), each
+    as a ``<details>``.
+
+    ``short`` ``None`` is a row printed in full, drawn as
+    :func:`diagnostics_html` draws it.  Any other row shows ``short``, its
+    one line, and folds the message under it beside the paths, the suggestion
+    and the explanation, so a row printed short hides nothing.
+    """
+    parts = []
+    for d, short in rows:
+        if short is None:
+            parts.append(diagnostics_html([d]))
+            continue
+        parts.append(_diagnostic_fold(d, short, [d.message, *str(d).splitlines()[1:]]))
+    return "".join(parts)
+
+
+def _diagnostic_fold(d, head: str, rest: list[str]) -> str:
+    """One diagnostic's ``<details>``: ``head`` shown, ``rest`` and the code's
+    explanation folded."""
+    from html import escape
+    body = "".join(f"<p>{escape(line.strip())}</p>" for line in rest)
+    if d.explanation:
+        body += f"<p>{escape(d.explanation)}</p>"
+    return f"<details><summary>{escape(head)}</summary>{body}</details>"
 
 
 # ---------------------------------------------------------------------------

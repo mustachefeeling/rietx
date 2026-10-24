@@ -246,6 +246,9 @@ describe("every key the app writes down names something", () => {
       // words, which are pinned to `StageSpec` from python (WP-1208), so a new
       // schema field arrives in the form already keyed to its corpus entry
       "panels/Plan.svelte: stage_fields:{key}",
+      // the fit's own diagnostics (WP-2037): a folded row keeps its code's
+      // explanation beside it, so collapsing hides nothing
+      "panels/Report.svelte: diagnostics:{d.code}",
     ]);
   });
 });

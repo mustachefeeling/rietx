@@ -1223,7 +1223,9 @@ class SeriesResult(Base):
         purpose in :data:`~rietx.schemas.results.DELIVERABLES` — phase ID, QPA,
         structure, cell, microstructure, calibration, magnetic — is decided on
         one pattern's own fit and is refused here by naming
-        ``Refinement.summary``.
+        ``Refinement.summary``.  The diagnostics print as
+        :func:`~rietx.schemas.results.diagnostic_view` gives them under that
+        deliverable, or without one when none is given (WP-2037).
 
         ``parametric`` is a joint fit of the same patterns with parametric
         declarations (``refine_multi(..., coordinates=, parametric=)``,
@@ -1237,8 +1239,11 @@ class SeriesResult(Base):
                  f"direction={self.direction}"]
         # the same renderer RefinementResult.__str__ calls (schemas/results.py)
         # — one diagnostics-line format for the whole package, never a second
-        # copy that a future change to it would not know to keep in step with
-        lines += _diagnostic_lines(self.diagnostics)
+        # copy that a future change to it would not know to keep in step with.
+        # A series has one deliverable of its own; any other is refused below,
+        # by _deliverable_lines, naming where it is decided
+        lines += _diagnostic_lines(self.diagnostics,
+                                   "series" if deliverable == "series" else None)
         lines.append(f"  trajectory ({self.x_label}):")
         shown = (list(range(n)) if n <= 2 * max_entries else
                 [*range(max_entries), None, *range(n - max_entries, n)])

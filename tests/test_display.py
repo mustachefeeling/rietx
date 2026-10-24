@@ -295,6 +295,31 @@ def test_a_diagnostic_prints_its_headline_and_folds_the_rest():
     assert unknown.explanation is None and "<p>" not in diagnostics_html([unknown])
 
 
+def test_a_result_html_folds_a_short_row_with_its_message():
+    """WP-2037: the notebook form prints the text form's rows, a row printed
+    short showing its one line and folding the message under it beside the
+    paths, the suggestion and the explanation, so nothing is hidden."""
+    from rietx.schemas.common import Diagnostic, Provenance
+    from rietx.schemas.results import DIAGNOSTICS_READING_RULE, RefinementResult, Statistics
+    floor = Diagnostic(level="warning", code="FLOOR_HIT", message="ext refined to its floor",
+                       where=["phases.0.extinction"], suggestion="quote a limit")
+    bound = Diagnostic(level="error", code="BOUND_HIT", message="a ran to its bound",
+                       where=["phases.0.cell.a"])
+    result = RefinementResult(
+        status="converged", mode="rietveld", parameters=[], diagnostics=[floor, bound],
+        statistics=Statistics(rwp=0.1, rp=0.08, rexp=0.05, chi2=4.0, gof=2.0,
+                              n_points=100, n_free_parameters=5),
+        provenance=Provenance(package_version="0.0.0+test"))
+    html = result._repr_html_()
+    error, short = html.split("<details>")[1:]
+    assert error.startswith("<summary>error[BOUND_HIT]: a ran to its bound</summary>")
+    head, fold = short.split("</summary>")
+    assert head == ("<summary>FLOOR_HIT at phases.0.extinction: "
+                    "warning under qpa, structure")
+    assert fold.index("ext refined") < fold.index("at: phases") < fold.index("help: quote")
+    assert "no deliverable given" in html and DIAGNOSTICS_READING_RULE in html
+
+
 def test_pre_fit_ticks_are_where_the_fit_puts_its_own(fap):
     """One answer to where a tick goes: drawn from the fitted refinement, the
     pre-fit rows are the result's own ticks over the same range."""

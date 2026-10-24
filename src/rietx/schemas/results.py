@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from dataclasses import dataclass
 from typing import Any, ClassVar, Literal
 
 import numpy as np
@@ -1367,6 +1368,9 @@ _CAPPED_PAIR_CODES = (
     ("FLAT_DIRECTION", "FLAT_DIRECTION_OMITTED", "flat direction"),
 )
 
+#: The rows :func:`_cap_high_correlation` writes about what it left out.
+_OMITTED_CODES = frozenset(omitted for _, omitted, _ in _CAPPED_PAIR_CODES)
+
 
 def _cap_one_code(diagnostics: list[Diagnostic], code: str, omitted_code: str,
                   noun: str) -> list[Diagnostic]:
@@ -1484,23 +1488,171 @@ def level_under(diagnostic: Diagnostic, purpose: str) -> str:
     return "info"
 
 
-def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
-    """Section 2a: the first stop condition — every diagnostic, resolved or not.
+def _check_deliverable(deliverable: str) -> None:
+    """Refuse a deliverable outside :data:`DELIVERABLES`, naming every one."""
+    if deliverable not in DELIVERABLES:
+        raise ValueError(f"unknown deliverable {deliverable!r}; one of "
+                         f"{', '.join(repr(d) for d in DELIVERABLES)}")
+
+
+@dataclass(frozen=True)
+class DiagnosticRow:
+    """One diagnostic as a renderer shows it (WP-2037, clause 3): a view of a
+    stored record, never stored itself.
+
+    ``level`` is the diagnostic's level under the deliverable the view was
+    asked for (:func:`level_under`), or its own level with none.  ``full``
+    says whether it prints in full (message, paths, suggestion) or as one
+    line (code and paths).  ``warning_under`` names the purposes it is a
+    warning under, in the purpose table's order and never ``series``: that
+    purpose follows every path (``"*"``), so on a single result it would be
+    listed wherever any other is and says nothing a reader can act on.
+    """
+
+    diagnostic: Diagnostic
+    level: str
+    full: bool
+    warning_under: tuple[str, ...]
+
+
+#: The purposes a row's ``warning_under`` can name: every one but ``series``
+#: (:class:`DiagnosticRow` says why).
+_NAMED_PURPOSES = tuple(p for p in PURPOSES if p != "series")
+
+#: The order a view lists its rows in: errors, then warnings, then the rest.
+_VIEW_RANK = {"error": 0, "warning": 1}
+
+
+def diagnostic_view(diagnostics: list[Diagnostic],
+                    deliverable: str | None = None) -> list[DiagnosticRow]:
+    """The rows every renderer of a diagnostics list prints (WP-2037, clause 3):
+    the text summary, ``str(result)``, the notebook HTML and the GUI panel.
+
+    Under a deliverable, a row at ``error`` and one at ``warning`` *for that
+    purpose* (:func:`level_under`) print in full and the rest as one line
+    each.  With none, only the errors print in full: every other row is one
+    line naming the purposes it is a warning under, since which of them
+    decides the caller's numbers is the caller's to say, and the summary does
+    not infer it.  Rows come errors first, then warnings, then the rest, each
+    in stored order.  An unknown deliverable is refused, naming every one.
+
+    Every row of ``diagnostics`` comes back, uncapped: a renderer that prints
+    bounds the pair-keyed codes first (:func:`_cap_high_correlation`), and
+    the stored list stays the one its counts are taken from.
+    """
+    if deliverable is not None:
+        _check_deliverable(deliverable)
+    rows = []
+    for d in diagnostics:
+        under = (tuple(p for p in _NAMED_PURPOSES if level_under(d, p) == "warning")
+                 if d.level == "warning" else ())
+        level = d.level if deliverable is None else level_under(d, deliverable)
+        full = level == "error" or (deliverable is not None and level == "warning")
+        rows.append(DiagnosticRow(d, level, full, under))
+    return sorted(rows, key=lambda r: _VIEW_RANK.get(r.level, 2))
+
+
+#: The reading rule, closing a summary that was given no deliverable: the
+#: output says how to see more, so the skill need only name the field
+#: (WP-2037 clause 3; WP-1338's cheapest place, the package's own output).
+DIAGNOSTICS_READING_RULE = ("pass deliverable= for the rows that decide your "
+                            "purpose; every row is in result.diagnostics")
+
+
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}{'' if n == 1 else 's'}"
+
+
+def _compress_paths(paths: list[str]) -> str:
+    """``where`` as one line: a sibling of the last path printed in full (the
+    same prefix up to its last dot) prints as its ``.leaf``, so
+    ``instrument.profile.u, .v, .w``."""
+    out: list[str] = []
+    stem = ""
+    for path in paths:
+        leaf = path[len(stem):]
+        if stem and path.startswith(stem) and leaf and "." not in leaf:
+            out.append(f".{leaf}")
+        else:
+            out.append(path)
+            stem = path[:path.rfind(".") + 1]
+    return ", ".join(out)
+
+
+def _warning_under_text(names: tuple[str, ...]) -> str:
+    if not names:
+        # level_under puts a warning with a path under ``series`` always, so a
+        # warning no named purpose reads is one only a trajectory does
+        return "warning under series only"
+    if names == _NAMED_PURPOSES:
+        return "warning under every purpose"
+    return f"warning under {', '.join(names)}"
+
+
+def _one_line(row: DiagnosticRow, deliverable: str | None) -> str:
+    """A row printed short: its code and paths, and what it is a warning under."""
+    d = row.diagnostic
+    head = d.code + (f" at {_compress_paths(d.where)}" if d.where else "")
+    if deliverable is None:
+        return f"{head}: {_warning_under_text(row.warning_under)}" \
+            if d.level == "warning" else f"{head}: {d.level}"
+    # under a deliverable a short row is one at ``info`` for it
+    if d.level == "warning":
+        return f"info: {head} ({_warning_under_text(row.warning_under)})"
+    return f"info: {head}"
+
+
+def _diagnostic_header(rows: list[DiagnosticRow], deliverable: str | None) -> str:
+    n_errors = sum(r.level == "error" for r in rows)
+    if deliverable is None:
+        shown = ("none is printed in full" if not n_errors else
+                 "only the error is printed in full" if n_errors == 1 else
+                 "only the errors are printed in full")
+        return (f"  diagnostics: {_count(len(rows), 'row')}, {_count(n_errors, 'error')}; "
+                f"no deliverable given, so {shown}")
+    n_warnings = sum(r.level == "warning" for r in rows)
+    n_info = len(rows) - n_errors - n_warnings
+    return (f"  diagnostics under {deliverable}: {_count(n_warnings, 'warning')}, "
+            f"{_count(n_errors, 'error')}, {n_info} info")
+
+
+def _diagnostic_parts(diagnostics: list[Diagnostic], deliverable: str | None = None
+                      ) -> tuple[str, list[tuple[DiagnosticRow, str | None]], str | None]:
+    """The diagnostics section as its header, its printed rows each with its
+    one-line form (``None`` for a row printed in full), and the reading rule
+    that closes it (``None`` under a deliverable, or with nothing to print).
+
+    The counts in the header are the *stored* list's, accurate and uncapped;
+    only the rows printed are bounded (:func:`_cap_high_correlation`), so a
+    header counting 23 rows can be followed by fewer lines without lying.
+    """
+    stored = diagnostic_view(diagnostics, deliverable)
+    if not stored:
+        return "  diagnostics: none", [], None
+    capped = _cap_high_correlation(diagnostics)
+    rows = stored if capped is diagnostics else diagnostic_view(capped, deliverable)
+    # the cap's own row says how many it left out, which its code alone does not
+    printed = [(r, None if r.full or r.diagnostic.code in _OMITTED_CODES
+                else _one_line(r, deliverable)) for r in rows]
+    return (_diagnostic_header(stored, deliverable), printed,
+            DIAGNOSTICS_READING_RULE if deliverable is None else None)
+
+
+def _diagnostic_lines(diagnostics: list[Diagnostic],
+                      deliverable: str | None = None) -> list[str]:
+    """Section 2a: the first stop condition, as :func:`diagnostic_view` prints it.
 
     Present even at zero (WP-1302's acceptance: the stop-condition lines are
     on *every* fit, including one with nothing to report), so a caller never
     has to distinguish "no diagnostics" from "this section did not run".
-
-    The header count is the *stored* list's — accurate, uncapped; only the
-    rows actually printed below are bounded (:func:`_cap_high_correlation`),
-    so "23 unresolved" can be followed by fewer than 23 lines without lying
-    about how many there are.
     """
-    if not diagnostics:
-        return ["  diagnostics: none"]
-    lines = [f"  diagnostics: {len(diagnostics)} unresolved"]
-    for d in _cap_high_correlation(diagnostics):
-        lines += [f"    {line}" for line in str(d).splitlines()]
+    header, printed, rule = _diagnostic_parts(diagnostics, deliverable)
+    lines = [header]
+    for row, short in printed:
+        lines += ([f"    {line}" for line in str(row.diagnostic).splitlines()]
+                  if short is None else [f"    {short}"])
+    if rule:
+        lines.append(f"    {rule}")
     return lines
 
 
@@ -2004,7 +2156,7 @@ class RefinementResult(Base):
         """The termination view, then the refined parameters as a table
         (WP-1544). The text is what ``print`` gives; the table is the same
         numbers as ``parameters``."""
-        from .._display import _number, diagnostics_html, pre_html, table_html
+        from .._display import _number, diagnostic_rows_html, pre_html, table_html
         rows = [(p.path, _number(p.value, p.stderr),
                  "" if p.at_bound is None else str(p.at_bound).lower())
                 for p in self.parameters]
@@ -2017,14 +2169,21 @@ class RefinementResult(Base):
                     for row, p in zip(rows, self.parameters, strict=True)]
         table = table_html(header, rows) if rows else ""
         before, after = self._text_parts()
-        before.append(_diagnostic_lines(self.diagnostics)[0])
+        # the text form's rows (WP-2037), a short one with what it leaves out folded
+        head, printed, rule = _diagnostic_parts(self.diagnostics)
+        before.append(head)
+        if rule:
+            after.insert(0, f"    {rule}")
         return (pre_html("\n".join(before))
-                + diagnostics_html(_cap_high_correlation(self.diagnostics))
+                + diagnostic_rows_html([(r.diagnostic, short) for r, short in printed])
                 + pre_html("\n".join(after)) + table)
 
     def __str__(self) -> str:
         """The termination view a bare result can answer (WP-1302): per-stage
-        status, every diagnostic, provenance, agreement indices last.
+        status, every diagnostic, provenance, agreement indices last.  It takes
+        no deliverable, so the diagnostics print as :func:`diagnostic_view`
+        gives them without one: the errors in full, every other row on one
+        line (WP-2037).
 
         Not the full view — ``Refinement.summary()`` adds the rows that need
         the compiled model (Layer 1's summary sentence, the next suggestion,

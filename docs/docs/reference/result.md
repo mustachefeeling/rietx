@@ -334,6 +334,7 @@ Past each cap a `HIGH_CORRELATION_OMITTED` or `FLAT_DIRECTION_OMITTED` row gives
 
 `print(result)`, which is `str(result)`, is the view a bare `RefinementResult` can answer on its own.
 It shows each stage's status, the last stage's convergence number (max|Δθ|/esd), every diagnostic, the provenance, and the agreement indices last.
+It is given no deliverable, so an error prints in full and every other diagnostic on one line, its code, its paths and the purposes it is a warning under.
 It needs no compiled model, so it works on a result read back from a project or handed across a process boundary.
 It stays under 80 lines on a five-stage fit.
 [A first fit in Python](../start/first-fit.md) shows one.
@@ -363,6 +364,7 @@ When no held parameter clears the noise floor, it reads `next: nothing to free`.
 [How to choose the next parameter to free](../guides/next.md) works with the full ranking.
 
 `deliverable=` adds the rows one purpose decides on, because the report will not infer your purpose.
+It also decides which diagnostics print in full: the errors and the warnings for that purpose, with every other row on one line.
 `"phase_id"` adds the unmatched observed peaks and the Le Bail gap ratio.
 `"qpa"` adds the worst entry of `background.absorption` and the weight fractions with esds.
 `"structure"` adds `identifiability.exchangeability`.
