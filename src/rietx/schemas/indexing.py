@@ -2285,7 +2285,7 @@ class ExtinctionScreen(Base):
     #: ``None`` with no Z declared, and when a declared density does not give
     #: one — then nothing is filtered by Z and :meth:`best_or_none` abstains
     z: int | None = None
-    #: Z the declared density and formula give on :attr:`cell`, unrounded;
+    #: Z the declared density and formula give on :attr:`cell`, not rounded;
     #: ``None`` without a declared density
     z_from_density: float | None = None
     status: str = "converged"
