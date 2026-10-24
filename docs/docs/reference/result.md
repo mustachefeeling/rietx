@@ -427,6 +427,7 @@ print(series.summary(deliverable="series"))
 
 Every rietx object prints as text you can read, and a notebook cell shows the same text.
 A model prints as an indented tree with one line per parameter: its value with the esd in brackets, its unit, and `(vary)` when it is free.
+The one-line fields of a block print their values in one column.
 Fields that are `None` or empty are left out.
 A long sequence prints as a count and a range, in `repr` and in `print` alike, so a pattern never prints its channels:
 
@@ -440,10 +441,10 @@ print(data)
 
 ```text
 PatternData of 500 points, 10–19.98° 2θ, median step 0.02°
-  intensity: <500 floats 100…599>
-  sigma: None
+  intensity:        <500 floats 100…599>
+  sigma:            None
   excluded_regions: none
-  metadata: none
+  metadata:         none
 ```
 
 The numbers are still there.
@@ -454,7 +455,7 @@ These objects print a view of their own:
 | Object | Prints |
 |---|---|
 | `PatternData` | the range and step, then whether σ came with the file |
-| `PatternDiagnostics` | every field, `signal_cutoffs` first, an empty finding as `none` |
+| `PatternDiagnostics` | every field under three headings, each number to three significant figures; an empty finding as `none`, and a check that could not run as `not checked` |
 | `RefinementResult` | the termination view in [Printing a result](#printing-a-result) |
 | `RefinedParameter`, `ParameterRow` | `path  value(esd)  state` on one line, so `ref.parameters()` reads as a table |
 | `Diagnostic` | `level[CODE]: message`, then `at:` with the paths and `help:` with the suggestion |
@@ -469,8 +470,13 @@ These objects print a view of their own:
 | `Trajectory` | one row per point: its label, its x and its value with the esd |
 
 A `Refinement` reads only its own fields when it prints.
-It never calls `Refinement.summary`, which builds a report, and a notebook asks for every displayed object twice.
-In a notebook the tabular parts arrive as HTML tables: a result's refined parameters, a refinement's varying parameters, an indexing result's candidates, a peak list, a trajectory and a phase's microstructure terms.
+It never calls `Refinement.summary`, which builds a report.
+A notebook asks for the text each time a cell displays the refinement.
+In a notebook, a `RefinementResult`, an `IndexingResult` and a `PeakList` add to their text.
+Under each diagnostic's `help:` line, a `means:` line gives its `Diagnostic.explanation`.
+A result then lists `RefinementResult.parameters` in columns headed `path`, `value` and `at_bound`.
+An `equations` column follows when a parametric equation set a row.
+The display is one block of fixed-width text, so its columns stay aligned in GitHub's notebook viewer as well as in JupyterLab.
 A `StructureFigure` from `render_structure` displays as its picture.
 
 A figure behaves in a notebook as any returned value does.
