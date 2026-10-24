@@ -5845,16 +5845,21 @@ class Refinement:
         a fresh grid carries them over from the fitted model by hkl and there
         is nothing to carry before one exists.
 
-        **The two forms are not bit-identical on the same grid, and that is
-        the frozen-per-stage invariant rather than a defect.**  ``predict()``
-        reuses the model compiled for the last stage, whose per-reflection
-        window index ranges were frozen at the values the stage *started*
-        from; a grid argument compiles fresh, so the windows are sized at the
-        values it *ended* on.  Measured on the synthetic five-stage fit, before
-        the closing stage and so at one window fraction throughout: 36 of
-        4200 channels differ at all, by at most 8e-6 of the peak height, every
-        one of them in a peak tail at a window edge.  ``RefinementResult.y_calc``
-        is the first of the two — the curve the fit actually minimised.
+        **After a default fit the two forms agree bit for bit.**  ``predict()``
+        evaluates the model the result was measured on, a compile at the
+        answer (#272, WP-1421), so it returns ``RefinementResult.y_calc``; a
+        grid compiles at the same values and windows.  Measured on the
+        fluorapatite tutorial under ``mccusker_default``: 0 of 5751 channels
+        differ.
+
+        **The free set reaches the curve in one case** (#774).  With both
+        axial-divergence ratios at exactly zero and either refined, the
+        compile sizes the peak windows as if each were
+        ``forward.AXIAL_SIZING_FLOOR``, so that a stage starting from zero
+        has a derivative to follow; held at zero, the asymmetry is off and
+        the windows are not widened.  The two curves differ by up to 4.8e-5
+        of the strongest peak (the issue's rutile reproducer, 2026-10-25).
+        Every positive value is sized by value alone.
 
         A grid compiles at ``compile_model``'s default windows whatever this
         object has fitted, so a never-fitted twin carrying the same models

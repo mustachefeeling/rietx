@@ -355,7 +355,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "receiving-slit height divided by the goniometer radius. It is the second "
             "half of the axial asymmetry. It is so strongly correlated with `axial_sl` "
             "that refining one and holding the other is a common protocol. One ratio "
-            "alone still smears the peaks. Only both at zero switch the asymmetry off."
+            "alone still smears the peaks. Only both at zero switch the asymmetry off. "
+            "With both at zero and either refined, the peaks are computed on windows "
+            "sized for a ratio of 0.02, so the curve differs from the same model with "
+            "both held by up to about 5e-5 of the strongest peak."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",

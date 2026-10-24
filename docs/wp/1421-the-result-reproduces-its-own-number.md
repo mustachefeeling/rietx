@@ -189,8 +189,17 @@ below are folded here, and their mailbox is emptied.
 - [x] The joint result is measured on a compile at its answer, as the single
       fit's is, and `MultiHistogramRefinement.report`'s docstring and
       `reference/joint.md` say so.
-- [ ] #774's zero case: the maintainer's ruling on (a)/(b)/(c), then its
-      change or its sentence.
+- [x] #774's zero case: the maintainer's ruling on (a)/(b)/(c), then its
+      change or its sentence. **Ruled (c), 2026-10-25**, after the practice
+      survey (`docs/practice.md` § Axial divergence at zero) and a probe of
+      (a): sizing every zero model at the floor made the gap exactly 0 and
+      a default fluorapatite fit 2.0× slower (0.64-0.71 s → 1.32-1.35 s),
+      for a gap now 4.8e-5 of the strongest peak. The sentence is in
+      `help.py`'s `axial_hl` entry and `Refinement.predict`'s docstring.
+      **Re-check when WP-2047 lands**, by the maintainer's instruction: once
+      windows follow the parameters between solves, a model at zero could
+      size its nodes from the free set (the live derivative) and its windows
+      from its value, which may close the gap at no cost. Unmeasured.
 
 ## Acceptance
 
