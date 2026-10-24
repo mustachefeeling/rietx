@@ -31,12 +31,13 @@ data = rx.read_pattern(examples_dir() / "FAP.XRA")
 data
 
 # %% [markdown]
+# [`rx.read_pattern`](https://rietx.org/docs/stable/reference/pattern-files.html#reading-a-pattern) recognises the format from the file.
 # A pattern prints as its size and range.
-# `sigma` reads `None` because the file has no esd column, so the fit weights each point by √y.
+# [`sigma`](https://rietx.org/docs/stable/reference/pattern-files.html#intensities-and-esds) reads `None` because the file has no esd column, so the fit weights each point by √y.
 #
 # ## Look before fitting
 #
-# Plot the pattern before any model touches it.
+# [Plot the pattern](https://rietx.org/docs/stable/reference/data.html#plotting-a-pattern) before any model touches it.
 
 # %%
 data.plot()
@@ -45,7 +46,7 @@ data.plot()
 # The peaks are sharp and the background is low and smooth.
 # Nothing in the scan looks like a second phase or an amorphous hump, so one phase is a fair start.
 #
-# `rx.diagnose` measures the pattern with no model.
+# [`rx.diagnose`](https://rietx.org/docs/stable/reference/pattern-diagnostics.html) measures the pattern with no model.
 # Pass the Cu Kα1 wavelength so it can screen for Kβ and tungsten Lα lines.
 
 # %%
@@ -67,14 +68,16 @@ diag
 #
 # ## Build a model
 #
-# A Le Bail fit needs a cell, a space group and an instrument.
+# A [Le Bail fit](https://rietx.org/docs/stable/reference/refinement.html#modes) needs a cell, a space group and an instrument.
 # The cell and space group come from a CIF of fluorapatite shipped beside the pattern.
+# [`rx.Structure.from_cif`](https://rietx.org/docs/stable/reference/structure-files.html#reading-a-cif) reads it.
 # The CIF has atoms too. A Le Bail fit ignores them.
+# [`rx.Instrument.bragg_brentano`](https://rietx.org/docs/stable/reference/instrument.html#constructors) builds a laboratory instrument for Cu Kα radiation.
 #
-# The background is a six-term Chebyshev polynomial.
+# The background is a six-term [Chebyshev polynomial](https://rietx.org/docs/stable/reference/instrument.html#chebyshev-polynomial).
 # Its constant term starts at the 5th percentile of the counts, and its other five terms at zero.
 # Left at zero, the first Le Bail extraction would count all the background under each peak as peak intensity.
-# `rx.auto_background(data).background` would size a penalised spline instead.
+# [`rx.auto_background`](https://rietx.org/docs/stable/guides/check.html#size-the-background-from-the-diagnostics) would size a penalised spline instead.
 # On this pattern the spline reports hundreds of correlated coefficient pairs.
 # They would crowd the diagnostics below.
 
@@ -89,7 +92,7 @@ ref = rx.Refinement(structure, instrument)
 ref
 
 # %% [markdown]
-# A `Refinement` holds the structure and the instrument.
+# A [`Refinement`](https://rietx.org/docs/stable/reference/refinement.html#entry-points) holds the structure and the instrument.
 # Its `mode` is the default until a fit names another.
 # Only the background varies so far.
 # The fit's plan sets the refine flags afresh at each stage, as [About a fit](https://rietx.org/docs/stable/concepts/fit.html#the-plan) describes.
@@ -127,9 +130,9 @@ data.plot(model=ref, two_theta_range=(25, 35))
 # `mode="lebail"` extracts each reflection's intensity from the data.
 # The `profile_only` plan runs five stages, named `bkg`, `zero`, `cell`, `profile_w` and `profile`.
 # Each frees one more group and keeps the earlier groups free: the background, the zero shift, the cell, the Gaussian width term W, then the other width terms U, V, X and Y.
-# A sixth stage, `closing`, then refines all of them together.
-# [Plan presets](https://rietx.org/docs/stable/reference/plans.html) draws its stages.
-# `two_theta_limits` sets the channels the fit uses.
+# A sixth stage, [`closing`](https://rietx.org/docs/stable/reference/refinement.html#the-closing-stage), then refines all of them together.
+# [Plan presets](https://rietx.org/docs/stable/reference/plans.html#profile-only) draws its stages.
+# [`two_theta_limits`](https://rietx.org/docs/stable/guides/range.html) sets the channels the fit uses.
 # We stop at 130° to match the GSAS-II tutorial.
 #
 # Expect the summary to report the under-sampling again.
@@ -145,27 +148,29 @@ result = ref.fit(
 result
 
 # %% [markdown]
-# Read the summary from the top.
+# Read the [summary](https://rietx.org/docs/stable/reference/result.html#printing-a-result) from the top.
 #
 # 1. Each stage line gives its status, the residual evaluations it took and its `ftol`.
-#    `ftol` is the relative fall in χ² below which the stage stops.
+#    [`ftol`](https://rietx.org/docs/stable/reference/refinement.html#stage-tolerances) is the relative fall in χ² below which the stage stops.
 #    The first five stages stop at `ftol=1e-06`, a looser tolerance than the solver's own, because a later stage refines their parameters again.
 #    The `closing` stage runs at the solver's default, and its values are the ones to quote.
 #    `max|Δθ|/esd` is the largest final step of any parameter in units of its own esd.
-# 2. The diagnostics outrank every statistic.
-#    Under each one, `help:` says what to do and `means:` says what the code means.
-#    A finding about particular parameters names them on an `at:` line.
-#    `PATTERN_UNDERSAMPLED` is the step count from `diagnose`.
+# 2. The [diagnostics](https://rietx.org/docs/stable/reference/result.html#diagnostics) outrank every statistic.
+#    The fit was not told its purpose, so each one prints as a line and a `means:` paragraph.
+#    The line names the code, any parameters it concerns, and the purposes it is a warning under.
+#    `result.diagnostics` holds each one in full, with what to do about it.
+#    [`PATTERN_UNDERSAMPLED`](https://rietx.org/docs/stable/reference/diagnostics-refinement.html#pattern-undersampled) is the step count from `diagnose`.
 # 3. The agreement indices come last. Rwp compares two fits of the same data over the same channels, and says little on its own.
 #
-# The table under the summary is every refined parameter with its esd.
+# The table under the summary is [every refined parameter](https://rietx.org/docs/stable/reference/parameter-table.html#refined-rows) with its esd.
 # A Le Bail fit lists the atoms too, held at the CIF's values.
-# The `at_bound` column is `true` for a parameter that ended on one of its limits, and empty for a row the fit did not vary, such as a tied or held one.
+# The [`at_bound`](https://rietx.org/docs/stable/concepts/correlations.html#parameters-on-a-bound) column is `true` for a parameter that ended on one of its limits, and empty for a row the fit did not vary, such as a tied or held one.
 #
 # ## Fit again, and keep the best pass
 #
 # A Le Bail fit holds its extracted intensities fixed inside each least-squares run.
 # The intensities and the profile converge only by alternating, so run the plan twice more.
+# [Le Bail passes](https://rietx.org/docs/stable/reference/refinement.html#le-bail-passes) gives the reason.
 
 # %%
 second = ref.fit(
@@ -183,7 +188,7 @@ third = ref.fit(
 ref.history
 
 # %% [markdown]
-# Each stage committed a node to the refinement's history, so each pass adds six nodes and ends on a `stage:closing` node.
+# Each stage committed a node to the refinement's [history](https://rietx.org/docs/stable/concepts/fit.html#the-history), so each pass adds six nodes and ends on a `stage:closing` node.
 # A later pass is not guaranteed to end lower, so the next cell keeps the lowest.
 # `*` marks the head, the node the working state stands at.
 # A node's Rwp is measured on the model compiled at the start of its stage, so it can differ slightly from the result's.
@@ -197,13 +202,13 @@ best
 
 # %% [markdown]
 # The kept pass carries its own diagnostics, and they differ from the first pass's.
-# `RESOLUTION_UNCONSTRAINED` is new, and its `at:` line names U, V and W.
+# [`RESOLUTION_UNCONSTRAINED`](https://rietx.org/docs/stable/reference/diagnostics-refinement.html#resolution-unconstrained) is new, and it names U, V and W.
 # It says the peak widths are not quotable until the instrument's own widths are calibrated on a standard.
 # Notebook 04 does that calibration.
 #
 # The cell's esds are counting statistics.
 # They include no error in the wavelength or the zero shift.
-# [About a fit](https://rietx.org/docs/stable/concepts/fit.html#the-history) describes the history and `checkout`.
+# [Checkout, branch and merge](https://rietx.org/docs/stable/reference/history.html#checkout-branch-and-merge) describes `checkout`.
 #
 # ## Look at the fit
 
@@ -216,5 +221,6 @@ best.plot()
 # A wiggle at every peak means the peak shape is wrong.
 # A peak with no tick under it means a phase the model lacks.
 # Here the largest misfit sits on the strongest peaks, near 32°.
+# [The fit figure](https://rietx.org/docs/stable/reference/figures.html#the-fit-figure) lists every keyword `plot` takes.
 #
 # Notebook 02 refines the same pattern with atoms.

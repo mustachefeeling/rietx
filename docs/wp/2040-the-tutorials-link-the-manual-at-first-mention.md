@@ -42,8 +42,12 @@ comes before it is explained or linked.
 - [ ] For each notebook, list every rietx concept it names (a verb, a type, a plan, a mode,
       a diagnostic code) and whether its first mention links the manual. Record the table in
       the handover entry.
-- [ ] Add the missing first-mention links, then rebuild.
-- [ ] Skill: none. The links are for a person reading a notebook.
+- [x] Add the missing first-mention links, then rebuild. (2026-10-24: 4-7 links a notebook
+      became 16-27, each in the first markdown cell that names its concept.)
+- [x] A test that each tutorial anchor is an id on its page of the built manual
+      (`test_manual.py::test_every_anchor_a_tutorial_links_is_on_its_page`). The page check in
+      `test_tutorials.py` could not see an anchor. (2026-10-24, added in this session.)
+- [x] Skill: none. The links are for a person reading a notebook.
 
 ## Acceptance
 

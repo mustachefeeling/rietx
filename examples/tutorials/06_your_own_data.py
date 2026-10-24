@@ -17,7 +17,7 @@
 # %% [markdown]
 # ## Your files and instrument ✏️
 #
-# For a capillary or a synchrotron pattern, replace the instrument with `rx.Instrument.debye_scherrer(wavelength=...)`, the wavelength in Å.
+# For a capillary or a synchrotron pattern, replace the instrument with [`rx.Instrument.debye_scherrer(wavelength=...)`](https://rietx.org/docs/stable/reference/instrument.html#constructors), the wavelength in Å.
 # [How to limit the fit range or leave out a region](https://rietx.org/docs/stable/guides/range.html) covers the range and excluded regions.
 
 # %%
@@ -40,9 +40,9 @@ TWO_THETA_LIMITS = (15, 130)
 OUTPUT = Path("rietx_output")
 
 # %% [markdown]
-# `rx.read_pattern` recognises the format from the file.
-# `rx.capabilities().reader_formats` lists every format it opens.
-# The pattern prints its range and step, and its `sigma` row reads `None` when the file gives no esd column.
+# [`rx.read_pattern`](https://rietx.org/docs/stable/reference/pattern-files.html#reading-a-pattern) recognises the format from the file.
+# [`rx.capabilities().reader_formats`](https://rietx.org/docs/stable/reference/pattern-files.html#formats) lists every format it opens.
+# The pattern prints its range and step, and its [`sigma`](https://rietx.org/docs/stable/reference/pattern-files.html#intensities-and-esds) row reads `None` when the file gives no esd column.
 # The fit then weights each point by √y.
 
 # %%
@@ -53,7 +53,7 @@ data
 data.plot()
 
 # %% [markdown]
-# `rx.diagnose` measures the pattern with no model.
+# [`rx.diagnose`](https://rietx.org/docs/stable/reference/pattern-diagnostics.html) measures the pattern with no model.
 # The instrument's source gives it the wavelength and the lines the beam can carry, so it can screen for Kβ and tungsten Lα lines.
 
 # %%
@@ -74,8 +74,8 @@ diag
 #
 # ## The model, checked before fitting
 #
-# Each CIF adds its phases to one structure.
-# The background is a six-term Chebyshev polynomial, its constant term started at the floor of the data.
+# Each CIF adds its phases to one [structure](https://rietx.org/docs/stable/reference/data.html#structure).
+# The background is a six-term [Chebyshev polynomial](https://rietx.org/docs/stable/reference/instrument.html#chebyshev-polynomial), its constant term started at the floor of the data.
 
 # %%
 phases = [phase for cif in CIFS for phase in rx.Structure.from_cif(cif).phases]
@@ -106,9 +106,9 @@ data.plot(model=ref, two_theta_range=(25, 35))
 #
 # ## Le Bail: does the cell index the pattern?
 #
-# Le Bail fits the cell and the peak shapes with free intensities.
+# [Le Bail](https://rietx.org/docs/stable/reference/refinement.html#modes) fits the cell and the peak shapes with free intensities.
 # If it cannot fit the pattern, a Rietveld fit will not either.
-# It runs on its own `Refinement`, so the Rietveld fit below starts from the CIF.
+# It runs on its own [`Refinement`](https://rietx.org/docs/stable/reference/refinement.html#entry-points), so the Rietveld fit below starts from the CIF.
 
 # %%
 lebail = rx.Refinement(structure, instrument).fit(
@@ -121,10 +121,10 @@ lebail.plot()
 
 # %% [markdown]
 # A flat difference curve here means the cell and the peak shapes are right.
-# The plot's title carries the Le Bail Rwp, so note it.
+# The [plot's title](https://rietx.org/docs/stable/reference/figures.html#the-fit-figure) carries the Le Bail Rwp, so note it.
 # A Rietveld Rwp well above it points at the structure model rather than the cell or the peaks.
 # It is not a floor.
-# This Le Bail plan frees fewer instrument terms than the Rietveld one, so a Rietveld Rwp a little below it is normal.
+# The [`profile_only`](https://rietx.org/docs/stable/reference/plans.html#profile-only) plan frees fewer instrument terms than the Rietveld one, so a Rietveld Rwp a little below it is normal.
 #
 # ## Rietveld
 #
@@ -145,7 +145,7 @@ result.plot()
 # ## What the fit says about itself
 #
 # Read every diagnostic before quoting a number.
-# `deliverable` picks the rows that decide whether the fit is done for one purpose: `"structure"`, `"qpa"`, `"phase_id"`, `"cell"`, `"microstructure"`, `"calibration"`, `"magnetic"` or `"series"`.
+# [`deliverable`](https://rietx.org/docs/stable/reference/result.html#printing-a-result) picks the rows that decide whether the fit is done for one purpose: `"structure"`, `"qpa"`, `"phase_id"`, `"cell"`, `"microstructure"`, `"calibration"`, `"magnetic"` or `"series"`.
 
 # %%
 print(ref.summary(deliverable="structure"))
@@ -157,14 +157,15 @@ print(ref.summary(deliverable="structure"))
 #
 # ## The refined structure
 #
-# `result.parameters` lists every refined value with its esd.
+# [`result.parameters`](https://rietx.org/docs/stable/reference/parameter-table.html#refined-rows) lists every refined value with its esd.
 
 # %%
 result.parameters
 
 # %% [markdown]
+# [`rx.viz.render_structure`](https://rietx.org/docs/stable/reference/figures.html#structure-pictures) draws the refined structure.
 # The default view is oblique.
-# `view` takes `"a"`, `"b"`, `"c"`, a direction `[u, v, w]`, a plane normal `{"hkl": (h, k, l)}`, or `"auto"`, which picks the low-index direction that hides the fewest atoms.
+# [`view`](https://rietx.org/docs/stable/reference/figures.html#views) takes `"a"`, `"b"`, `"c"`, a direction `[u, v, w]`, a plane normal `{"hkl": (h, k, l)}`, or `"auto"`, which picks the low-index direction that hides the fewest atoms.
 # A view down a symmetry axis is often the one a reader recognises.
 # `turn="-15x"` tips the view, and `atom_labels=True` names the sites.
 
@@ -175,10 +176,10 @@ rx.viz.render_structure(ref.structure)
 # %% [markdown]
 # ## Save the results
 #
-# The CIF carries the refined structure with its esds, the R factors, the pattern and the reflection list.
-# The project directory starts from the refined model with these settings, and `rietx gui` opens it.
+# [The CIF](https://rietx.org/docs/stable/reference/exports.html#the-refinement-cif) carries the refined structure with its esds, the R factors, the pattern and the reflection list.
+# The project directory starts from the refined model with these settings, and [`rietx gui`](https://rietx.org/docs/stable/reference/cli.html#rietx-gui) opens it.
 # It does not hold this fit's stages.
-# A fit run through `rx.Project` would record them.
+# A fit run through [`rx.Project`](https://rietx.org/docs/stable/reference/project.html#creating-a-project) would record them.
 # A `refinement.rex` that exists already is kept as it is, so rename or delete it before saving another fit there.
 # [About the project](https://rietx.org/docs/stable/concepts/project.html) describes what the directory holds.
 

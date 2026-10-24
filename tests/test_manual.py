@@ -245,6 +245,35 @@ def test_the_build_copies_exactly_the_committed_tutorials(built_docs_tree):
 
 
 @pytest.mark.xdist_group("manual-build")
+def test_every_anchor_a_tutorial_links_is_on_its_page(built_docs_tree):
+    """A tutorial's `#anchor` into the manual names an id on that page of the build.
+
+    `test_tutorials.py` checks the page against the Markdown sources, and that
+    check cannot see an anchor: a heading's slug is generated, so only the
+    output says what a link will find.  A renamed heading would otherwise
+    leave the reader at the top of the page with every test green (WP-2040).
+    """
+    out, result = built_docs_tree
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    link = re.compile(re.escape(DOCS_URL) + r"/docs/stable/([^\s#)>\]\"'`]+)#([^\s)>\]\"'`]+)")
+    ids: dict[str, set[str]] = {}
+    broken: list[str] = []
+    n_links = 0
+    for source in (nb.with_suffix(".py") for nb in _tutorial_notebooks()):
+        for page, anchor in link.findall(source.read_text(encoding="utf-8")):
+            n_links += 1
+            if page not in ids:
+                built = out / page
+                ids[page] = (set(re.findall(r'id="([^"]+)"', built.read_text(encoding="utf-8")))
+                             if built.is_file() else set())
+            if anchor not in ids[page]:
+                broken.append(f"{source.name}: {page}#{anchor}")
+    assert n_links > 0, "no tutorial links an anchor, so this test checks nothing"
+    assert not broken, ("links whose anchor is no id on that page of the built manual:\n"
+                        + "\n".join(broken))
+
+
+@pytest.mark.xdist_group("manual-build")
 def test_every_tutorial_renders_with_its_outputs_and_the_index_links_it(built_docs_tree):
     """Each notebook is a page carrying its committed outputs, reached from its index page.
 
