@@ -1,6 +1,6 @@
 # WP-1421 — the result reproduces its own number
 
-Milestone: unscheduled · Status: ⬜ — tasks 1 and 3-5 landed from outside under shape (a) (PR #432); tasks 2 and 6 open in part
+Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
 Priority: P2 2026-10-17 — was P3: WP-1986 measured the frozen windows moving the minimum itself, 9.5 % of χ² on the shipped tutorial under `mccusker_default`, with nothing firing
