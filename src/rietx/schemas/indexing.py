@@ -972,7 +972,7 @@ class PeakList(Base):
 
     def _repr_html_(self) -> str:
         """The notebook form: the text in one ``<pre>``, each diagnostic's
-        explanation under its ``help:`` line (WP-2037)."""
+        explanation under its ``help:`` line (WP-2039)."""
         from .._display import pre_html
         return pre_html("\n".join(self._text_lines(notebook=True)))
 
@@ -1973,7 +1973,7 @@ class IndexingResult(Base):
 
     def _repr_html_(self) -> str:
         """The notebook form: the text in one ``<pre>``, each diagnostic's
-        explanation under its ``help:`` line (WP-2037)."""
+        explanation under its ``help:`` line (WP-2039)."""
         from .._display import pre_html
         return pre_html("\n".join(self._text_lines(notebook=True)))
 

@@ -2,7 +2,7 @@
 
 Text is the authority, because an agent reads stdout and a person reads a
 notebook cell, and the two must not disagree.  The notebook form is the text
-form in one ``<pre>`` (WP-2037), with two additions: a result's refined
+form in one ``<pre>`` (WP-2039), with two additions: a result's refined
 parameters as a table, and each diagnostic's explanation as ``means:`` under
 its ``help:`` line (:func:`diagnostic_lines`).  It is one block because
 GitHub's sanitiser strips ``<details>``, and GitHub and JupyterLab both draw a
@@ -21,7 +21,7 @@ Four rules hold for everything here:
 - **No colour of its own.** The notebook form is one ``<pre>`` with no style:
   JupyterLab's and GitHub's sanitisers strip styles, and a colour here would be
   a fourth surface beside ``viz/theme.py``'s three.
-- **A display is laid out to be read** (WP-2037): values in one aligned
+- **A display is laid out to be read** (WP-2039): values in one aligned
   column, numbers to the digits that carry meaning, a unit where there is
   one, and an empty state that says whether the check ran.  The last is read
   off a field like any other value, so a view whose empty list means two
@@ -473,7 +473,7 @@ def pre_html(text: str) -> str:
 
 #: The column a notebook form wraps a diagnostic's prose at.  A ``<pre>`` does
 #: not wrap, and GitHub's notebook frame shows about 100 monospace characters
-#: (measured in headless Chrome, 2026-10-23, WP-2037).  88, black's and ruff's
+#: (measured in headless Chrome, 2026-10-23, WP-2039).  88, black's and ruff's
 #: default line length, keeps every line inside that frame with room to spare.
 NOTEBOOK_WIDTH = 88
 

@@ -1179,7 +1179,7 @@ def plot_pattern(data, *, path: str | None = None,
     so a before-and-after pair lines up.
 
     A notebook output has no caption, so the 2θ label names the radiation
-    whenever something states it (WP-2037): ``2θ (degrees), Cu Kα, λ =
+    whenever something states it (WP-2039): ``2θ (degrees), Cu Kα, λ =
     1.54059 Å``.  A :class:`PatternData` carries no wavelength of its own, so
     the label reads ``model``'s source, else the anode and wavelength the file
     recorded in ``data.metadata``, else stays ``2θ (degrees)``.  The anode is
@@ -1191,7 +1191,7 @@ def plot_pattern(data, *, path: str | None = None,
 
     ``model``, a :class:`~rietx.Refinement`, draws what it already holds over
     the data, at the parameters as they stand and before any fit (WP-1544,
-    WP-2037), so each part can be checked against the data before a fit uses
+    WP-2039), so each part can be checked against the data before a fit uses
     it.  One row of reflection ticks per phase goes under the data, where the
     result panel puts them: the check that the cell is close and λ is right
     before a fit is asked to find either.  The positions are

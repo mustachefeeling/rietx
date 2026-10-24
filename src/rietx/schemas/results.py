@@ -1920,7 +1920,7 @@ class RefinementResult(Base):
                                            joint=self.parametric_form_joint)
 
     def _repr_html_(self) -> str:
-        """The notebook form, in one ``<pre>`` (WP-1544, WP-2037): the
+        """The notebook form, in one ``<pre>`` (WP-1544, WP-2039): the
         termination view ``print`` gives, with each diagnostic's explanation
         under its ``help:`` line, then the refined parameters as a table of
         the same numbers as ``parameters``."""

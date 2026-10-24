@@ -74,7 +74,7 @@ def test_a_free_parameter_is_marked_and_carries_its_esd(fap):
 
 
 def test_diagnostics_print_every_field_under_its_heading(fap):
-    """Three headings, the maintainer's choice of 2026-10-23 (WP-2037): every
+    """Three headings, the maintainer's choice of 2026-10-23 (WP-2039): every
     field once, the range in the head, and ``contamination_searches`` read by
     the ``contamination`` row rather than printed as one of its own."""
     from rietx.background.diagnostics import PatternDiagnostics
@@ -149,7 +149,7 @@ def test_a_number_is_cut_to_three_significant_figures():
 
 
 def test_a_block_prints_its_values_in_one_column(fap):
-    """WP-2037: the one-line fields of a block share a value column; a field
+    """WP-2039: the one-line fields of a block share a value column; a field
     that opens a block of its own keeps ``name: Type``.  A ``Parameter`` keeps
     its own digits, since a wavelength needs them."""
     lines = str(fap["data"]).splitlines()
@@ -279,7 +279,7 @@ def _flat(text: str) -> str:
 
 
 def test_a_result_notebook_form_is_its_text_and_its_parameter_table(fap):
-    """WP-2037: one ``<pre>``, the text ``print`` gives and then the refined
+    """WP-2039: one ``<pre>``, the text ``print`` gives and then the refined
     parameters laid out as text, one row each under a header."""
     result = fap["result"]
     text, table = _notebook_text(result).split(f"\n  parameters: {len(result.parameters)}\n")
@@ -295,7 +295,7 @@ def test_a_result_notebook_form_is_its_text_and_its_parameter_table(fap):
 
 
 def test_a_result_notebook_form_says_what_each_diagnostic_means_and_print_does_not(fap):
-    """WP-2037, decision 1: the explanation (``rietx.help.explain``) is in
+    """WP-2039, decision 1: the explanation (``rietx.help.explain``) is in
     the notebook form, as ``means:`` under ``help:``, wrapped at the
     notebook's width with each continuation under the text after its label.
     ``print``, which an agent reads, leaves it out (WP-1985)."""
@@ -332,7 +332,7 @@ def test_a_result_notebook_form_says_what_each_diagnostic_means_and_print_does_n
 
 @pytest.mark.parametrize("name", ["result", "peaks", "indexing"])
 def test_every_notebook_form_is_one_pre(fap, name):
-    """WP-2037, decision 1: GitHub's sanitiser strips ``<details>``, and GitHub
+    """WP-2039, decision 1: GitHub's sanitiser strips ``<details>``, and GitHub
     and JupyterLab draw a bare table in the body font, right-aligned.  So
     every ``_repr_html_`` in the package is one ``<pre>`` and nothing else,
     and the instances here are one per class that has one, found in the
@@ -371,7 +371,7 @@ def test_every_notebook_form_is_one_pre(fap, name):
 
 @pytest.mark.parametrize("name", ["ref", "microstructure", "trajectory", "moment"])
 def test_a_view_a_notebook_form_would_not_add_to_shows_its_text(fap, name):
-    """WP-2037: where one ``<pre>`` of the text would be all a notebook form
+    """WP-2039: where one ``<pre>`` of the text would be all a notebook form
     carried, the object has none, and a notebook shows its text as it is."""
     formatters = pytest.importorskip("IPython.core.formatters")
     from rietx.schemas.results import MicrostructureTerm, PhaseMicrostructure
@@ -463,7 +463,7 @@ def test_a_trajectory_prints_one_row_a_point_with_its_esd():
 
 def test_a_diagnostic_prints_rustc_s_form_and_a_notebook_adds_what_it_means():
     """The text form is rustc's (WP-1985).  The notebook form adds the code's
-    explanation as ``means:`` after ``help:`` (WP-2037), and ``on:`` sits
+    explanation as ``means:`` after ``help:`` (WP-2039), and ``on:`` sits
     under the headline in both."""
     from rietx._display import diagnostic_lines
     from rietx.help import explain

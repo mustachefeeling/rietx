@@ -43,7 +43,7 @@ here (2026-10-03, at the maintainer's request).
 
 ### Inherited
 
-- **2026-10-24, from WP-2037: a model's starting background is now drawn before a fit.**
+- **2026-10-24, from WP-2039: a model's starting background is now drawn before a fit.**
   `data.plot(model=ref)` draws the background at its starting values, dashed, over the
   channels a fit would use (`viz.plots._starting_model`). An `auto_background()` model
   starts its P-spline at zero and its air-scatter term at 0.001, so the figure shows a

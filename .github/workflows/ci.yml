@@ -123,12 +123,12 @@ jobs:
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev]"
       - run: .venv/bin/python -m ruff check src tests examples
-      # the tutorials' layout, one argument a line at 79 columns (WP-2037,
+      # the tutorials' layout, one argument a line at 79 columns (WP-2039,
       # examples/tutorials/ruff.toml); the rest of the tree is not formatted
       - run: .venv/bin/python -m ruff format --check examples/tutorials
       - name: Vale over the manual and the tutorials
         # The prose linter over docs/docs/ and the tutorials' markdown cells
-        # (WP-2037, extracted by `build.py --prose`) (WP-1982; rules and layers in
+        # (WP-2039, extracted by `build.py --prose`) (WP-1982; rules and layers in
         # .vale.ini).  An error-level alert fails the job, and a warning is
         # printed for whoever edits the page; suggestions are left to a local
         # run.  Here rather than in the suite because Vale is a Go binary, not

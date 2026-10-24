@@ -238,7 +238,7 @@ def test_check_sees_a_template_with_outputs(tmp_path):
 
 def test_a_rebuild_names_the_markdown_under_a_changed_output():
     """A cell whose text output moved is listed with the markdown that
-    describes it; an inserted cell and an unchanged one are not (WP-2037)."""
+    describes it; an inserted cell and an unchanged one are not (WP-2039)."""
     v4 = nbformat.v4
 
     def nb(*cells):

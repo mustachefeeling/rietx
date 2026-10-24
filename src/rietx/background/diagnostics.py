@@ -652,7 +652,7 @@ class PatternDiagnostics(Base):
       ``wavelength``, one matching no tabulated Kα1, a source whose beam
       carries neither line (:func:`ghost_searches`), or too few strong lines
       in range.  ``None`` is an object written before the field existed
-      (WP-2037), which cannot say.
+      (WP-2039), which cannot say.
     * ``baseline_lambda`` — the arPLS stiffness the whiteness rule selects
       for this pattern (:func:`rietx.background.select_arpls_lambda`).
     * ``steps_per_fwhm`` / ``n_peaks_measured`` — how finely the peaks were
@@ -706,7 +706,7 @@ class PatternDiagnostics(Base):
     dead_channels: list[DeadChannelRun] = Field(default_factory=list)
 
     #: The headings ``print`` shows the fields under, in reading order
-    #: (WP-2037, the maintainer's choice of 2026-10-23): what anyone refining
+    #: (WP-2039, the maintainer's choice of 2026-10-23): what anyone refining
     #: checks, what matters on some instruments, and the numbers rietx
     #: measures for its own use.  Every field appears once, the range in the
     #: head and ``contamination_searches`` inside the ``contamination`` row
@@ -1722,7 +1722,7 @@ def _ghost_screen(
     source: object | None = None,
 ) -> tuple[list[ContaminationFlag], list[str]]:
     """:func:`contamination_flags_from_peaks`' flags, and the searches that
-    could have raised one (WP-2037): those run with at least
+    could have raised one (WP-2039): those run with at least
     :data:`GHOST_MIN_PARENTS` parents whose ghost falls in range.  A search
     with fewer is a silence, so :func:`diagnose` records it as not run."""
     searches = ghost_searches(source)

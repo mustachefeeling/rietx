@@ -1,4 +1,4 @@
-# WP-2038 — the tutorials link the manual at each concept's first mention
+# WP-2040 — the tutorials link the manual at each concept's first mention
 
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
@@ -12,9 +12,9 @@ mention in that notebook.
 
 ## Context
 
-The maintainer's note on notebook 01 (2026-10-23; WP-2037 § Where this came from, note 3):
+The maintainer's note on notebook 01 (2026-10-23; WP-2039 § Where this came from, note 3):
 add more manual links to the notebooks once the manual is more complete. The rule this
-applies is `yue-docs-style` rule 3 as WP-2037 proposes to widen it: nothing the reader needs
+applies is `yue-docs-style` rule 3 as WP-2039 proposes to widen it: nothing the reader needs
 comes before it is explained or linked.
 
 - Counted on `bc71dec`, the tutorials carry 4 to 7 links each to
@@ -28,26 +28,26 @@ comes before it is explained or linked.
 
 ### Inherited
 
-- **2026-10-24, from WP-2037: two tutorial gaps no open WP owns, left here because this is
+- **2026-10-24, from WP-2039: two tutorial gaps no open WP owns, left here because this is
   the next WP to edit the tutorials.** Fold each into a task or file it.
   1. Notebook 03 no longer shows the indexer abstaining. Since WP-2002 removed the U, V and
      Y width floors (`879fb1bcc`), its candidate validates with 0 of 105 reflections absent
      and grades `high`, so the verdict line names the cell. Checked on an `origin/main`
-     snapshot (`e921947a0`), so it is not WP-2037's doing. WP-2037 rewrote the section to
+     snapshot (`e921947a0`), so it is not WP-2039's doing. WP-2039 rewrote the section to
      what the output shows and gave the search `budget_seconds=120`, because at the 30 s
      default a busy machine left svd unfinished and flipped the verdict to NO CELL. The
      lesson "why the indexer abstains" now has no example in the tutorials.
-  2. `best.plot()` names no radiation, while `data.plot()` now does (WP-2037). A
+  2. `best.plot()` names no radiation, while `data.plot()` now does (WP-2039). A
      `RefinementResult` carries no field naming its source, so `plot_result` can only
      take `wavelength=`. Closing it needs a recorded field on the result, a schema
      change.
-- **2026-10-24, from WP-2037: `build.py` now lists every cell whose text output a rebuild
+- **2026-10-24, from WP-2039: `build.py` now lists every cell whose text output a rebuild
   changed, with the first line of the markdown under it.** Reread each one it lists before
   committing a rebuild.
 
 ## Non-goals
 
-- The prose and display fixes: WP-2037.
+- The prose and display fixes: WP-2039.
 - New manual pages. A concept with no page is listed in the handover entry and gets no link.
 
 ## Tasks
@@ -73,6 +73,6 @@ None.
 
 ## Handover log
 
-- **2026-10-23** — Created from the maintainer's note on notebook 01, beside WP-2037. Filed
-  apart from it because it waits on WP-1986, and WP-2037 does not. Next: start once WP-1986
+- **2026-10-23** — Created from the maintainer's note on notebook 01, beside WP-2039. Filed
+  apart from it because it waits on WP-1986, and WP-2039 does not. Next: start once WP-1986
   closes.

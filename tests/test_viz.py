@@ -207,7 +207,7 @@ def test_pattern_data_plot_forwards_and_refuses_what_the_result_refuses(fitted):
 
 
 # ----------------------------------------------------------------------
-# model=: the starting background, and the radiation on the 2θ label (WP-2037)
+# model=: the starting background, and the radiation on the 2θ label (WP-2039)
 # ----------------------------------------------------------------------
 def _starting(instrument=None, background=TRUE_BKG) -> rx.Refinement:
     """The perturbed LaB6 model, its background set to ``background``."""

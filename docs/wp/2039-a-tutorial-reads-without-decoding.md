@@ -1,4 +1,4 @@
-# WP-2037 — a tutorial reads without decoding: the maintainer's notes as rules, the quickstart's fixes, and the checks that hold them
+# WP-2039 — a tutorial reads without decoding: the maintainer's notes as rules, the quickstart's fixes, and the checks that hold them
 
 Milestone: unscheduled · Status: 🔄 2026-10-23 — claimed by @yue-here
 Track: The repo's own process
@@ -24,7 +24,7 @@ The maintainer read notebook 01 (`examples/tutorials/01_quickstart.ipynb`) on Gi
    (a keyboard shortcut or the button).
 2. The `PatternData` and diagnostics displays should be easier to read, with aligned columns.
 3. A WP should add more manual links to the notebooks once the manual is more complete
-   (filed as WP-2038).
+   (filed as WP-2040).
 4. Are dead channels useful? Which diagnostics are day-to-day items, and which are artefacts
    of rietx's own test cases?
 5. "the first pass hands the whole pedestal" is needless jargon.
@@ -191,7 +191,7 @@ a change to what `diagnose` computes, so it stays inside the non-goal below.
 
 ## Non-goals
 
-- The manual links in the tutorials: WP-2038, after WP-1986.
+- The manual links in the tutorials: WP-2040, after WP-1986.
 - What `diagnose` computes, or its thresholds. Only how it prints is in scope. The `DEAD_*`
   and `CUTOFF_*` rows belong to the generality audits.
 - WP-1986's move of the Guides pages. WP-1985's diagnostic text is closed.

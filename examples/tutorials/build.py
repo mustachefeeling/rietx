@@ -26,7 +26,7 @@ them, so a rebuild on another machine moves them; ``--check`` therefore
 compares cells and the version stamp, never outputs.
 
 A rebuild lists each code cell whose text output changed, with the markdown
-cell under it (WP-2037).  That markdown says what the output showed, and no
+cell under it (WP-2039).  That markdown says what the output showed, and no
 check can tell whether it still does, so whoever ran the build rereads it.
 
 A build **fails on any stderr output**.  A warning prints the absolute path of
