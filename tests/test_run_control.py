@@ -256,6 +256,7 @@ def test_a_cancelled_second_fit_leaves_the_first_report_alone(ref, pattern):
     ref.fit(pattern, plan=PLAN)
     before = ref.report().model_dump()
     rows = ref.reflection_table()
+    curve = ref.predict()
     token = CancelToken()
     state = {"stage": None}
 
@@ -272,6 +273,7 @@ def test_a_cancelled_second_fit_leaves_the_first_report_alone(ref, pattern):
     assert ref.structure.phases[0].scale.value != scale, "the second fit moved nothing"
     assert ref.report().model_dump() == before
     assert ref.reflection_table() == rows
+    assert (ref.predict() == curve).all(), "predict() read the cancelled fit's values"
 
 
 def test_cancel_emits_stage_end_and_fit_end(ref, pattern):

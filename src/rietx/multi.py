@@ -90,7 +90,7 @@ from .refine import (
     _far_from_data_diagnostics,
     _fixed_literal_diagnostics,
     _flat_moment_scan,
-    _frozen_compile_findings,
+    _frozen_compile_diagnostics,
     _guard_diagnostics,
     _harmonic_diagnostics,
     _held_scale_phases,
@@ -282,6 +282,9 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
         (FIT,), "a stage's globs are the plan's, matched against every table"),
     "_max_iter_diagnostics": (
         (FIT,), "a stage's budget is spent by the one joint solve"),
+    "_frozen_compile_diagnostics": (
+        (FIT,), "χ² summed over the histograms, the joint solve's objective "
+                "(WP-1421)"),
     "_phase_support_diagnostics": (
         (FIT,), "a phase is unseen only when every histogram misses it, so the "
                 "statement is joint"),
@@ -1377,8 +1380,11 @@ class MultiHistogramRefinement:
         """The pooled Rwp and each histogram's, at the values a stage ended on.
 
         Computed the way :meth:`_build_result` computes the answer's, from the
-        outcome's θ on the same models, so the last ``stage_end`` agrees with
-        ``fit_end``.  Never from ``mtable.x0()``: the combined vector is
+        outcome's θ, but on the stage's own compile: the answer is measured on
+        a compile at its values (:meth:`_final_compiles`), so the last
+        ``stage_end`` differs from ``fit_end`` by the frozen windows alone,
+        which ``FROZEN_COMPILE_STALE`` reports past 1 % in χ².  Never from
+        ``mtable.x0()``: the combined vector is
         cached, and a commit that re-charts nothing leaves it at the stage's
         start.
         """
@@ -1712,7 +1718,8 @@ class MultiHistogramRefinement:
             new.origin = old.origin
             chi2_frozen += float(np.sum(((old.y_obs - old.evaluate(v)) / old.sigma) ** 2))
             chi2_fresh += float(np.sum(((new.y_obs - new.evaluate(v)) / new.sigma) ** 2))
-        return fresh, _frozen_compile_findings(chi2_frozen, chi2_fresh)
+        return fresh, _frozen_compile_diagnostics(chi2_frozen, chi2_fresh,
+                                                  joint=True)
 
     def _emit_stage_start(self, stream, stage, index, n_stages, models, *,
                           freed, held, unknown_paths, unreached, **extra) -> None:

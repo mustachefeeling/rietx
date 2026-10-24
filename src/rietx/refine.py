@@ -5547,7 +5547,7 @@ class Refinement:
             ((model.y_obs - model.evaluate(values)) / model.sigma) ** 2))
         chi2_fresh = float(np.sum(
             ((fresh.y_obs - fresh.evaluate(values)) / fresh.sigma) ** 2))
-        return fresh, _frozen_compile_findings(chi2_frozen, chi2_fresh)
+        return fresh, _frozen_compile_diagnostics(chi2_frozen, chi2_fresh)
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
                       guard, stage_diagnostics, *, significance=None
@@ -5830,7 +5830,9 @@ class Refinement:
         :class:`~rietx.PatternData` whose 2θ column is used — this compiles a
         fresh model on it and evaluates.  With no argument it evaluates on the
         grid the last fit ran on, which is the one form that needs a fit to
-        have happened: nothing else supplies a grid.
+        have happened: nothing else supplies a grid.  That form evaluates the
+        last result's answer on that result's model, so a later fit that is
+        cancelled, keeping its completed stages, does not move it (WP-1421).
 
         **It does not require a fit** (WP-1110 item 6).  Until then it did, and
         the refusal was ``RuntimeError: call fit() first`` on both forms, which
@@ -5880,6 +5882,11 @@ class Refinement:
                     "ran on, and this Refinement has not been fitted. Pass the "
                     "pattern (or a 2θ array) to evaluate the model as it "
                     "stands: ref.predict(data).")
+            if self._answer is not None:
+                # the answer frozen with the result, never the live models: a
+                # later cancelled fit keeps its completed stages and this
+                # result, as in report() (WP-1421)
+                return self._model.evaluate(self._answer["values"])
             # the fitted model reads the moment DOFs in the last stage's frames
             table.pull_moment_frames(self._model)
             return self._model.evaluate(table.decode(table.x0()))
@@ -6278,8 +6285,13 @@ class Refinement:
 
         if self.result_ is None:
             raise RuntimeError("call fit() first")
-        write_document(refinement_cif_doc(self.result_, self.structure,
-                                          self.instrument, pattern=self._fit_pattern,
+        # the models frozen with the result, as the reflection loop below reads
+        # them: a later cancelled fit moves the live ones and keeps this result
+        answer = self._answer
+        structure = self.structure if answer is None else answer["structure"]
+        instrument = self.instrument if answer is None else answer["instrument"]
+        write_document(refinement_cif_doc(self.result_, structure,
+                                          instrument, pattern=self._fit_pattern,
                                           reflections=self.reflection_table()), path)
 
     def write_qpa_table(self, path, **kw) -> None:
@@ -8328,25 +8340,30 @@ def _restore_lebail(states: list[ReflectionState], model: CompiledModel) -> None
 FROZEN_COMPILE_CHI2_REL = 1e-2
 
 
-def _frozen_compile_findings(chi2_frozen: float, chi2_fresh: float) -> list[Diagnostic]:
+def _frozen_compile_diagnostics(chi2_frozen: float, chi2_fresh: float, *,
+                                joint: bool = False) -> list[Diagnostic]:
     """``FROZEN_COMPILE_STALE`` when the two χ² differ past :data:`FROZEN_COMPILE_CHI2_REL`.
 
     One comparison for both runners: the single fit's
     :meth:`Refinement._final_compile` and the joint fit's
-    ``MultiHistogramRefinement._final_compiles``, which sums its histograms.
+    ``MultiHistogramRefinement._final_compiles``, which sums its histograms
+    (``joint``) and keeps no history node to hold the frozen figure.
     """
     rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
            if chi2_frozen > 0 else 0.0)
     if not rel > FROZEN_COMPILE_CHI2_REL:
         return []
+    summed = ", summed over the histograms," if joint else ""
+    kept = ("the last stage's record keeps the frozen one" if joint
+            else "the history node keeps the frozen one")
     return [Diagnostic(
         level="info", code="FROZEN_COMPILE_STALE",
         message=(
             f"A fresh compile at the returned parameters gives "
-            f"chi2 = {chi2_fresh:.6g}. The last stage's own compile gives "
+            f"chi2{summed} = {chi2_fresh:.6g}. The last stage's own compile gives "
             f"{chi2_frozen:.6g} at the same parameters, "
             f"{100 * rel:.2g} % apart. The result reports the fresh "
-            f"figure and the history node keeps the frozen one."),
+            f"figure and {kept}."),
         value=rel)]
 
 
