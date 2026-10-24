@@ -67,7 +67,7 @@ class Write:
 def _git(root: Path, *args: str) -> Optional[str]:
     try:
         proc = subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=True, timeout=30
+            ["git", *args], cwd=root, capture_output=True, encoding="utf-8", errors="replace", timeout=30
         )
     except (OSError, subprocess.TimeoutExpired):
         return None

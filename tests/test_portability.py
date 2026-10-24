@@ -199,6 +199,56 @@ def test_every_text_io_call_names_its_encoding():
         + "\n  ".join(offenders))
 
 
+#: The workflow hooks: outside the package, but their tests run on Windows.
+HOOKS = ROOT / ".claude" / "hooks"
+
+_SUBPROCESS = {"run", "Popen", "check_output", "check_call", "call"}
+
+
+def _text_mode_subprocess_calls(tree: ast.AST) -> list[ast.Call]:
+    """`subprocess` calls that decode their output in the locale's encoding."""
+    found = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in _SUBPROCESS
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "subprocess"):
+            keywords = {kw.arg for kw in node.keywords}
+            if keywords & {"text", "universal_newlines"} and "encoding" not in keywords:
+                found.append(node)
+    return found
+
+
+def test_a_hook_decodes_what_git_and_gh_print_as_utf8():
+    """A hook's text I/O names its encoding, its subprocess output included (WP-2043).
+
+    The hooks read WP files and PR titles through git and gh, and those carry
+    a status ✅ and em dashes.  `text=True` alone decoded them as cp1252 on
+    Windows, where ✅ arrives as `âœ…`: `closed_wp_writes` read every closed
+    WP as open, and five tests were red on four Windows nightlies.  The
+    test-side subprocess calls are not held to this, because the ones that
+    read non-ASCII output pin their own pipe (`test_examples._run`).
+    """
+    offenders = []
+    for path in sorted(HOOKS.glob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        calls = _text_mode_subprocess_calls(tree)
+        calls += [call for call, _ in _text_io_calls(tree, source)
+                  if not any(kw.arg == "encoding" for kw in call.keywords)]
+        offenders += [f"{path.relative_to(ROOT)}:{call.lineno}" for call in calls]
+    assert not offenders, (
+        "a hook decodes text in the locale's encoding (cp1252 on Windows):\n  "
+        + "\n  ".join(offenders))
+
+
+def test_the_hook_guard_can_actually_fail():
+    """The subprocess half of the guard above, made to fail once."""
+    tree = ast.parse('import subprocess\nsubprocess.run(["git"], text=True)\n'
+                     'subprocess.run(["git"], encoding="utf-8")\n')
+    assert [call.lineno for call in _text_mode_subprocess_calls(tree)] == [2]
+
+
 def test_csv_writers_open_with_newline_suppressed():
     """Anything handing csv.writer output to a file must pass newline="".
 

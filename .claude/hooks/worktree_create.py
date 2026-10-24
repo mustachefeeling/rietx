@@ -59,7 +59,7 @@ VENV = session_start.VENV_FIX  # names the architecture on an arm64 Mac (python_
 
 
 def sh(*args: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess:
-    proc = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+    proc = subprocess.run(args, cwd=cwd, capture_output=True, encoding="utf-8", errors="replace")
     if check and proc.returncode != 0:
         raise RuntimeError(f"{' '.join(args)}: {proc.stderr.strip()}")
     return proc
@@ -130,7 +130,7 @@ def main() -> int:
         except OSError as exc:
             print(f"worktree {name}: claim not written ({exc})", file=sys.stderr)
 
-    venv = subprocess.run(VENV, shell=True, cwd=path, capture_output=True, text=True)
+    venv = subprocess.run(VENV, shell=True, cwd=path, capture_output=True, encoding="utf-8", errors="replace")
     if venv.returncode != 0:
         print(f"worktree {name}: venv build failed — run `{VENV}` there:\n{venv.stderr}", file=sys.stderr)
     else:

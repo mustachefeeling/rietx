@@ -53,7 +53,7 @@ is read-only for a session: %s"""
 def _git(cwd: Path, *args: str) -> Optional[str]:
     try:
         proc = subprocess.run(
-            ["git", "-C", str(cwd), *args], capture_output=True, text=True, timeout=10
+            ["git", "-C", str(cwd), *args], capture_output=True, encoding="utf-8", errors="replace", timeout=10
         )
     except (OSError, subprocess.TimeoutExpired):
         return None

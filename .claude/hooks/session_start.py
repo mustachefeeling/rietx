@@ -89,7 +89,7 @@ def host_arch() -> str:
     if sys.platform == "darwin":
         try:
             out = subprocess.run(["sysctl", "-n", "hw.optional.arm64"],
-                                 capture_output=True, text=True, timeout=5).stdout
+                                 capture_output=True, encoding="utf-8", errors="replace", timeout=5).stdout
         except (OSError, subprocess.TimeoutExpired):
             out = ""
         if out.strip() == "1":
@@ -156,7 +156,7 @@ class Finding(NamedTuple):
 def _git(root: Path, *args: str) -> Optional[str]:
     try:
         proc = subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=True, timeout=10
+            ["git", *args], cwd=root, capture_output=True, encoding="utf-8", errors="replace", timeout=10
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -229,7 +229,7 @@ class Session(NamedTuple):
 
 def _run(*args: str) -> Optional[str]:
     try:
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=5)
+        proc = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=5)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return proc.stdout if proc.returncode == 0 else None

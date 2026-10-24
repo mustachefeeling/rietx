@@ -33,7 +33,7 @@ def main() -> int:
     root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd())
     proc = subprocess.run(
         ["git", "-C", str(root), "worktree", "remove", "--force", str(path)],
-        capture_output=True, text=True,
+        capture_output=True, encoding="utf-8", errors="replace",
     )
     if proc.returncode != 0:
         print(f"worktree_remove: {proc.stderr.strip()}", file=sys.stderr)
