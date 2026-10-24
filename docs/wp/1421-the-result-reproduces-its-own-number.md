@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
-Priority: P2 2026-10-17 — was P3: WP-1986 measured the frozen windows moving the minimum itself, 9.5 % of χ² on the shipped tutorial under `mccusker_default`, with nothing firing
+Priority: P2 2026-10-25 — WP-1986's 9.5 % gap is closed for plans by WP-2002's closing stage (re-measured this day); left: a finding that claims more than it measured, a report reading the live models, the joint fit's frozen compile
 
 ## Goal
 
@@ -77,171 +77,74 @@ lands applies to the stage trajectory too.
 Le Bail and Pawley intensities are frozen per stage as well
 (`ReflectionState`). A fresh compile must carry them, never re-partition.
 
+**What arrived after the merge, re-checked 2026-10-25 at `7e69f974`**
+(`[dev]` venv, darwin/arm64). Superseded in part: the inherited entries
+below are folded here, and their mailbox is emptied.
+
+- **The frozen windows can move the minimum, and a plan now re-solves for
+  it.** WP-1986 (2026-10-17) measured a gap between two minima on the
+  shipped fluorapatite tutorial (`FAP.XRA`, six-term Chebyshev, 15-130°):
+  `mccusker_default` ended at Rwp 0.0992 and one empty stage re-solved to
+  0.0940, while the fresh and frozen compiles at the returned values differed
+  by only 0.8 %, so `FROZEN_COMPILE_STALE` stayed silent. WP-2002 then added
+  the closing stage (`RefinementPlan.closing_stage`, `strategy/staged.py`):
+  after the declared stages, one more recompiles at the answer and re-solves.
+  Re-measured with it, the gap to one more empty stage is 0.00 % under
+  `mccusker_default` (0.0945 → 0.0945), `mccusker_structural` and
+  `lab_sample_refine`. With `closing_window_tol=None` it is back: 9.26 % under
+  `mccusker_default` (0.0992 → 0.0945). A hand-run `run_stage` has no closing
+  stage, so it keeps the gap; `docs/docs/guides/next.md` and `stage.md` teach
+  the empty stage that closes it.
+- **The joint fit, the same.** WP-1341 (2026-10-12) found a joint result's
+  report reading cut peak tails as unmatched peaks (44 and 27 on
+  `test_multi_histogram`'s WP-1131 size pair). Re-measured: with the closing
+  stage the two histograms report Rwp 0.04078 and 0.08166, a compile at the
+  answer gives the same five digits, and Layer 0 lists 0 unmatched peaks on
+  each. With `closing_window_tol=None`: reported 0.09658 and 0.12971 against
+  0.12744 and 0.13130 fresh, 38 and 28 unmatched. The joint path still builds
+  its result on the last stage's compile (`multi._build_result`), so the
+  closing stage is what hides the gap there. `MultiHistogramRefinement.report`'s
+  docstring and `docs/docs/reference/joint.md` still describe the gap as live.
+- **The finding's "not biased" sentence is wrong in two measured cases.** It
+  rests on #272's two good fits, where the minimum moved ≤ 0.0014 esd. WP-1986's
+  hand-run stage is one counterexample (above). WP-1930 (2026-10-09) is the
+  other: a wrong P 1 cell on synthetic silicon whose widths ran to their upper
+  bounds, χ² 3.29e5 on the frozen compile against 2.56e8 fresh (3.1e4 % apart),
+  `converged`, with the info finding still saying "The fit is not biased by
+  it". The sentence is in `help.py`'s entry, `_final_compile`'s docstring and
+  the skill's `diagnostics.md` row. Reproduce WP-1930's case with
+  `ins.profile.w.value *= 1 - 3e-14` before the first fit of
+  `test_cell_runaway_safety.py::test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`.
+- **`Refinement.report` pairs `result_` with the live models** (from WP-1341,
+  2026-10-23). It builds `ParameterTable(self.structure, self.instrument)`
+  beside `self.result_` (`refine.py` `report`), so after a cancelled second fit
+  or a `set_values` its Layers 1-2 read values that are not the result's. The
+  joint `report(h)` was fixed by freezing the answer with the result
+  (`multi._freeze_answer`, PR #937). Checked: the single fit's `report` is
+  unchanged.
+- **#774, the free set reaching the compile.** PR #776 (merged 2026-10-08)
+  sizes the FCJ axial floor by value whenever both ratios are positive, so
+  `predict()` reads values and not the free set there. The **zero case** is
+  open: at exactly zero, free against fixed still differs by max|dy|/max(y) =
+  1.66e-4 (re-measured 2026-10-16 at `2c94d848`), because a free ratio at zero
+  takes `AXIAL_SIZING_FLOOR` for its nodes *and* its window half-width. The
+  issue's options (a) size from values only, (b) freeze and record the count,
+  (c) document a tolerance, applied to the zero case, await the maintainer's
+  ruling. Sizing by value does not touch the stage-start freeze, so task 2
+  stands whichever is taken.
+- **The thesis has two more instances, both fixed.** WP-1432: `replay` applied
+  a user tie onto a coordinate DOF twice (x = 0.2174 against the node's
+  0.2084), fixed by `ParameterTable.rebase_anchored_dofs`. WP-1342:
+  `StageResult.held_reach` is a mapping a replay must reproduce, readable only
+  while the held column is still in θ. What a state *records* and what
+  rebuilding from it *produces* are two objects, and only a test comparing them
+  says they agree.
+- **Parked here, not this WP's mechanism: the LaB₆/cBN boron esd** (WP-1541,
+  2026-10-03). `test_the_one_free_coordinate_agrees` (`lab6_cbn`) gave x =
+  0.19838 with esd 2.26e-3 where the row once said 1.7e-3. #674 only shrinks
+  esds, so something else moved it; nobody has looked for when.
+
 ### Inherited
-
-- **2026-10-17, from WP-1986 (writing the guide to choosing the next
-  parameter): the frozen windows bias the minimum, not only the reported
-  curve, and `FROZEN_COMPILE_STALE` is silent where it happens.** On the
-  shipped fluorapatite tutorial (`FAP.XRA`, `rietx.examples`, six-term
-  Chebyshev, limits 15-130°), `mccusker_default` ends at Rwp 0.0992 with its
-  last stage `profile` "converged". A branch running one empty stage
-  (`rx.Stage("again", [])`) reaches 0.0940, χ² 8913 → 8064 (9.5 %), moving
-  `instrument.profile.x` 0.0337 → 0.0305 and `y` 0.0296 → 0.0342; a second
-  empty stage moves nothing. The fresh compile at the returned values differs
-  from the stage's by only 0.8 % (8985 against 8913), under
-  `FROZEN_COMPILE_CHI2_REL`, so nothing fires, and the code's help text says
-  "The fit is not biased". Hand-run `scale_bkg` → `cell` → `profile` (the
-  guide `docs/docs/guides/stage.md`'s stages): Rwp 0.1022 → 0.0940 after one
-  empty stage. The windows are the cause: the same `profile` stage with
-  `window_slack_deg` 0.5 / 1.0 / 2.0 ends at 0.0967 / 0.0947 / 0.0945, and
-  every one re-solves to 0.0940. `mccusker_structural` and
-  `lab_sample_refine` show no gap (0.0 %), because a later stage recompiles
-  after the peaks narrow. Same on `RIETX_COMPILED=0`, `[dev]`, darwin/arm64.
-  Two consequences reach outside this WP. `report.compare_freed` against a
-  plan's end credits a freed parameter with the re-solve's gain: extinction,
-  which stays on its floor at 0, scored ΔBIC +148 against the unsettled fit and
-  −7 against a re-solved branch (`examples/guides/next.py` asserts both). And
-  the guides `docs/docs/guides/next.md` and `stage.md` quote the gap, so a fix
-  fails `tests/test_examples.py` there by design; update their quoted output.
-  The reproducibility test this WP owns measures the gap at fixed parameters,
-  and this gap is between two minima, so a fix has to re-solve, or size the
-  last stage's windows for the shape it will end on.
-
-- **2026-10-16, from the issue triage (#774): the zero case is re-measured
-  after WP-1953 changed what zero means, and it did not move.** The 2026-10-11
-  entry says the free-against-fixed gap at exactly zero was "not re-run".
-  Re-run at `2c94d848` (the issue's rutile reproducer, `[dev]` venv of this
-  worktree, macOS arm64): both ratios at 0.0, `predict()` free against fixed:
-  max|dy|/max(y) = 1.66e-04, the 2026-10-08 figure to three digits; at 0.01
-  and 0.05 it is 0 (so the nonzero case, #776, holds). `5ba19a83` (WP-1953,
-  2026-10-12) made a zero axial aperture the limit of a vanishing one
-  (`fcj_live`) and left the compile-time sizing rule alone; WP-1953's own
-  handover calls the 0.02 sizing floor on a fixed zero beside a positive one
-  "#774's rule". The (a)/(b)/(c) ruling for the zero case, asked by the
-  reporter on 2026-10-06 and in no record as answered, is still the
-  maintainer's.
-
-**2026-09-23, from the issue triage (issue #272).** The reporter claimed this
-on the thread on 2026-09-23: a fix is in progress on their fork, off
-`ff56d956`, one PR per issue. No PR existed when this was written, so
-`wp_claim.py status` cannot see the claim yet. A session picking this WP
-checks the thread and `gh pr list` first.
-
-- **2026-10-08, from the issue triage (issue #774): the same cause, one
-  caller over. `Refinement.predict()` at fixed values depends on the free
-  set.** With FCJ axial divergence on, `compile_model(moving_paths=...)`
-  raises `sl_eff`/`hl_eff` to `AXIAL_SIZING_FLOOR` (0.02) only when an axial
-  ratio is free, so the quadrature node count (`fcj_node_count`) and the
-  window half-width differ between two models holding identical values.
-  The magnetic width has the same shape (`MAGNETIC_SIZING_FLOOR`). This WP's
-  thesis is "what a state records and what rebuilding from it produces are
-  two objects"; #774 is that thesis for a *free set* where #272 was for a
-  *stage start*. Rutile toy, axial 0.01, `predict()` free against fixed:
-  max|dy|/max(y) = 1.12e-4 (2.2e-4 on a TOPAS-export read-back with the
-  file's flags); at 0.05 it is 0. The reporter's PR #776 (open) implements
-  option (a) of the issue: apply the floor by value whenever the value
-  is positive, so `predict()` reads values and not the free set; the floor
-  for the optimiser is kept for a parameter that is exactly zero and free.
-  Measured by the PR: node count at S/L = H/L = 0.01 goes 8 to 10 at most,
-  warm `predict()` 3.27 to 3.30 ms, and a fixed ratio far below the floor (LaB6
-  at 2.5e-4) goes from 0 to 64 nodes; two pinned numbers move
-  (`test_recipe.py::test_this_pattern_cannot_distinguish_the_sh_l_split`,
-  `test_magnetic_width.py::test_reflection_support_counts_the_magnetic_component`).
-  Open for the maintainer's ruling (options a, b, c in the issue): the PR's
-  *zero case*. Free and fixed at exactly zero still differ by 1.66e-4
-  (measured here) because the window half-width still grows with the floored
-  ratios, and making that value-only means widening every window at zero
-  axial divergence. Sizing by value also does not remove the stage-start
-  freeze #272 measured, so task 2 (the statistics block names its compile)
-  stands whichever option is taken.
-  Checked against the tree at 5d1f5f67: reproduced. The issue's snippet gives
-  1.12e-4 at 0.01 and 0 at 0.05, matching its quoted output on 8c9bbc1a, and
-  1.66e-4 at exactly zero. `AXIAL_SIZING_FLOOR` and the `moving_paths` sizing
-  are unchanged on `origin/main` since the issue; PR #776 (head b188b6cf,
-  base 9a3955bc) agrees with the issue on every number it shares (1.12e-4
-  before, exact after; the magnetic 1.09e-3 is the PR's own measurement) and
-  on leaving the zero case to the maintainer.
-
-- **From WP-1930 (2026-10-09): the message's "not biased" clause fails on a
-  fit whose peaks outgrow their windows.** The clause rests on this WP's two
-  good fits, where the minimum moved ≤ 0.0014 esd. The counterexample is
-  `test_cell_runaway_safety.py::test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`,
-  a wrong P 1 cell on synthetic silicon, `lab_bragg_brentano` after
-  `profile_only`. With WP-1930's seed, a 1e-14 nudge to `profile.w` sends
-  some runs to U, V, W and X at their upper bounds. Every stage then ends at
-  χ² ≈ 3.29e5 on its frozen compile, because each peak is cut at a window
-  sized when it was narrow. The fresh compile at the same values gives
-  2.56e8, 3.1e4 % apart, and Rwp 6.55 under `status="converged"`; Linux CI
-  reached Rwp 1.1e9 with no nudge. The finding still reads "The fit is not
-  biased by it" at level `info`. The fit is wrong by construction, so no
-  answer is lost here. The message's claim is what fails. Its wording, and
-  perhaps its level, should follow the size of the gap. Reproduce with
-  `ins.profile.w.value *= 1 - 3e-14` before the first fit on macOS arm64.
-
-**From WP-1342 (2026-09-19).** `StageResult` gained `held_reach`, a
-`dict[str, list[str]]` written on every stage beside `held`. It is state a
-replay has to reproduce, and it is the first *mapping* on that record rather
-than a list, so a comparison written for the list fields will pass over it in
-silence. It is also readable only while the held column is still in θ — the
-runner captures it before `set_vary` and carries it on `_StageHold` — so a
-rebuild that tries to re-derive it from the finished table gets nothing back.
-That is this WP's own thesis in miniature: what a state *records* and what
-rebuilding from that state *produces* are two objects.
-
-**From WP-1432 (2026-09-19).** One measured instance of this WP's
-class, found and fixed. `replay` rebuilt its table from the node's own
-structure and re-declared the recorded ties on it, and a user tie onto a
-coordinate DOF was applied a second time in doing so. A replayed node therefore
-answered for a model one displacement past the one recorded: x = 0.2174294764
-against the node's 0.2083647382, Rwp 10.711190685 against 10.708626649, with
-nothing in the answer saying which model it had measured. The repair is
-`ParameterTable.rebase_anchored_dofs`, called by both consumers of the tie
-register. The shape is worth carrying into this WP: what a state *records* and
-what rebuilding from that state *produces* are two objects, and only a test
-comparing them can say they agree.
-
-- **From WP-1541 (2026-10-03): the LaB₆/cBN boron coordinate's esd rose,
-  and #674 cannot be the cause.** Re-measuring the validation matrix for the
-  1.6.0 cut, `test_the_one_free_coordinate_agrees` (`lab6_cbn`) gave x =
-  0.19838 with an esd of 2.26e-3, where the row said 1.7e-3 and called its
-  2e-3 band loose against it. The band is now tighter than the esd, and the
-  row says so. #674 only shrinks esds, so something else moved this one at
-  some point since the suite's first commit (`8156687c`); nobody has looked
-  for when. This WP measures `lab6_cbn` already (5.5e-4 χ² staleness), which
-  is why the question is parked here rather than in a WP of its own.
-
-- **2026-10-11, from the issue triage (#774): PR #776 merged on 2026-10-08,
-  and the zero case is what is left.** The 2026-10-08 entry's "PR #776 (open)"
-  is stale. Sizing by value is on the tree: `model/forward.py:3475-3480`
-  applies `AXIAL_SIZING_FLOOR` whenever both axial values are positive and
-  reads the plan only when refining from zero; the magnetic width follows at
-  `:3675-3683`, with tests in `test_lab_instrument.py:386`,
-  `test_magnetic_width.py:259` and `test_recipe.py:256`. Still open: free
-  against fixed at exactly zero differs by 1.66e-4 (measured 2026-10-08), the
-  window half-width still reads the floor, and no ruling on (a)/(b)/(c) for
-  that case is recorded. Checked against the tree at 7d9be3cb: the lines
-  above; the zero case not re-run.
-
-- **From WP-1341 (2026-10-12): the joint fit's missing fresh compile now
-  reaches a report.** This WP's landed note says a joint fit gets no fresh
-  compile and reports the frozen figures. WP-1341 gave a joint fit a
-  per-histogram `FitReport` (`MultiHistogramRefinement.report(h)`), and its
-  Layer 0 reads those frozen curves. On `test_multi_histogram`'s WP-1131 size
-  pair, whose last stage frees `lor_size`, the peaks outgrow the windows
-  sized at the stage start: the result reports histogram Rwp 0.10242 and
-  0.13345, and Layer 0 lists 44 and 27 unmatched peaks, every one a cut
-  tail, with `add_impurity_phase` among the actions. A compile at the answer
-  gives Rwp 0.10478 and 0.11981 and 0 unmatched peaks on each. So the joint
-  path now owes the fresh compile for the report's sake, not only the
-  statistics'. It moves joint-fit numbers, which WP-1341 promised not to do,
-  and `multi.MultiHistogramRefinement._build_result` is where it would go.
-  The report's docstring and `docs/docs/reference/joint.md` (§ around line 328) state the gap until then.
-- **2026-10-23, from [1341](1341-a-joint-fit-has-no-report.md) (closed): `Refinement.report` pairs
-  `result_` with the live models.** `report()` (`refine.py:5564-5571`) builds a fresh
-  `ParameterTable(self.structure, self.instrument)` beside `self.result_`, so after a cancelled
-  second fit or a `set_values` its Layers 1-2 read values that are not the result's. The joint
-  `report(h)` was fixed by freezing the answer with the result (`multi._freeze_answer`, PR #937).
-  The single fit's twin was left "to its own change" (1341's PR-review item 9) and no WP took it.
 
 ## Non-goals
 
@@ -267,6 +170,17 @@ comparing them can say they agree.
       asserts the statement; under (b) every golden stays bit-identical.
 - [ ] Skill: a `references/judging.md` row saying which compile a reported
       Rwp comes from, and that the difference is not a fit defect.
+- [ ] `FROZEN_COMPILE_STALE` claims only what its evidence shows: drop "the
+      fit is not biased" from `help.py`, `_final_compile`'s docstring and the
+      skill's `diagnostics.md` row, and say what does re-solve (the closing
+      stage, an empty stage).
+- [ ] `Refinement.report` reads the answer frozen with the result, as the
+      joint `report(h)` does (`multi._freeze_answer`).
+- [ ] The joint result is measured on a compile at its answer, as the single
+      fit's is, and `MultiHistogramRefinement.report`'s docstring and
+      `reference/joint.md` say so.
+- [ ] #774's zero case: the maintainer's ruling on (a)/(b)/(c), then its
+      change or its sentence.
 
 ## Acceptance
 
