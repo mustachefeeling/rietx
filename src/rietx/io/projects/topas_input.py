@@ -454,7 +454,7 @@ def _extinction_items(instrument, ip, phase, refined: RefinedSet) -> list:
 
 def _horner(coef: tuple, t: str) -> str:
     """c₀ + t·(c₁ + t·(c₂ + …)) as a TOPAS expression, each power of ``t`` once."""
-    out = number(coef[-1])
+    out = f"({number(coef[-1])})"   # no operator meets a bare minus
     for c in reversed(coef[:-1]):
         out = f"({number(c)} + {t}*{out})"
     return out
