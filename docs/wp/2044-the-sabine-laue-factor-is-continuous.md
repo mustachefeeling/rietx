@@ -124,7 +124,7 @@ two truncated expansions. No threshold or automatic action is added.
 - [x] Checkpoint: if the survey changes the case, such as a program using an
       exact form or every program keeping the step for a stated reason, bring
       it to the maintainer before any code
-- [ ] `model/extinction.py`: E_L = e^(−x)·[I₀ + I₁] and its derivative, on
+- [x] `model/extinction.py`: E_L = e^(−x)·[I₀ + I₁] and its derivative, on
       numpy, jax and torch. `i0e` and `i1e` join `_OP_NAMES` and every
       backend, or `tests/test_backend_conformance.py` fails. The docstring's
       "out of reach for real powder data" goes, replaced by the QPA fit's

@@ -838,6 +838,67 @@ def _state_texture():
     return model, table, {}
 
 
+def _state_extinction_strong():
+    """Sabine extinction strong enough that reflections sit either side of
+    x = 1 (WP-2044).
+
+    ``toy_rich`` carries extinction at 3e-4, where every x is far below 1 and
+    the Laue factor never leaves its first few series terms.  Here x reaches
+    1.8, three reflections lie above 1 and the nearest below sits at 0.86, so
+    the extinction column, and the G = E + x·dE/dx factor the analytic
+    coordinate and ADP columns carry, are measured on the closed form's whole
+    working range.  The traced backends differentiate e^(−x)·[I₀ + I₁] through
+    their own ``i0e``/``i1e`` rules, an opinion independent of the numpy
+    column.  Before WP-2044 no row could cross x = 1, where GSAS-II's two
+    branches stepped and a central difference straddling the step was
+    meaningless.
+    """
+    from rietx.crystallography.lattice import cell_volume, d_spacings
+    from rietx.crystallography.structure_factor import structure_factors_squared
+    from rietx.model.extinction import sabine_extinction_and_dx
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    structure = make_aniso_rutile()
+    structure.phases[0].scale.value = 1e-3
+    structure.phases[0].extinction.value = 30.0
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.source.dispersion = None    # declined, not inherited
+    ins.profile.w.value = 1e-2
+    grid = np.arange(20.0, 90.0, 0.02)
+    empty = PatternData(two_theta=grid.tolist(),
+                        intensity=np.zeros_like(grid).tolist())
+    sim = compile_model(structure, ins, empty, mode="rietveld",
+                        window_area_tol=WINDOW_AREA_TOL)
+    sim_table = ParameterTable(structure, ins)
+    values = sim_table.decode(sim_table.x0())
+    y = sim.evaluate(values) + 20.0
+    pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
+
+    # the state is only worth its row while reflections straddle x = 1
+    cp = sim.phases[0]
+    cell = tuple(values[f"phases.0.cell.{k}"]
+                 for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    d = d_spacings(cp.reflections.hkl, *cell)
+    f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
+                                   *sim._site_values(0, values, cell))
+    lam = sim.line_wavelengths[0]
+    _, _, x = sabine_extinction_and_dx(f2, lam, cell_volume(*cell),
+                                       cp.reflections.two_theta(cell, lam),
+                                       values["phases.0.extinction"])
+    assert (x > 1.0).sum() >= 2 and (x[x < 1.0] > 0.5).any(), np.sort(x)[-6:]
+
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in ("phases.0.scale", "phases.0.extinction", "phases.0.cell.a",
+                 "phases.0.cell.c", "phases.0.atoms.*.dof.*",
+                 "phases.0.atoms.*.adp.*"):
+        assert table.set_vary([path], True), path
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths),
+                          window_area_tol=WINDOW_AREA_TOL)
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
            "texture": _state_texture,
            "bodies": _state_bodies,
@@ -853,7 +914,8 @@ CONFIGS = {"families": _state_families,
            "extra_peak": _state_extra_peak,
            "magnetic": _state_magnetic,
            "magnetic_width": _state_magnetic_width,
-           "satellites": _state_satellites, **STATES}
+           "satellites": _state_satellites,
+           "extinction_strong": _state_extinction_strong, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -889,6 +951,7 @@ CONFIG_PARAMS = [
     _config("magnetic_width"),
     _config("satellites"),
     _config("bodies"),
+    _config("extinction_strong"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),
