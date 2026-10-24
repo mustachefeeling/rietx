@@ -33,6 +33,7 @@ import time
 from pathlib import Path
 
 import rietx as rx
+from rietx._about import DIST_NAME
 from rietx.viz import compare
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -146,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     pin = {"comment": (f"rx.diagnostics_summary over rietx.viz.compare.STANDARDS' reference "
                        f"fits, a prompt and never a verdict (tests/suite_alarms.py). "
                        f"Re-pin with {REPIN}."),
-           "written_on": f"{sys.platform}/{platform.machine()}, rietx {rx.__version__}",
+           "written_on": f"{sys.platform}/{platform.machine()}, {DIST_NAME} {rx.__version__}",
            **table}
     PIN.write_text(json.dumps(pin, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {PIN}")

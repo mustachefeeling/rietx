@@ -243,7 +243,8 @@ def test_summary_leaves_the_result_as_it_found_it(tmp_path):
 
     ref, result = _fit()
     before = answer(result)
-    first = next(d.code for d in result.diagnostics if d.level == "warning")
+    # any code will do for the override; the fit need raise no warning
+    first = next((d.code for d in result.diagnostics), "FLOOR_HIT")
     ref.summary(deliverable="qpa", plot=str(tmp_path / "fit.png"),
                 plan=rx.RefinementPlan.mccusker_default(), levels={first: "deny"})
     ref.summary(report=ref.report())
@@ -254,7 +255,9 @@ def test_summary_levels_denies_a_warning_and_says_who_set_it():
     """WP-2037 clause 4: a caller's ``deny`` prints a warning in full as an
     error, and the header says the caller set it."""
     ref, result = _fit()
-    first = next(d.code for d in result.diagnostics if d.level == "warning")
+    warned = [d.code for d in result.diagnostics if d.level == "warning"]
+    assert warned, "the fixture fit must raise a warning for deny to act on"
+    first = warned[0]
     text = ref.summary(levels={first: "deny"})
     assert f"error[{first}]" in text
     assert "1 set by levels=" in text

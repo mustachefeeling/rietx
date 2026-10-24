@@ -149,10 +149,13 @@ def diagnostics_summary(results: Iterable[RefinementResult],
         for row in rows:
             by_level.setdefault(row.diagnostic.code, Counter())[row.level] += 1
         fired.update({row.diagnostic.code for row in rows})
-        for purpose in purposes:
-            view = rows if purpose == deliverable else diagnostic_view(
-                result.diagnostics, purpose, levels)
-            warnings[purpose] += sum(row.level == "warning" for row in view)
+        if deliverable is not None:
+            warnings[deliverable] += sum(row.level == "warning" for row in rows)
+        else:
+            # a row's ``warning_under`` is the purposes its level under each is
+            # a warning, override included, so one view answers all seven
+            for row in rows:
+                warnings.update(row.warning_under)
 
     codes = [CodeTally(code=code, n_results=fired[code], rate=fired[code] / n,
                        n_rows=sum(counts.values()), n_error=counts["error"],

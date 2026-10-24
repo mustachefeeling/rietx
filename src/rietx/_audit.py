@@ -3135,7 +3135,8 @@ ROWS: tuple[Row, ...] = (
                   "tests/test_termination_view.py asserts the result unchanged by a summary")),
     Row("rietx.refine.Refinement.summary:plan", "default", tier="invariant", ambiguity=1,
         value=None,
-        evidence=("answer-invariant: the plan the report's Layer-2 veto reads, never the fit's; "
+        evidence=("answer-invariant: the plan the report's Layer-2 veto reads, never the fit's, "
+                  "and None applies no strategy veto to the report's suggestions; "
                   "tests/test_termination_view.py asserts the result unchanged by a summary")),
     Row("rietx.refine.Refinement.summary:report", "default", tier="invariant", ambiguity=1,
         value=None,
