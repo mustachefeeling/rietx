@@ -773,6 +773,16 @@ A warm-started chain over the round robin: what changes when only the starting p
 
 **Diagnostics:** `SEQUENTIAL_RESEED`, `SEQUENTIAL_UNRECOVERED`, `SEQUENTIAL_RWP_OUTLIER`
 
+#### `test_the_first_rung_bound_moves_no_accepted_value`
+
+`identity` · dataset `qarr`
+
+**Claims:** FIRST_RUNG_FACTOR is answer-invariant on the hostile series: the chain with WP-1127's first-rung bound and the chain without it report the same values, esds, rungs, fences and codes, and no kept first rung reaches the budget the bound would set
+
+**Referenced to:** the same chain with first_rung_factor=None, to the bit; the margin against FIRST_RUNG_FACTOR itself (WP-2003). It verifies the bound and validates nothing, the reference being rietx's own unbounded chain
+
+**Measured:** bit-identical; kept first rungs past the armed point 0.34-0.39x the running maximum against a factor of 3.0 (2026-10-24, Linux x86-64)
+
 #### `test_series_exports`
 
 `identity` · dataset `qarr`

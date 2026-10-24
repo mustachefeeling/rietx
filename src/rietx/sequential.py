@@ -199,14 +199,6 @@ FIRST_RUNG_SAMPLES = 3
 #: so 3.0 carries 2.3× margin over the worst case seen anywhere.  It reached
 #: 1.89 at a single sample, which is what the minimum is for.
 #:
-#: Being wrong is cheap and **cannot reach the answer**: a bound that bites
-#: costs one escalation, the rung it escalates to is the full staged plan from
-#: the same warm state, and :func:`_prefer` refuses to keep the truncated
-#: attempt over the completed one.  Measured on both harness cases, every
-#: accepted value is bit-identical to the unbounded chain's, because the bound
-#: only truncates a rung whose result is discarded and its replacement starts
-#: from the warm state rather than from the truncation.
-#:
 #: What licenses a modest factor is that being wrong is cheap **and cannot reach
 #: the answer**: a bound that bites costs one escalation, and the rung it
 #: escalates to is the full staged plan from the same warm state, with
@@ -214,7 +206,17 @@ FIRST_RUNG_SAMPLES = 3
 #: Measured on both harness cases, every accepted value is bit-identical to the
 #: unbounded chain's — 0 of 1030 and 0 of 392 — because the bound only truncates
 #: a rung whose result is discarded, and its replacement starts from the warm
-#: state rather than from the truncation.
+#: state rather than from the truncation.  ``test_the_first_rung_bound_moves_no_
+#: accepted_value`` asserts it on the thermal ramp and the CPD chain, with the
+#: margin: every kept first rung under its budget (WP-2003).
+#:
+#: **Since the closing stage (WP-2002) that escalation is not forced.** A
+#: truncated warm stage is followed by the closing stage, whose verdict is the
+#: result's ``status``, so a bitten first rung that the closing stage then
+#: converges reads ``"converged"`` and is kept: at a factor of 0.5 on the thermal
+#: ramp, three patterns kept a closed truncated rung, within 8e-4 esd of the
+#: unbounded chain (WP-2003's clash table).  The tests above hold only where the
+#: bound bites no winner.
 FIRST_RUNG_FACTOR = 3.0
 
 #: A step is called a discontinuity when it exceeds this multiple of the median

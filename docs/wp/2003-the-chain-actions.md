@@ -1,6 +1,6 @@
 # WP-2003 — The chain actions: what a series decides between patterns
 
-Milestone: generality · Status: 🔄 2026-10-24 — claimed by @yue-here
+Milestone: generality · Status: 🔄 2026-10-24 — the inventory, the reseed fence measured on eight chain families, and the first-rung invariance tests landed (PR #1150); next the tiers, the clash table and the batch
 Track: The audits
 Depends on: 2002, 2037
 Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
@@ -164,11 +164,26 @@ the bar.
       fits of 0.2-1.2 s; `strategy/parameter_interval.attach_stationary_intervals`) on a
       result the chain discards: gate them with `_auto_intervals = False` until an attempt
       is accepted (WP-2002, PR #1050; no gate in `sequential.py` on 2026-10-24).
-- [ ] `FIRST_RUNG_FACTOR`'s invariance test (accepted values bit-identical with the bound
-      on and off, on two chain families), replacing the comment's claim.
+      Answered 2026-10-24 (`2003-batch/README.md` § Quarantine's record): the pattern and
+      its rung are on the record; the successors seeded from an earlier pattern are not,
+      nor is the moment-floor carry. Proposed fields: `SeriesEntry.seeded_from` (the
+      index whose fitted state seeded this pattern's warm rungs, `None` on a cold-only
+      pattern) and `SeriesEntry.floored` (the moment paths floored before its warm start,
+      from `_chain`'s local `floored`). Each is an action row a name new to the table
+      cannot enter at `unaudited`, so they land with the quarantine's ruling in the batch.
+- [x] `FIRST_RUNG_FACTOR`'s invariance test (accepted values bit-identical with the bound
+      on and off, on two chain families), replacing the comment's claim. 2026-10-24: the
+      thermal ramp (`tests/test_sequential.py`) and the CPD chain (slow,
+      `tests/test_acceptance_sequential.py`), both asserting the margin too. The row stays
+      `unaudited`: the closing stage now hides a bitten first rung (clash table, below).
 - [ ] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
       orderings where order matters; plus the carry policy × the width twin hold, the
-      closing stage × path dependence, and 2002's B7 and B16 (Context).
+      closing stage × path dependence, and 2002's B7 and B16 (Context). Found 2026-10-24:
+      the first-rung bound × the closing stage (a truncated warm stage the closing stage
+      converges reads `converged`, so WP-1127's forced escalation never fires);
+      `reseed=False` × the forced escalation (`sequential.py:1561`, `1569-1571`: a bitten
+      first rung escalates against a switch the caller turned off, against `reseed`'s
+      docstring); the closing stage × the fence (cpd-1b escalates with it, not without it).
 - [ ] The batch to the maintainer, each brief opening with its stakes line (the record
       § The rule, 2026-10-20); rulings dated into the table.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the

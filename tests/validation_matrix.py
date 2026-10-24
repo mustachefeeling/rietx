@@ -1144,6 +1144,22 @@ CLAIMS: tuple[Claim, ...] = (
                      "SEQUENTIAL_RWP_OUTLIER"),
     ),
     Claim(
+        "test_acceptance_sequential",
+        "test_the_first_rung_bound_moves_no_accepted_value", "qarr",
+        ("identity",),
+        "FIRST_RUNG_FACTOR is answer-invariant on the hostile series: the "
+        "chain with WP-1127's first-rung bound and the chain without it "
+        "report the same values, esds, rungs, fences and codes, and no kept "
+        "first rung reaches the budget the bound would set",
+        reference="the same chain with first_rung_factor=None, to the bit; "
+                  "the margin against FIRST_RUNG_FACTOR itself (WP-2003). "
+                  "It verifies the bound and validates nothing, the "
+                  "reference being rietx's own unbounded chain",
+        measured="bit-identical; kept first rungs past the armed point "
+                 "0.34-0.39x the running maximum against a factor of 3.0 "
+                 "(2026-10-24, Linux x86-64)",
+    ),
+    Claim(
         "test_acceptance_sequential", "test_series_exports", "qarr",
         ("identity",),
         "the series CSV and trajectory plot exist with the declared columns "
