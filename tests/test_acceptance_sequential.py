@@ -290,6 +290,37 @@ def test_the_hostile_series_exercises_the_reseed_fence(chained_all):
     assert all(e.rwp_fence is not None for e in chained_all.entries[1:])
 
 
+@pytest.fixture(scope="module")
+def chained_all_unbounded():
+    """``chained_all`` with WP-1127's first-rung bound switched off."""
+    _require_data()
+    structure = rx.Structure(phases=_phases())
+    ins = qarr_instrument()
+    seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
+    return rx.SequentialRefinement(structure, ins).fit(
+        _patterns(), labels=list(SAMPLE1), plan=qpa_plan(), first_rung_factor=None)
+
+
+@pytest.mark.slow
+def test_the_first_rung_bound_moves_no_accepted_value(chained_all,
+                                                      chained_all_unbounded):
+    """`FIRST_RUNG_FACTOR`'s invariance on a real chain (WP-2003).
+
+    The thermal ramp's twin in `test_sequential.py`, on the hostile series:
+    every accepted value, esd, rung and code is equal with the bound on and
+    off, and every first rung the unbounded chain kept cost less than the
+    budget the bound would have set there.
+    """
+    from rietx.sequential import FIRST_RUNG_FACTOR
+    from tests.test_sequential import chain_answer, first_rung_ratios
+
+    assert chain_answer(chained_all) == chain_answer(chained_all_unbounded)
+    ratios = first_rung_ratios(chained_all_unbounded)
+    print(f"\nfirst-rung ratios: {[round(r, 3) for r in ratios]}")
+    assert ratios, "the bound armed on no pattern, so nothing was tested"
+    assert max(ratios) < FIRST_RUNG_FACTOR
+
+
 @pytest.mark.slow
 def test_series_exports(chained):
     """A series has to leave the artefacts a user actually plots.
