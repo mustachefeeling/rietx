@@ -1,6 +1,6 @@
 # WP-1958 — A phase with no reflection in range walks its scale under TRF
 
-Milestone: unscheduled · Status: 🔄 2026-10-22 — both halves built, on review
+Milestone: unscheduled · Status: 🔄 2026-10-24 — merged from outside as PR #1103 (`594d7beb`); the close is owed (the v1.10 record's narrative and ✅)
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P3 2026-10-13 — a quoted fraction is wrong, but `PHASE_UNCONSTRAINED` and `QPA_ESD_UNAVAILABLE` fire, and only `solver="trf"` reaches it
@@ -94,6 +94,26 @@ Relevant rules, restated:
 - #954, the public report of this defect.
 
 ## Handover log
+
+- **2026-10-24** — PR #1103 merged (`594d7beb`, review round 3), by `/pr-review`.
+  *Done*: every task. A phase with no reflection in the fitted range keeps the
+  scale it was given and has no weight fraction. The round-2 review added the
+  case where a stage held the scale and a refined zero shift brings a line in by
+  the answer. `QuantitativePhaseAnalysis.unmeasured_held` names that case, and
+  `NodeMetrics.held_scale_phases` lets `replay` quote it the same way.
+  Every text (summary row, CSV caveat, `MICROABSORPTION_SKIPPED`,
+  `PHASE_UNCONSTRAINED`) reads its cause from that set.
+  *Measured*: the whole suite on main `99b00b82` with this PR and four others
+  stacked (macOS arm64, `[dev,jax]`): 12 063 passed, 3 failed, none of them this
+  PR's; the fast selection on the final stack `bb654fd0`: 11 655 passed.
+  *Gotchas*: the `RefinementResult.qpa` audit row's evidence first said a held
+  scale's column "is zero"; at the answer it need not be, and the maintainer's
+  commit `b6103ead` on the branch rewords it. #1128 (WP-2028) rebases onto this
+  merge; both edit the joint report's `_phase_support_diagnostics` call.
+  *Not done*: round 2's three read-only observations (a `vars.` variable's reach
+  in the message, per-histogram scales tied to one variable, the radii wording)
+  stay with the contributor as follow-ups.
+  Next: close the WP, moving the 2026-10-22 narrative to the v1.10 record.
 
 - **2026-10-22** — built both halves of the #954 decision. A phase with no
   reflection in the fitted range now keeps the scale it was given under LM and
