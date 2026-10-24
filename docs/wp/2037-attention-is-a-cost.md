@@ -391,7 +391,7 @@ npm --prefix gui test && npm --prefix gui run check
   - `python -m tests.silence`: 122 of 131 warning codes have no pair, and 9 do.
   - Fast selection on the branch tip before the merge (`4bfde33d7`): 11 447 passed, 265
     skipped, 27 xfailed, none failed, in 8:14, beside another session's pytest, with
-    `JUPYTER_PREFER_ENV_PATH=1` (Gotchas). On the merged tree (`8a45fdee4`, main through `6fe7a5bbb`): 11 450 passed, 265 skipped, 27 xfailed, none failed, 13:15, same venv and switch. No base was
+    `JUPYTER_PREFER_ENV_PATH=1` (Gotchas). On the merged tree (`8a45fdee4`, main through `6fe7a5bbb`): 11 450 passed, 265 skipped, 27 xfailed, none failed, 13:15. Main moved by about 30 commits during the handover, so the branch was merged again (`fd32512d2`, main through `269e93ca3`): 11 630 passed, 265 skipped, 27 xfailed, none failed, 9:50, same venv and switch; the suite-metric slow test still matches its pin there. No base was
     measured, so the +N check is the added-test tool's count: 26 added test functions, 5.93 s in all (`tests/test_silence.py` 3.45 s for 4, its listed half 1.5 s of that for the raise-site walk; `tests/test_termination_view.py` 2.41 s for 3, each a small fit; every other file under 0.1 s); none joins the slow tail.
   - The full selection did not run: nothing here moves a fitted number. The suite metric's
     slow test ran once (13.6 s), and the tutorial, landing and example tests ran on the
