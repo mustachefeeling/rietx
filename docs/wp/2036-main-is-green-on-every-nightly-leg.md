@@ -2,8 +2,8 @@
 
 Milestone: unscheduled · Status: ⬜
 Track: The repo's own process
-Depends on: — (2002 soft, the closing stage that moved most of these; 2012 soft, the LaB6 axial mirror)
-Priority: P1 2026-10-23 — main's only full-suite run has produced no result since #1085 merged, and the `qpa` guide's phase-fraction esd is 0.21 wt % on macOS against 2.24 wt % on Linux, with nothing firing
+Depends on: 2045 (the `full` job cannot finish before it); 2002 soft, the closing stage that moved most of these; 2012 soft, the LaB6 axial mirror
+Priority: P2 2026-10-24 — was P1: WP-2044 fixed the `qpa` esd split before 1.10.0 and #1146 the two Windows failures, so no silent wrong answer remains; what does is a non-gate job that waits on 2045, platform-dependent quotes, and one unreproduced raise
 
 ## Goal
 
@@ -129,16 +129,35 @@ It passed on every later night, so it is out of scope unless it recurs.
 - [ ] Linux full suite: start `nightly.yml` by hand on `main` with `--durations=50`
       reachable (a temporary branch workflow if needed), find what slowed after #1085,
       and fix the cause. Rebudget only if the cost is the closing stage's own and the
-      durations table says so.
-- [ ] Windows `test_manual`: give the page-contract cases `ids=`, and confirm on the
-      Windows leg.
-- [ ] Windows `closed_wp_writes`: confirm the cp1252 hypothesis on a Mac (run `_git`'s
+      durations table says so. *Cause found by WP-2043: the hostile series' closing
+      stage at a runaway answer, which WP-2045 owns. What remains here is the re-run
+      and its durations table once 2045 lands.*
+- [x] Windows `test_manual`: give the page-contract cases `ids=`, and confirm on the
+      Windows leg. *Done by WP-2043 (#1146): the long page is `id="over-the-cap"`;
+      the Windows suite passed every test on `ac1ee1e`.*
+- [x] Windows `closed_wp_writes`: confirm the cp1252 hypothesis on a Mac (run `_git`'s
       decode as `cp1252`), name `encoding="utf-8"` on every `subprocess.run(text=True)`
       in `.claude/hooks/`, and extend `test_every_text_io_call_names_its_encoding` to see
-      `subprocess.run(text=True)` and to walk `.claude/hooks/`.
-- [ ] `qpa` guide: find why the esd differs tenfold between Linux and the Mac, decide
+      `subprocess.run(text=True)` and to walk `.claude/hooks/`. *Done by WP-2043
+      (#1146): `tests/test_portability.py` walks `.claude/hooks/` and `.claude/skills/`
+      and sees text-mode `subprocess` calls.*
+- [x] `qpa` guide: find why the esd differs tenfold between Linux and the Mac, decide
       which is honest, and fix the package if the covariance depends on the LAPACK
       build. Change the page only if both values are honest readings of one fit.
+      *Done by WP-2044 before 1.10.0. The cause was not LAPACK but GSAS-II's step in
+      the Sabine Laue factor at x = 1, which a forward-difference column straddled on
+      one platform. E_L is now continuous and the page quotes CaF₂ 3.58 ± 3.53 wt %
+      on both.*
+- [ ] Windows fast job's `timeout-minutes: 45`, before the next cut: `RELEASING.md`
+      step 4 reads this job as a gate, and on 1.10.0's release commit it read
+      cancelled after the suite had passed (44:29 against 24:23 two hours earlier).
+      Rebudget it from the measured range so that it stays a runaway guard.
+      `tests/CLAUDE.md` § Budgets in tests says a budget that is not several times
+      the cost is a load sensor.
+- [ ] The Le Bail NaN raise: reproduce `test_cell_runaway_safety.py::
+      test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error` (red on
+      `c9dde14`'s `full` job, read off the log). If it reproduces it is a raise in a
+      shipped path, and it goes to a WP of its own rather than staying here.
 - [ ] `moment` guide: make the page and the script's own asserts hold at both stopping
       points, or make the rounds land on one point.
 - [ ] The four slow tests: re-run on Linux once task 1 lands. Mark the lab6 and cpd1a
@@ -170,6 +189,15 @@ gh run list --workflow nightly.yml --branch main --limit 1
 
 ## Handover log
 
+- **2026-10-24** — re-rated P1 → P2 by the maintainer's session after the 1.10.0 cut,
+  with no code changed. The P1 reason was the `qpa` esd split, and WP-2044 fixed it
+  before the tag. #1146 fixed the two Windows failures, so three tasks are ticked with
+  pointers. WP-2045 is now a hard dependency, because the `full` job cannot finish
+  until it lands. The same session later ruled 2045's design: the stage before the
+  closing stage converges at the solver's tolerance. Two tasks were added from the
+  Inherited entries: the Windows job's 45-minute limit, which threatens the next
+  release gate, and the Le Bail NaN raise. Next: the Windows limit before the next
+  cut. The `full` leg re-run waits on 2045.
 - **2026-10-23** — created by the maintainer's `/pr-review` session, which found these
   failures while gating #1122. No open WP owns them as a set. WP-2002 is in flight and
   caused items 1, 3 and 4, but its file is waiting on rulings, and item 2 comes from

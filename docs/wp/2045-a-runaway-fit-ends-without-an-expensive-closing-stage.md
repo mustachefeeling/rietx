@@ -1,17 +1,19 @@
 # WP-2045 — A runaway fit ends without an expensive closing stage
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-24 — ruled: the stage before the closing stage converges at the solver's tolerance; measuring its cost on the four standards next
 Track: A long run is not one fit
 Depends on: —
 Priority: P2 2026-10-24 — a defect that costs a user a workaround: a fit that runs away now seems to hang, where 1.9.0 ended it in seconds; 1.10.1 waits on it
 
 ## Goal
 
-A fit whose last declared stage ends at a runaway answer finishes in a time
-comparable to its declared stages, and says what it skipped or held. The
+The stage before a plan's closing stage converges at the solver's tolerance,
+so it does not stop on the frozen-window plateau measured below and hand
+the closing stage a runaway to compile (ruled 2026-10-24, option 5). The
 hostile series in `tests/test_acceptance_sequential.py` (`chained_all`)
 finishes on every platform. The nightly `full` job completes inside its
-150-minute limit again.
+150-minute limit again. What the change costs the four acceptance standards
+is measured and stated.
 
 ## Context
 
@@ -77,7 +79,82 @@ mechanism: the closing stage compiles at whatever answer it is handed).
 2026-10-24, option A of WP-2043): `RefinementPlan.closing_window_tol=None`
 skips the closing stage.
 
-**Design candidates, none chosen.** Each needs the maintainer's ruling, and
+**What the runaway is, measured 2026-10-24 after the cut** (Linux x86-64
+cloud container, 4 cores, `[dev]`, Python 3.12, `OPENBLAS_NUM_THREADS=1`,
+tree `7d24e09e7`; the probes are in [`2045-batch/`](2045-batch/README.md)). The
+probes ran cpd-1a → cpd-1b under `chained_all`'s protocol. They wrapped
+`refine.compile_model` and stopped at the runaway closing compile, which they
+reached within seconds. Every time quoted below comes from one run on that
+container, so it gives an order of magnitude, not a benchmark. The warm
+stage ended "converged" at `axial_sl` 555, with
+`w` 0.27 and `v` −5.5. Its closing compile holds 873.7 M point-nodes
+(window points × FCJ nodes, all phases and lines). That is 1 608× the warm
+stage's own compile, where cpd-1a's normal closing compile is 19× its last
+declared stage's.
+
+- **It is a minimum of the frozen model only.** The probes evaluated the
+  answer on the model the stage solved on and on fresh compiles. On the
+  frozen windows Rwp is 0.760. On fresh windows it is 1.376 at the declared
+  precision and 1.294 at the closing precision. The stage started at 1.748.
+  At the answer the frozen windows drop **73.4 %** of the Bragg intensity
+  a fresh compile computes, and χ²(fresh)/χ²(frozen) is 3.27. On each of
+  cpd-1a's eight declared stages and its closing stage, the same measure is
+  0.00-1.32 %, with a χ² ratio of 0.94-1.00. The mechanism, inferred from `forward.py:3980-3990`
+  and `fcj.py:129-149`: as S/L grows, the asymmetry spreads each peak beyond
+  the window frozen at the stage's start, and the part outside drops out of
+  the model. So S/L, and the widths, act as an intensity sink, and the warm
+  start's scales, carried from cpd-1a, are too strong for cpd-1b.
+- **The tolerance stops the stage on the sink's plateau.** The same frozen
+  stage, from the same start, ends at `axial_sl` 554.99 under `ftol` 1e-6
+  and at 0.0139 (Rwp 0.196) under 1e-9. The 100-iteration cap changes
+  neither (`max_iter` 100 and 400 agree). The warm stage runs at
+  `intermediate_ftol` only because a closing stage follows it
+  (`stage_ftols`, WP-1123). Before #1085 it was the last stage, at 1e-9.
+  So #1085 combined three changes, not two: the ceiling, the closing stage,
+  and the looser tolerance the closing stage gave the stage before it.
+- **Windows that follow the parameters remove the runaway.** The probes ran
+  the same warm fit as short stages, each recompiling, closing stage off:
+  every 10 iterations ends at Rwp 0.142 (`axial_sl` 0.0077) in about 10 s,
+  and every 3 at the same answer in about 25 s. The independent fit gets
+  0.137. Every 50 iterations runs further away (`axial_sl` 4 041, zincite's
+  scale 0, Rwp 0.779, about 4 minutes): the windows catch up too late.
+- **A re-solve after the runaway does not repair it.** From the answer, on
+  fresh declared-precision windows, `ftol` 1e-6 goes further (`axial_sl`
+  4 114, Rwp 0.782, about 30 s). At 1e-9 it reaches 4 100 and hits its
+  400-evaluation cap (about 2.5 minutes). So a check at the stage boundary
+  can refuse to build on a runaway but cannot undo one.
+
+**Moving windows were described but never offered.** The freeze dates from
+v0.1 (DESIGN.md rule 1, whose stated reason, "gradient bias", the record
+never measured). WP-2002's sixth-round brief listed GSAS-II, MAUD,
+RIETAN-FP and EasyDiffraction as moving their windows at every evaluation,
+and TOPAS as rebuilding them past a tolerance. All four of its options kept
+the freeze (`2002-batch/rulings.md`, Q1). In the eighth round the maintainer
+asked what those programs do. The five variants measured were all frozen
+(`rulings.md`, § Eighth round).
+
+**How the rounds missed it.** B9's brief named the boxes it covered and not
+the axial ratios. Those sat in the `Geometry:bounds` hand row, and the
+session read "no chosen limits on quantities that remain physical" as
+covering them (WP-2002's handover). But `axial_sl` 555 is a sample
+half-length 555 goniometer radii long, and the revised pick kept "a box that
+guards a … non-physical region". The brief said each box "guards a
+runaway", yet the evidence it asked for was whether a box binds an honest
+fit. The closing stage was measured on four single fits from good starts.
+Nobody measured either change on a fit that runs away. The one test that
+does, `chained_all`, is slow-marked and runs only in the nightly `full`
+job. That job timed out as cancelled, with no durations table (WP-2036
+item 1). The one local slow run on a tree with #1085 (arm64 Mac,
+`12f459e5`, before #1113) finished in 18 min.
+
+**Ruled 2026-10-24: option 5 here, for 1.10.1, and option 4 as
+[WP-2047](2047-windows-follow-the-parameters-between-solves.md).** The
+maintainer's answer, to the candidates below with the measurements above:
+"5 now, 4 as own WP". Option 5 sets no threshold, so it adds no `_audit`
+row of its own. It changes what `stage_ftols` gives the last declared
+stage, so the `intermediate_ftol` rows are re-read against it.
+
+**Design candidates, as put to the maintainer.** Each needs the maintainer's ruling, and
 the generality audit table needs a row for any threshold
 (`src/rietx/_audit.py`; root CLAUDE.md § Every heuristic has a row):
 
@@ -93,9 +170,37 @@ the generality audit table needs a row for any threshold
    closing stage, and run the closing stage only on the attempt kept. This
    covers series and not single fits.
 
-The frozen-per-stage invariant constrains all three: window ranges and FCJ
+Added after the measurements above:
+
+4. **Windows follow the parameters between short solves**, as TOPAS rebuilds
+   its peak buffer when a width passes a tolerance. Each solve keeps its
+   windows frozen, so the invariant holds inside it. A stage ends a solve
+   and recompiles when its windows have gone stale, and converges only on a
+   solve that needed none. Measured on this case: no runaway, Rwp 0.142.
+   Unmeasured: whether it moves the four standards' converged answers, what
+   it costs them, and which staleness test triggers the recompile (dropped
+   intensity separates 0-1.3 % from 73 % here, on one family).
+5. **The stage before the closing stage runs at the solver's tolerance.**
+   This reverses, for that one stage, what the closing stage did to
+   `stage_ftols`. Measured: no runaway, Rwp 0.196. It sets no threshold. It
+   removes this trigger and leaves the sink: a sink that is a true minimum of
+   the frozen model would still stop a stage there. Its cost on the four
+   standards is unmeasured.
+6. **The closing compile refuses a stale answer.** Before solving, it compares
+   the frozen and fresh models at the answer, using the dropped-intensity
+   measure above. On a stale answer it skips the closing stage and says so
+   rather than polishing. This guards the cost from the measured cause, not
+   a work ratio, but it cannot repair the answer (the last bullet above).
+7. **Windows move at every evaluation**, as GSAS-II, MAUD, RIETAN-FP and
+   EasyDiffraction do. This drops the frozen-per-stage invariant. The
+   analytic and FD Jacobians, FCJ node sizing, the compiled kernels' row
+   ranges, the traced backends' static shapes and `replay` all rest on that
+   invariant. It is not a patch-release change.
+
+The frozen-per-stage invariant constrains 1-3 and 5-6: window ranges and FCJ
 node counts are fixed at compile and never change inside a solve, so any
-decision is taken at compile, from values the stage cannot change.
+decision is taken at compile, from values the stage cannot change. Option 4
+keeps it per solve and gives it up per stage.
 
 **Files.** `strategy/staged.py` (`run_stages`, the closing stage),
 `model/forward.py` (`compile_model`, the window and FCJ sizing), `refine.py`
@@ -105,7 +210,19 @@ decision is taken at compile, from values the stage cannot change.
 (`GSASIIstrMath.py`, `GSASIIpwd.py`; checked in GSAS-II 5.8.4 source on
 2026-10-24). No program surveyed has a closing stage of this kind; BGMN ends
 with every parameter free and restarted from the previous answer
-(`docs/practice.md` does not yet survey either point).
+(`docs/practice.md` does not survey axial limits; its § Staging carries
+BGMN's closing run). BGMN holds its
+ray-traced instrument function for the whole fit (`practice.md` § Staging),
+so its closing run cannot move the axial geometry. That precedent does not
+cover a closing stage that frees `axial_sl`. GSAS-II's `dropOOBvars`
+(`GSASIIstrMain.py:1198-1230`) runs after every `Refine` and after every
+histogram of `SeqRefine`. It sets each variable that refined outside a
+user-set limit to the limit, freezes it for later refinements with esd 0,
+and warns "N variable(s) refined outside limits and were frozen". The limits
+are empty by default (`parmMinDict`), so it never fires unless the user arms
+it (read on GSAS-II's `main` on 2026-10-24). It is the nearest precedent for
+option 2's shape. It also corrects WP-2002 B8's "I know of no program that
+clamps a cell after a solve", which was recalled, not checked.
 
 ### Inherited
 
@@ -120,12 +237,36 @@ with every parameter free and restarted from the previous answer
 
 ## Tasks
 
-- [ ] A fast test that reproduces the cost at compile, without running the
-      expensive solve: compile cpd-1b's closing model at the runaway answer
-      and assert the decision the chosen design makes
-- [ ] The design, put to the maintainer with this file's numbers
-- [ ] The implementation, its record field and diagnostic, and its `_audit`
-      row
+- [x] The design, put to the maintainer with this file's numbers. Ruled
+      2026-10-24: option 5, and option 4 filed as WP-2047.
+- [ ] Measure option 5 before building it, as the ruling asked: on the four
+      acceptance protocols (SRM 660c LaB6, the fluorapatite tutorial,
+      cpd-1a, 11-BM NAC), the whole-fit time and the largest shift in plain
+      esd against the shipped tree, in the shape of WP-2002's eighth-round
+      table, plus one joint fit, since `MultiHistogramRefinement.fit` reads
+      `stage_ftols` too (`multi.py:1434`). On a single fit, emulate it with
+      the last declared stage's own `ftol` set to `optimize.lm.FTOL`, since a
+      stage's own `ftol` wins in `stage_ftols`. On a series that emulation
+      does nothing: the collapsed warm plan (`sequential.py:502`) builds its
+      one stage without an `ftol`. There, `probe3.py`'s single stage at
+      `ftol` 1e-9 is the measured stand-in. Compare evaluations, not
+      iterations: `StageResult.n_iterations` counts iterations, and WP-1123's
+      saving is 1.2-1.6× fewer evaluations. If option 5 costs more than that
+      saving, put the numbers to the maintainer.
+- [ ] The implementation: `RefinementPlan.stage_ftols` gives the last
+      declared stage the solver's tolerance when a closing stage follows it,
+      a stage's own `ftol` still winning. Every runner then inherits it:
+      `PlanSpec` through `resolve_plan`, the joint fit through
+      `multi.py:1434`, and the collapsed warm plan in `sequential.py`
+      through the plan it builds. `StageResult.ftol` already records what a
+      stage ran at.
+- [ ] A test that fails before the change: the hostile series' cpd-1b warm
+      stage from cpd-1a's closing answer ends with `axial_sl` under 1 (on
+      the 1.10.0 tree it reaches 555 within seconds on Linux), and a fast
+      `stage_ftols` test on a plan with and without a closing stage
+- [ ] The `intermediate_ftol` rows in `src/rietx/_audit.py`, and the
+      `INTERMEDIATE_FTOL` and `CLOSING_WINDOW_TOL` docstrings, re-read
+      against the new schedule
 - [ ] `tests/test_acceptance_sequential.py` finishes; VALIDATION.md's three
       `chained_all` rows (marked unmeasured on 1.10.0) re-measured
 - [ ] Notes for 1.10.1 (`docs/releases/`), and the 1.10.0 stated limit
@@ -151,6 +292,74 @@ committed) ran `SequentialRefinement(...).fit` on cpd-1a and cpd-1b under
 `stage_start`/`stage_end` events.
 
 ## Handover log
+
+### 2026-10-24 (2nd session) — ruled: the stage before the closing stage converges, and windows that follow the parameters get a WP of their own
+
+The runaway that stalls the hostile series is not a real answer. It exists
+only because each stage freezes its peak windows. As the axial ratio grows,
+each peak spreads past its frozen window and the overflow drops out of the
+model. So growing the ratio can only remove intensity, and with the warm
+start's scales too strong for the next mixture, that lowers the error. The
+warm stage stops there only because a closing stage now follows it, which
+loosens its tolerance; at the tolerance it ran at before 1.10, the same
+stage from the same start finds a sane answer. Windows recompiled every few
+iterations avoid the runaway entirely and give the best answer measured.
+The maintainer ruled the tolerance change for 1.10.1 and the recompiling
+windows into WP-2047.
+
+*Done.* The design was put to the maintainer in three rounds: options 1-3
+(work ratio, axial reset, fence first), then how the rounds missed it and
+what practice says, then whether windows that move at every evaluation were
+considered. Each answer is in Context: "What the runaway is", "Moving
+windows were described but never offered", "How the rounds missed it" and
+the Practice paragraph (GSAS-II's `dropOOBvars`, checked on its `main`).
+Candidates 4-7 were added and the ruling recorded above them. Goal and tasks
+were rewritten to option 5. WP-2047 was filed for option 4. WP-2036 was
+re-rated P1 → P2 with this WP as a hard dependency. The five probes are in
+`2045-batch/`. No code changed.
+
+*Measured* (Linux x86-64 cloud container, 4 cores, `[dev]`, Python 3.12,
+`OPENBLAS_NUM_THREADS=1`, tree `7d24e09e7`, one run per probe). The runaway
+reproduces within seconds at `axial_sl` 555. Its closing compile is 873.7 M point-nodes, 1 608×
+the warm stage's, against 19× for cpd-1a's normal one. The full set (frozen
+against fresh Rwp, intensity dropped, the `ftol` and K tables, the
+re-solves) is in Context's four bullets.
+
+*Gotchas.*
+- `rietx.refine` is the exported function. The module is
+  `sys.modules["rietx.refine"]`, where the probes patch `compile_model`.
+- The probes are records, not tests, and nothing runs them
+  (`2045-batch/README.md`).
+- A force push to the session's branch was refused by the harness. The
+  branch's old tip was an ancestor of `main`, so a fast-forward push did
+  the job.
+- A stage's own `ftol` never reaches a series' warm stage, which is built
+  without one, so the single-fit emulation does nothing there (second task).
+
+*Review* (`/code-review high`, run without `--fix` because the probes record
+runs whose numbers are already quoted). Ten findings. Fixed: the "Next"
+decision rule had been written inverted; the series emulation gap; the
+joint fit's use of `stage_ftols`; single-figure timings, now one-run orders
+of magnitude; the Practice paragraph contradicting itself; probe2's
+docstring and its iterations labelled "evals"; probe.py's abort test,
+aligned with the other four (both tests fire at the same compile in the
+recorded run, so no number moves). Checked, not changed: probe4 pairs
+consecutive compiles as stages, which holds for the recorded run (eight
+declared stages, then the closing compile, then the final compile; the
+wording now says so). Declined: one shared helper for the five probes,
+because rewriting a record changes the script that produced its numbers.
+
+*Verified.* The branch changes only `docs/wp/`. The probes sit outside
+`testpaths` and ruff's targets, and they compile and pass `ruff check`.
+`tests/test_docs_consistency.py` passes, 25 tests. No count can move, so
+neither the fast nor the full selection ran. No generality judge was
+dispatched: `_audit.py` is untouched, and option 5 adds no threshold until
+it is built.
+
+Next: measure option 5 on the four standards and one joint fit before
+building it (the second task). If it costs no more than what
+`intermediate_ftol` saves, build it (third and fourth tasks). If it costs
+more, the numbers go to the maintainer before any code.
 
 - **2026-10-24** — filed by WP-2043's session (the 1.10 cut), after its
   VALIDATION lane found the hostile series never finishing and the session
