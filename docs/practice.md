@@ -130,6 +130,46 @@ scratch copies were not kept. The claims they marked inferred are TOPAS's quadra
 combination rule (not stated in the reference), the scope of `force_positive_fwhm`, and
 FullProf's constant-wavelength combination rule with an IRF.
 
+## Extinction
+
+Surveyed 2026-10-24 for WP-2044, one agent across six programs, with each
+load-bearing line re-read by the lead. Sabine's powder model is
+E = E_L·cos²θ + E_B·sin²θ. Its Laue half E_L is printed as a series for x ≤ 1
+and an asymptote above (Sabine, Von Dreele & Jørgensen 1988, eqs 3-4; ITC C
+§6.4.5). Both truncate e^(−x)·[I₀(x) + I₁(x)], the integral ITC describes,
+checked by quadrature in WP-2044. The table gives each program's value of E_L
+on either side of x = 1.
+
+| Program | Powder extinction model | E_L at 1⁻ / 1⁺ | Derivative |
+|---|---|---|---|
+| rietx (to 1.9) | Sabine, GSAS-II's branches | 0.6742 / 0.6981, +3.6 % | forward difference (checked) |
+| Sabine's paper, ITC C | series and four-term asymptote | 0.6823 / 0.6678, −2.2 % | — |
+| exact (WP-2044) | e^(−x)·[I₀ + I₁] | 0.6737, continuous | dE_L/dx = −e^(−x)·I₁/x |
+| GSAS-II | Sabine: six-term series, two-term asymptote, switch at x = 1 | 0.6742 / 0.6981, +3.6 % | analytic per branch (checked) |
+| MAUD | Sabine: the paper's series, and its asymptote with the bracket inside the square root, switch at x = 1 | 0.6823 / 0.7299, +7.0 % | none in the class, so numerical (inferred) |
+| TOPAS | no keyword; §16.6 suggests an empirical `scale_pks = 1/Sqrt(1 + 1e-5·extinction·I)`, with no angle dependence | — | numerical for an expression (inferred) |
+| FullProf | one empirical powder parameter (`Extinc`, the SHELX-style form); `Ext-Model` is single-crystal only | — | not found |
+| EasyDiffraction (cryspy) | Becker-Coppens, single crystal only; no powder use found | — | analytic |
+| RIETAN-FP | none (the manual calls secondary extinction negligible for powders) | — | — |
+| BGMN | none found in the keyword table | — | — |
+
+No program evaluates E_L continuously. The two that carry Sabine's E_L both
+switch branches at x = 1, and neither gives a reason. TOPAS's expression
+language has no modified Bessel function (Table 3-1; "there is no Bessel
+function", near §16 on modulated structures). Its functions are Sqrt, Exp, Ln,
+the trigonometric and hyperbolic functions, the Erf, Erfc and Gamma
+approximations, Abs, Min, Max, Mod, Round and Sign, with If, For and Sum.
+
+Sources: GSAS-II `GSASIIstrMath.GetPwdrExt` and `GetPwdrExtDerv`. MAUD
+`src/it/unitn/ing/rista/diffr/sfm/ExtinctionSabineModel.java:140-146`, with the
+same constants in the 3.07 jar by `javap`. TOPAS Technical Reference v9 §16.6
+and Table 3-1. FullProf manual, the scale line's `Extinc` and the `Ext-Model`
+entry in the 2002 news. cryspy 0.13.0 `A_functions_base/extinction.py`, and
+EasyDiffraction `analysis/calculators/cryspy.py:1575-1576` ("single crystal
+only"). RIETAN-FP 3.12 manual, by full-text search (one hit, on secondary
+extinction). BGMN by the binary's keyword table, with no manual
+installed.
+
 ## The tier-2 rows resting on a program default
 
 | Row | Programs that agree | Dissent |

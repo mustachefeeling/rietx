@@ -221,6 +221,18 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 
 ### Inherited
 
+- **2026-10-24, from [WP-2044](2044-the-sabine-laue-factor-is-continuous.md):
+  two slow tests are red on `main` after this WP's first landing.**
+  `tests/test_acceptance_nac.py::test_nac_termination_view_golden_shape` sees
+  the header `Diagnostics under qpa: # warning, # errors, # info` where
+  `tests/data/nac_termination_golden.txt` holds `Diagnostics: # unresolved`,
+  which looks like the derived level and the view.
+  `tests/test_eval_skill.py::test_the_placement_episode_builds_and_fires_its_codes`
+  finds that `fit_output.txt` no longer fires `SITE_SNAPPED_TO_SPECIAL_POSITION`,
+  which looks like the snap floor. Both fail on an `origin/main` snapshot at
+  `269e93ca3` (macOS arm64, `[dev,jax,torch]`) without WP-2044's changes. Both
+  are `slow`, so a PR's fast matrix does not run them, and the nightly full job
+  of 2026-10-23 was cancelled.
 - **2026-10-24, from [WP-2040](2040-the-tutorials-link-the-manual-at-first-mention.md):
   a display change leaves the tutorials' committed outputs stale, and no check sees it.**
   WP-2040 rebuilt all seven notebooks on `origin/main` `99b00b82e`. Four of them (01, 02b,

@@ -78,7 +78,7 @@ for row in corrected.qpa.phases:
 
 # The page quotes every printed line; these pin the claims its prose makes.
 assert result.qpa.crystalline_only
-assert f"{100 * result.qpa.phases[1].weight_fraction:.1f}" == "3.1"
+assert f"{100 * result.qpa.phases[1].weight_fraction:.1f}" == "3.6"
 assert "HIGH_CORRELATION" in {d.code for d in result.diagnostics}
 assert result.statistics.rwp < held_result.statistics.rwp
 assert f"{result.statistics.rwp:.3f}, {held_result.statistics.rwp:.3f}" == "0.082, 0.089"

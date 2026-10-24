@@ -628,9 +628,10 @@ class CompiledPhase:
     # Primary extinction, frozen *out* of this stage: True when the phase's
     # ``extinction`` is exactly 0 — where Sabine's E is identically 1 — and no
     # path this stage can move reaches it.  Then E is a multiply by ones, and
-    # the six-term Laue series that builds it is pure cost: measured 1.2 s of
+    # the Laue factor that builds it is pure cost: measured 1.2 s of
     # ``sabine_extinction`` plus 0.79 s of ``_laue_and_deriv`` in a 17.5 s fit
-    # where extinction was never freed (WP-1109).
+    # where extinction was never freed (WP-1109, on GSAS-II's six-term series;
+    # the closed form of WP-2044 is 1.3x faster on 10^4 reflections).
     #
     # This is the frozen-per-stage invariant, not a branch on θ: the decision
     # is taken at compile from a value that provably cannot change before the

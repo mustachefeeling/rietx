@@ -54,7 +54,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | WP | Title | Priority | Depends on | Section |
 |---|---|---|---|---|
 | [2036](2036-main-is-green-on-every-nightly-leg.md) | Main is green on every nightly leg: a full suite that finishes, two Windows tooling tests, and answers that move with the platform | P1 | — ([2002](2002-the-single-fit-actions.md), [2012](2012-the-axial-ratios-are-interchangeable.md) soft) | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [2044](2044-the-sabine-laue-factor-is-continuous.md) | The Sabine Laue factor is continuous at x = 1 | P1 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1420](1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | P2 | — ([1333](1333-a-series-survives-one-pattern.md), [1342](1342-a-freeze-that-reads-names.md), [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1421](1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | P2 | — ([1310](1310-report-repeats-itself.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -585,7 +584,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2028](2028-a-joint-fits-guards-see-every-histogram.md) | A joint fit's guards see every histogram | ⬜ | P2 | — ([1325](1325-parametric-series.md), [1421](1421-the-result-reproduces-its-own-number.md) soft) |
 | [2029](2029-whether-the-centroid-fixes-a-polar-origin-by-default.md) | Whether the centroid fixes a polar origin by default | ⬜ | P3 | — ([1912](1912-a-polar-axis-has-no-origin.md) soft) |
 | [2035](2035-a-reduced-cell-is-its-inputs-exact-image.md) | A reduced cell is its input's exact image, near a right angle too | ⬜ | P3 | — |
-| [2044](2044-the-sabine-laue-factor-is-continuous.md) | The Sabine Laue factor is continuous at x = 1 | ⬜ | P1 | — |
+| [2044](2044-the-sabine-laue-factor-is-continuous.md) | The Sabine Laue factor is continuous at x = 1 | ✅ 2026-10-24 | — | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 

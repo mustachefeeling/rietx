@@ -57,17 +57,17 @@ it.
 
 ### Inherited
 
-- **2026-10-24, from WP-2043 (the 1.10 cut): a second case, where it moves a
-  weight fraction.** `examples/guides/qpa.py`'s first fit (11-BM NAC with a
-  CaF₂ impurity, `mccusker_structural`, 2-24°) frees the extinction of CaF₂,
-  which declares none. It walks to 1361 ± 2116 µm², parked on the step in the
-  Sabine Laue factor at x = 1 (WP-2044 owns that step), correlated with the
-  scale at ρ = +0.998. CaF₂ reads 3.08 ± 2.24 wt% against 1.37 ± 0.07 with
-  extinction and Biso held. With WP-2044's continuous factor in place (numpy
-  prototype) it reads 3.58 ± 3.53 wt%, and `HIGH_CORRELATION` fires. The guide
-  teaches this case on purpose, so a fix here changes its page. The evidence
-  may move this WP's row, since the parameter moves a quoted fraction by more
-  than its own value.
+- **2026-10-24, from [2044](2044-the-sabine-laue-factor-is-continuous.md):
+  the QPA guide's free fit moved.** With Sabine's Laue factor continuous, the
+  guide's first fit (11-BM NAC + CaF₂, `mccusker_structural`) gives CaF₂
+  3.58 ± 3.53 wt% and extinction 1919 ± 4066 µm², the same on macOS and Linux,
+  where 1.9.0 gave 3.09 ± 2.32. `HIGH_CORRELATION` reads scale ~ extinction at
+  ρ = +0.998. That fit is this WP's worked case: an extinction the data cannot
+  see, freed by the plan on a weak phase. The held fit is unchanged at
+  1.37 ± 0.07 wt%. Re-pin `examples/guides/qpa.py` and its page if this WP
+  changes what the plan frees.
+  The fit moves a quoted weight fraction by more than the fraction itself,
+  which may move this WP's priority row (noted by WP-2043).
 
 ## Non-goals
 

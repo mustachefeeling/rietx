@@ -1510,7 +1510,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.io.projects.registry.INP_SNIFF_BYTES", "constant", value=65536),
     Row("rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM", "constant", value=16),
     Row("rietx.io.projects.topas_input.DEFAULT_RADIUS_MM", "constant", value=217.5),
-    Row("rietx.io.projects.topas_input._SABINE_LAUE", "constant", value=(-0.5, 0.25, -0.10416667, 0.036458333, -0.0109375, 0.0028497409)),
+    Row("rietx.io.projects.topas_input._BESSEL_SWITCH", "constant", tier=1, value=3.75,
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I0_LARGE", "constant", tier=1, value=(0.39894228, 0.01328592, 0.00225319, -0.00157565, 0.00916281, -0.02057706, 0.02635537, -0.01647633, 0.00392377),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I0_SMALL", "constant", tier=1, value=(1.0, 3.5156229, 3.0899424, 1.2067492, 0.2659732, 0.0360768, 0.0045813),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I1_LARGE", "constant", tier=1, value=(0.39894228, -0.03988024, -0.00362018, 0.00163801, -0.01031555, 0.02282967, -0.02895312, 0.01787654, -0.00420059),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I1_SMALL", "constant", tier=1, value=(0.5, 0.87890594, 0.51498869, 0.15084934, 0.02658733, 0.00301532, 0.00032411),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._LAUE_SPELLING_REL", "constant", tier="invariant", value=3.6e-08,
+        evidence=("a measured bound quoted in the file's head note; it decides nothing (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
     Row("rietx.io.projects.topas_input._SABINE_XPOL", "constant", value=0.079411),
     Row("rietx.io.projects.topas_input._TCH_ETA", "constant", value=(1.36603, -0.47719, 0.11116)),
     Row("rietx.io.projects.topas_input._TCH_GAMMA", "constant", value=(2.69269, 2.42843, 4.47163, 0.07842)),
@@ -1558,8 +1569,12 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.compiled._THREAD_MIN_NS", "constant", tier="invariant", value=100000.0,
         evidence=("answer-invariant: rows are disjoint and each computed whole in one chunk; "
                   "tests/test_compiled_kernels.py::test_a_split_call_lands_on_the_inline_bits")),
-    Row("rietx.model.extinction._PI2", "constant", tier=1, value=0.7978845608028654,
-        evidence="arithmetic: sqrt(2/pi)"),
+    Row("rietx.model.extinction._ARG_SHIFT", "constant", tier="invariant",
+        value=1.1754943508222875e-38,
+        evidence=("answer-invariant: x + 2^-126 == x in fp64 for x >= 2^-72, and below that E_L "
+                  "rounds to 1 either way, so no selected value moves; it only sets the slope "
+                  "at x = 0 to -1/2, where numpy would read 0/0 and jax and torch +1/2 (WP-2044); "
+                  "tests/test_extinction.py::test_laue_shift_never_moves_a_value_that_is_actually_selected")),
     Row("rietx.model.extinction._XPOL", "constant", tier=1, value=0.079411,
         evidence=("physics: (r_e x 1e4 A/um)^2 with r_e = 2.818 fm is 0.079411; GSAS-II 5.8.4 "
                   "GSASIIstrMath.GetPwdrExt uses the same value (checked)")),
@@ -4192,7 +4207,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.io.projects.registry.INP_SNIFF_BYTES",
     "rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM",
     "rietx.io.projects.topas_input.DEFAULT_RADIUS_MM",
-    "rietx.io.projects.topas_input._SABINE_LAUE",
     "rietx.io.projects.topas_input._SABINE_XPOL",
     "rietx.io.projects.topas_input._TCH_ETA",
     "rietx.io.projects.topas_input._TCH_GAMMA",
