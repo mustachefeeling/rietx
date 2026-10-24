@@ -199,8 +199,8 @@ print(row.magnitude, row.magnitude_esd, row.supported, row.unmeasured_directions
 The support test is a ratio.
 Refine a moment against a pattern above the ordering temperature and the modulus has nowhere to go, because |F<sub>m</sub>|² ∝ m² and the only way to lower χ² is to remove the magnetic intensity.
 Where it stops depends on the rest of the model, so a small value is not a measurement.
-On the Cr<sub>2</sub>WO<sub>6</sub> tutorial pattern at 150 K, refined from the ideal trirutile positions with the protocol in `tests/test_acceptance_magnetic.py`, the modulus stops at 0.067 μ<sub>B</sub> with an esd of 0.33, so `supported` is false.
-At 4 K the same model gives 2.124 ± 0.043 μ<sub>B</sub>, a ratio of 50, and `supported` is true.
+On the Cr<sub>2</sub>WO<sub>6</sub> tutorial pattern at 150 K, refined from the ideal trirutile positions with the protocol in `tests/test_acceptance_magnetic.py`, the modulus stops at 0.059 μ<sub>B</sub> with an esd of 0.39, so `supported` is false.
+At 4 K the same model gives 2.125 ± 0.045 μ<sub>B</sub>, a ratio of 47, and `supported` is true.
 
 ### Directions a powder cannot see
 

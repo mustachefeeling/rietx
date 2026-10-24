@@ -844,7 +844,7 @@ class Dispersion(Base):
     model.  Neglecting it is not a neutral simplification: it mis-scales every
     reflection of a species by ((Z + f′)² + f″²)/Z² − 1, which is −16 % for
     ZnO at Cu Kα and +7 % for CaF₂, and unequal effects across phases bias QPA
-    weight fractions directly (measured: RMS error 2.26 → 0.62 wt % on the
+    weight fractions directly (measured: RMS error 2.26 → 0.69 wt % on the
     IUCr round robin).
 
     Set ``source.dispersion = None`` to decline it and reproduce the ≤ v0.6
@@ -1906,22 +1906,22 @@ class HumpComponent(_InheritsDeclaredDefaults):
     ==============================  ======  ========  ============  ================
     background                       terms  Rwp       Biso(Si)/Å²   HIGH_CORRELATION
     ==============================  ======  ========  ============  ================
-    Chebyshev, 3 terms                   3  0.119977  0.414(65)                    0
-    that **+ one peak**              3 + 3  0.082503  0.421(10)                    0
-    Chebyshev, 6 terms                   6  0.088596  0.422(25)                    0
-    that **+ one peak**              6 + 3  0.077152  0.4235(66)                   0
+    Chebyshev, 3 terms                   3  0.120051  0.413(64)                    0
+    that **+ one peak**              3 + 3  0.082134  0.421(10)                    0
+    Chebyshev, 6 terms                   6  0.088232  0.422(25)                    0
+    that **+ one peak**              6 + 3  0.076711  0.4234(64)                   0
     ==============================  ======  ========  ============  ================
 
     **Three parameters beat three polynomial terms.**  Rows one and two differ by
-    three numbers and so do rows one and three — the peak takes Rwp down 31 %
-    relative, three more Chebyshev coefficients only 26 %.  Biso(Si) barely moves
-    (well inside one esd) but its **esd falls 6.5×**, and so do those of λ, the
+    three numbers and so do rows one and three — the peak takes Rwp down 32 %
+    relative, three more Chebyshev coefficients only 27 %.  Biso(Si) barely moves
+    (well inside one esd) but its **esd falls 6.4×**, and so do those of λ, the
     scale and the zero shift: an undescribed background blurs this fit rather
     than biasing it.
 
     **The feature is identified from outside the fit.**  The refined peak is
-    5.57(22)° wide against an instrumental Gaussian FWHM of 0.00346° at that
-    angle — 1 608×.  11-BM's published blank (run 4736, ``empty Kapton
+    5.61(22)° wide against an instrumental Gaussian FWHM of 0.00347° at that
+    angle — 1 618×.  11-BM's published blank (run 4736, ``empty Kapton
     capillary``, same February 2010 beamtime), fitted independently of this
     package, puts the same feature at 4.2417(111)° with FWHM 6.153(23)°, and the
     beamline's published air-scatter scan shows no localised feature anywhere.
@@ -1929,8 +1929,8 @@ class HumpComponent(_InheritsDeclaredDefaults):
     halo.  That — not the Rwp — is what makes the term quotable.
 
     **A peak needs a low-order background to mean anything.**  Between the
-    3-term and 6-term arms the peak moves 1.07° and narrows from 5.57(22)° to
-    1.94(8)° while Rwp moves by 0.005: the peak and the polynomial describe
+    3-term and 6-term arms the peak moves 1.08° and narrows from 5.61(22)° to
+    1.92(8)° while Rwp moves by 0.005: the peak and the polynomial describe
     overlapping freedom, so the more flexible the polynomial the less the peak's
     own parameters mean.  Declare a peak *instead of* extra polynomial terms,
     never on top of them.

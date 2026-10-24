@@ -447,8 +447,8 @@ A transmission plate has no displacement or transparency model: only `Instrument
 No position correction carries a default bound, and the transparency and the axial ratios keep their floor of 0.
 Before 1.10, `Instrument.zero_shift` was held to ±0.5°, a displacement and each capillary offset to ±1 mm, and the transparency to 0.05.
 Where a scan cannot separate a position error from the cell, the fit reports [`FLAT_DIRECTION`](diagnostics-refinement.md#flat_direction) and the cell's esd grows to show it, with or without a bound.
-On 11-BM NAC over 2-24° 2θ with the zero shift and both capillary offsets free, the bounded fit put the cell 1097 ppm from its reference with an esd of 2612 ppm.
-The unbounded fit let the offsets slide to +4.86 and +2.12 mm, put the cell 5109 ppm away, and reported an esd of 2579 ppm.
+On 11-BM NAC over 2-24° 2θ with the zero shift and both capillary offsets free, 1.9.0's bounded fit put the cell 1097 ppm from its reference with an esd of 2610 ppm.
+The unbounded fit lets the offsets slide to +4.86 and +2.12 mm, puts the cell 5111 ppm away, and reports an esd of 2544 ppm.
 Both fits reported the same two `FLAT_DIRECTION` findings.
 The bound acted as a prior that the mount is aligned, which held on 11-BM, and it left the esd as wide as before.
 That prior is a fact about your instrument, so state a bound yourself where you know the mount.

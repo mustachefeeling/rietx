@@ -298,7 +298,7 @@ Each window drops 2 % of its peak's area, and more once a peak widens during the
 Two errors reach the answer of a plan without a closing stage:
 
 - The missing tails move refined values. Computed out to 5e-5 of the area, lab answers moved by up to 0.97 esd (the zincite scale on CPD cpd-1a, the Lorentzian size on the GSAS-II fluorapatite), and the background coefficients by 2 to 5 esd.
-- The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put cpd-1a's sample displacement 0.75 esd apart, because each start stopped the early stages in a different place.
+- The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put the fluorapatite's Biso 0.12 esd apart, because each start stopped the early stages elsewhere.
 
 The closing stage takes the last declared stage's iteration budget, Le Bail cycles, restraint weight, window slack and `Stage.ftol`, and seeds nothing.
 It takes the solver's default tolerance, so the last declared stage becomes an intermediate one.
@@ -308,14 +308,14 @@ A declared stage records `None`, the declared stages' 2 %, so a fit run without 
 At any window fraction under the declared stages' 2 %, the axial-divergence asymmetry is sampled at a finer node rule as well.
 So a `closing_window_tol` loosened past 1e-3 for speed loosens the windows alone.
 
-Measured on SRM 660c LaB6, the fluorapatite, cpd-1a and 11-BM NAC, each under its acceptance protocol (macOS arm64, `[dev]`, 2026-10-21):
+Measured on SRM 660c LaB6, the fluorapatite, cpd-1a and 11-BM NAC, each under its acceptance protocol (macOS arm64, `[dev]`; times from 2026-10-21):
 
 | | Fluorapatite | cpd-1a | NAC | LaB6 |
 |---|---|---|---|---|
-| Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 0.751 → 0.070 | 0.008 → 0.000 | 9.0 → 9.1 |
+| Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 15.3 → 15.7 | 0.008 → 0.000 | 0.20 → 1.16 |
 | Fit time with the closing stage | 2.20-2.33× | 1.60-1.62× | 1.2× | 1.42-1.44× |
 
-LaB6's two starts reach two mirrored axial-divergence minima whatever the windows, so no window setting can make them agree.
+cpd-1a's starts differ on fluorite's Lorentzian strain, through the X and Y split its plan holds (`StageResult.width_twins_held`).
 `tests/test_window_domain.py` holds the closing answer within 0.1 plain esd of the answer with converged tails on the fluorapatite, cpd-1a and NAC (0.008 to 0.019 esd).
 LaB6 misses it by 0.9 esd on `instrument.profile.u`.
 Its highest-angle reflections end with a Gaussian variance under the floor the width is clamped to, and there a recompile moves `u` by an esd at any window.
