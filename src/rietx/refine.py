@@ -5816,8 +5816,10 @@ class Refinement:
         by looking harder at either.
 
         ``deliverable`` selects §4b's deciding rows for one purpose —
-        ``"phase_id"``, ``"qpa"`` or ``"structure"``.  The report will not
-        infer your purpose for you: ``None`` (the default) prints the three
+        ``"phase_id"``, ``"qpa"``, ``"structure"``, ``"cell"``,
+        ``"microstructure"``, ``"calibration"`` or ``"magnetic"``
+        (:data:`rietx.purposes.PURPOSES` is the vocabulary).  The report will
+        not infer your purpose for you: ``None`` (the default) prints the three
         stop conditions and nothing past them.  ``"series"`` is accepted and
         answers with where it is decided: a trajectory's deciding rows are
         the chain's, on
@@ -5966,14 +5968,16 @@ class Refinement:
             else:
                 lines.append("    qpa: none (Le Bail scales are degenerate)")
         elif deliverable == "structure":
-            if result.identifiability is not None:
-                exch = result.identifiability.exchangeability
-                lines.append(f"    exchangeability: {len(exch)} row(s)")
-                for row in exch[:5]:
-                    lines.append(f"      {row.held} ~ {', '.join(row.partners)} "
-                                 f"(R²={row.r2:.2f})")
-            else:
-                lines.append("    identifiability: not measured on this result")
+            lines += _exchangeability_lines(result)
+        elif deliverable == "cell":
+            lines += _cell_lines(result)
+            lines += _exchangeability_lines(result, about=".cell.")
+        elif deliverable == "microstructure":
+            lines += _microstructure_lines(result)
+        elif deliverable == "calibration":
+            lines += _calibration_lines(result)
+        elif deliverable == "magnetic":
+            lines += _magnetic_lines(result)
         elif deliverable == "series":
             # A series deliverable is decided one rank up and this is the
             # honest thing one pattern can say about it: no single fit carries
@@ -6127,6 +6131,135 @@ class Refinement:
 # ----------------------------------------------------------------------
 # module-level helpers
 # ----------------------------------------------------------------------
+# The deciding rows of ``Refinement.summary(deliverable=…)`` (WP-2037): each a
+# projection of fields the result already carries, never a computation, and a
+# row nothing on this result measured says so rather than printing clean.
+
+_CELL_UNITS = {"a": "Å", "b": "Å", "c": "Å", "alpha": "°", "beta": "°", "gamma": "°"}
+
+
+def _moved(p: RefinedParameter) -> bool:
+    """Whether a result row moved in the fit: a free row, or a tied one carrying
+    an esd, which only a free source gives it.  A tied row whose sources were
+    all held is listed too (the membership filter is "varied or tied") and
+    carries none."""
+    return p.vary or p.stderr is not None
+
+
+def _cell_rows(result: RefinementResult) -> dict[int, list[RefinedParameter]]:
+    """The cell rows that moved, by phase index."""
+    by_phase: dict[int, list[RefinedParameter]] = {}
+    for p in result.parameters:
+        parts = p.path.split(".")
+        if (len(parts) == 4 and parts[0] == "phases" and parts[2] == "cell"
+                and parts[3] in _CELL_UNITS and _moved(p)):
+            by_phase.setdefault(int(parts[1]), []).append(p)
+    return by_phase
+
+
+def _cell_lines(result: RefinementResult) -> list[str]:
+    """``cell``: each phase's refined cell with esds, tied axes named, and the
+    volume the whole covariance gives it (WP-1933)."""
+    from ._display import _number
+
+    rows = _cell_rows(result)
+    if not rows:
+        return ["    cell: no cell parameter refined on this fit; the cell is "
+                "the model's as given"]
+    volumes = {v.phase_index: v for v in result.cell_volumes or []}
+    lines = []
+    for i, ps in sorted(rows.items()):
+        name = {p.path: p.path.rsplit(".", 1)[1] for p in ps}
+        text = ", ".join(f"{name[p.path]} = {_number(p.value, p.stderr)} "
+                         f"{_CELL_UNITS[name[p.path]]}" for p in ps if p.vary)
+        tied = [name[p.path] for p in ps if not p.vary]
+        if tied:
+            text += f" ({', '.join(tied)} tied)"
+        if i in volumes:
+            v = volumes[i]
+            text += f"; V = {_number(v.volume, v.stderr)} Å³"
+        lines.append(f"    phases.{i}.cell: {text.lstrip()}")
+    return lines
+
+
+def _exchangeability_lines(result: RefinementResult, about: str | None = None) -> list[str]:
+    """The exchange rows, worst five: what ``structure`` and ``cell`` both
+    decide on, since a held parameter the free ones imitate moves either.
+    ``about`` keeps the rows naming a path containing it (``".cell."``), so a
+    cell is not read against five rows of Biso exchanges."""
+    if result.identifiability is None:
+        return ["    identifiability: not measured on this result"]
+    exch = result.identifiability.exchangeability
+    if about is not None:
+        exch = [row for row in exch
+                if about in row.held or any(about in p for p in row.partners)]
+    noun = "row(s)" if about is None else f"row(s) naming a {about.strip('.')} path"
+    lines = [f"    exchangeability: {len(exch)} {noun}"]
+    for row in exch[:5]:
+        lines.append(f"      {row.held} ~ {', '.join(row.partners)} "
+                     f"(R²={row.r2:.2f})")
+    return lines
+
+
+def _microstructure_lines(result: RefinementResult) -> list[str]:
+    """``microstructure``: each phase's size and strain readings, or the code
+    that says none of them is quotable."""
+    if not result.microstructure:
+        return ["    microstructure: not measured on this result"]
+    if any(d.code == "RESOLUTION_UNCONSTRAINED" for d in result.diagnostics):
+        # the code's own suggestion: "do not quote the widths, or any size or
+        # strain read from them" — so the readings are not printed as answers
+        return ["    size: not quotable (RESOLUTION_UNCONSTRAINED)",
+                "    strain: not quotable (RESOLUTION_UNCONSTRAINED)"]
+    return ["    " + line for block in result.microstructure
+            for line in str(block).splitlines()]
+
+
+def _calibration_lines(result: RefinementResult) -> list[str]:
+    """``calibration``: the instrument terms the fit refined, and whether the
+    standard's cell was held, which is what decorrelates the zero, the
+    specimen position and the cell (``lab_calibrate``)."""
+    rows = [p for p in result.parameters
+            if p.path.startswith("instrument.") and _moved(p)
+            and not p.path.startswith(("instrument.background.",
+                                       "instrument.extra_components."))]
+    lines = ([f"    {p}" for p in rows]
+             or ["    instrument: no instrument parameter refined on this fit"])
+    if _cell_rows(result):
+        lines.append("    cell: refined — a calibration holds the standard's "
+                     "certified cell fixed; hold it (Refinement.hold) and refit")
+    else:
+        lines.append("    cell: held, as a calibration needs")
+    return lines
+
+
+def _magnetic_lines(result: RefinementResult) -> list[str]:
+    """``magnetic``: each site's moment rows (the modulus carries the esd) and
+    what the stages held or turned because a powder average cannot see it."""
+    rows = [p for p in result.parameters
+            if fnmatch.fnmatchcase(p.path, "phases.*.atoms.*.moment.*")
+            or fnmatch.fnmatchcase(p.path, "phases.*.magnetic_lor_*")]
+    if not any(".moment." in p.path for p in rows):
+        return ["    moment: none refined on this fit "
+                "(no phases.*.atoms.*.moment.* row)"]
+    lines = [f"    {p}" for p in rows]
+    held = ([p for p in result.stages[-1].held if ".moment." in p]
+            if result.stages else [])
+    if held:
+        lines.append(f"    held, not measured: {', '.join(held)}")
+    flat: dict[str, list[float]] = {}
+    turned: set[str] = set()
+    for stage in result.stages:
+        flat.update(stage.moment_flat_axes)
+        turned.update(stage.moment_turned)
+    for site, axis in flat.items():
+        how = (", turned onto the meridian first (the reported direction moved)"
+               if site in turned else ", where it was")
+        lines.append(f"    {site}: azimuth held about "
+                     f"[{', '.join(f'{x:.3f}' for x in axis)}]{how}")
+    return lines
+
+
 #: Guard codes that are **discarded per stage and re-taken on the converged
 #: vector** rather than accumulated (WP-1310 for the first, WP-1311 for the
 #: other three).  Each reads a number straight off the values a stage landed

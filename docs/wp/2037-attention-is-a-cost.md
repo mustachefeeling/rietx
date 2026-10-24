@@ -247,7 +247,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
       (`viz`), the GUI diagnostics panel (collapsed `info` beside help; rebuilt dist;
       `npm --prefix gui test`). The "N unresolved" header replaced; the no-deliverable
       line and the `deliverable=` sentence as in `2037-attention/examples.md` § 1.
-- [ ] `DELIVERABLES` extended with `cell`, `microstructure`, `calibration`, `magnetic`,
+- [x] `DELIVERABLES` extended with `cell`, `microstructure`, `calibration`, `magnetic`,
       each with its deciding rows in `_deliverable_lines`, the skill § 4b table and
       `SeriesResult.summary`'s refusal text updated.
 - [ ] The caller override: `summary(levels={code: "allow"|"warn"|"deny"})`, the same map

@@ -9,6 +9,7 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from .._about import DIST_NAME
+from ..purposes import PURPOSES
 from .common import Base, Diagnostic, Mode, Provenance
 from .interval import ParameterInterval
 from .parametric import (
@@ -1407,11 +1408,14 @@ def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
 
 
 #: What ``summary(deliverable=…)`` accepts, on a result and on a series alike
-#: (the agent skill §4b's four purposes).  Data rather than two literal lists:
-#: :meth:`rietx.refine.Refinement.summary` implements the first three and
-#: :meth:`rietx.schemas.sequential.SeriesResult.summary` the fourth, and each
-#: refuses the other's by naming where it lives — a vocabulary neither owns.
-DELIVERABLES = ("phase_id", "qpa", "structure", "series")
+#: (the agent skill §4b's purposes).  Derived, never listed: the purpose table
+#: :data:`rietx.purposes.PURPOSES` is the one authority for which purposes
+#: exist (WP-2037), so a purpose added there is a deliverable here.
+#: :meth:`rietx.refine.Refinement.summary` implements every one but
+#: ``series`` and :meth:`rietx.schemas.sequential.SeriesResult.summary` that
+#: one, and each refuses the other's by naming where it lives — a vocabulary
+#: neither owns.
+DELIVERABLES = tuple(PURPOSES)
 
 #: The first segment of a parameter dot-path, a joint fit's ``hist.{h}.``
 #: scope included.  A ``where`` entry starting with none of them names

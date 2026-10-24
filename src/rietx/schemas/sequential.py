@@ -1219,9 +1219,11 @@ class SeriesResult(Base):
         ``deliverable="series"`` adds §4b's fourth deliverable — a parameter
         as a function of the series variable — as its deciding rows, printed
         **after** the trajectory: the table is the answer, and these are what
-        would have to be wrong for it to be wrong (WP-1305).  The other three
-        purposes are decided on one pattern's own fit and are refused here by
-        name.
+        would have to be wrong for it to be wrong (WP-1305).  Every other
+        purpose in :data:`~rietx.schemas.results.DELIVERABLES` — phase ID, QPA,
+        structure, cell, microstructure, calibration, magnetic — is decided on
+        one pattern's own fit and is refused here by naming
+        ``Refinement.summary``.
 
         ``parametric`` is a joint fit of the same patterns with parametric
         declarations (``refine_multi(..., coordinates=, parametric=)``,
