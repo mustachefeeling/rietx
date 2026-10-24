@@ -153,7 +153,17 @@ ones. The maintainer accepted the offer to vendor the tutorial and Co₃O₄ fil
 2026-10-24, and the reply on the PR asked for planted bad patterns too. Each file
 lands with a `tests/data/README.md` row giving its source, its licence and its reference
 values (root CLAUDE.md § Licensing, the per-file data fence). Measure on whichever have
-landed when tiering starts.
+landed when tiering starts. None had on 2026-10-24 (second session): `tests/data` holds no
+CuCr₂O₄, Co₃O₄ or Ba₂FeSbSe₅ file, and #1073 is still open.
+
+**The tier of each rule this WP adds** (written 2026-10-24, the WP predating the template's
+line). It adds no flag, threshold or automatic action of its own: it tiers existing ones.
+The record fields it plans (`SeriesEntry.seeded_from`, `SeriesEntry.floored`,
+`SeriesResult.steps`) report an act or a statistic and carry no threshold, so they are
+arithmetic (tier 1, ambiguity kind 1 as records). Whatever replaces `SEQUENTIAL_DISCONTINUITY`
+as `verify_discontinuities`' choice of which steps to refit is a package number inside an
+opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
+2026-10-24). No new topic, so no new reference.
 
 ## Non-goals
 
