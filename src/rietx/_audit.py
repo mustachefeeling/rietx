@@ -459,6 +459,7 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
     "rietx.schemas.results.RefinementResult.parametric_form_joint",
     "rietx.schemas.results.RefinementResult.phase_agreement",
     "rietx.schemas.results.RefinementResult.provenance",
+    "rietx.schemas.results.RefinementResult.radiation",
     "rietx.schemas.results.RefinementResult.restraints",
     "rietx.schemas.results.RefinementResult.sigma",
     "rietx.schemas.results.RefinementResult.stages",
@@ -870,12 +871,12 @@ ROWS: tuple[Row, ...] = (
                   "direction, printing a singularity warning (GSASIImath.py:280-289, checked by "
                   "the judge); none holds a twin automatically. Real two-phase family, 11-BM LaB6 "
                   "+ cBN: once two exactly flat directions, now LaB6's widths on their floor and "
-                  "cBN lor_strain 0.0354(8), every esd finite; LaB6 16.779(194) wt % against "
+                  "cBN lor_strain 0.0354(35), every esd finite; LaB6 16.779(194) wt % against "
                   "16.850 before, TOPAS 17.907-17.950. The costs: the specimen width ends on its 0 "
                   "floor in three of four real fits (brucite, corundum, LaB6 + cBN), so the held "
                   "instrument value binds, Rwp 0.186391 -> 0.186423 on brucite and 0.179951 -> "
                   "0.181008 with a Stephens block; a plan fitting X and Y on the specimen first "
-                  "keeps that stage's start-dependent split, 15.68 plain esd on cpd-1a zincite's "
+                  "keeps that stage's start-dependent split, 15.68 plain esd on cpd-1a fluorite's "
                   "lor_strain between Biso starts (strict xfail in "
                   "tests/test_staged_start_invariance.py). Measured and not adopted: moving the "
                   "hold to a specimen width on its floor recovers the single-phase Rwp exactly "
@@ -3043,7 +3044,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.instrument.Source:dispersion", "default", tier=2, ambiguity=1, value={"table": "cromer_liberman", "overrides": {}},
         evidence=("GSAS-II 5.8.4 applies Cromer-Liberman f', f'' to every X-ray histogram with no "
                   "switch (GSASIIstrIO.py:251-273, on every refinement path; checked); WP-1001: "
-                  "round-robin QPA RMS 2.26 to 0.62 wt %; None declines it and "
+                  "round-robin QPA RMS 2.26 to 0.62 wt % (0.69 on 1.10.0); None declines it and "
                   "DISPERSION_NEGLECTED says so"
                   "; seven programs, 2026-10-21 (docs/practice.md): all seven apply f', f'' by default, BGMN through the .ano table its default LAMBDA names")),
     Row("rietx.schemas.instrument.Source:harmonics", "default", tier=1, ambiguity=1, value=(),

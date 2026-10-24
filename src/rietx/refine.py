@@ -148,6 +148,7 @@ from .schemas.results import (
     Identifiability,
     PhaseAgreement,
     PhaseTexture,
+    Radiation,
     RefinedParameter,
     RefinementResult,
     StageResult,
@@ -7546,7 +7547,7 @@ def _capillary_offset_diagnostics(model: CompiledModel,
     Info rather than warning, and it deliberately does **not** ask for the
     offsets to be freed.  WP-1073 measured what that costs on 11-BM: the pair is
     a degeneracy the fit walks along while Rwp *improves*, and the cell moves
-    5109 ppm with no bound to stop it (1117 ppm while a ±1 mm default bound
+    5111 ppm with no bound to stop it (1097 ppm while a ±1 mm default bound
     did, until WP-2002).  So they stay report-driven, and this says only that
     the door is shut and which field opens it.
 
@@ -7668,6 +7669,15 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
         rows.append(PhaseAgreement(name=structure.phases[ip].name,
                                    r_bragg=r_b, r_f=r_f, n_reflections=n))
     return rows
+
+
+def _radiation(model: CompiledModel, values: dict[str, float]) -> Radiation:
+    """The source a result's curves were fitted with (WP-2042): the compiled
+    kind and each line's λ at ``values``, so a refined wavelength is recorded
+    as refined.  One builder for both result writers, the single fit's and
+    the joint fit's per histogram."""
+    return Radiation(kind=model.source_kind,
+                     wavelengths=[float(lam) for lam in model.line_lambdas(values)])
 
 
 
@@ -8114,7 +8124,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
-        ticks=ticks, tick_hkl=tick_hkl,
+        ticks=ticks, tick_hkl=tick_hkl, radiation=_radiation(model, values),
         qpa=qpa, restraints=restraints_report, geometry=geometry,
         cell_volumes=volumes,
         microstructure=microstructure,

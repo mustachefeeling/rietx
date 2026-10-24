@@ -385,7 +385,7 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     rounding deciding which.  The width twin hold now holds X and Y for the
     stage, so the half asserts the hold's record and that nothing left free is
     flat.  Measured on the merged tree (macOS arm64): LaB6's widths end on
-    their 0 floor (``FLOOR_HIT``), cBN's ``lor_strain`` is 0.0354(8), and every
+    their 0 floor (``FLOOR_HIT``), cBN's ``lor_strain`` is 0.0354(35), and every
     width carries a finite esd; the identifiable fit is unchanged.
 
     **Silence is the bar again since WP-1930.**  Until then this plan freed
@@ -489,8 +489,8 @@ def test_rwp_is_worse_than_topas_and_the_reason_is_the_peak_shape(shared):
     TOPAS fitted ``PVII_Peak_Type`` with six free shape parameters; rietx
     offers TCHZ pseudo-Voigt and a true Voigt.  On this instrument that costs
     roughly a factor two in Rwp, and the misfit is concentrated at the peak
-    **tops** (84.5 % of χ² in the 9 % of channels that are more than half
-    Bragg, mean Δ/σ = +0.49) rather than in the background or the flanks —
+    **tops** (88 % of χ² in the 11 % of channels that are more than half
+    Bragg, mean Δ/σ = +1.10, on 1.9.0 and on 1.10.0) rather than in the background or the flanks —
     a shape deficit, not a scale or background one.
 
     The band is deliberately loose and one-sided.  It exists to catch a
@@ -503,7 +503,8 @@ def test_rwp_is_worse_than_topas_and_the_reason_is_the_peak_shape(shared):
 
 #: The shared fit's Rwp, measured on macOS arm64 and Linux x86-64 (issue #832,
 #: 2026-10-08) and again here (WP-1930): 0.168656, χ²_red 10.15182, the two
-#: platforms agreeing to 1e-12 relative.
+#: platforms agreeing to 1e-12 relative.  WP-2002's closing stage moved it to
+#: 0.168625, χ²_red 10.14803 (macOS arm64), inside the band below.
 SHARED_RWP = 0.168656
 
 
@@ -517,7 +518,8 @@ def test_the_shared_fit_reaches_one_minimum_on_every_platform(shared):
     minimum single by starting ``instrument.profile.y`` off its softplus
     floor.  WP-1938 refines it in deg, where its column at 0 is the physical
     one, so the ``profile`` stage seeds nothing and ``y`` leaves 0 on its own
-    (0.0369 at Rwp 0.168656, macOS arm64, ``[dev]``).
+    (0.0369 at Rwp 0.168656 on 1.9.0, and 0.0368 at 0.168625 on 1.10.0, macOS
+    arm64, ``[dev]``).
     """
     assert shared.statistics.rwp == pytest.approx(SHARED_RWP, rel=0.02)
     profile = next(s for s in shared.stages if s.name == "profile")

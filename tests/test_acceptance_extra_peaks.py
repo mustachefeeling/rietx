@@ -38,6 +38,12 @@ and 43.6205°:
 The esds are 1.5.0's. On the 1.6.0 tree clean is 2.08e-05 and ignore
 1.81e-04, 8.7x.
 
+Re-measured on the 1.10.0 tree (macOS arm64, `[dev]`): declare -0.1 ppm,
+ignore -0.4 ppm, exclude +0.3 ppm. The ignore arm still inflates the cell's
+esd 9.9x and Rwp 4.4x. WP-2002's width twin hold (#1113) moved the ignore arm
+from 1.9.0's +6.3 ppm. So ignoring the intruder now costs the cell its
+precision and not its value, and the test's ordering holds by 0.3 ppm.
+
 **The honest reading, and it is not the one this WP assumed.** Declaring
 recovers the clean cell (-1.0 ppm) and ignoring does not (+7.6 ppm, with the
 esd inflated 7.5x, 8.7x on the 1.6.0 tree, and Rwp 3.7x) — that part holds. But *excluding also
