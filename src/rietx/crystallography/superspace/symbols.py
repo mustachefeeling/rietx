@@ -132,6 +132,11 @@ def _system(sg: gemmi.SpaceGroup) -> str:
 
 def _positions(sg: gemmi.SpaceGroup) -> list[_Position]:
     """The symbol's generators in order, from the setting's H-M symbol."""
+    if sg.hm[0] == "R" and sg.ext == "R":
+        raise ValueError(
+            f"{sg.xhm()} is an R lattice on rhombohedral axes; superspace symbols "
+            f"are written in hexagonal axes (Stokes 2011 § 5.1(2)), and no change "
+            f"of axes is made here: take the group to hexagonal axes first")
     system = _system(sg)
     toks = _tokens(sg)
     rots = {tuple(tuple(x // gemmi.Op.DEN for x in row) for row in op.rot)

@@ -373,6 +373,16 @@ def test_srfeo3_has_six_mssgs_with_figure6_degrees_of_freedom(srfeo3):
     assert all(g.group.magnetic_type == 4 for g in groups)       # all hold {1′|000½}
 
 
+def test_a_symbol_in_rhombohedral_axes_is_refused_by_name():
+    """Pm-3m at (γ,γ,γ): the isotropy group is an R lattice on rhombohedral
+    axes (the parent's cubic cell), and symbols are written in hexagonal
+    axes.  It used to fail an assertion about a generator."""
+    lop = inc.line_order_parameter(inc.line_irreps("P m -3 m", "(γ,γ,γ)", [1 / math.sqrt(7)])[0])
+    group = inc.isotropy_superspace_groups(lop)[0].group
+    with pytest.raises(ValueError, match="rhombohedral axes"):
+        symbol(group)
+
+
 @pytest.mark.slow
 def test_isotropy_groups_of_a_centred_parent_print_a_symbol_that_names_them_or_refuse():
     """I4₁/amd at (0,0,γ), the two-dimensional irreps: some isotropy groups
