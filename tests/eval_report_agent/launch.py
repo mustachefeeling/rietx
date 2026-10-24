@@ -129,8 +129,8 @@ def launch(workspaces: list[Path], record: Path, *, model: str,
         cmd = command(ws, model=model, effort=effort, session=session)
         proc = subprocess.Popen(
             cmd, cwd=ws, env=env, stdin=subprocess.DEVNULL,
-            stdout=open(out / "stream.jsonl", "w", encoding="utf-8"),
-            stderr=open(out / "stderr.txt", "w", encoding="utf-8"))
+            stdout=open(out / "stream.jsonl", "w", encoding="utf-8", newline="\n"),
+            stderr=open(out / "stderr.txt", "w", encoding="utf-8", newline=None))
         running.append((ws, eid, out, session, cmd, proc))
     rows = []
     for ws, eid, out, session, cmd, proc in running:

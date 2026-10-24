@@ -351,6 +351,21 @@ npm --prefix gui test && npm --prefix gui run check
   part 1's for the first time (its session had not staged them). No `### Inherited` remains.
   Next is WP-2003, the maintainer's order.
 
+  *Stewarding #1145*, the same day. CI's fast shards failed one test,
+  `test_every_write_handle_names_its_newline`, on the two handles the merged `launch.py`
+  opened without `newline=`: fixed. Merging main brought two notes into `### Inherited`, and
+  both are consumed here. WP-2044's: two slow tests red on main since part 1. The NAC
+  termination golden still held the old header and full info row, so it is regenerated, as
+  its docstring directs. The placement episode no longer fires
+  `SITE_SNAPPED_TO_SPECIAL_POSITION`, since part 1's rounding snap is silent on
+  `fluorapatite.cif`. Round 1.1's `SCORED_CODES` is left as registered, `RETIRED_CODES`
+  names that code with its reason, a build requires the other five, and
+  `tests/ev*_skill_placement/PROTOCOL.md` carries the dated amendment. No rubric item
+  concerns the code. WP-2040's: the notebooks were rebuilt in this session after its merge,
+  and none still prints the old header. The siblings were checked by the whole slow tier on
+  main merged in (`8f4e86026` plus these fixes; macOS arm64, `[dev]`, a second session's
+  pytest running part of the time): 400 passed, 19 skipped, 16 xfailed, 0 failed.
+
 - **2026-10-24** — second session, three of the five remaining tasks and the judge's open
   items; the agent round runs in its own session.
   A caller can now set a code's level per call, quieting it, raising it or making it
