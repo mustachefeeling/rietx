@@ -3,7 +3,7 @@
 Milestone: generality · Status: ⬜
 Track: The audits
 Depends on: 2002, 2037
-Priority: P2 2026-10-23 — 2002 closed (its last item, the width twin hold, reaches no chain action); the seam the maintainer's own example (a series discontinuity) lives in; waits on 2037, whose clause 1 sets the shape its first demotion takes
+Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
 
 ## Goal
 

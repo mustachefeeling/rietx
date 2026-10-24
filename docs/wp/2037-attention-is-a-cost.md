@@ -1,9 +1,8 @@
 # WP-2037 — Attention is a cost: two channels, a response per code, relevance by purpose
 
-Milestone: generality · Status: 🔄 2026-10-24 — 14 of 14 tasks landed; the agent round did not fire the tripwire (stops 4 of 4 both arms, passes 3 of 4 against 4 of 4); next merge its branch and close
+Milestone: generality · Status: ✅ 2026-10-24 — closed: diagnostics print by purpose, a caller's per-code levels with usable_under, the batch aggregate and suite metric, the silence harness; the agent round did not fire the tripwire
 Track: The registry and the guard
 Depends on: 2001
-Priority: P2 2026-10-23 — a scoping WP other WPs wait on: 2003's first demotion takes the shape this WP sets, and every audit from 2003 on fills the column it installs
 
 ## Goal
 
@@ -346,9 +345,11 @@ npm --prefix gui test && npm --prefix gui run check
   W1 pair, and the three pairs left give the same answer. The maintainer's user-level
   CLAUDE.md reaches every cell in both arms.
 
-  **Next**: merge `agent-round-quiet-view-407bde` into this branch on the maintainer's word,
-  so the registration lands with #1145; then close (✅): Status, the Priority line, the
-  narrative to v1.10's record, the index.
+  **Closed** the same day, on the maintainer's word: `agent-round-quiet-view-407bde` merged
+  here, so the round's registration and `launch.py` land with #1145; the narrative is in
+  v1.10's record; the user-facing changes of both sessions are staged in the 1.10.0 notes,
+  part 1's for the first time (its session had not staged them). No `### Inherited` remains.
+  Next is WP-2003, the maintainer's order.
 
 - **2026-10-24** — second session, three of the five remaining tasks and the judge's open
   items; the agent round runs in its own session.
