@@ -44,6 +44,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1997](1997-the-direct-space-solver-on-main.md) | The direct-space solver on main: site classes, kernels, chemistry, engine and entry point | 2026-10-24 | P2 | [structure-solution](#structure-solution) |
 | [2006](2006-readers-crystallography-gui-and-the-dead-surface.md) | Readers, crystallography and GUI codes, and the dead surface | 2026-10-24 | P3 | [generality](#generality-the-audits) |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 2026-10-21 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [2042](2042-a-result-names-its-radiation.md) | A result names its radiation | 2026-10-24 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [2043](2043-cut-1-10-0.md) | Cut 1.10.0 from what main holds | 2026-10-24 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
@@ -655,7 +656,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1985](1985-report-and-diagnostic-text-in-one-voice.md) | Report and diagnostic text, rewritten in one voice | ✅ 2026-10-16 | — | — ([1133](1133-diagnostic-names-its-view.md) soft) |
 | [1990](1990-the-correlation-matrix-reaches-the-result.md) | The correlation matrix reaches the result | ⬜ | P3 | — |
 | [2031](2031-a-history-log-holds-one-tree.md) | A history log holds one tree, and a stage is timed in one place | ⬜ | P3 | — ([1322](1322-events-aggregator.md) soft) |
-| [2042](2042-a-result-names-its-radiation.md) | A result names its radiation | ⬜ | P3 | — |
+| [2042](2042-a-result-names-its-radiation.md) | A result names its radiation | 🔄 2026-10-24 | P3 | — |
 
 ### <a id="unscheduled-data-and-metadata-in-a-structure-out"></a>Data and metadata in, a structure out
 

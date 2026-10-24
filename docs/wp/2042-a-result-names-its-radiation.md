@@ -1,6 +1,6 @@
 # WP-2042 — a result names its radiation
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-24 — claimed by @yue-here
 Track: Render what the fit already knows
 Depends on: —
 Priority: P3 2026-10-24 — a view over what the fit already knows, and `wavelength=` is the workaround
