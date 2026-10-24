@@ -6211,17 +6211,20 @@ def _exchangeability_lines(result: RefinementResult, about: str | None = None) -
 
 
 def _microstructure_lines(result: RefinementResult) -> list[str]:
-    """``microstructure``: each phase's size and strain readings, or the code
-    that says none of them is quotable."""
+    """``microstructure``: each phase's size and strain readings, under the
+    code that says they are not quotable where it fired.  The readings stay
+    printed beneath it, because a withheld verdict leaves its statistic
+    (DESIGN.md § Rules, 1)."""
     if not result.microstructure:
         return ["    microstructure: not measured on this result"]
+    lines = []
     if any(d.code == "RESOLUTION_UNCONSTRAINED" for d in result.diagnostics):
         # the code's own suggestion: "do not quote the widths, or any size or
-        # strain read from them" — so the readings are not printed as answers
-        return ["    size: not quotable (RESOLUTION_UNCONSTRAINED)",
-                "    strain: not quotable (RESOLUTION_UNCONSTRAINED)"]
-    return ["    " + line for block in result.microstructure
-            for line in str(block).splitlines()]
+        # strain read from them"
+        lines.append("    size and strain: not quotable (RESOLUTION_UNCONSTRAINED); "
+                     "the readings below are the fit's, not answers")
+    return lines + ["    " + line for block in result.microstructure
+                    for line in str(block).splitlines()]
 
 
 def _calibration_lines(result: RefinementResult) -> list[str]:
@@ -6234,11 +6237,15 @@ def _calibration_lines(result: RefinementResult) -> list[str]:
                                        "instrument.extra_components."))]
     lines = ([f"    {p}" for p in rows]
              or ["    instrument: no instrument parameter refined on this fit"])
-    if _cell_rows(result):
-        lines.append("    cell: refined — a calibration holds the standard's "
-                     "certified cell fixed; hold it (Refinement.hold) and refit")
+    refined = sorted(_cell_rows(result))
+    if refined:
+        # which phase is the standard is the caller's to know: an internal
+        # standard's sample refines its cell while the standard's is held
+        names = ", ".join(f"phases.{i}" for i in refined)
+        lines.append(f"    cell refined on {names}: a calibration holds the standard's "
+                     "certified cell fixed (Refinement.hold); a sample's may refine")
     else:
-        lines.append("    cell: held, as a calibration needs")
+        lines.append("    cell: held on every phase")
     return lines
 
 

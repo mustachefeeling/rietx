@@ -45,15 +45,17 @@ PURPOSES: dict[str, Purpose] = {
              "counting-noise esd reads as absent (refine._answer_significance, WP-1523)."),
     ),
     "qpa": Purpose(
-        depends=("phases.*.scale", "phases.*.cell.*", "phases.*.atoms.*.occ",
-                 "phases.*.atoms.*.biso", "phases.*.atoms.*.u*", "phases.*.atoms.*.adp.*",
+        depends=("phases.*.scale", "phases.*.cell.*", "phases.*.atoms.*.x",
+                 "phases.*.atoms.*.y", "phases.*.atoms.*.z", "phases.*.atoms.*.dof.*",
+                 "phases.*.atoms.*.occ", "phases.*.atoms.*.biso", "phases.*.atoms.*.u*",
+                 "phases.*.atoms.*.adp.*",
                  "phases.*.extinction", "phases.*.preferred_orientation.*",
                  "phases.*.texture.*", "instrument.background.*", "instrument.polarization",
                  "instrument.geometry.surface_roughness.*"),
         why=("A weight fraction is W = S·ZMV over the phases (Hill & Howard 1987, J. Appl. "
              "Cryst. 20, 467), so it moves with the scale and with the cell volume V; "
-             "occupancies set the cell's "
-             "content, displacement parameters and every angle-dependent intensity "
+             "the coordinates and occupancies set |F|² and the cell's content, "
+             "displacement parameters and every angle-dependent intensity "
              "factor (polarisation, roughness, extinction) trade against the scale, "
              "texture redistributes the intensity the scale is read from, and a flexible "
              "background absorbs it (WP-1055)."),
@@ -63,6 +65,7 @@ PURPOSES: dict[str, Purpose] = {
                  "phases.*.atoms.*.dof.*", "phases.*.atoms.*.occ",
                  "phases.*.atoms.*.biso", "phases.*.atoms.*.u*",
                  "phases.*.atoms.*.adp.*", "phases.*.rigid_bodies.*", "phases.*.scale",
+                 "phases.*.cell.*",
                  "phases.*.extinction", "phases.*.preferred_orientation.*",
                  "phases.*.texture.*", "instrument.background.*", "instrument.polarization",
                  "instrument.geometry.surface_roughness.*"),
@@ -70,7 +73,8 @@ PURPOSES: dict[str, Purpose] = {
              "integrated intensities through |F|² (Rietveld 1969, J. Appl. Cryst. 2, 65), "
              "which the phase scale, extinction, texture, the angle-dependent intensity "
              "factors and the background each also move; a flexible background biases "
-             "the ADPs up (WP-1055)."),
+             "the ADPs up (WP-1055); the cell places every reflection and turns the "
+             "coordinates into distances (model.geometry)."),
     ),
     "series": Purpose(
         depends=("*",),
@@ -81,14 +85,16 @@ PURPOSES: dict[str, Purpose] = {
         depends=("phases.*.cell.*", "instrument.zero_shift",
                  "instrument.geometry.sample_displacement",
                  "instrument.geometry.sample_transparency",
-                 "instrument.geometry.capillary_offset_*",
+                 "instrument.geometry.capillary_offset_*", "instrument.geometry.axial_*",
                  "instrument.source.lines.*.wavelength", "instrument.source.difc",
                  "instrument.source.difa", "instrument.source.difb",
                  "instrument.source.tzero"),
         why=("A d-spacing is read from a peak position through Bragg's law and the "
              "wavelength, or the TOF conversion, and the zero and specimen-position "
              "corrections shift 2θ so they exchange with the cell (McCusker et al. 1999, "
-             "J. Appl. Cryst. 32, 36, §5; report.identifiability measures the exchange)."),
+             "J. Appl. Cryst. 32, 36, §5; report.identifiability measures the exchange); "
+             "axial divergence moves a low-angle peak's maximum (Finger, Cox & Jephcoat "
+             "1994, J. Appl. Cryst. 27, 892)."),
     ),
     "microstructure": Purpose(
         depends=("instrument.profile.*", "instrument.source.profile_tof.*",
@@ -102,11 +108,14 @@ PURPOSES: dict[str, Purpose] = {
     ),
     "calibration": Purpose(
         depends=("instrument.zero_shift", "instrument.polarization", "instrument.geometry.*",
-                 "instrument.profile.*", "instrument.source.*"),
+                 "instrument.profile.*", "instrument.source.*", "phases.*.lor_*",
+                 "phases.*.gauss_*"),
         why=("An instrument calibration's result numbers are the instrument parameters "
              "themselves: the zero, the wavelength or TOF constants, the specimen "
              "position and the profile widths (Caglioti, Paoletti & Ricci 1958, Nucl. "
-             "Instrum. 3, 223), read with the standard's certified cell held fixed."),
+             "Instrum. 3, 223), read with the standard's certified cell held fixed; the "
+             "standard's own size and strain add to those widths (WP-1131), so they trade "
+             "against them."),
     ),
     "magnetic": Purpose(
         depends=("phases.*.atoms.*.moment.*", "phases.*.magnetic_lor_*", "phases.*.scale"),

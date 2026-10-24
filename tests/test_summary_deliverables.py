@@ -81,13 +81,15 @@ def test_microstructure_prints_each_phases_readings(fitted):
 
 
 def test_microstructure_is_not_quotable_under_resolution_unconstrained(fitted):
+    """The caveat heads the block and the readings stay beneath it: a
+    withheld verdict leaves its statistic (DESIGN.md § Rules, 1)."""
     _ref, result, _report = fitted
     ru = Diagnostic(level="warning", code="RESOLUTION_UNCONSTRAINED", message="m",
                     where=["instrument.profile.u"])
     text = _rows(fitted, "microstructure", diagnostics=[*result.diagnostics, ru])
-    assert "size: not quotable (RESOLUTION_UNCONSTRAINED)" in text
-    assert "strain: not quotable (RESOLUTION_UNCONSTRAINED)" in text
-    assert "PhaseMicrostructure:" not in text
+    caveat = "size and strain: not quotable (RESOLUTION_UNCONSTRAINED)"
+    assert caveat in text and "PhaseMicrostructure:" in text
+    assert text.index(caveat) < text.index("PhaseMicrostructure:")
 
 
 def test_microstructure_says_when_nothing_measured_it(fitted):
@@ -99,14 +101,16 @@ def test_calibration_lists_the_instrument_terms_and_flags_a_refined_cell(fitted)
     text = _rows(fitted, "calibration")
     assert "instrument.zero_shift" in text and "instrument.profile.w" in text
     assert "instrument.background." not in text
-    assert "cell: refined" in text and "Refinement.hold" in text
+    # names the phase rather than ordering it held: an internal standard's
+    # sample refines its own cell while the standard's is held
+    assert "cell refined on phases.0:" in text and "Refinement.hold" in text
+    assert "a sample's may refine" in text
 
 
 def test_calibration_with_the_cell_held_says_so(fitted):
     _ref, result, _report = fitted
     held = [p for p in result.parameters if ".cell." not in p.path]
-    assert "cell: held, as a calibration needs" in _rows(fitted, "calibration",
-                                                         parameters=held)
+    assert "cell: held on every phase" in _rows(fitted, "calibration", parameters=held)
 
 
 def test_magnetic_says_when_the_fit_refined_no_moment(fitted):

@@ -39,12 +39,13 @@ FAP = {
 #: fraction its multiplicity sets, a moment it carries); extinction on the
 #: intensities a structure and a fraction are read from; the instrument widths
 #: on a size, a strain and a calibration; undersampling by its audited scope.
-#: ``series`` follows every free path, so a code with a path is a warning there.
+#: ``series`` follows every free path, so every warning is one there.
 WARNING_UNDER = {
     "SITE_SNAPPED_TO_SPECIAL_POSITION": {"structure", "qpa", "magnetic", "series"},
     "FLOOR_HIT": {"structure", "qpa", "series"},
     "RESOLUTION_UNCONSTRAINED": {"microstructure", "calibration", "series"},
-    "PATTERN_UNDERSAMPLED": {"qpa", "structure", "microstructure", "calibration"},
+    "PATTERN_UNDERSAMPLED": {"qpa", "structure", "microstructure", "calibration",
+                             "series"},
 }
 
 
@@ -255,3 +256,14 @@ def test_the_view_refuses_an_unknown_deliverable_naming_all_eight():
         with pytest.raises(ValueError, match="unknown deliverable 'cells'") as err:
             call()
         assert all(repr(p) in str(err.value) for p in PURPOSES)
+
+
+def test_a_code_still_on_the_response_baseline_keeps_its_level_everywhere():
+    """Its pairings are unchecked until an audit gives it a response, so a
+    path it names is not read as a claim about which purposes it reaches
+    (WP-1076; the generality review of 2026-10-24 found CELL_RUNAWAY read as
+    info under structure before this rule)."""
+    from rietx import _audit
+    assert "CELL_RUNAWAY" in _audit.RESPONSE_BASELINE
+    runaway = _d("CELL_RUNAWAY", ["phases.0.cell.a"])
+    assert {level_under(runaway, p) for p in PURPOSES} == {"warning"}

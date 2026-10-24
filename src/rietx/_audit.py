@@ -724,9 +724,9 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
     Row("PATTERN_UNDERSAMPLED", "code", response="warning",
-        responds=("do not quote an intensity- or width-derived number (a fraction, an ADP, "
-                  "a size, a strain, an instrument width) until the pattern is collected at "
-                  "a step near FWHM/5"),
+        responds=("read an intensity- or width-derived number (a fraction, an ADP, a size, "
+                  "a strain, an instrument width) as less certain than its esd, and "
+                  "re-collect at a step near FWHM/5 where it must be quotable"),
         scope=("qpa", "structure", "microstructure", "calibration")),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),

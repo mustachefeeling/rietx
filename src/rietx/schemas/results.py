@@ -1435,12 +1435,14 @@ def _bears_on(path: str, globs: tuple[str, ...]) -> bool:
 
 @functools.cache
 def _code_scopes() -> dict[str, tuple[str, ...]]:
-    """Each code's declared ``scope`` from the audit table, read once a
-    process (importing the table costs about 25 ms)."""
+    """Each code with a declared ``response`` in the audit table, mapped to its
+    ``scope`` (``()`` where it declares none), read once a process (importing
+    the table costs about 25 ms).  A code absent here has not had its
+    pairings checked."""
     from .. import _audit
 
     return {row.name: row.scope for row in _audit.ROWS
-            if row.kind == "code" and row.scope}
+            if row.kind == "code" and row.response is not None}
 
 
 def level_under(diagnostic: Diagnostic, purpose: str) -> str:
@@ -1455,7 +1457,10 @@ def level_under(diagnostic: Diagnostic, purpose: str) -> str:
     naming no parameter path falls back on its code's ``scope`` in the audit
     table (the purposes it bears on, or ``("all",)``).  With neither it keeps
     its own level under every purpose: a pairing nobody checked must not read
-    as "not your concern" (WP-1076).  An ``error`` is an error for every
+    as "not your concern" (WP-1076).  Nor has any pairing of a code still on
+    ``rietx._audit.RESPONSE_BASELINE`` been checked, so such a code keeps
+    its level everywhere too, and the view grows quieter as the audits give
+    each code its response.  An ``error`` is an error for every
     purpose, since an unusable fit is unusable for all of them, and an
     ``info`` stays one.
     """
@@ -1464,12 +1469,17 @@ def level_under(diagnostic: Diagnostic, purpose: str) -> str:
                          f"{', '.join(repr(p) for p in PURPOSES)}")
     if diagnostic.level != "warning":
         return diagnostic.level
+    scope = _code_scopes().get(diagnostic.code)
+    globs = PURPOSES[purpose].depends
+    # a code still on the audit's response baseline has had no pairing
+    # checked, and a purpose following every path ("series") reads every
+    # code: both keep the warning
+    if scope is None or globs == ("*",):
+        return "warning"
     paths = [w for w in diagnostic.where if w.startswith(_PATH_ROOTS)]
     if paths:
-        globs = PURPOSES[purpose].depends
         return "warning" if any(_bears_on(w, globs) for w in paths) else "info"
-    scope = _code_scopes().get(diagnostic.code)
-    if scope is None or scope == ("all",) or purpose in scope:
+    if not scope or scope == ("all",) or purpose in scope:
         return "warning"
     return "info"
 
