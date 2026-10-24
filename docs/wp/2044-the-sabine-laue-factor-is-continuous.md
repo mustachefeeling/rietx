@@ -76,6 +76,15 @@ is printed in neither source. The paper's own pair steps too, 0.68229 to
 0.66776 (2.2 %) at x = 1. GSAS-II's six-term series and two-term asymptote
 step 3.6 %.
 
+**The survey, 2026-10-24** (`docs/practice.md` § Extinction). Only GSAS-II
+and MAUD carry Sabine's E_L. Both switch branches at x = 1 and state no reason.
+MAUD's step is +7.0 %, because it puts the asymptote's bracket inside the
+square root. TOPAS, FullProf, RIETAN-FP, BGMN and cryspy-powder have no Laue
+and Bragg split at all. So the checkpoint did not fire. No program uses an
+exact form, and none keeps the step for a stated reason. TOPAS's expression
+language has no modified Bessel function, which settles the writer's task: it
+spells an approximation, measured at write.
+
 **A second copy of the formula.** The TOPAS writer
 (`io/projects/topas_input.py`, the extinction builder near line 405) spells
 the same two branches into a `scale_pks` expression, from its own
@@ -106,13 +115,13 @@ two truncated expansions. No threshold or automatic action is added.
       point. Whether e^(−x)·[I₀ + I₁] is stated or implied. Sabine (1988),
       *Acta Cryst.* A44, 368, eqs 6 and 16, is not in the corpus: ask the
       maintainer for it if the first paper does not settle the form
-- [ ] The other programs, each marked checked or inferred: TOPAS (the
+- [x] The other programs, each marked checked or inferred: TOPAS (the
       technical reference, topas-academic.com/technical_reference), FullProf,
       RIETAN-FP, BGMN, MAUD and EasyDiffraction (sources and manuals under
       `~/Code/rietx-bench/tools/`), GSAS-II (checked above). For each, the
       extinction model, whether E_L is continuous at x = 1, and how its
       derivative is taken. Into `docs/practice.md` as a new § Extinction
-- [ ] Checkpoint: if the survey changes the case, such as a program using an
+- [x] Checkpoint: if the survey changes the case, such as a program using an
       exact form or every program keeping the step for a stated reason, bring
       it to the maintainer before any code
 - [ ] `model/extinction.py`: E_L = e^(−x)·[I₀ + I₁] and its derivative, on
