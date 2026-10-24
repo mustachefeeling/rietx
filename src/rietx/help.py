@@ -22,7 +22,8 @@ print.
 **Every arm is meta-tested against its live registry.**  The vocabularies are
 closed and derivable (``PeakFlag``, the diagnostic codes,
 ``StageSpec``'s fields, ``READER_OPTIONS``, ``INSTRUMENT_PRESETS``,
-``IndexingControls`` flattened one level), so a member added without an entry
+``IndexingControls`` flattened one level, the fields of
+:data:`RESULT_FIELD_TYPES`), so a member added without an entry
 fails coverage the day it lands.  That is why the arms are
 keyed by name and the parameter families by glob rather than being one flat dict:
 each key set has a different authority to be checked against.
@@ -61,6 +62,8 @@ __all__ = [
     "PEAK_ORIGIN_HELP",
     "READER_OPTION_HELP",
     "SEARCH_FIELD_HELP",
+    "RESULT_FIELD_HELP",
+    "RESULT_FIELD_TYPES",
     "INSTRUMENT_FIELD_HELP",
     "STAGE_FIELD_HELP",
     "UNIT_DISPLAY",
@@ -4705,6 +4708,796 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
 }
 
 
+#: The result types whose fields :data:`RESULT_FIELD_HELP` describes, named as
+#: data so ``tests/test_help.py`` can resolve each to its class and cross the
+#: arm against its ``model_fields``.  These four are the types whose fields
+#: record what a fit *did*: ``StageResult``, ``SeriesEntry`` and
+#: ``RefinementResult`` are the action-record types the generality record's
+#: § Acceptance names, and ``SeriesResult`` is where WP-2003's demoted step
+#: statistic lands.  Names rather than classes, because this module imports
+#: nothing but the standard library at its top.
+RESULT_FIELD_TYPES: tuple[str, ...] = (
+    "RefinementResult", "StageResult", "SeriesEntry", "SeriesResult")
+
+#: One entry per field of every type in :data:`RESULT_FIELD_TYPES`, keyed
+#: ``"<Type>.<field>"`` (WP-2037).  A number in a result field costs nothing
+#: until somebody reads it, where a diagnostic is a message on every run that
+#: raises it, so a statistic demoted out of the diagnostics moves into a field
+#: and keeps its explanation here.  :func:`explain` answers these keys beside
+#: the diagnostic codes.  A field's default is its empty state, so instead of
+#: quoting it an entry says what the empty state *means* — ``None`` is "not
+#: measured here", never "no" (WP-1076).  ``unit`` is the field's own where it
+#: has one.
+RESULT_FIELD_HELP: dict[str, HelpEntry] = {
+    # ---------------------------------------------------------- RefinementResult
+    "RefinementResult.status": HelpEntry(
+        title="Solver exit",
+        description=(
+            "How the solver stopped: `converged`, `max_iter` or `diverged`. It makes "
+            "no claim that the fit is good, since a model that matches nothing can "
+            "converge. Quality is in `diagnostics`, and `usable` reads both."
+        ),
+        anchor="theory/estimation.html#convergence",
+    ),
+    "RefinementResult.mode": HelpEntry(
+        title="Intensity mode",
+        description=(
+            "How the fit treated the peak intensities. `rietveld` computes them from "
+            "the structure; `lebail` and `pawley` extract them from the pattern and "
+            "refine no structure."
+        ),
+    ),
+    "RefinementResult.parameters": HelpEntry(
+        title="Refined parameters",
+        description=(
+            "Every parameter the fit determined: the free ones and the tied or derived "
+            "ones that follow them, each with its value, its esd and whether it sits on "
+            "a bound. A parameter no stage freed, or one the fit held because the data "
+            "could not see it, is absent."
+        ),
+    ),
+    "RefinementResult.statistics": HelpEntry(
+        title="Agreement indices",
+        description=(
+            "The agreement indices of the answer as Toby (2006) defines them: Rwp, Rp, "
+            "Rexp, χ² and the goodness of fit, beside the point and parameter counts "
+            "they rest on and the largest shift over esd in the last accepted step."
+        ),
+    ),
+    "RefinementResult.stages": HelpEntry(
+        title="Stage records",
+        description=(
+            "One record per stage the fit ran, in order, ending with the closing stage "
+            "where the plan has one. Each says what the stage freed, what it held and "
+            "why, and what it cost."
+        ),
+        anchor="theory/estimation.html#staged-strategy-and-series",
+    ),
+    "RefinementResult.diagnostics": HelpEntry(
+        title="Findings",
+        description=(
+            "Every finding the fit raised, each with a code, a level, a message, the "
+            "paths it is about and a suggested action. A `warning` is to be answered "
+            "before quoting what it names; an `error` means the values are not a "
+            "refinement of this model. `rietx.help.explain` says what a code means."
+        ),
+    ),
+    "RefinementResult.provenance": HelpEntry(
+        title="Provenance",
+        description=(
+            "What produced the result: the package and schema versions, the backend "
+            "and its precision, the solver, the version of the report thresholds and "
+            "when it was made."
+        ),
+    ),
+    "RefinementResult.node_id": HelpEntry(
+        title="History node",
+        description=(
+            "The history node this fit committed, which `Refinement.checkout` can "
+            "restore. `None` when the refinement ran with history disabled."
+        ),
+    ),
+    "RefinementResult.tree_id": HelpEntry(
+        title="History tree",
+        description=(
+            "The history tree that node belongs to. A tree is pinned to one pattern by "
+            "its data fingerprint. `None` when the refinement ran with history disabled."
+        ),
+    ),
+    "RefinementResult.two_theta": HelpEntry(
+        title="Fitted channels",
+        description=(
+            "The 2θ of every channel the fit used, in order. A channel outside the fit "
+            "range or inside an excluded region is absent, so this can be shorter than "
+            "the pattern file."
+        ),
+        unit="deg 2θ",
+    ),
+    "RefinementResult.y_obs": HelpEntry(
+        title="Observed intensity",
+        description=(
+            "The observed intensity at each channel of `two_theta`, in the pattern's "
+            "own intensity units. It is what the residual was computed against."
+        ),
+    ),
+    "RefinementResult.y_calc": HelpEntry(
+        title="Calculated intensity",
+        description=(
+            "The calculated intensity at each channel at the refined values, background "
+            "included. The weighted difference between `y_obs` and this is what the "
+            "fit minimised."
+        ),
+    ),
+    "RefinementResult.y_background": HelpEntry(
+        title="Background curve",
+        description=(
+            "The background part of `y_calc` at each channel: the whole declared "
+            "background, any background humps included."
+        ),
+    ),
+    "RefinementResult.sigma": HelpEntry(
+        title="Channel weights",
+        description=(
+            "The σ each channel was weighted by: the file's esd column where it has "
+            "one, else the Poisson estimate, widened only where a measured background "
+            "adds its own counting statistics. Read it through `RefinementResult.sig`, "
+            "which every weighted residual in the package divides by."
+        ),
+    ),
+    "RefinementResult.ticks": HelpEntry(
+        title="Reflection positions",
+        description=(
+            "Where the model puts each reflection, keyed by phase name: the Bragg "
+            "angle plus the zero shift and the geometry's own shift. Every emission "
+            "line's image is listed, so a Kα2 reflection has a tick of its own."
+        ),
+        unit="deg 2θ",
+    ),
+    "RefinementResult.tick_hkl": HelpEntry(
+        title="Reflection indices",
+        description=(
+            "Which reflection each tick in `ticks` is, as Miller indices h k l, paired "
+            "with the positions by index. A satellite carries a fourth number, its "
+            "order. A key is absent rather than empty where the ticks have no index, as "
+            "for peaks declared by their centre."
+        ),
+    ),
+    "RefinementResult.qpa": HelpEntry(
+        title="Weight fractions",
+        description=(
+            "The weight fraction of each modelled phase from the refined scales (Hill "
+            "and Howard, 1987), with esds from the correlated scale block. The "
+            "fractions are of the crystalline phases in the model, so they sum to one "
+            "whatever else the specimen holds. `None` in Le Bail and Pawley fits, and "
+            "where the fractions could not be formed, which `QPA_UNAVAILABLE` reports."
+        ),
+        anchor="theory/corrections.html#quantitative-phase-analysis-and-microabsorption",
+    ),
+    "RefinementResult.phase_agreement": HelpEntry(
+        title="Per-phase R-factors",
+        description=(
+            "Each phase's Bragg R-factor and structure-factor R-factor, with the number "
+            "of reflections behind them (`optimize.statistics.structure_r_factors`). "
+            "The observed intensities are partitioned by the model's own prediction, so "
+            "a low value is not evidence that a phase is present. Empty outside "
+            "Rietveld mode."
+        ),
+    ),
+    "RefinementResult.texture": HelpEntry(
+        title="Texture evidence",
+        description=(
+            "For each phase with a spherical-harmonics texture, the texture index and "
+            "the smallest pole-density multiplier over its reflections and over the "
+            "whole sphere. A negative minimum is an unphysical texture, which "
+            "`TEXTURE_NOT_POSITIVE` reports. Empty when no phase declares one, outside "
+            "Rietveld mode and in a joint fit."
+        ),
+    ),
+    "RefinementResult.data_support": HelpEntry(
+        title="Observations against parameters",
+        description=(
+            "How many independent observations the pattern holds: the reflections "
+            "measured, the count corrected for overlap, and each per structural "
+            "parameter (`optimize.statistics`). It gates nothing. `None` for a joint "
+            "fit, and for a result recorded before the field."
+        ),
+    ),
+    "RefinementResult.absorption": HelpEntry(
+        title="Absorption correction",
+        description=(
+            "The specimen absorption correction the fit applied, for a capillary or a "
+            "flat plate, with the change in Biso it is equivalent to. That change, not "
+            "Rwp, is what the correction buys. `None` when no correction applied, and "
+            "outside Rietveld mode."
+        ),
+    ),
+    "RefinementResult.restraints": HelpEntry(
+        title="Restraint deviations",
+        description=(
+            "Each soft restraint's deviation from its target in units of its σ, and "
+            "the pooled restraint χ². A large deviation is a restraint fighting the "
+            "data, however good Rwp looks. `None` when no phase declared restraints."
+        ),
+    ),
+    "RefinementResult.geometry": HelpEntry(
+        title="Bond geometry",
+        description=(
+            "Bond distances and angles of the refined structure, each with an esd "
+            "propagated through the whole covariance beside the diagonal-only one. An "
+            "esd that cannot be measured is absent rather than zero. `None` outside "
+            "Rietveld mode and when the result did not come from a fit."
+        ),
+    ),
+    "RefinementResult.cell_volumes": HelpEntry(
+        title="Cell volumes",
+        description=(
+            "Each phase's unit-cell volume with its esd through the covariance of the "
+            "cell parameters, in every mode, since a Le Bail cell is a measurement too. "
+            "`None` when the result did not come from a fit."
+        ),
+        unit="Å³",
+    ),
+    "RefinementResult.microstructure": HelpEntry(
+        title="Size and strain",
+        description=(
+            "Each phase's coherent domain size and microstrain as physical numbers, "
+            "with the Gaussian and Lorentzian readings given separately, the Scherrer "
+            "constant used, and whether size and strain could be told apart. Empty when "
+            "the fit had no compiled model to read a wavelength from."
+        ),
+    ),
+    "RefinementResult.identifiability": HelpEntry(
+        title="Degeneracy evidence",
+        description=(
+            "What the final Jacobian says about parameters the data cannot separate: "
+            "how much of each structural column the background or an extra peak could "
+            "imitate, the strongest correlations, the soft modes and the exchangeable "
+            "pairs. A stored result keeps what the fit measured and cannot recompute "
+            "it. `None` when the result did not come from a fit that ran the guards."
+        ),
+    ),
+    "RefinementResult.parametric": HelpEntry(
+        title="Parametric coefficients",
+        description=(
+            "The coefficients of every parametric equation a joint fit refined, in the "
+            "caller's units at the equation's reference, each with its esd from the "
+            "joint covariance or `None` where that gives none. `None` when no "
+            "parametric equation was declared."
+        ),
+    ),
+    "RefinementResult.parametric_form": HelpEntry(
+        title="Parametric form tests",
+        description=(
+            "For each parametric equation, in declaration order, whether its form "
+            "survives the data. `None` exactly when `parametric` is."
+        ),
+    ),
+    "RefinementResult.parametric_form_joint": HelpEntry(
+        title="Joint parametric form test",
+        description=(
+            "The form test of every tested parametric equation at once: the χ² that "
+            "freeing each equation's target in every pattern would remove. It catches "
+            "two wrong equations that each pass while the other is freed. `None` "
+            "unless two or more equations were tested."
+        ),
+    ),
+    "RefinementResult.parametric_equations": HelpEntry(
+        title="Resolved parametric equations",
+        description=(
+            "Each parametric equation as the fit resolved it, with its coefficients' "
+            "covariance in the caller's units, in declaration order. "
+            "`RefinementResult.parametric_value` evaluates one at any coordinate. "
+            "`None` exactly when `parametric` is, and on a result written before the "
+            "field."
+        ),
+    ),
+    "RefinementResult.n_extra_components": HelpEntry(
+        title="Declared extra components",
+        description=(
+            "How many additive non-Bragg components the instrument declared, background "
+            "humps and sharp peaks together, whether or not any was freed. `0` means "
+            "none was declared; `None` means nothing counted, as in a joint fit or a "
+            "result recorded before the field."
+        ),
+    ),
+    "RefinementResult.n_background_components": HelpEntry(
+        title="Declared background components",
+        description=(
+            "How many of the declared extra components land in the background. This is "
+            "the background flexibility the caller granted, which a reader comparing "
+            "two Rwp values needs to see. `0` means none; `None` means nothing counted."
+        ),
+    ),
+    "RefinementResult.histograms": HelpEntry(
+        title="Per-histogram results",
+        description=(
+            "One slice per pattern of a multi-histogram joint fit, each with its own "
+            "curves, statistics and diagnostics, while `statistics` is then the pooled "
+            "figure. Empty for an ordinary fit. `RefinementResult.for_histogram` gives "
+            "one slice in a single fit's shape."
+        ),
+    ),
+    # --------------------------------------------------------------- StageResult
+    "StageResult.name": HelpEntry(
+        title="Stage name",
+        description=(
+            "The stage's name from the plan. The stage a plan appends to converge the "
+            "answer is named by `strategy.staged.CLOSING_STAGE_NAME`."
+        ),
+    ),
+    "StageResult.status": HelpEntry(
+        title="Stage solver exit",
+        description=(
+            "How the solver stopped in this stage: `converged`, `max_iter` or "
+            "`diverged`. Earlier stages of a plan stop at a looser tolerance on "
+            "purpose (`ftol`), so the last stage's exit is the one about the answer."
+        ),
+        anchor="theory/estimation.html#convergence",
+    ),
+    "StageResult.n_iterations": HelpEntry(
+        title="Residual evaluations",
+        description=(
+            "The residual evaluations the stage's solve made, the starting one "
+            "included, and both solves where the stage solved twice. The name says "
+            "iterations but the count is evaluations, the unit a stage's `max_iter` "
+            "budget is converted to through `NFEV_PER_ITERATION`."
+        ),
+    ),
+    "StageResult.cost_initial": HelpEntry(
+        title="Starting cost",
+        description=(
+            "The least-squares cost when the stage started: half the sum of squared "
+            "weighted residuals over every row, the penalty and restraint rows included "
+            "(`model.rows`)."
+        ),
+    ),
+    "StageResult.cost_final": HelpEntry(
+        title="Final cost",
+        description=(
+            "The least-squares cost where the stage stopped, on the same terms as "
+            "`cost_initial`. The pair says how much the stage improved the fit."
+        ),
+    ),
+    "StageResult.freed": HelpEntry(
+        title="Parameters refined",
+        description=(
+            "The parameter paths this stage's `turn_on` patterns freed, less any the "
+            "stage held. A locked, tied or held path is never here, and "
+            "`ParameterRow.held_because` says why."
+        ),
+    ),
+    "StageResult.ftol": HelpEntry(
+        title="Tolerance the stage ran at",
+        description=(
+            "The relative cost-decrease tolerance this stage stopped at. `None` means "
+            "the solver's own default, which the last stage of a plan takes; an earlier "
+            "stage takes the plan's `intermediate_ftol` unless it declares its own."
+        ),
+        anchor="theory/estimation.html#convergence",
+    ),
+    "StageResult.window_area_tol": HelpEntry(
+        title="Profile window fraction",
+        description=(
+            "The fraction of each peak's area this stage's profile windows dropped. "
+            "`None` means `model.forward.WINDOW_AREA_TOL`, which every declared stage "
+            "takes, and the closing stage runs at the plan's `closing_window_tol`. "
+            "`model.forward.recorded_window_tol` turns this into what `compile_model` "
+            "needs to reproduce the result's curves."
+        ),
+    ),
+    "StageResult.n_constraint_truncations": HelpEntry(
+        title="Steps held on a constraint",
+        description=(
+            "How many solver steps were held on a linear-inequality constraint, such "
+            "as the Stephens strain cone, because the step for the bounds alone crossed "
+            "it. Always zero under the TRF solver. Nonzero in the last stage means the "
+            "answer sits on a constraint face, which `CONSTRAINT_ACTIVE` reports."
+        ),
+    ),
+    "StageResult.n_degenerate_cell_probes": HelpEntry(
+        title="Degenerate cells refused",
+        description=(
+            "How many trial cells this stage's residual refused as degenerate, with "
+            "zero or negative volume, pushing the solver back rather than failing. The "
+            "cell parameters carry no bounds of their own, so an underdetermined cell "
+            "can reach one often. Zero means this stage never did."
+        ),
+    ),
+    "StageResult.n_lapack_fallbacks": HelpEntry(
+        title="Decompositions repeated",
+        description=(
+            "How many matrix decompositions this stage repeated with LAPACK's "
+            "QR-iteration driver because the default driver stopped without "
+            "converging (`optimize.lapack`). The answer is the one a converging build "
+            "computes. Zero means none needed it."
+        ),
+    ),
+    "StageResult.held": HelpEntry(
+        title="Held by the stage",
+        description=(
+            "Parameter columns this stage held fixed although its plan freed them, "
+            "because the data could not determine them: the structural parameters of "
+            "a phase too weak to see, for example. They are never in `freed`, and the "
+            "stage's other fields say which test held which."
+        ),
+    ),
+    "StageResult.held_reach": HelpEntry(
+        title="Stopped with a held column",
+        description=(
+            "For each held column that drives other entries through a tie, the entries "
+            "it stopped with it: holding a cubic `a` also stops `b` and `c`. A column "
+            "that moved nothing else is absent, so `held` and these values together are "
+            "every value the stage froze."
+        ),
+    ),
+    "StageResult.scale_b_held": HelpEntry(
+        title="Displacements held against the scale",
+        description=(
+            "For each phase, by index, whose displacement parameters this stage held "
+            "because the fitted range cannot separate them from the phase's scale, the "
+            "separation measured (`refine._scale_b_separation`, against "
+            "`refine.SCALE_B_SEPARATION_FLOOR`). An empty mapping is a stage that "
+            "looked and held nothing; `None` means nobody looked, as in a joint fit."
+        ),
+    ),
+    "StageResult.width_twins_held": HelpEntry(
+        title="Instrument widths held",
+        description=(
+            "For each instrument width term this stage held because a free specimen "
+            "width has the same angular dependence, the specimen columns it pairs with "
+            "(`refine._width_twin_flats`). The data see only the total width, so the "
+            "instrument side is held where the stage found it. An empty mapping held "
+            "nothing; `None` means a result stored before the field."
+        ),
+    ),
+    "StageResult.released": HelpEntry(
+        title="Released within the stage",
+        description=(
+            "Paths held at the start of the stage and freed again within it, because "
+            "their phase rose above support while the stage solved, which then solved "
+            "once more with them free. They refined, so they are not in `held`."
+        ),
+    ),
+    "StageResult.moment_flat_axes": HelpEntry(
+        title="Flat moment axes",
+        description=(
+            "For each magnetic site, keyed `phases.i.atoms.j`, whose moment azimuth "
+            "this stage held as part of a flat combination of its two angles, the flat "
+            "rotation axis as a unit vector in crystal-axis components. Empty on every "
+            "fit where no such site was held."
+        ),
+    ),
+    "StageResult.moment_turned": HelpEntry(
+        title="Moments turned",
+        description=(
+            "The sites of `moment_flat_axes` whose moment the stage turned about the "
+            "flat axis before holding it, a move the data cannot see that changes the "
+            "direction the fit reports. A site held where it was is in "
+            "`moment_flat_axes` alone."
+        ),
+    ),
+    "StageResult.blocked_by_hold": HelpEntry(
+        title="Blocked by a hold",
+        description=(
+            "Paths this stage's `turn_on` matched and did not free, because the caller "
+            "declared a hold on them with `Refinement.hold`. A hold outranks a plan's "
+            "pattern and lasts until `Refinement.unhold`. It feeds `HOLD_BLOCKED_PLAN`."
+        ),
+    ),
+    "StageResult.unknown_paths": HelpEntry(
+        title="Paths naming nothing",
+        description=(
+            "The literal paths in this stage's `turn_on`, and any retired spellings, "
+            "that name no parameter of the model: a typo or a renamed path, so what the "
+            "stage meant to refine did not refine. An empty list is a stage that was "
+            "checked; `None` means nobody looked. It feeds `STAGE_PATH_UNKNOWN`."
+        ),
+    ),
+    "StageResult.unreached_histograms": HelpEntry(
+        title="Histograms a stage missed",
+        description=(
+            "Joint fits only: for each histogram, by index, the patterns of this stage "
+            "that matched rows on another histogram and none on this one. A "
+            "single-histogram fit writes an empty mapping; `None` means nobody looked. "
+            "It feeds `STAGE_FREED_NOTHING`."
+        ),
+    ),
+    "StageResult.seeded": HelpEntry(
+        title="Rows lifted before solving",
+        description=(
+            "Each row this stage moved before solving, with the value it started at. A "
+            "freed row sitting on a floor starts at the stage's `seed`, and an all-zero "
+            "Stephens block is put on its isotropic ray by `strain_seed`. An empty "
+            "mapping lifted nothing; `None` means a result stored before the field."
+        ),
+    ),
+    "StageResult.moment_angle_tests": HelpEntry(
+        title="Stationary-angle tests",
+        description=(
+            "The stationary-angle test the stage's covariance ran, one round per entry "
+            "in order. An angle a round zeroed stayed free and kept its value but "
+            "carries no esd. `None` means no test ran, for example because no moment "
+            "angle was free beside its modulus. It feeds `MOMENT_ANGLE_STATIONARY`."
+        ),
+    ),
+    "StageResult.cell_reset": HelpEntry(
+        title="Cells put back",
+        description=(
+            "The free cell parameters this stage put back at their starting values, "
+            "because a cell parameter of their phase left the safety window while it "
+            "solved (`params.vector.CELL_SAFETY_FRACTION`). `CELL_RUNAWAY` names them "
+            "and says what followed. An empty list is every stage of an ordinary fit; "
+            "`None` means a result stored before the field."
+        ),
+    ),
+    "StageResult.collapsed": HelpEntry(
+        title="Restored and held",
+        description=(
+            "The free parameters this stage restored to their starting values and "
+            "held, because its first solve found them flat: a phase whose scale fell "
+            "under support, or a moment direction that stopped moving the pattern. "
+            "Their first-solve values were a walk, not a measurement. A subset of "
+            "`held`; `None` means a result stored before the field."
+        ),
+    ),
+    # --------------------------------------------------------------- SeriesEntry
+    "SeriesEntry.index": HelpEntry(
+        title="Position in the series",
+        description=(
+            "The pattern's position in the series as given, counting from zero. It is "
+            "the series axis when no coordinate was given."
+        ),
+    ),
+    "SeriesEntry.label": HelpEntry(
+        title="Pattern label",
+        description=(
+            "The pattern's name in the series: the label the run was given, else its "
+            "source file's name, made unique because it also names the pattern's "
+            "history file."
+        ),
+    ),
+    "SeriesEntry.x": HelpEntry(
+        title="Series coordinate",
+        description=(
+            "The pattern's series coordinate, such as a temperature, time or pressure, "
+            "in the caller's units. `None` when the caller gave none, and `index` is "
+            "then the axis."
+        ),
+    ),
+    "SeriesEntry.status": HelpEntry(
+        title="Pattern solver exit",
+        description=(
+            "The solver's exit for the attempt kept on this pattern. `diverged` after "
+            "the last rung of the ladder means the pattern is quarantined: it seeds no "
+            "successor and joins no median, and `SEQUENTIAL_UNRECOVERED` says so."
+        ),
+    ),
+    "SeriesEntry.statistics": HelpEntry(
+        title="Pattern agreement indices",
+        description=(
+            "The agreement indices of the kept attempt, the same table as "
+            "`RefinementResult.statistics`. Every entry the chain builds carries one; "
+            "`None` means none was recorded."
+        ),
+    ),
+    "SeriesEntry.parameters": HelpEntry(
+        title="Pattern parameters",
+        description=(
+            "The refined parameters of the kept attempt, as "
+            "`RefinementResult.parameters` holds them. `SeriesResult.trajectory` reads "
+            "one path across every entry."
+        ),
+    ),
+    "SeriesEntry.qpa": HelpEntry(
+        title="Pattern weight fractions",
+        description=(
+            "The weight fractions of the kept attempt, as `RefinementResult.qpa` holds "
+            "them. `None` outside Rietveld mode and where the fractions could not be "
+            "formed."
+        ),
+        anchor="theory/corrections.html#quantitative-phase-analysis-and-microabsorption",
+    ),
+    "SeriesEntry.phase_agreement": HelpEntry(
+        title="Pattern R-factors",
+        description=(
+            "Each phase's Bragg and structure-factor R-factors on this pattern, copied "
+            "from its result. A low value on a weak phase is not evidence the phase is "
+            "present, because the observed intensity is partitioned by the model's own "
+            "prediction. Empty outside Rietveld mode."
+        ),
+    ),
+    "SeriesEntry.magnetic": HelpEntry(
+        title="Moment evidence",
+        description=(
+            "The evidence for each magnetic site's moment on this pattern: whether the "
+            "data support it, its esd and what the powder average cannot determine. A "
+            "signed moment parameter alone draws an unsupported moment as a small one. "
+            "Empty when no phase declares a moment or the pattern carries no magnetic "
+            "term, and never because no moment was found."
+        ),
+    ),
+    "SeriesEntry.diagnostics": HelpEntry(
+        title="Pattern findings",
+        description=(
+            "The findings of this pattern's own fit. Findings about the series as a "
+            "whole are on `SeriesResult.diagnostics`."
+        ),
+    ),
+    "SeriesEntry.n_iterations": HelpEntry(
+        title="Pattern evaluations",
+        description=(
+            "The residual evaluations spent on this pattern over every attempt, each "
+            "rung of the escalation ladder included. It is what a warm start actually "
+            "buys, measured rather than assumed."
+        ),
+    ),
+    "SeriesEntry.reseeded": HelpEntry(
+        title="Warm start rejected",
+        description=(
+            "Whether the warm start was rejected and the pattern refitted from the "
+            "initial models, the `cold` rung. A reseeded point can be a good fit, but "
+            "it is not evidence that the trajectory is continuous there. "
+            "`SEQUENTIAL_RESEED` reports it."
+        ),
+    ),
+    "SeriesEntry.rwp_warm": HelpEntry(
+        title="Warm attempt's Rwp",
+        description=(
+            "The Rwp the first, warm attempt reached, recorded whenever the ladder "
+            "escalated. With `reseeded` set too, a cold restart rescued the pattern; "
+            "alone, the warm attempt stayed the best tried. `None` when the ladder did "
+            "not escalate or the first attempt raised."
+        ),
+    ),
+    "SeriesEntry.rung": HelpEntry(
+        title="Winning rung",
+        description=(
+            "Which attempt produced this entry's values: `warm`, a one-stage refit from "
+            "the neighbour; `warm_staged`, the full plan from the warm state; or "
+            "`cold`, the full plan from the initial models. The first pattern is always "
+            "`cold`, having no neighbour to start from."
+        ),
+    ),
+    "SeriesEntry.rungs_tried": HelpEntry(
+        title="Rungs tried",
+        description=(
+            "Every rung attempted on this pattern, in ladder order. One entry means the "
+            "pattern fitted first time; `n_iterations` is the cost of these less the "
+            "ones in `rungs_raised`."
+        ),
+    ),
+    "SeriesEntry.rungs_raised": HelpEntry(
+        title="Rungs that raised",
+        description=(
+            "The rungs whose fit raised an exception rather than returning, each with "
+            "the exception's type and message. The ladder escalates past a raised rung "
+            "as past a diverged one. Empty wherever no rung raised."
+        ),
+    ),
+    "SeriesEntry.rwp_fence": HelpEntry(
+        title="Rwp fence",
+        description=(
+            "The Rwp limit the chain set at this pattern, from `reseed_factor` and the "
+            "Rwp of the patterns accepted before it (`sequential._rwp_fence`). An "
+            "attempt above it climbs the ladder. `None` where no earlier pattern had "
+            "been accepted, so no fence judged it."
+        ),
+    ),
+    "SeriesEntry.node_id": HelpEntry(
+        title="Pattern history node",
+        description=(
+            "The history node of this pattern's kept fit. Each pattern has a tree of "
+            "its own, pinned to it by its data fingerprint. `None` when the series ran "
+            "without history."
+        ),
+    ),
+    "SeriesEntry.tree_id": HelpEntry(
+        title="Pattern history tree",
+        description=(
+            "The history tree this pattern's fit is in, one tree per pattern. `None` "
+            "when the series ran without history."
+        ),
+    ),
+    # -------------------------------------------------------------- SeriesResult
+    "SeriesResult.mode": HelpEntry(
+        title="Series intensity mode",
+        description=(
+            "The intensity mode every pattern of the series was fitted in. One protocol "
+            "over every pattern is what makes their trajectories comparable."
+        ),
+    ),
+    "SeriesResult.entries": HelpEntry(
+        title="Pattern summaries",
+        description=(
+            "One summary per pattern that returned a fit, in series order: its refined "
+            "values, agreement indices, findings and how the chain reached it. Curves "
+            "are not kept; `SequentialRefinement.results_` holds each full result."
+        ),
+        anchor="theory/estimation.html#staged-strategy-and-series",
+    ),
+    "SeriesResult.x_label": HelpEntry(
+        title="Series axis name",
+        description=(
+            "The name of the series coordinate, such as temperature or time, for plots "
+            "and trajectories. When no coordinate was given the pattern index is the "
+            "axis, and this says so."
+        ),
+    ),
+    "SeriesResult.direction": HelpEntry(
+        title="Chain direction",
+        description=(
+            "Which way the chain ran: `forward`, `backward`, or `both`, which runs it "
+            "each way and compares the two trajectories. Under `both` the entries are "
+            "the forward chain's and the comparison is `SEQUENTIAL_PATH_DEPENDENT`."
+        ),
+    ),
+    "SeriesResult.backward": HelpEntry(
+        title="Reverse chain",
+        description=(
+            "The reverse chain's own series result when `direction` is `both`, so the "
+            "trajectory a path-dependence finding is about can be read. `None` for a "
+            "one-way run."
+        ),
+    ),
+    "SeriesResult.diagnostics": HelpEntry(
+        title="Series findings",
+        description=(
+            "Findings about the series as a whole, such as path dependence, "
+            "discontinuities, reseeds and patterns that failed. Each pattern's own "
+            "findings stay on its entry."
+        ),
+    ),
+    "SeriesResult.discontinuities": HelpEntry(
+        title="Flagged steps",
+        description=(
+            "Every `SEQUENTIAL_DISCONTINUITY` finding as fields, in the same order: the "
+            "parameter, the two patterns it stepped between and the signed step. An "
+            "empty list is a series that flagged nothing; `None` means a document "
+            "written before the field."
+        ),
+    ),
+    "SeriesResult.relative_paths": HelpEntry(
+        title="Paths that are steps",
+        description=(
+            "The paths whose values are steps from where each fit began rather than "
+            "positions, such as coordinate DOFs and rigid-body rotations. A comparison "
+            "across patterns must not read them as positions. `None` means a document "
+            "written before the field."
+        ),
+    ),
+    "SeriesResult.angle_paths": HelpEntry(
+        title="Moment angle paths",
+        description=(
+            "The moment angle DOFs, whose differences across patterns are taken modulo "
+            "a full turn. Recorded as `relative_paths` is, and `None` means the same."
+        ),
+    ),
+    "SeriesResult.failures": HelpEntry(
+        title="Patterns that failed",
+        description=(
+            "Every pattern on which every rung of the ladder raised an exception, so "
+            "the chain has no entry for it: its index, its label and the last "
+            "exception. An empty list means every pattern returned a fit."
+        ),
+    ),
+    "SeriesResult.n_failed": HelpEntry(
+        title="Failure count",
+        description=(
+            "How many patterns failed outright, the length of `failures`, for a caller "
+            "that wants a number rather than a list to count."
+        ),
+    ),
+    "SeriesResult.provenance": HelpEntry(
+        title="Series provenance",
+        description=(
+            "What produced the series: the package version, backend, solver, version "
+            "of the report thresholds and when it ran. `None` on the reverse chain in "
+            "`backward`, which carries none of its own."
+        ),
+    ),
+}
+
+
 def plan_help() -> dict[str, HelpEntry]:
     """The plan presets as help entries, projected from ``PLAN_INFO``.
 
@@ -4762,14 +5555,22 @@ def help_for(path: str) -> HelpEntry | None:
     return None if key is None else PARAMETER_HELP[key]
 
 
-def explain(code: str) -> HelpEntry | None:
-    """What a diagnostic ``code`` means, or ``None`` for a code with no entry.
+def explain(name: str) -> HelpEntry | None:
+    """What a diagnostic code or a result field means, or ``None`` with no entry.
+
+    ``name`` is a diagnostic code (``"BOUND_HIT"``) or a result field as
+    ``"<Type>.<field>"`` (``"RefinementResult.status"``), the keys of
+    :data:`DIAGNOSTIC_HELP` and :data:`RESULT_FIELD_HELP`.  One lookup serves
+    both because the two key sets cannot collide: a code is UPPER_SNAKE with no
+    dot, and every field key has one (``tests/test_help.py`` holds them
+    disjoint).
 
     ``None`` covers a code a newer or older package raised, read from a stored
-    file: the registry describes this build's codes, and an old file must
-    always open.
+    file, and a field this build's types do not have: the registry describes
+    this build, and an old file must always open.
     """
-    return DIAGNOSTIC_HELP.get(code)
+    entry = DIAGNOSTIC_HELP.get(name)
+    return entry if entry is not None else RESULT_FIELD_HELP.get(name)
 
 
 def help_registry() -> dict[str, object]:
@@ -4806,4 +5607,5 @@ def help_registry() -> dict[str, object]:
         "search_fields": {k: asdict(v) for k, v in SEARCH_FIELD_HELP.items()},
         "plans": {k: {**asdict(v), "modes": list(PLAN_INFO[k].modes)}
                   for k, v in plans.items()},
+        "result_fields": {k: asdict(v) for k, v in RESULT_FIELD_HELP.items()},
     }

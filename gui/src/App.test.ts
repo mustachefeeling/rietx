@@ -75,6 +75,7 @@ const HELP = {
   instrument_fields: {},
   search_fields: {},
   plans: {},
+  result_fields: {},
   docs_url: "https://rietx.org/docs/dev",
 };
 

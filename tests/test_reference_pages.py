@@ -128,6 +128,25 @@ def test_the_settings_page_shows_every_entry_of_its_arms():
             assert f"\n`{name}`\n: {entry['title']}. " in text, (key, name)
 
 
+def test_the_result_field_page_shows_every_field_under_its_type():
+    from rietx.help import RESULT_FIELD_TYPES
+
+    text = reference_pages.result_field_page()
+    sections = dict(zip(re.findall(r"^## (\w+)$", text, flags=re.M),
+                        re.split(r"^## \w+$", text, flags=re.M)[1:], strict=True))
+    assert list(sections) == list(RESULT_FIELD_TYPES)
+    for name, entry in help_registry()["result_fields"].items():
+        assert f"\n`{name}`\n: {entry['title']}. " in sections[name.split(".")[0]], name
+
+
+def test_a_result_type_with_no_lead_raises(monkeypatch):
+    leads = dict(reference_pages._RESULT_TYPE_LEADS)
+    leads.pop("StageResult")
+    monkeypatch.setattr(reference_pages, "_RESULT_TYPE_LEADS", leads)
+    with pytest.raises(RuntimeError, match="StageResult"):
+        reference_pages.result_field_page()
+
+
 # ----------------------------------------------------------------------
 # The plan ladder
 # ----------------------------------------------------------------------

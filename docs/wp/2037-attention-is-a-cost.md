@@ -234,7 +234,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
       rule and § Demotion, the 2026-10-18 "fires on every run" shape reversed with the
       log-versus-list answer written beside it; the acceptance row below added to
       § Acceptance; the decisions above dated into § Decisions.
-- [ ] The help seat for result fields in `help.py`, crossed both ways against the live
+- [x] The help seat for result fields in `help.py`, crossed both ways against the live
       result schemas (`tests/test_help.py`'s pattern), with `rx.explain("<Type>.<field>")`.
 - [ ] `_audit.Row.response` and `Row.scope`, the purpose table (one module, about eight
       rows with their physics), and the three meta-tests (response equals every raise

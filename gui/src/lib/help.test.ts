@@ -58,6 +58,7 @@ function corpus(): HelpCorpus {
     instrument_fields: { radiation: entry("Anode") },
     search_fields: { seed: entry("Random seed"), preset: entry("Search preset") },
     plans: { profile_only: entry("Profile only", { modes: ["rietveld"] }) },
+    result_fields: { "RefinementResult.status": entry("Solver exit") },
     docs_url: "https://rietx.org/docs/dev",
   };
 }
@@ -102,6 +103,12 @@ describe("a key names its arm", () => {
     // a *path* is not a key: the row carries the glob, and matching here would
     // be a second fnmatch implementation for a question the server answered
     expect(resolve(c, "parameters:phases.0.cell.b")).toBeNull();
+  });
+
+  it("resolves a result field by its `Type.field` name, dot and all", () => {
+    const c = corpus();
+    expect(resolve(c, "result_fields:RefinementResult.status")!.title).toBe("Solver exit");
+    expect(resolve(c, "result_fields:RefinementResult")).toBeNull();
   });
 
   it("returns null for an unknown name, an unknown arm and no corpus", () => {
@@ -255,7 +262,7 @@ describe("`title=` is no longer how this app explains a name", () => {
    * What is left is prose typed into the markup, and it is owed a corpus entry
    * — but the corpus describes *names the package has* (parameters, peak
    * flags, stage fields, reader options, instrument fields, plans, search
-   * controls), and several panels' vocabularies are not among them: a report
+   * controls, result fields), and several panels' vocabularies are not among them: a report
    * statistic, a series setting, an indexing result column, a drawing
    * threshold.  Those arrive with the WPs that own those panels.
    *
@@ -280,7 +287,8 @@ describe("`title=` is no longer how this app explains a name", () => {
     // field names, so an arm over those two `model_fields` is a real live
     // vocabulary — a `peak_origins`-sized commit (help.py, test_help.py
     // `_arms`, test_gui_help.py `ARMS`, lib/help.ts `ARMS` + `HelpCorpus`,
-    // conf.py `_ARMS`, the regenerated help_keys.json), and a WP of its own.
+    // docs/reference_pages.py `_VOCABULARIES`, the regenerated help_keys.json),
+    // and a WP of its own.
     "panels/Peaks.svelte": 10,
     "panels/Plan.svelte": 2,         // the reorder grip, correlation_guard
     "panels/Plot.svelte": 3,         // fit-range fields — WP-1212

@@ -227,8 +227,9 @@ def parameter_map() -> str:
 # ----------------------------------------------------------------------
 # The other vocabularies
 #
-# `rietx.help` holds nine.  Parameters, plans and diagnostic codes have pages
-# of their own, and the other six share `reference/settings.md`, in the
+# `rietx.help` holds ten.  Parameters, plans, diagnostic codes and result
+# fields have pages of their own, and the other six share
+# `reference/settings.md`, in the
 # order and under the lead sentences `_VOCABULARIES` gives (the old tree's
 # glossary, WP-1986).  That list is the one hand-written thing here, so an arm
 # added to the registry and missing from both raises rather than rendering
@@ -236,7 +237,7 @@ def parameter_map() -> str:
 # ----------------------------------------------------------------------
 
 #: The arms with a page of their own.
-_OWN_PAGE = {"parameters", "plans", "diagnostics"}
+_OWN_PAGE = {"parameters", "plans", "diagnostics", "result_fields"}
 
 #: Section heading and lead sentence per arm, in the order the page shows them.
 _VOCABULARIES = [
@@ -295,6 +296,53 @@ def vocabularies() -> str:
         out += [f"## {heading}", "", lead, ""]
         for name, entry in registry[key].items():
             out += _vocabulary_entry(name, entry)
+    return "\n".join(out)
+
+
+# ----------------------------------------------------------------------
+# The result fields
+#
+# A page of their own because the four result types' fields put
+# `settings.md` over the page cap (WP-2037).  One section per type, in
+# `RESULT_FIELD_TYPES` order, so a field is found under the type a reader
+# is holding; each entry keeps its full `Type.field` key, which is what
+# `rietx.help.explain` takes.
+# ----------------------------------------------------------------------
+
+#: The lead sentence under each type's heading, keyed as `RESULT_FIELD_TYPES`.
+_RESULT_TYPE_LEADS = {
+    "RefinementResult": (
+        "What a fit returns: the answer, its statistics, its curves and what the "
+        "engine found wrong with it."),
+    "StageResult": (
+        "One stage's record in `RefinementResult.stages`: what it freed, what it "
+        "held and why, and what it cost."),
+    "SeriesEntry": (
+        "One pattern's summary in `SeriesResult.entries`: what was fitted and how "
+        "the chain reached it."),
+    "SeriesResult": (
+        "What a sequential refinement returns: one entry per pattern, and what the "
+        "chain found about the series as a whole."),
+}
+
+
+def result_field_page() -> str:
+    """The body of `reference/result-fields.md`: every result field, by type."""
+    from rietx.help import RESULT_FIELD_TYPES
+
+    unled = sorted(set(RESULT_FIELD_TYPES) ^ set(_RESULT_TYPE_LEADS))
+    if unled:
+        raise RuntimeError(
+            f"result types with no lead sentence, or leads for no type: {unled}. "
+            "Keep _RESULT_TYPE_LEADS in docs/reference_pages.py equal to "
+            "rietx.help.RESULT_FIELD_TYPES")
+    registry = help_registry()["result_fields"]
+    out = [_BANNER.format(source="rietx.help.RESULT_FIELD_HELP"), ""]
+    for type_name in RESULT_FIELD_TYPES:
+        out += [f"## {type_name}", "", _RESULT_TYPE_LEADS[type_name], ""]
+        for key, entry in registry.items():
+            if key.startswith(f"{type_name}."):
+                out += _vocabulary_entry(key, entry)
     return "\n".join(out)
 
 
@@ -881,6 +929,7 @@ def api_everything_else() -> str:
 BODIES = {
     "parameters.md": parameter_map,
     "settings.md": vocabularies,
+    "result-fields.md": result_field_page,
     "plans.md": plan_ladder,
     "diagnostics.md": diagnostic_page,
     **{f"{stem}.md": _functools.partial(diagnostic_group_page, stem)
