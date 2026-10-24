@@ -569,6 +569,11 @@ from .._nearmiss import did_you_mean
 #: Also in 0.60, one number a release cycle (WP-1809): ``PlanarityRestraint`` joins the ``Restraint``
 #: union, and ``RestraintRow.kind`` gains ``"planarity"``.  Additive: no
 #: existing document carries either, and an older build refuses one that does.
+#: 0.59, a second line in the 1.10.0 cycle (WP-1809): ``PlanarityRestraint``
+#: joins the ``Restraint`` union, and ``RestraintRow.kind`` gains
+#: ``"planarity"``.  Additive: no existing document carries either, and 1.9.0
+#: refuses one that does.  The number does not move again inside a release
+#: cycle (yue-here/rietx#991, decided 2026-10-15).
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
