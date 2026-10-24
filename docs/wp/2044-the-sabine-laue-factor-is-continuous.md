@@ -61,6 +61,21 @@ or an analytic column on GSAS-II's form, which ends the esd lottery and leaves
 the parking. The maintainer's standing rule is accuracy first, with a
 program's convention served beside it where someone needs it.
 
+**The paper, read 2026-10-24.** Sabine, Von Dreele & Jørgensen (1988) eqs 3-4
+give E_L as the series 1 − x/2 + x²/4 − 5x³/48 + 7x⁴/192 for x ≤ 1 and the
+four-term asymptote √(2/πx)·[1 − 1/8x − 3/128x² − 15/1024x³] above, with no
+closed form, and defer the derivation to Sabine (1988). ITC Vol C §6.4.5
+(Sabine's own chapter, 2006 edition, eqs 6.4.5.3-4) prints the same pair and
+says how it was built: the Laue-case diffracted fraction ½[1 − e^(−2σD)] of
+eq 6.4.4.3, with a Lorentzian σ(k), integrated over k and divided by the
+kinematic intensity. That integral, (1/πx)·∫ ½[1 − e^(−2x/(1+u²))] du, was
+evaluated by quadrature here and equals `i0e(x) + i1e(x)` to 3e-16 relative
+from x = 0.001 to 100. So e^(−x)·[I₀ + I₁] is the exact function both
+expansions truncate. It is derived here, from ITC's stated construction, and
+is printed in neither source. The paper's own pair steps too, 0.68229 to
+0.66776 (2.2 %) at x = 1. GSAS-II's six-term series and two-term asymptote
+step 3.6 %.
+
 **A second copy of the formula.** The TOPAS writer
 (`io/projects/topas_input.py`, the extinction builder near line 405) spells
 the same two branches into a `scale_pks` expression, from its own
@@ -84,7 +99,7 @@ two truncated expansions. No threshold or automatic action is added.
 
 ## Tasks
 
-- [ ] The paper: Sabine, Von Dreele & Jørgensen (1988), *Acta Cryst.* A44,
+- [x] The paper: Sabine, Von Dreele & Jørgensen (1988), *Acta Cryst.* A44,
       374, at `/Users/yue/Zotero yue-here/storage/HXSZ3X8N/Sabine et al. - 1988
       - Extinction in time-of-flight neutron powder diffractometry.pdf`. What
       it gives for E_L: the series, the asymptote, a closed form, a switch
