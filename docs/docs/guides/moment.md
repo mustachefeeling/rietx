@@ -38,15 +38,15 @@ The patterns are not in the wheel, so the script runs from a checkout of the rep
 <!-- output of examples/guides/moment.py -->
 ```text
 solved 58.395
-|m| = 2.11 ± 0.03 μB
+|m| = 2.09 ± 0.03 μB
 ```
 
 The scale factor, the coordinates, the displacement parameters and the profile stay at the 150 K values, because no stage frees them.
 The solver refits its nuclear reference under the same stages minus the moment paths, so ΔBIC still compares two models that free the same terms.
 
 Free the zero and the lattice.
-Held at their 150 K values as well, the nuclear model does not describe the 4 K pattern: the magnetic fit ends at Rwp 0.23 against 0.11, though the moment barely moves (2.10 μ<sub>B</sub>).
-The profile can be freed too: Rwp falls to 0.105 and the moment is 2.13 ± 0.03 μ<sub>B</sub>.
+Held at their 150 K values as well, the nuclear model does not describe the 4 K pattern: the magnetic fit ends at Rwp 0.23 against 0.115, though the moment barely moves (2.07 μ<sub>B</sub>).
+The profile can be freed too: Rwp falls to 0.107 and the moment is 2.10 ± 0.03 μ<sub>B</sub>.
 This guide holds it, because the instrument is the same at both temperatures.
 
 ## Route 2: no pattern above the ordering temperature
@@ -65,7 +65,7 @@ The first half is the blind answer.
 <!-- output of examples/guides/moment.py -->
 ```text
 solved 58.395
-|m| = 2.03 ± 0.05 μB
+|m| = 2.0 μB
 Biso of Cr1 = -1.4 Å²
 ```
 
@@ -85,25 +85,25 @@ One stage then frees the moment and every nuclear term.
 
 <!-- output of examples/guides/moment.py -->
 ```text
-round 1: |m| = 2.1 ± 0.04 μB, Rwp 0.10
-round 2: |m| = 2.1 ± 0.04 μB, Rwp 0.10
-scale moved 0.5 esd
+round 1: |m| = 2.1 μB, Rwp 0.105
+round 2: |m| = 2.1 μB, Rwp 0.105
+scale moved less than its esd
 ```
 
 The loop stops when the moment moves by less than its own esd between two rounds, and after five rounds whatever it has done.
 Both are choices of this script, not settings of rietx.
-Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit depends on the platform), more than its esd of 0.04, and round 2 moves it by less than 0.001.
+Here round 1 moves the moment by 0.07 to 0.09 μ<sub>B</sub> (the last digit depends on the platform), more than its esd of 0.04, and round 2 moves it by less than 0.002.
 
 ## Read the result
 
-On this pattern the three answers are 2.03 ± 0.05 μ<sub>B</sub> blind, 2.11 ± 0.03 with the reference and 2.11 ± 0.04 with the moment present.
-The blind moment is 0.08 μ<sub>B</sub>, about two esds, below the other two, which agree with each other.
+On this pattern the three answers are 2.02 to 2.04 ± 0.05 μ<sub>B</sub> blind (the last digit depends on the platform), 2.09 ± 0.03 with the reference and 2.12 ± 0.04 with the moment present.
+The blind moment is 0.05 to 0.07 and 0.09 to 0.11 μ<sub>B</sub> below the other two, about one and two esds, and those two agree within their esds.
 This is one specimen with a k = 0 collinear moment, so it shows the effect and does not size it.
 
 The two printed checks say where the intensity went.
-The nuclear scale factor moved by half its esd between the blind fit and the last round, so on this pattern it did not carry the exchange.
+The nuclear scale factor moved by about half its esd between the blind fit and the last round, so on this pattern it did not carry the exchange.
 A scale that moves by more than its own esd is where to look first.
-The displacement parameters carried it: Cr went from −1.4 Å<sup>2</sup> to about zero.
+The displacement parameters carried it: Cr went from −1.4 Å<sup>2</sup> to about 0.4 Å<sup>2</sup>.
 
 A route 2 answer is an estimate until the rounds agree.
 If the moment is still moving at the round cap, or the scale has moved by several esds, report both the blind and the last-round moment.

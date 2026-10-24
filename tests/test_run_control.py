@@ -83,9 +83,10 @@ def test_stage_start_carries_progress(ref, pattern):
     seen: list[dict] = []
     ref.fit(pattern, plan=PLAN, events=seen.append)
     starts = collect(seen)["stage_start"]
-    assert [d["index"] for d in starts] == [1, 2, 3]
-    assert {d["n_stages"] for d in starts} == {3}
-    assert [d["stage"] for d in starts] == [s.name for s in PLAN.stages]
+    # the declared stages and the closing stage
+    assert [d["index"] for d in starts] == [1, 2, 3, 4]
+    assert {d["n_stages"] for d in starts} == {len(PLAN.run_stages())}
+    assert [d["stage"] for d in starts] == [s.name for s in PLAN.run_stages()]
 
 
 def test_progress_fields_are_additive_not_a_version_bump(ref, pattern):

@@ -83,7 +83,12 @@ from .._about import TEXTDOC_MAGIC
 from ..schemas.common import Mode, Parameter, legacy_transform_bounds
 from ..schemas.indexing import PeakFlag
 from ..schemas.migrate import migrate_document_text
-from ..schemas.plan import PlanSpec, StageSpec, check_phase_support_sigma
+from ..schemas.plan import (
+    PlanSpec,
+    StageSpec,
+    check_closing_window_tol,
+    check_phase_support_sigma,
+)
 from ..schemas.project import ProjectDoc, check_interval
 from ..strategy.staged import PLAN_PRESETS
 
@@ -149,7 +154,8 @@ RESERVED_BLOCKS: dict[str, str] = {}
 _PEAK_FLAG_WORDS: tuple[str, ...] = get_args(PeakFlag)
 
 _KEYWORDS = (TEXTDOC_MAGIC, "project", "pattern", "mode", "limits", "excluded", "plan",
-             "guard", "tolerance", "passes", "support", "stage", "phase", "instrument",
+             "guard", "tolerance", "passes", "support", "closing", "stage", "phase",
+             "instrument",
              "peaks", *RESERVED_BLOCKS)
 
 _FLAG_WORDS = ("locked", "mode-fixed", "held")
@@ -250,6 +256,10 @@ class ParsedDocument:
     #: value rather than the absence of one
     support: float | None = None
     support_set: bool = False
+    #: the ``closing`` line's value (WP-2002, the sixth round's Q1 and Q2), and
+    #: whether it appeared, for the same reason: ``none`` is a value
+    closing: float | None = None
+    closing_set: bool = False
     stages: list[StageSpec] = field(default_factory=list)
     stage_lines: list[int] = field(default_factory=list)
     phases: dict[int, tuple[int, str | None]] = field(default_factory=dict)
@@ -461,6 +471,13 @@ def _render_plan(doc: ProjectDoc) -> list[str]:
         lines.append(f"support {sigma}".ljust(34)
                      + "# phase_support_sigma: hold a phase under this many "
                        "esds ('none' = never)")
+    # rendered always, for ``tolerance``'s reason: it decides what the run
+    # costs and how close its answer is to the converged peak tails
+    closing = ("none" if spec.closing_window_tol is None
+               else _fmt(spec.closing_window_tol))
+    lines.append(f"closing {closing}".ljust(34)
+                 + "# closing_window_tol: the closing stage's windows "
+                   "('none' = no closing stage)")
     width = max((len(s.name) for s in spec.stages), default=4)
     default = StageSpec(name="_")
     for stage in spec.stages:
@@ -725,6 +742,21 @@ def parse(text: str) -> ParsedDocument:
                         "refines — or 'none' to hold no phase", raw, "support")
             else:
                 doc.support_set = True
+        elif keyword == "closing":
+            value = rest[0] if len(rest) == 1 else ""
+            number = _number(value)
+            try:
+                # the schema's own check, the ``support`` line's rule
+                doc.closing = (None if value == "none" else
+                               check_closing_window_tol(
+                                   value if number is None else number))
+            except ValueError:
+                fail(n, "closing takes one number between 0 and 1 — the "
+                        "fraction of each peak's area the closing stage's "
+                        "windows may drop — or 'none' for no closing stage",
+                     raw, "closing")
+            else:
+                doc.closing_set = True
         elif keyword == "stage":
             stage = _parse_stage(n, rest, raw, fail)
             if stage is not None:
@@ -955,7 +987,9 @@ def _plan_changes(parsed: ParsedDocument, doc: ProjectDoc, delta: Delta,
                         lebail_passes=(parsed.passes if parsed.passes is not None
                                        else PlanSpec().lebail_passes),
                         phase_support_sigma=(parsed.support if parsed.support_set
-                                             else PlanSpec().phase_support_sigma))
+                                             else PlanSpec().phase_support_sigma),
+                        closing_window_tol=(parsed.closing if parsed.closing_set
+                                            else PlanSpec().closing_window_tol))
     stages_changed = spec is not None and spec != current
 
     if name_changed and stages_changed:

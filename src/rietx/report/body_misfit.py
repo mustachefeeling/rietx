@@ -187,7 +187,13 @@ def _fit(ref, structure, data, globs, max_iter, drop=None):
                         Stage("misfit_check", list(globs), max_iter=max_iter)],
                         # the plan settings the caller's fit ran with
                         # (``Refinement._plan_settings``, WP-2002 B1)
-                        **trial._plan_settings))
+                        correlation_guard=trial._plan_settings["correlation_guard"],
+                        phase_support_sigma=trial._plan_settings["phase_support_sigma"],
+                        # and no closing stage: the two arms are compared with
+                        # each other, never with the fit, so their windows need
+                        # only agree, and a trial the package discards pays for
+                        # no extra solve (WP-2002, the sixth round's Q1 and Q2)
+                        closing_window_tol=None))
     return trial, res, dropped
 
 

@@ -76,17 +76,21 @@ print(result)
 
 `print(result)`, which is `str(result)`, shows what a bare result can say
 without the model that produced it. It lists each stage's status, every
-diagnostic and the provenance, with the agreement indices last.
+diagnostic and the provenance, with the agreement indices last. An error prints
+in full and every other diagnostic on one line, naming the purposes it is a
+warning under, because `print` passes no deliverable.
+`result.summary(deliverable="qpa")` takes one.
 
 ```text
 RefinementResult: converged (rietveld)
   stage scale_bkg: converged (2 evals, ftol=1e-06)
   ...
-  stage profile: converged (8 evals, ftol=solver default), max|Δθ|/esd=0.000
-  diagnostics: 1 unresolved
-    info[CAPILLARY_OFFSET_UNAVAILABLE]: ...
+  stage closing: converged (4 evals, ftol=solver default), max|Δθ|/esd=0.000
+  diagnostics: 1 row, 0 errors; no deliverable given, so none is printed in full
+    CAPILLARY_OFFSET_UNAVAILABLE at instrument.geometry.goniometer_radius_mm: info
+    pass deliverable= to summary() for the rows that decide your purpose; every row is in result.diagnostics
   provenance: rietx ..., backend=numpy, solver=lm
-  Rwp 0.1337 / Rexp 0.0357 (GoF 3.75), Rp 0.0723, χ² 14.1, DW 0.11
+  Rwp 0.1337 / Rexp 0.0357 (GoF 3.75), Rp 0.0723, χ² 14.0, DW 0.11
 ```
 
 `RefinementResult.status` is a plain string, one of `converged`, `max_iter` and
@@ -284,10 +288,10 @@ python examples/nac_11bm.py
 pattern: 59498 points, 0.50-59.99 deg, sigma from file: True
 phase: Na2Ca3Al2F14, I 21 3, a=10.257 A, 6 asymmetric atoms
 
-Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
-Rietveld: status=converged  Rwp=0.0933  GoF=3.54
-          a = 10.251216 +/- 0.000040 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
-          warning[FLOOR_HIT]: phases.1.atoms.0.biso refined to its floor (ρ=+0.187).
+Le Bail:  status=converged  Rwp=0.1436  GoF=5.44  a=10.251213 A
+Rietveld: status=converged  Rwp=0.0930  GoF=3.53
+          a = 10.251216 +/- 0.000039 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
+          warning[FLOOR_HIT]: phases.1.atoms.0.biso refined to its floor (ρ=+0.188).
             at: phases.1.atoms.0.biso
             help: ...
           info[CAPILLARY_OFFSET_UNAVAILABLE]: ...
@@ -339,20 +343,22 @@ Six things in it are moves that any later refinement repeats:
   to:
 
   ```text
-  t5544a638  13 nodes  data=11BM_NAC.fxye
+  t5544a638  15 nodes  data=11BM_NAC.fxye
    n0000  root                   —
    n0001  stage:bkg              Rwp 3.1772
    n0002  stage:zero             Rwp 1.0407
    n0003  stage:cell             Rwp 0.1682
    n0004  stage:profile_w        Rwp 0.1592
-   n0005  stage:profile          Rwp 0.1435  [lebail]
-   n0006  edit_model:add CaF2 impurity phase —
-   n0007  stage:scale_bkg        Rwp 0.1199
-   n0008  stage:zero             Rwp 0.1199
-   n0009  stage:cell             Rwp 0.0959
-   n0010  stage:profile_w        Rwp 0.0959
-   n0011  stage:profile          Rwp 0.0957
-  *n0012  stage:biso             Rwp 0.0933
+   n0005  stage:profile          Rwp 0.1435
+   n0006  stage:closing          Rwp 0.1436  [lebail]
+   n0007  edit_model:add CaF2 impurity phase —
+   n0008  stage:scale_bkg        Rwp 0.1200
+   n0009  stage:zero             Rwp 0.1200
+   n0010  stage:cell             Rwp 0.0960
+   n0011  stage:profile_w        Rwp 0.0960
+   n0012  stage:profile          Rwp 0.0957
+   n0013  stage:biso             Rwp 0.0933
+  *n0014  stage:closing          Rwp 0.0930
   ```
 
   [How to branch a refinement](../guides/branch.md) works with that record.

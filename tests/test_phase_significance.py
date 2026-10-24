@@ -271,9 +271,10 @@ def test_a_held_phase_that_appears_is_released(issue_481, monkeypatch):
     structure = rx.Structure(phases=[_lab6(A0, 1e-10)])
     instrument = _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5))
     pattern = _draw(_lab6(A0, 2.5e-7), np.random.default_rng(200))
+    # the declared stage's release; the closing stage is tests/test_closing_stage.py's
     plan = PlanSpec(stages=[StageSpec(
         name="all", turn_on=["phases.*.scale", "instrument.background.*",
-                             "phases.*.cell.*"])])
+                             "phases.*.cell.*"])], closing_window_tol=None)
     result, record = _fit(structure, instrument, pattern, monkeypatch, plan=plan)
     (stage,) = result.stages
     assert stage.released == ["phases.0.cell.a"] and not stage.held
@@ -300,9 +301,10 @@ def test_a_phase_the_prior_holds_is_released_when_the_answer_sees_it(
     structure = rx.Structure(phases=[_lab6(A0, 2.5e-7)])
     instrument = _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5))
     pattern = _draw(_lab6(A0, 2.5e-7), np.random.default_rng(200))
+    # the declared stage's release; the closing stage is tests/test_closing_stage.py's
     plan = PlanSpec(stages=[StageSpec(
         name="all", turn_on=["phases.*.scale", "instrument.background.*",
-                             "phases.*.cell.*"])])
+                             "phases.*.cell.*"])], closing_window_tol=None)
     result, record = _fit(structure, instrument, pattern, monkeypatch, plan=plan)
     (stage,) = result.stages
     assert stage.released == ["phases.0.cell.a"] and not stage.held
@@ -346,9 +348,11 @@ def test_a_phase_both_readings_pass_that_collapses_is_put_back(monkeypatch):
     monkeypatch.setattr(_refine, "_answer_significance", collapse_once)
     monkeypatch.setattr(_refine, "run_least_squares", recording)
     base = ["phases.*.scale", "instrument.background.*"]
+    # the declared stages' collapse; the closing stage is tests/test_closing_stage.py's
     plan = PlanSpec(stages=[StageSpec(name="scale", turn_on=base),
                             StageSpec(name="cell",
-                                      turn_on=[*base, "phases.*.cell.*"])])
+                                      turn_on=[*base, "phases.*.cell.*"])],
+                    closing_window_tol=None)
     ref = rx.Refinement(rx.Structure(phases=[_lab6(A0 * 1.0005, 2.5e-7)]),
                         _instrument(0.008, 2.5e-4, (40.0, -6.0, 1.5)),
                         history=False)

@@ -3,13 +3,18 @@
 The rule lives in ``docs/milestones/generality.md`` § The rule and is not
 restated here beyond what a row needs.  Each part of a heuristic is tiered on
 its own: (1) physics or arithmetic; (2) established practice, a citation that
-validated it or the same action taken *by default* in GSAS-II, FullProf or
-TOPAS; (3) rietx's own, kept only on the record's two grounds with the
+validated it or the same choice made *by default* in an established Rietveld
+program (the seven rietx-bench runs: GSAS-II, FullProf, TOPAS, RIETAN-FP,
+BGMN, MAUD, EasyDiffraction), whatever the other six do; (3) rietx's own, kept only on the record's two grounds with the
 maintainer's dated approval.  ``invariant`` is the record's answer-invariant
-class; ``caller`` is an action only the caller turns on (an opt-in flag, or a
-pick verb no default path calls), since DESIGN.md § Rules, 1 governs what the
-package decides alone.  Every row opened at ``unaudited``; WPs 2002-2007 fill
-them.
+class.  ``caller`` is no evidence grade: it marks a row where the package
+decided nothing for the caller, since DESIGN.md § Rules, 1 governs what the
+package decides alone.  Both must hold: the caller asked for it by name (a flag
+or field whose default is off, or a verb no default path calls), and nothing
+inside it that moves the answer is the package's choice.  A number defaulted
+once the switch is on is tiered on its own, and a caller row holds only while
+its switch stays off the default paths (the record's § The rule, ruled
+2026-10-21).  Every row opened at ``unaudited``; WPs 2002-2007 fill them.
 
 **Five kinds, each named the way the tree names it.**
 
@@ -33,6 +38,19 @@ them.
 
 Constant, default and suggestion rows store the live value, so a retune fails
 ``tests/test_audit_table.py`` and reopens the row's audit.
+
+**A code row also says what its reader does** (WP-2037, the record's
+§ The rule, "Attention is a cost").  ``response`` is the level the reader
+owes the code, and it equals the literal ``level=`` every raise site passes,
+held by test: two consequences are two codes, never a threshold between
+levels.  ``responds`` is the one sentence on what the reader does, and a
+``warning`` one names a result number or a plan outcome.  ``scope`` is for a
+code no raise site gives a ``where``: the purposes of
+:data:`rietx.purposes.PURPOSES` it bears on, or ``("all",)``.  A code's level
+under a purpose is computed from those two tables, never authored per code
+per purpose.  :data:`RESPONSE_BASELINE` lists the code rows still without a
+response, and shrinks the way :data:`UNAUDITED_BASELINE` does, so a new code
+enters with one.
 
 **The suite's growth guard reads no git.**  CI's test jobs have no
 ``origin/main``, so a comparison against the base table would skip exactly
@@ -77,9 +95,11 @@ from typing import Literal
 Kind = Literal["code", "action", "constant", "default", "suggestion"]
 Tier = Literal[1, 2, 3, "invariant", "caller", "unaudited"]
 Ambiguity = Literal[1, 2, 3]
+Response = Literal["error", "warning", "info"]
 
 KINDS: tuple[str, ...] = Kind.__args__
 TIERS: tuple[object, ...] = Tier.__args__
+RESPONSES: tuple[str, ...] = Response.__args__
 _VALUED = ("constant", "default", "suggestion")
 _STATES_AMBIGUITY = ("code", "action", "default")
 
@@ -90,7 +110,9 @@ class Row:
     row and on a tier-2 action row; ``ambiguity`` is DESIGN.md § Rules, 1's
     kind, required on an audited code, action or default row (DESIGN.md
     § Rules, 4 asks a new default or action for it) and allowed on a
-    suggestion row."""
+    suggestion row.  ``response``, ``responds`` and ``scope`` are a code
+    row's alone (the module docstring); ``responds`` is required beside a
+    ``response``, and ``scope`` where no raise site passes a ``where``."""
 
     name: str
     kind: Kind
@@ -100,6 +122,9 @@ class Row:
     grounds: str = ""
     approved: str | None = None
     value: object = None
+    response: Response | None = None
+    responds: str = ""
+    scope: tuple[str, ...] = ()
 
 
 _PACKAGE = pathlib.Path(__file__).resolve().parent
@@ -120,6 +145,7 @@ WALKED: dict[str, int] = {
     "sequential.py": 2003,
     "multi.py": 2003,
     "report": 2004,
+    "purposes.py": 2004,
     "io/readers.py": 2006,
     "io/formats/base.py": 2006,
     "crystallography": 2006,
@@ -173,16 +199,20 @@ NOT_WALKED: dict[str, str] = {
 
 #: The classes and functions whose defaults the table holds, each with its
 #: owning audit.  ``Source`` is here because its ``dispersion`` default
-#: turned a correction on in v1.0; ``SequentialRefinement.fit`` and
+#: turned a correction on in v1.0, ``ProfileTCHZ`` because its widths' seeds
+#: and box are dicts the constant walk cannot see (WP-2002, B14);
+#: ``SequentialRefinement.fit`` and
 #: ``SearchSpec`` because a declared seat reaches them, through
 #: ``refine_sequential``'s ``**kw`` and ``index_pattern``'s ``spec=None``.
 DEFAULT_SEATS: dict[str, int] = {
     "rietx.schemas.plan.PlanSpec": 2002,
     "rietx.schemas.plan.StageSpec": 2002,
     "rietx.schemas.instrument.Source": 2002,
+    "rietx.schemas.instrument.ProfileTCHZ": 2002,
     "rietx.refine.Refinement.fit": 2002,
     "rietx.refine.Refinement.run_stage": 2002,
     "rietx.refine.refine": 2002,
+    "rietx.refine.Refinement.summary": 2004,
     "rietx.background.auto.auto_background": 2002,
     "rietx.sequential.refine_sequential": 2003,
     "rietx.sequential.SequentialRefinement.fit": 2003,
@@ -389,17 +419,21 @@ def _literal(value: object) -> str:
     return repr(value)
 
 
-#: What a printed row holds where the author's answer goes.  Neither is a tier
-#: or a kind of ambiguity, so a row pasted unfilled fails the table's tests.
+#: What a printed row holds where the author's answer goes.  It is no tier,
+#: kind of ambiguity or response, so a row pasted unfilled fails the table's
+#: tests.
 PENDING = "?"
 
 
 def row_source(name: str, kind: str, value: object = None) -> str:
     """The line a failure prints for ``name``: its tier, its kind of
-    ambiguity where the row must state one, and its evidence left for the
-    author.  A name new to the table may not enter at ``unaudited``."""
+    ambiguity where the row must state one, a code's response, and its
+    evidence and a code's sentence left for the author.  A name new to the
+    table may not enter at ``unaudited``, nor a code without a response."""
     ambiguity = f", ambiguity={_literal(PENDING)}" if kind in _STATES_AMBIGUITY else ""
     tail = f", value={_literal(value)}" if kind in _VALUED else ""
+    if kind == "code":
+        tail += f', response={_literal(PENDING)}, responds=""'
     return (f"Row({_literal(name)}, {_literal(kind)}, tier={_literal(PENDING)}{ambiguity}, "
             f'evidence=""{tail}),')
 
@@ -425,7 +459,6 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
     "rietx.schemas.results.RefinementResult.parametric_form_joint",
     "rietx.schemas.results.RefinementResult.phase_agreement",
     "rietx.schemas.results.RefinementResult.provenance",
-    "rietx.schemas.results.RefinementResult.qpa",
     "rietx.schemas.results.RefinementResult.restraints",
     "rietx.schemas.results.RefinementResult.sigma",
     "rietx.schemas.results.RefinementResult.stages",
@@ -476,7 +509,7 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
 })
 
 ROWS: tuple[Row, ...] = (
-    # code: 256
+    # code: 257
     Row("ABSORPTION_ESTIMATE_UNAVAILABLE", "code"),
     Row("ABSORPTION_MU_R_OUT_OF_RANGE", "code"),
     Row("ABSORPTION_PLATE_THICKNESS", "code"),
@@ -532,7 +565,10 @@ ROWS: tuple[Row, ...] = (
     Row("EXTRA_PEAK_ON_REFLECTION", "code"),
     Row("FLAT_DIRECTION", "code"),
     Row("FLAT_DIRECTION_OMITTED", "code"),
-    Row("FLOOR_HIT", "code"),
+    Row("FLOOR_HIT", "code", response="warning",
+        responds=("quote an upper limit, not a value, for the parameter on its floor, and "
+                  "check whatever trades against it before quoting an ADP, an occupancy or "
+                  "a scale")),
     Row("FROZEN_COMPILE_STALE", "code"),
     Row("FULLPROF_MAGNETIC_PHASE_OMITTED", "code"),
     Row("FULLPROF_MAGNETIC_PHASE_READ", "code"),
@@ -687,7 +723,11 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
-    Row("PATTERN_UNDERSAMPLED", "code"),
+    Row("PATTERN_UNDERSAMPLED", "code", response="warning",
+        responds=("read an intensity- or width-derived number (a fraction, an ADP, a size, "
+                  "a strain, an instrument width) as less certain than its esd, and "
+                  "re-collect at a step near FWHM/5 where it must be quotable"),
+        scope=("qpa", "structure", "microstructure", "calibration", "magnetic")),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),
     Row("PAWLEY_OFF_DATA_RIDGED", "code"),
@@ -733,7 +773,9 @@ ROWS: tuple[Row, ...] = (
     Row("RECIPE_SCHEMA_UNTESTED", "code"),
     Row("RECIPE_ZERO_WEIGHT_EXCLUDED", "code"),
     Row("RESOLUTION_NOT_POSITIVE", "code"),
-    Row("RESOLUTION_UNCONSTRAINED", "code"),
+    Row("RESOLUTION_UNCONSTRAINED", "code", response="warning",
+        responds=("do not quote a width, a crystallite size or a strain from this fit; "
+                  "calibrate the instrument on a standard first")),
     Row("RESTRAINT_TENSION", "code"),
     Row("RIGID_BODY_MISFIT", "code"),
     Row("RIGID_BODY_UNSUPPORTED", "code"),
@@ -753,8 +795,13 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_UNRECOVERED", "code"),
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code"),
-    Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code"),
+    Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code", response="warning",
+        responds=("check the site's multiplicity against the source before quoting a weight "
+                  "fraction, a density or a site's occupancy from this fit")),
     Row("SITE_DOFS_RENUMBERED", "code", tier=1, ambiguity=1,
+        response="warning",
+        responds=("check the fit's held and tied coordinates against the names the message gives "
+                  "before reading a refined coordinate or its esd"),
         evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
                   "between two structures (a coordinate a fit or set_values left within "
                   "reach of a special position, with no merge) and a hold, user tie or free "
@@ -763,6 +810,9 @@ ROWS: tuple[Row, ...] = (
                   "DOF is the nullspace of the site group, so the map is derived, never "
                   "chosen (#1014, round 5)")),
     Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,
+        response="warning",
+        responds=("decide which reading of the site the file meant before quoting a weight "
+                  "fraction, a density or the site's occupancy from this fit"),
         evidence=("arithmetic: fires exactly when a boundary, reader or model side, finds a "
                   "site within TWIN_COORD_TOL of its special position and the occupancy at "
                   "that position, summed over the atoms sharing it and each x (images before "
@@ -774,6 +824,9 @@ ROWS: tuple[Row, ...] = (
                   "(maintainer's ruling, round 5): GSAS-II drops an image only within 2e-4 "
                   "fractional, FullProf and BGMN not at all")),
     Row("SITE_TWINS_MERGED", "code", tier=1, ambiguity=1,
+        response="warning",
+        responds=("check the merged site's multiplicity and occupancy against the source before "
+                  "quoting a weight fraction, a density or the site's occupancy from this fit"),
         evidence=("arithmetic: fires when a site within TWIN_COORD_TOL of its special "
                   "position was moved onto it, and under the one gate at every boundary "
                   "(reader or model side) only where the occupancy at the position, summed "
@@ -815,21 +868,65 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 19
+    # action: 23
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
                   "FullProf and TOPAS hold nothing by default, TOPAS's Remove_Phase is opt-in "
-                  "(Tech Ref V9 § 20.19); the collapse restore also appends here (B14 owes it a "
-                  "field)"),
+                  "(Tech Ref V9 § 20.19); the collapse restore also appends here, and "
+                  "StageResult.collapsed says which (B14); WP-1958 (#954, decided "
+                  "2026-10-16): with no line in range the scale is held too, its column "
+                  "zero at every value (tier 1), and TRF walked bcc Fe's to 164.7 on "
+                  "WP-1534's fixture"),
         grounds=("No competent refiner lets a phase the data cannot see refine its cell, and the "
                  "hold touches only what the data cannot determine; on by default, which no "
-                 "program does (B1, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "program does (B1, ruled 2026-10-19). The lineless branch, which holds the "
+                 "scale, is tier-1 arithmetic (a zero column) inside a row tiered on its "
+                 "contested part."),
+        approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.scale_b_held", "action", tier=1, ambiguity=1,
         evidence=("numerical floor: under 2*sqrt(PINV_RCOND) the covariance's pinv cut cannot see "
                   "scale and B as two directions (WP-1534 derivation); measured cases read 1e-12 or"
                   " 0.19-0.40")),
+    Row("rietx.schemas.results.StageResult.width_twins_held", "action", tier=3, ambiguity=1,
+        evidence=("physics: a pattern sees each angular term of the widths as one total "
+                  "(CompiledModel._width_block): U with gauss_strain in tan^2, X with lor_size in "
+                  "1/cos, Y with lor_strain in tan; gauss_size (1/cos^2 = 1 + tan^2) is flat with "
+                  "U and W together and holding U alone removes it, so W, the constant width, is "
+                  "never held (holding W too moved three CPD acceptance answers; the generality "
+                  "judge, WP-2002 9th session); "
+                  "refine._width_twin_flats holds the instrument "
+                  "terms on the null space of those totals read off C, so one seen phase with its "
+                  "specimen width held holds nothing; a free Stephens block is Y's twin by rule "
+                  "(flat exactly at its isotropic seed); the test reads no bound "
+                  "(tests/test_width_twin_hold.py). Unheld and unfloored, CPD corundum walked y to "
+                  "-180 and lor_strain to +180.04 with their sum unchanged, then every residual "
+                  "went NaN (WP-2002 8th session). Practice (docs/practice.md § Instrument and "
+                  "specimen widths refined together): FullProf's resolution file, BGMN's ray "
+                  "tracing and RIETAN-FP's advised protocol fix the instrument by design; GSAS-II "
+                  "5.8.4 keeps both free and takes an SVD step that does not move along the flat "
+                  "direction, printing a singularity warning (GSASIImath.py:280-289, checked by "
+                  "the judge); none holds a twin automatically. Real two-phase family, 11-BM LaB6 "
+                  "+ cBN: once two exactly flat directions, now LaB6's widths on their floor and "
+                  "cBN lor_strain 0.0354(35), every esd finite; LaB6 16.779(194) wt % against "
+                  "16.850 before, TOPAS 17.907-17.950. The costs: the specimen width ends on its 0 "
+                  "floor in three of four real fits (brucite, corundum, LaB6 + cBN), so the held "
+                  "instrument value binds, Rwp 0.186391 -> 0.186423 on brucite and 0.179951 -> "
+                  "0.181008 with a Stephens block; a plan fitting X and Y on the specimen first "
+                  "keeps that stage's start-dependent split, 15.68 plain esd on cpd-1a fluorite's "
+                  "lor_strain between Biso starts (strict xfail in "
+                  "tests/test_staged_start_invariance.py). Measured and not adopted: moving the "
+                  "hold to a specimen width on its floor recovers the single-phase Rwp exactly "
+                  "but on cpd-1a takes Y to -0.18 and zincite's lor_strain to 0.26, still "
+                  "start-dependent (WP-2002 9th session). No shipped plan frees a twin pair"),
+        grounds=("Stopping the walk has no dissenter; holding the instrument side is what the "
+                 "programs that separate the two do by design, and no program does it by default "
+                 "for a caller who freed both, so tier 3 (the generality judge, 2026-10-23). "
+                 "Approved as option (b) of the width-floor ruling with the cpd-1a cost before the "
+                 "maintainer (decision 1(a), 2026-10-23); where the held value was not taken from "
+                 "a standard, which side carries the width is the caller's, and the record names "
+                 "the pair."),
+        approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.released", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: a held phase reading >= 3 sigma at the answer is released and the "
                   "stage re-solved once; one that fell under it is restored to its stage start and "
@@ -845,6 +942,19 @@ ROWS: tuple[Row, ...] = (
         grounds=("A refiner whose cell ran away puts it back and fixes it for the stage, through "
                  "the restore, hold and second solve the collapse already takes (B1); ordinary "
                  "fits do not change (B8, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.results.StageResult.collapsed", "action", tier=3, ambiguity=1,
+        evidence=("WP-1301/1523: a phase visible at stage start that fell under 3 sigma at the "
+                  "answer, or a moment direction gone flat, is restored to its stage start, held "
+                  "and the stage re-solved once; on the ramp's sub-onset patterns the CaF2 cell "
+                  "walked to 1.73-20.34 A unheld and -6.49 A under the start-only hold, and the "
+                  "restore leaves it exactly at its stage-start value "
+                  "(tests/test_held_phase.py collapsed_fit); until B14 the restore joined "
+                  "StageResult.held unmarked"),
+        grounds=("A cell chased into noise is no measurement, so a refiner puts it back where "
+                 "the data last constrained it; kept with the hold and the release (B1, ruled "
+                 "2026-10-19), the moment direction's with the moment actions (B2, ruled "
+                 "2026-10-19), and given its own field by B14's option 3 (ruled 2026-10-20)."),
         approved="2026-10-19"),
     Row("rietx.schemas.results.StageResult.moment_flat_axes", "action", tier=1, ambiguity=1,
         evidence=("physics: Shirane (1959) Acta Cryst. 12, 282: a powder cannot see a cubic "
@@ -862,7 +972,22 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.results.StageResult.blocked_by_hold", "action", tier="caller", ambiguity=1,
         evidence=("opt-in: Refinement.hold(), nothing held by default; the caller's hold outranks a"
                   " plan glob (WP-1435)")),
-    Row("rietx.schemas.results.StageResult.seeded", "action"),
+    Row("rietx.schemas.results.StageResult.seeded", "action", tier=3, ambiguity=1,
+        evidence=("the one shipped seed is _ROUGHNESS_STAGE's 0.3, recorded per model. Suortti's "
+                  "b: start-invariant from 0.3 and 0 on five lab patterns from three families "
+                  "(NIST LaB6, GSAS-II FAP, CPD corundum, fluorite, zincite), every Biso, scale "
+                  "and b within 2.7e-3 of the smaller esd (tests/test_seed_invariance.py). "
+                  "Pitschke's c: not start-invariant, from 0 CPD zincite lands in the turned-over "
+                  "regime (scale x2.1, ROUGHNESS_OUTSIDE_REGIME) and corundum's Biso moves 0.26 "
+                  "esd; no program supplies a Pitschke start (FullProf's examples start at "
+                  "1.2-1.5; docs/practice.md). Since B14 the field also records "
+                  "Stage.strain_seed's Stephens rows, whose start is STRAIN_SEED_PPM's row"),
+        grounds=("The seeding action is the stage's, recorded in the field; Suortti's start is "
+                 "answer-invariant and Pitschke's is kept at 0.3 because from 0.3 the fit reaches "
+                 "the switched-off branch inside the model's valid range, while from 0 the lower "
+                 "chi2 is one the model flags as invalid (the sixth round's Q3, ruled (c) "
+                 "2026-10-21: one number in the code, the two models recorded apart)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.results.StageResult.moment_angle_tests", "action", tier=3, ambiguity=1,
         evidence=("WP-1929: two-site Pnma moduli 0.0015/0.0011 mu_B with the angle columns out, "
                   "0.031/0.159 in, 0.0035-0.47 as ftol moved; LaMnO3 BT-1: an angle 5.2 deg off "
@@ -879,7 +1004,36 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.results.StageResult.n_degenerate_cell_probes", "action", tier=1, ambiguity=1,
         evidence=("arithmetic: a cell of zero or negative volume has no metric, so the residual is "
                   "undefined there and the step must be rejected (issue #283)")),
-    Row("rietx.schemas.results.StageResult.ftol", "action"),
+    Row("rietx.schemas.results.StageResult.n_lapack_fallbacks", "action", tier=1, ambiguity=1,
+        evidence=("arithmetic: a decomposition the divide-and-conquer LAPACK driver did not "
+                  "converge on is repeated with its QR-iteration twin, the same decomposition by "
+                  "another route (gesdd/gesvd, syevd/syev, gelsd/gelss; Anderson et al. 1999, "
+                  "LAPACK Users' Guide; optimize.lapack); a converging call is numpy's own, bit "
+                  "for bit.  On CPD brucite under TRF, macOS Accelerate's gesdd failed 20 of 20 "
+                  "on a 7279 x 28 step matrix (condition 7.9e10) that OpenBLAS's gesdd "
+                  "decomposed with singular values equal to gesvd's to the last bit; the fit "
+                  "lands at Rwp 0.1787 (WP-2002, 2026-10-22).  Practice: TenPy's svd_robust, "
+                  "the same retry; MATLAB and Octave call gesvd by default"),
+        approved="2026-10-22"),
+    Row("rietx.schemas.results.StageResult.ftol", "action", tier=3, ambiguity=1,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
+    Row("rietx.schemas.results.StageResult.window_area_tol", "action", tier=2, ambiguity=1,
+        evidence=("the record of the closing stage PlanSpec:closing_window_tol runs (that "
+                  "row's evidence: BGMN's closing run by default), written by both stage "
+                  "runners on every stage, None on a declared one"),
+        grounds=("Records the action rather than taking one: a reader rebuilding the model "
+                 "from the result passes it to compile_model (the sixth round's Q1 and Q2, "
+                 "ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.sequential.SeriesEntry.rung", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.reseeded", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.rwp_fence", "action"),
@@ -889,6 +1043,20 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in: Geometry.mu_r/mu_t or capillary_radius_mm/thickness_mm, default None "
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "
                   "Acta Cryst. A26, 682 (docstring)")),
+    Row("rietx.schemas.results.RefinementResult.qpa", "action", tier=1, ambiguity=1,
+        evidence=("arithmetic: a phase's scale is not measured where its column is zero at the "
+                  "answer (no reflection in the fitted range), or where the last stage held it "
+                  "(zero when that stage compiled; a refined zero shift can bring a line in by "
+                  "the answer), so the value is the one handed in "
+                  "and a fraction read off it is that start (WP-1958, #954, decided 2026-10-16): "
+                  "such a phase has no fraction (weight_fraction None, unmeasured_phases names it) and "
+                  "the others are normalised over the phases seen, absent rather than zero "
+                  "(WP-1072, WP-1110 item 14); before, TRF read 99.99 wt% iron off a walked "
+                  "scale and LM 0.61 wt%, the start; Brindley is skipped, its mean mu needing "
+                  "every fraction; the set is what the last stage held plus the answer's own "
+                  "no-line count, so a line a zero shift moved into range cannot quote the "
+                  "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
+                  "histogram that has lines counts as measured in every histogram (item 2)")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "
@@ -900,7 +1068,7 @@ ROWS: tuple[Row, ...] = (
                  "textbook esd reported beside it for comparison with other codes (B4, ruled "
                  "2026-10-19)."),
         approved="2026-10-19"),
-    # constant: 546
+    # constant: 612
     Row("rietx.background.auto.AIR_SCATTER_TRIGGER", "constant", tier=3, value=0.3,
         evidence=("v0.2: 0.3 sits between 0.85 (synthetic air scatter) and 1e-4 (flat), "
                   "synthetics only; WP-1130 F7: a planted 900/(2θ) term reads 0.069, and #636: "
@@ -976,6 +1144,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.background.auto._MIN_FIT_CHANNELS", "constant", tier=1, value=10,
         evidence=("numerical floor: mirrors compile_model's refusal of a fit on under 10 channels "
                   "(model/forward.py:3661); decides only whether the verb raises")),
+    Row("rietx.background.diagnostics.AIR_GAIN_CHEBYSHEV_TERMS", "constant", tier=3, value=4,
+        evidence=("v0.2's nested-model test, a cubic and then the cubic plus a 1/(2theta) "
+                  "column; WP-1130 F7: a cubic already absorbs 1/x over 60 deg, so a planted "
+                  "900/(2theta) term reads 0.069 against AIR_SCATTER_TRIGGER's 0.3; an inline "
+                  "literal in diagnose until the B14 lift"),
+        grounds=("The air-scatter score's own parameter, behind AIR_SCATTER_TRIGGER's pick, which "
+                 "is on the default path (B12's ruling) and travels with its score on "
+                 "BackgroundChoice.air_scatter_gain (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.background.diagnostics.COVERAGE_INFLATION_THRESHOLD", "constant", value=1.5),
     Row("rietx.background.diagnostics.COVERAGE_SMOOTH_DEG", "constant", value=1.0),
     Row("rietx.background.diagnostics.CUTOFF_FRACTION", "constant", value=0.25),
@@ -987,6 +1164,25 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.background.diagnostics.DEAD_LEVEL_FRACTION", "constant", value=0.1),
     Row("rietx.background.diagnostics.DEAD_LEVEL_WINDOW_DEG", "constant", value=3.0),
     Row("rietx.background.diagnostics.DEAD_WEIGHT_RATIO_MIN", "constant", value=100.0),
+    Row("rietx.background.diagnostics.ENVELOPE_QUANTILE", "constant", tier=3, value=10.0,
+        evidence=("v0.2: low enough to land under the peaks; the 1.28 sigma downward bias at "
+                  "10 % (norm.ppf(0.10) = -1.2816, checked) is removed by "
+                  "indexing.peaks._debiased_envelope; read by every diagnose() score and on the "
+                  "indexing default path; background_envelope's signature default until the "
+                  "B14 lift"),
+        grounds=("Read on the default path through diagnose(), which auto_background calls, "
+                 "and through the indexing peak picker; kept at its v0.2 value (B12, ruled "
+                 "2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.diagnostics.ENVELOPE_WINDOW_DEG", "constant", tier=3, value=3.0,
+        evidence=("v0.2: chosen so the low quantile lands on background channels; WP-1018 "
+                  "reused it for peak picking; WP-1028 repaired its edges on 7 round-robin "
+                  "patterns; also envelope_measured_span's window, and DEAD_LEVEL_WINDOW_DEG is "
+                  "it by reference; background_envelope's signature default until the B14 lift"),
+        grounds=("Read on the default path through diagnose(), which auto_background calls, "
+                 "and through the indexing peak picker; kept at its v0.2 value (B12, ruled "
+                 "2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.background.diagnostics.GHOST_ESD_MAX_DEG", "constant", value=0.15),
     Row("rietx.background.diagnostics.GHOST_MATCH_K", "constant", value=3.0),
     Row("rietx.background.diagnostics.GHOST_MIN_PARENTS", "constant", value=5),
@@ -1013,6 +1209,48 @@ ROWS: tuple[Row, ...] = (
                   "nominal range; beyond it the end value would be invented counts")),
     Row("rietx.background.models.FOUR_LN2_NEG", "constant", tier=1, value=-2.772588722239781,
         evidence="arithmetic: exp[-4 ln2 (x/Gamma)^2] has half height at x = Gamma/2"),
+    Row("rietx.background.select.ARPLS_DW_FLOOR", "constant", tier=3, value=1.2,
+        evidence=("v0.2: the largest lambda whose masked residuals look white; no source for "
+                  "1.2, no measurement recorded; feeds only PatternDiagnostics.baseline_lambda, "
+                  "which nothing in src reads; select_arpls_lambda's signature default until "
+                  "the B14 lift"),
+        grounds=("Reached through diagnose(), which auto_background calls on the default path; "
+                 "its answer is reported on PatternDiagnostics.baseline_lambda and read by "
+                 "nothing (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.select.CHEBYSHEV_MAX_ORDER", "constant", tier=3, value=16,
+        evidence=("WP-1931/#833: 16 returned as the choice on 11-BM Si640c, LaB6 and FAP.XRA "
+                  "while BIC was still falling; harmless there (bias <= 0.7 % of a background "
+                  "<= 0.4 % of the peak); reported as BACKGROUND_ORDER_AT_CAP (info); "
+                  "select_chebyshev_order's signature default until the B14 lift"),
+        grounds=("Caps auto_background(kind='chebyshev')'s order scan, whose whole scan travels "
+                 "on BackgroundChoice.selection, and a scan ending at the cap says so (B12, "
+                 "ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.select.DW_STOP", "constant", tier=3, value=1.8,
+        evidence=("the statistic is tier 2 (GSAS-II 5.8.4 GSASIIstrMath.py:4995 reports the same "
+                  "d, checked; Durbin & Watson 1950, Hill & Flack 1987, docstring); the 1.8 "
+                  "threshold has no source; select_chebyshev_order's signature default until "
+                  "the B14 lift"),
+        grounds=("Stops auto_background(kind='chebyshev')'s order scan, which travels with "
+                 "stopped_by_whiteness on BackgroundChoice.selection (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.select.PEAK_MASK_BASELINE_LAMBDA", "constant", tier=3, value=10000000.0,
+        evidence=("no source; arpls's docstring calls 1e6-1e9 typical for ~1e4 points; the "
+                  "signature default of peak_mask and select_chebyshev_order until the B14 "
+                  "lift; arpls's own lam default and viz.compare's literal are the same 1e7 "
+                  "and are not tied to it"),
+        grounds=("Sets which channels the Chebyshev order scan scores under "
+                 "auto_background(kind='chebyshev') (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.background.select.PEAK_MASK_SIGMA", "constant", tier=3, value=3.0,
+        evidence=("no source for 3 sigma; per Schwarz 1978 the masked BIC is tier 2 as a "
+                  "statistic; inline in peak_mask until the B14 lift; diagnose's peak_fraction "
+                  "census over the rolling envelope and estimators.auto_lambda's 3 sigma "
+                  "overshoot test (caller) are other rules and keep their literals"),
+        grounds=("Masks the channels the Chebyshev order scan and the arPLS lambda scan score, "
+                 "both reached from auto_background (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.crystallography.atomic_volume.TABLE_TEMPERATURE", "constant", value=298.0),
     Row("rietx.crystallography.atomic_volume.THERMAL_EXPANSION", "constant", value=9.5e-05),
     Row("rietx.crystallography.atomic_volume.THERMAL_EXPANSION_ESD", "constant", value=3e-06),
@@ -1021,6 +1259,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.attenuation._HC_EV_ANGSTROM", "constant", value=12398.4198),
     Row("rietx.crystallography.attenuation._NA_BARN", "constant", value=0.602214076),
     Row("rietx.crystallography.cif.CIF_ANGLE_CORRECT_MAX_DEG", "constant", value=0.1),
+    Row("rietx.crystallography.cif.CIF_PRINTED_ROUNDING", "constant", tier=1,
+        evidence="arithmetic: a number printed to d decimals by rounding to the nearest "
+                 "digit stands for every value within half its last digit, ties included "
+                 "(computed exactly in decimal, cif._within_printed_rounding); a snap "
+                 "inside it is the file's rounding, one past it is still reported "
+                 "(tests/test_cif_stated_columns.py, WP-2037)",
+        value=0.5),
     Row("rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL", "constant", value=0.001),
     Row("rietx.crystallography.cif.DUPLICATE_U_TOLERANCE", "constant", value=0.0002),
     Row("rietx.crystallography.cif.OCCUPANCY_TOLERANCE", "constant", value=0.01),
@@ -1098,6 +1343,42 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.rotation._C_SERIES", "constant", value=(0.16666666666666666, -0.008333333333333333, 0.0001984126984126984, -2.7557319223985893e-06, 2.505210838544172e-08, -1.6059043836821613e-10)),
     Row("rietx.crystallography.rotation._LOG_SERIES_NORM", "constant", value=1e-08),
     Row("rietx.crystallography.satellites._ORDERS", "constant", value=(1, -1)),
+    Row("rietx.crystallography.site_classes.GRID", "constant", tier=1,
+        evidence="Arithmetic: every translation of a gemmi space-group operation is a "
+                 "multiple of 1/Op.DEN = 1/24, so the affine stabilisers are exact on the "
+                 "1/24 grid, and an off-grid translation is refused by name "
+                 "(SITE_CLASSES_GRID). Special positions can still fall off it (-x+1/24 "
+                 "fixes x = 1/48; a 3-fold -y+t,x-y,z fixes (2t/3,t/3)), so an operator "
+                 "list is refused by the same name when (a) an operation that has fixed "
+                 "points, decided exactly over the integers, fixes none on the 1/24 grid "
+                 "(test_an_operator_list_with_a_special_position_off_the_grid_is_refused, "
+                 "test_a_three_fold_axis_off_the_grid_is_refused_whatever_the_translation), "
+                 "or (b) a 1/48 scan finds a stabiliser the 1/24 grid missed. (a) is exact per "
+                 "operation; (b) is a grid, kept for a point only several operations share. "
+                 "Completeness is checked on all 564 gemmi settings "
+                 "against spglib's Wyckoff letters (test_every_setting_matches_spglib).",
+        value=24),
+    Row("rietx.crystallography.site_classes.MAX_SITE_ASSIGNMENTS", "constant", tier=3,
+        evidence="refuses with the exact count and never truncates "
+                 "(SITE_ASSIGNMENTS_EXCEED_CAP); max_assignments= overrides; largest case "
+                 "seen 4 000 on our own solve kits",
+        grounds="The cap is rietx's own choice: five times the largest case seen on "
+                "one family. A correct large cell can exceed it (a 315-atom one-species "
+                "cell in R -3 m does); the refusal carries the exact count, nothing is "
+                "truncated, and the caller who wants the list passes max_assignments=.",
+        approved="2026-10-21",
+        value=20000),
+    Row("rietx.crystallography.site_classes._CACHE_SIZE", "constant", tier="invariant",
+        evidence="The cache only skips a rederivation of a group's classes; "
+                 "test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes holds a "
+                 "one-entry cache to the same classes, to the bit.",
+        value=64),
+    Row("rietx.crystallography.site_classes._CHUNK", "constant", tier="invariant",
+        evidence="A memory bound that only partitions the grid scan; "
+                 "test_the_scan_chunk_and_the_cache_size_do_not_change_the_classes holds a "
+                 "7-point chunk to the same classes, to the bit, and fails when the scan "
+                 "stops after one chunk.",
+        value=1728),
     Row("rietx.crystallography.spherical_harmonics._TOL", "constant", value=1e-09),
     Row("rietx.crystallography.stephens._DEG_PER_RAD", "constant", value=57.29577951308232),
     Row("rietx.crystallography.superspace.generation.N_BRAVAIS_CLASSES_D1", "constant", value=24),
@@ -1286,7 +1567,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.io.projects.registry.INP_SNIFF_BYTES", "constant", value=65536),
     Row("rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM", "constant", value=16),
     Row("rietx.io.projects.topas_input.DEFAULT_RADIUS_MM", "constant", value=217.5),
-    Row("rietx.io.projects.topas_input._SABINE_LAUE", "constant", value=(-0.5, 0.25, -0.10416667, 0.036458333, -0.0109375, 0.0028497409)),
+    Row("rietx.io.projects.topas_input._BESSEL_SWITCH", "constant", tier=1, value=3.75,
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I0_LARGE", "constant", tier=1, value=(0.39894228, 0.01328592, 0.00225319, -0.00157565, 0.00916281, -0.02057706, 0.02635537, -0.01647633, 0.00392377),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I0_SMALL", "constant", tier=1, value=(1.0, 3.5156229, 3.0899424, 1.2067492, 0.2659732, 0.0360768, 0.0045813),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I1_LARGE", "constant", tier=1, value=(0.39894228, -0.03988024, -0.00362018, 0.00163801, -0.01031555, 0.02282967, -0.02895312, 0.01787654, -0.00420059),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I1_SMALL", "constant", tier=1, value=(0.5, 0.87890594, 0.51498869, 0.15084934, 0.02658733, 0.00301532, 0.00032411),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._LAUE_SPELLING_REL", "constant", tier="invariant", value=3.6e-08,
+        evidence=("a measured bound quoted in the file's head note; it decides nothing (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
     Row("rietx.io.projects.topas_input._SABINE_XPOL", "constant", value=0.079411),
     Row("rietx.io.projects.topas_input._TCH_ETA", "constant", value=(1.36603, -0.47719, 0.11116)),
     Row("rietx.io.projects.topas_input._TCH_GAMMA", "constant", value=(2.69269, 2.42843, 4.47163, 0.07842)),
@@ -1319,23 +1611,73 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.compiled.SPELL_FORWARD", "constant", tier=1, value=0,
         evidence=("arithmetic: enum naming one of two associations of one expression; "
                   "test_the_forward_and_the_bases_keep_their_separate_spellings")),
+    Row("rietx.model.compiled._NS_PER_CONTACT", "constant", tier="invariant", value=1.0,
+        evidence=("A work estimate that only decides whether a call is split across the "
+                  "pool; reflections and replicas are disjoint rows, and "
+                  "tests/test_solve_kernels.py::test_a_split_call_lands_on_the_inline_bits "
+                  "holds a four-worker split bit-identical to the inline call for all three "
+                  "solve kernels.")),
+    Row("rietx.model.compiled._NS_PER_IMAGE", "constant", tier="invariant", value=7.5,
+        evidence=("A work estimate that only decides whether a call is split across the "
+                  "pool; reflections and replicas are disjoint rows, and "
+                  "tests/test_solve_kernels.py::test_a_split_call_lands_on_the_inline_bits "
+                  "holds a four-worker split bit-identical to the inline call for all three "
+                  "solve kernels.")),
     Row("rietx.model.compiled._THREAD_MIN_NS", "constant", tier="invariant", value=100000.0,
         evidence=("answer-invariant: rows are disjoint and each computed whole in one chunk; "
                   "tests/test_compiled_kernels.py::test_a_split_call_lands_on_the_inline_bits")),
-    Row("rietx.model.extinction._PI2", "constant", tier=1, value=0.7978845608028654,
-        evidence="arithmetic: sqrt(2/pi)"),
+    Row("rietx.model.extinction._ARG_SHIFT", "constant", tier="invariant",
+        value=1.1754943508222875e-38,
+        evidence=("answer-invariant: x + 2^-126 == x in fp64 for x >= 2^-72, and below that E_L "
+                  "rounds to 1 either way, so no selected value moves; it only sets the slope "
+                  "at x = 0 to -1/2, where numpy would read 0/0 and jax and torch +1/2 (WP-2044); "
+                  "tests/test_extinction.py::test_laue_shift_never_moves_a_value_that_is_actually_selected")),
     Row("rietx.model.extinction._XPOL", "constant", tier=1, value=0.079411,
         evidence=("physics: (r_e x 1e4 A/um)^2 with r_e = 2.818 fm is 0.079411; GSAS-II 5.8.4 "
                   "GSASIIstrMath.GetPwdrExt uses the same value (checked)")),
     Row("rietx.model.forward.AXIAL_SIZING_FLOOR", "constant", tier=3, value=0.02,
-        evidence="window sizing floor; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+        evidence=("window and node sizing floor for S/L, H/L freed from zero; fails: sized at 0.02, "
+                  "a stage reaching 0.05/0.05 leaves 0.27 of the peak maximum (15 nodes; bar 7.2e-4) "
+                  "and drops up to 19.5 % of a peak area (tests/test_lab_instrument.py, the axial "
+                  "floor block); 0.05 passes at 1.25-1.8x fit time, mostly because the floor also "
+                  "applies to every positive ratio below it; the error is transient, since the next "
+                  "stage recompiles, and the answers of the floors 0.02 and 0.05 differ by 0.229, "
+                  "0.516 and 0.380 plain esd on LaB6, FAP and cpd-1a without the closing stage and "
+                  "by 0.007, 0.002 and 0.138 behind it (tests/test_staged_start_invariance.py; "
+                  "cpd-1a's corundum c a strict xfail; WP-2002, 2026-10-21)"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19).  The seventh round's Q2 (ruled "
+                 "2026-10-21) left it alone if it passed behind the closing stage; it passes on "
+                 "LaB6 and FAP and misses on cpd-1a, so it stays here; the eighth round (ruled "
+                 "2026-10-22) keeps it at tier 3 for WP-2017's second pass over a refine-from-zero "
+                 "floor of its own."),
+        approved="2026-10-22"),
     Row("rietx.model.forward.MAGNETIC_SIZING_FLOOR", "constant", tier=3, value=0.1,
-        evidence="window sizing floor; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("invariant behind the closing stage only: a magnetic width freed from "
+                  "zero is drawn on windows sized at the floor, which lose 3.2 and 4.1 % of a "
+                  "magnetic peak at the planted 0.22 and 0.30 deg against 2 %, and the closing "
+                  "stage recompiles at the width reached; the preset's answer with the floor "
+                  "shipped and at the planted width agrees to 0.000 plain esd (0.031 before the "
+                  "closing stage), on the synthetic MnF2 round trip, one family "
+                  "(tests/test_magnetic_width.py); the magnetic default solve's ranked trials (its "
+                  "winner runs one on a solved verdict since 2026-10-22; the default solve frees "
+                  "no magnetic width), a plan with closing_window_tol=None and a "
+                  "stage run by hand have none, and a plan "
+                  "ending on the stage that frees the width keeps the clipping: 0.07, 0.17 and "
+                  "0.57 esd on the moment (WP-2002, the seventh round's Q2, 2026-10-21)"),
+        grounds=("A numerical setting whose domain test passes behind the closing stage and "
+                 "fails on the paths without one; tier 3 under B10 option 2 (ruled 2026-10-19), "
+                 "the value left alone under the seventh round's Q2 (ruled 2026-10-21).  It was "
+                 "first recorded invariant, a class with no conditional form (the generality "
+                 "judge, 2026-10-22)."),
+        approved="2026-10-21"),
+    Row("rietx.model.forward.PAWLEY_OFF_DATA_SCALE_FLOOR", "constant", tier=3, value=1.0,
+        evidence=("WP-1459 (outside PR #453): the off-data ridge is as wide as the phase's "
+                  "largest on-data intensity; the floor of 1 has no stated source and binds "
+                  "only where that intensity is under 1 or absent; inline in "
+                  "build_pawley_restraint until the B14 lift"),
+        grounds=("Opt-in Pawley mode: acts only on reflections outside the data, whose "
+                 "intensity nothing constrains; kept at 1.0 (B12, ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC", "constant", tier=3, value=0.5,
         evidence=("WP-0306: 'the point past which least squares cannot apportion intensity'; LaB6 "
@@ -1352,27 +1694,61 @@ ROWS: tuple[Row, ...] = (
                  "constrain, and the group sum stays free; kept at 1.0 (B12, ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.model.forward.REFLECTION_MARGIN_DEG", "constant", tier=3, value=0.5,
-        evidence=("reflection-list margin past the scan; a test bounding the error over the claimed "
-                  "domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+        evidence=("reflection-list margin past the scan; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC: fails on FAP (0.124 sigma at "
+                  "129.98 deg, 0.016 esd) and cpd-1a (0.119 sigma, 0.103 esd on fluorite lor_strain), "
+                  "against a bar of 0.1 sigma a point (tests/test_window_domain.py); 5 deg is "
+                  "bit-identical to 20 deg on both, and the margin needed grows with the window: "
+                  "at the closing stage's 1e-3 windows 0.186 and 0.124 sigma at the last "
+                  "points, the answers moving 0.026 and 0.043 esd (WP-2002, 2026-10-21); generating "
+                  "out to the widest edge window met 0.1 sigma (0.027 FAP, 0.022 cpd-1a) at 1.3x "
+                  "FAP's closing stage, but its tail-only reflections lifted the scale-B separation "
+                  "over its floor on the synthetic narrow scan of tests/test_scale_b_ridge.py and the "
+                  "closing stage freed a ridge (corundum 72.5 to "
+                  "50.8 wt%, true 72.7), so it was reverted"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh "
+                 "round's Q2): an edge rule at CLOSING_WINDOW_TOL was built and reverted (evidence), "
+                 "so this margin serves every compile; the eighth round (ruled 2026-10-22) keeps "
+                 "it at 0.5 deg, the 0.03-0.04 esd it costs recorded, for WP-2017's second pass."),
+        approved="2026-10-22"),
     Row("rietx.model.forward.WINDOW_AREA_TOL", "constant", tier=3, value=0.02,
-        evidence=("window area tolerance; single case at tests/test_extra_components.py:1426; a test "
-                  "bounding the error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+        evidence=("window area tolerance; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC against 5e-5 (converged): fails on all four, "
+                  "max |dy|/sigma 0.71-2.15 at fixed parameters against a bar of 0.1, a converged "
+                  "refit moving non-background rows 0.17-0.97 esd (cpd-1a zincite scale, FAP "
+                  "lor_size) and background 2.1-5.1 esd (tests/test_window_domain.py); 1e-3 passes "
+                  "at 1.2-3.5x fit time. Against: FAP's chi2 is 110 higher with converged tails; "
+                  "GSAS-II 5.8.4 drops about 0.6 % of a pure Lorentzian (50 FWHM below, 75 "
+                  "above, getWidthsCW)"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19).  Ruled on 2026-10-21 (the sixth "
+                 "round's Q1 and Q2): it stays for the declared stages, which only steer, and the "
+                 "answer is computed in a closing stage at CLOSING_WINDOW_TOL, as is every "
+                 "evaluation outside a fit and a stage run by hand (the seventh round's Q1).  Its "
+                 "error still reaches a number a caller reads from a plan with "
+                 "closing_window_tol=None, on purpose the magnetic default solve's ranking (every "
+                 "ΔBIC, and the other trials' and the nuclear reference's Rwp, GoF and "
+                 "R_mag, so that all compare at one precision; on a solved verdict the "
+                 "winner's moments and statistics come from a closing stage, ruled "
+                 "2026-10-22), and "
+                 "SolveCost.from_pawley, and on purpose the FitReport's shapes, which "
+                 "report._reading_models compiles at this fraction (the eighth round's item 1, "
+                 "ruled 2026-10-22)."),
+        approved="2026-10-22"),
     Row("rietx.model.forward.WINDOW_MIN_DEG", "constant", tier=3, value=0.3,
-        evidence="minimum window half-width; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("minimum window half-width, the room a peak has to move within one stage; "
+                  "measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC from starts near "
+                  "each answer and a zero 0.1 deg off: largest move 0.21 deg (1.4x margin, "
+                  "tests/test_window_domain.py); untested from a cell off its answer, where 0.3 % "
+                  "moves a 120 deg peak about 0.6 deg, and a peak leaving its window is silent"),
+        grounds=("A numerical setting whose domain test covers less than the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until that is measured."),
         approved="2026-10-19"),
-    Row("rietx.model.forward._BASES_CHUNK_ROWS", "constant", tier=3, value=128,
-        evidence=("chunking of the derivative bases; bit-identity measured once in a scratch probe, no "
-                  "test; an identity test is owed"),
-        grounds=("An internal split that should leave the answer bit-identical; tier 3 until a test "
-                 "asserts the identity, then invariant (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.model.forward._BASES_CHUNK_ROWS", "constant", tier="invariant", value=128,
+        evidence=("chunking of the derivative bases; bit-identical at 1, 7, 128 and 4096 rows on a "
+                  "298-row node bucket, every derivative plane and the forward pattern, tchz_pv and "
+                  "voigt (tests/test_derivative_bases_batched.py)"),
+        grounds=("An internal split whose test asserts the identity; invariant under B10 "
+                 "option 2 (ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.model.forward._GAUSS_TAIL_C", "constant", tier=1, value=1.6651092223153954,
         evidence=("arithmetic: sigma = G/(2 sqrt(2 ln2)) so the area outside +-kG is erfc(2 "
@@ -1386,24 +1762,25 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.geometry.BOND_SLACK_ANG", "constant", tier=2, value=0.4,
         evidence=("CSD bond-perception convention (radii sum + 0.4 A), named in WP-1072; radii are "
                   "Cordero 2008, checked in the docstring (not checked by me)")),
-    Row("rietx.model.geometry.CONTACT_MAX_ANG", "constant", tier=3, value=3.5,
-        evidence=("report-only contact cap (GeometryTable.notes says it truncated); a test bounding the "
-                  "error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
-    Row("rietx.model.geometry.MAX_ASYM_ATOMS", "constant", tier=3, value=200,
-        evidence=("report-only skip of large phases (noted in GeometryTable.notes); a test bounding the "
-                  "error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
-    Row("rietx.model.geometry.MAX_CONTACTS_PER_ATOM", "constant", tier=3, value=24,
-        evidence=("report-only contact cap (noted in GeometryTable.notes); a test bounding the error over "
-                  "the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+    Row("rietx.model.geometry.CONTACT_MAX_ANG", "constant", tier=1, value=3.5,
+        evidence=("report scope (tier 1's cap clause, ruled 2026-10-21): every contact within "
+                  "3.5 A is listed, in an unreduced cell where a fixed one-cell shell drops a "
+                  "3.04 A contact, and bonds are found past it (CsCl's 3.571 A Cs-Cl, eight a "
+                  "site; the search once stopped at the radius and listed none), "
+                  "tests/test_geometry_table.py; the radius travels on "
+                  "GeometryTable.contact_max (WP-2002)")),
+    Row("rietx.model.geometry.MAX_ASYM_ATOMS", "constant", tier=1, value=200,
+        evidence=("report scope (tier 1's cap clause, ruled 2026-10-21): a phase past it is "
+                  "skipped whole and GeometryTable.notes says so, tests/test_geometry_table.py; "
+                  "the structure CIFs in tests/data reach 32 atoms. The search time at 200 is "
+                  "unmeasured and a caller cannot raise it, a cost question rather than one of "
+                  "completeness (WP-2002)")),
+    Row("rietx.model.geometry.MAX_CONTACTS_PER_ATOM", "constant", tier=1, value=24,
+        evidence=("report scope (tier 1's cap clause, ruled 2026-10-21): the note counts "
+                  "exactly what the cap drops, the kept contacts are the nearest and bonds are "
+                  "never dropped (31 on corundum with the cap at 2, "
+                  "tests/test_geometry_table.py); tests/data's structures reach 20 a site "
+                  "(WP-2002)")),
     Row("rietx.model.geometry.SYMMETRY_CODE_MAX_SHIFT", "constant", tier=1, value=4,
         evidence="format: CIF symmetry code digit = shift + 5, so -4..+4 (docstring)"),
     Row("rietx.model.geometry.VARIANCE_CANCELLATION_FLOOR", "constant", tier=1, value=1e-12,
@@ -1412,15 +1789,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.geometry._COINCIDENT_D2", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: any value between roundoff and the shortest real interatomic "
                   "d^2 (>0.1 A^2) gives the same lists")),
-    Row("rietx.model.origin.A5_CLIP", "constant", tier=3, value=0.001,
-        evidence=("single cases, tests/test_floating_origin.py; a test bounding the error over the "
-                  "claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+    Row("rietx.model.origin.A5_CLIP", "constant", tier=1, value=1e-4,
+        evidence=("numerical setting with a domain test (tests/test_floating_origin.py, "
+                  "test_the_clipped_centroid_stays_within_an_esds_own_error_of_the_hold): moves only "
+                  "the origin convention (contrast variances unchanged to 4e-16), and light sites' z "
+                  "esds sit at most 0.14 % from the hold limit over 1200 realisable (A5) failures "
+                  "against a 1 % bar (an esd's own sampling error at N - P = 5000); 1e-3 left 1.40 %; "
+                  "about 1 ms more per solve (WP-2002, the seventh round's Q2, 2026-10-21)")),
     Row("rietx.model.origin.A6_MAX_ITER", "constant", tier="invariant", value=2000,
-        evidence=("answer-invariant: caps a weights-only iteration; worst measured 239 passes; "
-                  "tests/test_floating_origin.py:694 asserts eq 21 met where (A6) stalls at its cap")),
+        evidence=("answer-invariant: caps a weights-only iteration; reached by 498 of the 1200 "
+                  "realisable (A5) failures at A5_CLIP 1e-4, every one met by the sum solve; "
+                  "tests/test_floating_origin.py::test_eq_21_is_met_where_a5_holds_by_a_hair asserts "
+                  "eq 21 met where (A6) stalls at its cap")),
     Row("rietx.model.origin.A6_RTOL", "constant", tier=2, value=0.001,
         evidence=("Flack & Schwarzenbach (1988) Acta Cryst. A44, 499, Appendix: 'about five "
                   "iterations ... the 0.1% level' (docstring)")),
@@ -1434,11 +1814,25 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.preferred_orientation.TEXTURE_POSITIVITY_TOL", "constant", tier=1, value=1e-09,
         evidence=("numerical floor: roundoff of a quantity of order 1; lm stopped at min P -2.2e-16"
                   " on the face, trf at -0.45 (WP-1960 D4)")),
-    Row("rietx.model.preferred_orientation.TEXTURE_SPHERE_SAMPLES", "constant", tier=3, value=2000,
-        evidence="sphere sampling density; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+    Row("rietx.model.preferred_orientation.TEXTURE_POLISH_LEVELS", "constant", tier=1, value=6,
+        evidence=("numerical setting with a domain test (tests/test_texture.py, "
+                  "test_the_sampled_sphere_minimum_meets_the_true_one): the polish's last patch "
+                  "steps about 1e-5 rad, and the polished minimum sits at most 1.7e-9 above the "
+                  "true one at orders 2-8 (9.4e-9 at 16) against a 1e-3 bar (WP-2002, the seventh "
+                  "round's Q2, 2026-10-21)")),
+    Row("rietx.model.preferred_orientation.TEXTURE_POLISH_STARTS", "constant", tier=1, value=5,
+        evidence=("numerical setting with a domain test (tests/test_texture.py, "
+                  "test_the_sampled_sphere_minimum_meets_the_true_one): polished from the five "
+                  "lowest of the 2000 samples, the minimum sits at most 1.7e-9 above the true one "
+                  "at orders 2-8 against a 1e-3 bar; at 0 starts it sat 2.0e-3 to 7.9e-3 above; "
+                  "9-15 ms a call at order 8 in P -1 (WP-2002, the seventh round's Q2, "
+                  "2026-10-21)")),
+    Row("rietx.model.preferred_orientation.TEXTURE_SPHERE_SAMPLES", "constant", tier=1, value=2000,
+        evidence=("numerical setting with a domain test (tests/test_texture.py, "
+                  "test_the_sampled_sphere_minimum_meets_the_true_one): the samples find the dips "
+                  "and sphere_minimum polishes the lowest, leaving at most 1.7e-9 at orders 2-8 "
+                  "against a 1e-3 bar; sampled alone they left 2.0e-3 to 7.9e-3, falling as 1/N "
+                  "(WP-2002, the seventh round's Q2, 2026-10-21)")),
     Row("rietx.model.profiles.caglioti.GAUSSIAN_VARIANCE_TO_FWHM_SQUARED", "constant", tier=1, value=5.545177444479562,
         evidence=("arithmetic: FWHM = 2 sqrt(2 ln2) sigma; pinned against GSAS-II's drawn LaB6 "
                   "peaks, tests/test_gsas2_instprm.py")),
@@ -1446,10 +1840,14 @@ ROWS: tuple[Row, ...] = (
         evidence=("Scherrer (1918); Langford & Wilson (1978) J. Appl. Cryst. 11, 102 (0.89 sphere "
                   "FWHM; docstring; not checked)")),
     Row("rietx.model.profiles.caglioti._MIN_GAMMA_G2", "constant", tier=3, value=1e-08,
-        evidence=("Gaussian width floor (WP-1938); single case, tests/test_gaussian_width_floor.py; a "
-                  "test bounding the error over the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("Gaussian-variance floor (WP-2002, 2026-10-21, tests/test_gaussian_width_floor.py): "
+                  "max |dy|/sigma at fixed parameters 0 on SRM 660c, FAP and NAC and 4.8e-9 on cpd-1a; "
+                  "where it binds it moves a peak 4.4e-4 (Lorentz FWHM 0.005 deg) and 1.6e-4 (0.01 deg) "
+                  "of its height, within the lab and synchrotron bars respectively, but 9.9e-4 at "
+                  "0.003 deg; the "
+                  "LaB6 and cpd-1a answers end on the floor and move 1.2 esd on U under a 1e-10 floor"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
     Row("rietx.model.profiles.faddeeva.WEIDEMAN_N", "constant", tier=1, value=32,
         evidence=("numerical floor: abs error < 1e-12 vs scipy wofz over the upper half-plane, "
@@ -1460,46 +1858,89 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.profiles.faddeeva._WEIDEMAN_L", "constant", tier=1, value=4.756828460010884,
         evidence=("arithmetic: derived from WEIDEMAN_N with no free factor, Weideman (1994) J. "
                   "Numer. Anal. 31, 1497 (docstring)")),
-    Row("rietx.model.profiles.fcj.MAX_NODES", "constant", value=64),
+    Row("rietx.model.profiles.fcj.CLOSING_MAX_NODES", "constant", tier=1, value=1024,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile finer than WINDOW_AREA_TOL (the closing stage at any closing_window_tol below it, a stage run by hand, every evaluation outside a fit; the line moved from CLOSING_WINDOW_TOL on 2026-10-22), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
+    Row("rietx.model.profiles.fcj.CLOSING_MIN_NODES", "constant", tier=1, value=10,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile finer than WINDOW_AREA_TOL (the closing stage at any closing_window_tol below it, a stage run by hand, every evaluation outside a fit; the line moved from CLOSING_WINDOW_TOL on 2026-10-22), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
+    Row("rietx.model.profiles.fcj.CLOSING_NODES_PER_FWHM", "constant", tier=1, value=12.0,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile finer than WINDOW_AREA_TOL (the closing stage at any closing_window_tol below it, a stage run by hand, every evaluation outside a fit; the line moved from CLOSING_WINDOW_TOL on 2026-10-22), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
+    Row("rietx.model.profiles.fcj.CLOSING_SKIP_EXTENT_FWHM_RATIO", "constant", tier=1, value=0.0003,
+        evidence=("numerical setting with a domain test (tests/test_lab_instrument.py, test_the_closing_node_rule_meets_the_bar): the closing rule, taken by a compile finer than WINDOW_AREA_TOL (the closing stage at any closing_window_tol below it, a stage run by hand, every evaluation outside a fit; the line moved from CLOSING_WINDOW_TOL on 2026-10-22), meets the tenth-of-sigma bar on lab and synchrotron peaks at every eta: worst 1.6e-4 and 9.9e-5 of the peak maximum over 8 500 cases, 0.25 and 0.81 of the bars; the cheaper 11 / 8 / 768 / 3.5e-4 sat at 0.95 (WP-2002, the seventh round's Q2, 2026-10-21)")),
+    Row("rietx.model.profiles.fcj.MAX_NODES", "constant", tier=3, value=64,
+        evidence=("FCJ quadrature cap; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "fails where it binds, past extent/FWHM 10 (lab below ~6.2 deg at S/L = H/L = "
+                  "0.025, FWHM 0.07), 0.21-0.26 of the peak; synchrotron fails at eta 0.5 and 1"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.MIN_NODES", "constant", tier=3, value=8,
-        evidence=("FCJ quadrature floor; a test bounding the error over the claimed domain is owed "
-                  "(against a 512-node reference)"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+        evidence=("FCJ quadrature floor; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "passes lab eta <= 0.5 (worst 3.95e-4), fails lab eta 1 (7.9e-4) and "
+                  "synchrotron eta 0.5 and 1; any value <= 8 is inert, since max(n//2, 4) "
+                  "floors every reflection at 8 images, so only a rise changes anything"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.NODES_PER_FWHM", "constant", tier=3, value=6.0,
-        evidence=("FCJ quadrature density; a test bounding the error over the claimed domain is owed "
-                  "(against a 512-node reference, as 2002-batch/fcj_low_angle.py)"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+        evidence=("FCJ quadrature density; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "passes lab eta 0 (4.4e-4), fails lab eta 0.5 and 1 (2.4e-3, 5.6e-3) and "
+                  "synchrotron at every eta; worst at S/L = H/L or one aperture zero, where half "
+                  "the images sit on a zero-length segment"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.fcj.SKIP_EXTENT_FWHM_RATIO", "constant", tier=3, value=0.02,
-        evidence=("FCJ skip below this extent; a test bounding the error over the claimed domain is owed "
-                  "(against a 512-node reference)"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+        evidence=("FCJ skip below this extent; the bar is a tenth of sigma/peak at the strongest peak of FAP.XRA (lab, 7.2e-4) and 11BM_NAC (synchrotron, 1.75e-4), in units of the peak maximum; measured 2026-10-21: "
+                  "fails both at 9.5e-3, the error being about 0.48 x extent/FWHM, so the bar "
+                  "needs 1.5e-3 (lab) or 3.7e-4 (synchrotron)"),
+        grounds=("A numerical setting whose domain test (tests/test_lab_instrument.py, the FCJ "
+                 "section) fails over part of the domain it claims; tier 3 under B10 option 2 "
+                 "(ruled 2026-10-19).  Ruled on 2026-10-21 (the seventh round's Q2): it stays for "
+                 "the declared stages, and the answer is sampled at the closing rule "
+                 "(CLOSING_NODES_PER_FWHM and its siblings).  It still computes the answer of a "
+                 "plan with closing_window_tol=None (up to 5.6e-3 of a lab peak's maximum), and "
+                 "the FitReport's shapes (the eighth round's item 1)."),
+        approved="2026-10-21"),
     Row("rietx.model.profiles.pseudovoigt._4LN2", "constant", tier=1, value=2.772588722239781,
         evidence="arithmetic: exp(-4 ln2 x^2/G^2) puts the half maximum at x = G/2"),
     Row("rietx.model.profiles.pseudovoigt._SQRT_LN2_PI", "constant", tier=1, value=0.46971863934982566,
         evidence="arithmetic: (2/G) sqrt(ln2/pi) normalises the FWHM-parameterised Gaussian"),
     Row("rietx.model.profiles.pseudovoigt._TCH_ETA", "constant", tier=2, value=(1.36603, -0.47719, 0.11116),
         evidence=("Thompson, Cox & Hastings (1987) J. Appl. Cryst. 20, 79, eq 5 (docstring); TCHZ "
-                  "is the default CW shape of GSAS-II and FullProf's TCH function")),
+                  "is the default CW shape of GSAS-II and FullProf's TCH function"
+                  "; seven programs, 2026-10-21 (docs/practice.md): the same coefficients in GSAS-II, FullProf, RIETAN-FP, EasyDiffraction and TOPAS (whose 0.1116 for the cubic term is likely a misprint); MAUD and BGMN use no TCH")),
     Row("rietx.model.profiles.pseudovoigt._TCH_GAMMA", "constant", tier=2, value=(2.69269, 2.42843, 4.47163, 0.07842),
         evidence=("Thompson, Cox & Hastings (1987) J. Appl. Cryst. 20, 79, eq 4; GSAS-II 5.8.4 "
-                  "GSASIIpwd.py:975 same coefficients (checked)")),
+                  "GSASIIpwd.py:975 same coefficients (checked)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): the same coefficients in GSAS-II, FullProf, RIETAN-FP, EasyDiffraction and TOPAS; MAUD and BGMN use no TCH")),
     Row("rietx.model.profiles.voigt.GAUSS_FWHM_TO_SIGMA", "constant", tier=1, value=2.3548200450309493,
         evidence="arithmetic: FWHM = 2 sqrt(2 ln2) sigma"),
     Row("rietx.model.profiles.voigt._SQRT2", "constant", tier=1, value=1.4142135623730951,
         evidence="arithmetic: sqrt(2), the Voigt argument z = (x + i gamma)/(sigma sqrt 2)"),
     Row("rietx.model.profiles.voigt._SQRT2PI", "constant", tier=1, value=2.5066282746310002,
         evidence="arithmetic: sqrt(2 pi)"),
-    Row("rietx.model.restraints.MIN_IMAGE_SHELL", "constant", tier=3, value=1,
-        evidence="image-shell search depth; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+    Row("rietx.model.restraints.MIN_IMAGE_SHELL", "constant", tier=1, value=1,
+        evidence=("numerical setting (tier 1's domain clause): the first pass of the minimum-image "
+                  "search, which only bounds the second, sized per cell by geometry._shell; "
+                  "exact on 50 000 pairs over reduced triclinic, reduced monoclinic, hexagonal, "
+                  "rhombohedral and unreduced monoclinic (beta 135-150 deg) cells, where one "
+                  "shell alone missed 72 of 2518 pairs within 4 A, tests/test_restraints.py "
+                  "(WP-2002, 2026-10-21)")),
     Row("rietx.model.restraints._COINCIDENT_D2", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: any value between roundoff and the shortest real interatomic "
                   "d^2 gives the same image")),
@@ -1573,25 +2014,50 @@ ROWS: tuple[Row, ...] = (
                  "tier 3 until refits of three families on either side give one answer "
                  "(ruled 2026-10-20)."),
         approved="2026-10-20"),
-    Row("rietx.optimize.blocked._DENSE_EIGEN_MAX", "constant", tier=3, value=64,
-        evidence=("dense against blocked eigen-solve switch; no test drives a fit across 64; an identity "
-                  "test is owed"),
-        grounds=("An internal split that should leave the answer bit-identical; tier 3 until a test "
-                 "asserts the identity, then invariant (B10 option 2, ruled 2026-10-19)."),
+    Row("rietx.optimize.blocked._DENSE_EIGEN_MAX", "constant", tier="invariant", value=64,
+        evidence=("dense against Lanczos |lambda|max; it only places the pseudo-inverse cut: across "
+                  "the switch (83-84 and 204 columns) |lambda|max agrees to 3.7e-14 relative against a "
+                  "1e-6 tolerance, the nearest eigenvalue sits 2.4e10x the cut away, and esds, "
+                  "correlations and discarded directions are bit-identical "
+                  "(tests/test_parametric_series.py)"),
+        grounds=("An internal split whose test asserts the identity; invariant under B10 "
+                 "option 2 (ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.optimize.identifiability.EXCHANGE_MIN_LOADING", "constant", value=0.05),
     Row("rietx.optimize.identifiability.SOFT_MODES_K", "constant", value=3),
     Row("rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING", "constant", value=0.1),
     Row("rietx.optimize.identifiability.TOP_CORRELATIONS_K", "constant", value=5),
     Row("rietx.optimize.least_squares.FD_STEP", "constant", tier=3, value=1e-06,
-        evidence="finite-difference step; a test bounding the error over the claimed domain is owed",
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("finite-difference step (WP-2002, 2026-10-21, tests/test_cross_backend.py): every FD "
+                  "column of the 23 configurations within 2.5e-4 of a Richardson oracle (5.0e-4 with "
+                  "the oracle's own error, SRM 660c's extinction) against a 1e-3 bar, and at the FAP and NAC answers an answer shift of 3.3e-5 esd; fails where a "
+                  "reflection sits on the Gaussian-variance floor (LaB6 and cpd-1a answers, u column "
+                  "2.2e-2 off), a face of the clamp rather than of the step: 1e-8 does not cure it"),
+        grounds=("A numerical setting whose domain test fails over part of the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until it is ruled on."),
         approved="2026-10-19"),
-    Row("rietx.optimize.least_squares.GTOL", "constant", tier="caller", value=1e-12,
-        evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; GTOL "
-                  "read at :2469 and :2721 inside the TRF branch)")),
-    Row("rietx.optimize.least_squares.NFEV_PER_ITERATION", "constant", value=4),
+    Row("rietx.optimize.least_squares.GTOL", "constant", tier=3, value=1e-12,
+        evidence=("a tolerance defaulted inside opt-in solver='trf' (default 'lm', "
+                  "DEFAULT_SOLVER), four orders under SciPy's own 1e-8; WP-1109 tried 1e-8: "
+                  "1.22-1.27x faster on cpd-1a, 1.04x slower on cpd-2, and corundum's strain "
+                  "anisotropy past test_acceptance_stephens's bar (3.64 against < 2.0); "
+                  "domain test owed (B10)"),
+        grounds=("A number the package chooses once the caller switches TRF on, so not caller "
+                 "under the caller-tier ruling (2026-10-21); a numerical setting whose domain "
+                 "test is owed, tier 3 under B10 option 2 (ruled 2026-10-19)."),
+        approved="2026-10-22"),
+    Row("rietx.optimize.least_squares.NFEV_PER_ITERATION", "constant", tier="invariant", value=4,
+        evidence=("answer-invariant: the stage budget is max_iter x 4 evaluations; on nine "
+                  "configurations from four laboratories under the shipped schedule the worst "
+                  "stage used 49 of 400 (8.2x, LM) and 47 (8.5x, TRF), at most 1.39 (LM) and "
+                  "1.79 (TRF) evaluations an iteration; every stage at 1e-9 leaves LM 1.24x, and a "
+                  "cell walking unheld bound it once, so the invariance is the shipped schedule's "
+                  "(intermediate_ftol 1e-6) and B7's ruling triggers a re-measure (WP-2002, "
+                  "2026-10-21); tests/test_budget_and_tolerance_invariance.py asserts the margin under both solvers and a bit-identical answer at a quarter "
+                  "of the budget"),
+        grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
+                 "once a test confirms its margin under both LM and TRF."),
+        approved="2026-10-19"),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", tier=3, value=0.95,
         evidence=("the profile interval's own level, PARAMETER_INTERVAL_LEVEL, held equal by "
                   "test; at one angle its chi-bar-squared cut is the one-sided interval's 2.706 "
@@ -1608,16 +2074,24 @@ ROWS: tuple[Row, ...] = (
                  "esds free of the stopping-point artefact (ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_STEP", "constant", tier=3, value=0.0001,
-        evidence=("central-difference step in radians on an angle of order one, the step "
-                  "refine._flat_rotation_axis takes on the same quantity; the test it serves "
+        evidence=("central-difference step in radians on an angle of order one, which "
+                  "refine._flat_rotation_axis also takes for its SVD proposal (an inline 1e-4 "
+                  "until the B14 lift; the finite turn decides the hold); the test it serves "
                   "moved the two-site Pnma moduli' esds from 0.031/0.159 to 0.0015/0.0011 mu_B "
                   "(WP-1929)"),
         grounds=("B2 option 2: the difference step of the test that keeps the moment sizes' "
                  "esds free of the stopping-point artefact (ruled 2026-10-19)."),
         approved="2026-10-19"),
-    Row("rietx.optimize.least_squares.XTOL", "constant", tier="caller", value=1e-12,
-        evidence=("opt-in: solver='trf', default 'lm' (DEFAULT_SOLVER, least_squares.py:87; XTOL "
-                  "read at :2469 and :2721 inside the TRF branch)")),
+    Row("rietx.optimize.least_squares.XTOL", "constant", tier=3, value=1e-12,
+        evidence=("a tolerance defaulted inside opt-in solver='trf' (default 'lm', "
+                  "DEFAULT_SOLVER), four orders under SciPy's own 1e-8; WP-1109 tried 1e-8: "
+                  "1.22-1.27x faster on cpd-1a, 1.04x slower on cpd-2, and corundum's strain "
+                  "anisotropy past test_acceptance_stephens's bar (3.64 against < 2.0); "
+                  "domain test owed (B10)"),
+        grounds=("A number the package chooses once the caller switches TRF on, so not caller "
+                 "under the caller-tier ruling (2026-10-21); a numerical setting whose domain "
+                 "test is owed, tier 3 under B10 option 2 (ruled 2026-10-19)."),
+        approved="2026-10-22"),
     Row("rietx.optimize.lm.BVLS_MAX_COLUMNS", "constant", tier=3, value=128,
         evidence=("WP-1937, WP-1953: BVLS costs 2-34 ms at 128 columns and 10-177 s at 2000; FAP "
                   "Pawley reaches Rwp 0.0803 on one side and 0.0782 on the other (lm.py:728-735); "
@@ -1626,6 +2100,22 @@ ROWS: tuple[Row, ...] = (
         grounds=("A solver-path switch no refiner has a view on; kept at tier 3 until refits of "
                  "three families on either side give one answer (B10, ruled 2026-10-19)."),
         approved="2026-10-19"),
+    Row("rietx.optimize.lm.FTOL", "constant", tier=3, value=1e-09,
+        evidence=("no stated source; one decade under SciPy's 1e-8 default (checked); GSAS-II "
+                  "5.8.4's default 'min dM/M' is 1e-3, a relative chi2 change between cycles "
+                  "(GSASIIobj.py:20, checked); the closing stage solves at it, and so does every "
+                  "stage under intermediate_ftol=None; INTERMEDIATE_FTOL's test measures "
+                  "against it (tests/test_staged_start_invariance.py), and this value itself "
+                  "was never varied; the signature default of run_least_squares, "
+                  "run_multi_least_squares and lm.minimize until the B14 lift"),
+        grounds=("The last tolerance of the schedule rietx chose (WP-1123): B7's class went to "
+                 "tier 3 once its invariance test failed on cpd-1a (ruled 2026-10-19), and the "
+                 "schedule was kept on four families with that failure stated (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21). That test holds 1e-9 "
+                 "fixed, so the maintainer delegated this value's tier to the lead on "
+                 "2026-10-23: tier 3, with WP-2017 refitting the four start-test families at "
+                 "1e-8 and 1e-10."),
+        approved="2026-10-23"),
     Row("rietx.optimize.lm._CONVERGED_RUNS", "constant", tier=3, value=3,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, termination rule (docstring: 'Coelho's "
                   "own criterion'; paper not on disk)"),
@@ -1647,7 +2137,16 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.lm._EIGEN_CUT_PER_ROW", "constant", tier=1, value=2.220446049250313e-16,
         evidence=("numerical floor: eps*m, the rounding error of one inner product over m terms "
                   "(Higham 2002 §3.1; docstring)")),
-    Row("rietx.optimize.lm._INNER_MAX", "constant", value=18),
+    Row("rietx.optimize.lm._INNER_MAX", "constant", tier="invariant", value=18,
+        evidence=("answer-invariant: on nine acceptance configurations an iteration that took "
+                  "a step tried at most 6 damped trials and a stage's last iteration up to 9 "
+                  "(2.0x); tests/test_budget_and_tolerance_invariance.py "
+                  "asserts that margin and a bit-identical answer at 9; at 4 the answer "
+                  "changes (WP-2002, 2026-10-21)"),
+        grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
+                 "once a test confirms its margin under both LM and TRF; TRF has no "
+                 "inner loop."),
+        approved="2026-10-19"),
     Row("rietx.optimize.lm._LAMBDA_FAIL_FACTOR", "constant", tier=3, value=10.0,
         evidence=("Coelho (2018) J. Appl. Cryst. 51, 428, eq (9) (docstring; WP-0601 restates it; "
                   "paper not on disk, not checked)"),
@@ -1726,7 +2225,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.qpa.BRINDLEY_MU_R_FENCE", "constant", tier=2, value=0.05,
         evidence=("Brindley (1945) Phil. Mag. 36, 347: medium powders mu*D <= 0.1, D = 2R; FullProf"
                   " manual's QPA section gives the same classes (checked: FullProf_Manual.pdf, 0.01"
-                  " < mD < 0.1)")),
+                  " < mD < 0.1)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): FullProf prints the classes; the others not checked")),
     Row("rietx.optimize.statistics.COLUMN_SAFE_EXPONENT", "constant", tier=1, value=400,
         evidence=("arithmetic: 2^-400 = 3.9e-121 squares to 1.5e-241, a normal double; 1/d^2 stays "
                   "under 1e241 (docstring, WP-1463)")),
@@ -1752,7 +2252,8 @@ ROWS: tuple[Row, ...] = (
                   "covariance's pinv would discard the direction anyway (docstring derivation)")),
     Row("rietx.params.vector.CELL_MIN_LENGTH_A", "constant", tier=2, value=1.5,
         evidence=("TOPAS Tech Ref Version 9 § 2.17 Table 2-1 (checked 2026-10-19): a, b, c floored "
-                  "at Max(1.5, ...)")),
+                  "at Max(1.5, ...)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): TOPAS alone floors a cell length, and the other six have no floor; it binds on no real cell")),
     Row("rietx.params.vector.CELL_SAFETY_ANGLE_DEG", "constant", tier=3, value=6.0,
         evidence=("three times CELL_WINDOW_ANGLE_DEG; WP-1110's trigger: a visible phase sharing "
                   "its cell with a 2 % trace copy ran 4.16 -> 3803 A in one stage; fired in none "
@@ -1941,6 +2442,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.fraction.FRACTION_PROFILE_DCHI2", "constant", tier=2, value=3.84,
         evidence=("Venzon & Moolgavkar (1988) Appl. Statist. 37, 87: profile-likelihood cut at the "
                   "chi-squared(1) 95 % point (docstring)")),
+    Row("rietx.schemas.fraction.FRACTION_PROFILE_FWHM_MAX_SPAN", "constant", tier=3, value=0.5,
+        evidence=("WP-1320: on the full span a pinned width outran the frozen windows "
+                  "(FROZEN_COMPILE_STALE at 85 deg on an 85 deg fixture, not at 60 deg); inline "
+                  "in default_fwhm_grid until the B14 lift"),
+        grounds=("A numerical setting of the width grid, on the default path since the "
+                 "skill sends every agent to profile_fraction (B12's ruling); tier 3 with a "
+                 "test bounding its error over the claimed domain owed, tier 1 once it "
+                 "passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.fraction.FRACTION_PROFILE_FWHM_MIN", "constant", tier=3, value=0.01,
         evidence=("grid start below a lab instrument's own width; the skill tells agents to call "
                   "profile_fraction (SKILL.md), so no longer opt-in"),
@@ -1994,9 +2504,26 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.indexing.SHIFT_ALLOWANCE_K_ESD", "constant", value=3.0),
     Row("rietx.schemas.indexing.SMITH_VOLUME_C1", "constant", value=0.6),
     Row("rietx.schemas.indexing.SMITH_VOLUME_C2", "constant", value=0.0052),
-    Row("rietx.schemas.instrument.DEFAULT_HARMONIC_ORDER", "constant", tier="caller", value=2,
-        evidence=("opt-in: Source.harmonics / NeutronSource.harmonics, default empty (grep "
-                  "2026-10-19); the X-ray Source refuses a declared harmonic")),
+    Row("rietx.schemas.instrument.BRAGG_BRENTANO_RADIUS_MM", "constant", tier=3, value=217.5,
+        evidence=("no source stated; 217.5 mm is the Bruker D8 Advance's standard radius "
+                  "(recalled); the bragg_brentano geometry refuses a missing radius, so the "
+                  "preset's default exists to stop the refusal; only the specimen displacement reads "
+                  "it, as s/R (model/corrections.py), so a wrong radius rescales the reported "
+                  "displacement in mm and leaves the fit, the cell and Rwp unchanged; nothing "
+                  "records it as assumed, which WP-2015 owes; bragg_brentano's signature "
+                  "default until the B14 lift"),
+        grounds=("The goniometer radius is a fact about the caller's instrument, outside the "
+                 "pattern; kept as the preset's default (B9, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.instrument.DEBYE_SCHERRER_POLARIZATION", "constant", tier=3, value=0.99,
+        evidence=("APS 11-BM instrument-parameter files (docstring, GSAS POLA convention), one "
+                  "facility; a wrong K moved a refined Biso by 12 sigma (WP-1311 item 2); "
+                  "debye_scherrer's signature default until the B14 lift"),
+        grounds=("The beam's polarisation is a fact about the caller's instrument, outside the "
+                 "pattern; 0.99 stays the preset's held value (B9, ruled 2026-10-19). B9 also "
+                 "asked for it to be recorded as assumed; nothing writes that record yet, "
+                 "and WP-2015 owes it (its task on the assumed instrument facts)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MAX", "constant", tier=1, value=0.5,
         evidence=("arithmetic: the frozen evaluation window is k(eta.max) * fwhm.max + "
                   "WINDOW_MIN_DEG, so a finite max is what makes the windowed peak exact "
@@ -2004,8 +2531,61 @@ ROWS: tuple[Row, ...] = (
                   "0.5 deg sets the default window near +-8 deg, a cost the caller resizes "
                   "by stating max")),
     Row("rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN", "constant", value=0.005),
-    Row("rietx.schemas.instrument.HARMONIC_WEIGHT_SEED", "constant", value=0.01),
+    Row("rietx.schemas.instrument.HARMONIC_WEIGHT_SEED", "constant", tier=3, value=0.01,
+        evidence=("answer-invariant behind the closing stage only (closing_window_tol=None "
+                  "keeps the 0.15 esd it moved before): seeds 0.001 and 0.3 against 0.01 within "
+                  "0.1 plain esd (at most 0.003) at true lambda/2 weights 0, 0.003 and 0.05, a "
+                  "synthetic CW neutron corundum drawn by the package's own forward model, the "
+                  "one family a harmonic has here (tests/test_staged_start_invariance.py, the "
+                  "sixth round's Q2 bar)"),
+        grounds=("The maintainer delegated this tier to the lead on 2026-10-23 ('use your best "
+                 "judgement'), on the generality judge's reading that an answer-invariant claim "
+                 "has no conditional form (MAGNETIC_SIZING_FLOOR's precedent): tier 3, with "
+                 "WP-2017 measuring the start without the closing stage on three families."),
+        approved="2026-10-23"),
     Row("rietx.schemas.instrument.HUMP_FWHM_MIN", "constant", value=0.1),
+    Row("rietx.schemas.instrument.KA2_RATIO", "constant", tier=2, value=0.5,
+        evidence=("GSAS-II 5.8.4's default lab instrument carries I(L2)/I(L1) = 0.5 "
+                  "(defaultIparms.py:35, GSASIIpwd.py:5782; checked); the 2j+1 degeneracy ratio, "
+                  "with measured integrated ratios a few percent above it (Hoelzer et al. 1997, "
+                  "the B14 review's source) and a diffracted-beam monochromator clipping it; "
+                  "lab_bragg_brentano refines it and mccusker_default holds it, a B9 assumption "
+                  "whose record WP-2015 owes; the bragg_brentano and flat_plate_transmission signature default "
+                  "until the B14 lift")),
+    Row("rietx.schemas.instrument.PACKING_FRACTION", "constant", tier=3, value=0.6,
+        evidence=("docstring: 0.3-0.6 typical for a tapped powder, 0.64 random close packing of "
+                  "spheres; no measurement; GSAS-II 5.8.4's absorption calculator starts at 0.50 "
+                  "(Absorb.py:89, checked in the batch); read only to estimate mu_r or mu_t from a "
+                  "declared capillary radius or thickness; the Geometry field default and the "
+                  "debye_scherrer and flat_plate_transmission signature default until the B14 "
+                  "lift"),
+        grounds=("The packing is a fact about the caller's specimen, read only by an estimate "
+                 "the caller opts into by declaring a radius or a thickness; kept (B9, ruled "
+                 "2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.instrument.PSPLINE_LAMBDA_SMOOTH", "constant", tier=3, value=1.0,
+        evidence=("WP-1454: derived (lambda = 1 suppresses features narrower than a knot "
+                  "spacing); Rwp and Biso flat from 0.1 to 100 on IUCr CPD sample 2 and 11-BM "
+                  "NAC; the BackgroundPSpline field default, BackgroundPSpline.for_range's "
+                  "default and auto_background's literal until the B14 lift"),
+        grounds=("On the default path, since the skill tells every agent to call "
+                 "auto_background, which builds every P-spline at it (B12, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.instrument.TCHZ_CEILING_DEG", "constant", tier=3, value=180.0,
+        evidence=("the width of the 2theta axis (180 deg for X and Y, its square for U, V and W), "
+                  "four orders over any measured line, so no fit reaches it; it exists for TRF, "
+                  "which scales a step by a finite bound's distance and by 1 for an infinite one: "
+                  "CPD brucite Stephens under TRF stopped at Rwp 0.17891, one S_HKL t = -203, "
+                  "without it, and at 0.17878 with the pre-removal t values with it, the closing "
+                  "stage off (one family); with the closing stage on, TRF collapses that fit "
+                  "again (t = -268), so the Stephens suite declines it; none of the seven "
+                  "programs bounds these widths, the reason named here; since "
+                  "2026-10-23 its negative is also the U, V and Y floor, for the "
+                  "same reason"),
+        grounds=("A solver-path setting, held at tier 3 as B10's are until refits of three "
+                 "families under TRF agree with and without it; kept on the maintainer's ruling "
+                 "(the sixth round's Q7, (a), 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.instrument._DIFC_MIN", "constant", tier=1, value=1.0,
         evidence=("physics: DIFC = (m_N/h)(L1+L2)2 sin(theta) is strictly positive; 1 us/A is three"
                   " orders under the smallest real bank (GEM bank 1, ~740)")),
@@ -2015,6 +2595,17 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.instrument._ZERO_BOUND", "constant", tier=1, value=1e-12,
         evidence=("numerical floor: 1e-12 is the value under which a stored min meant no bound "
                   "before schema 0.46 (docstring)")),
+    Row("rietx.schemas.interval.PARAMETER_INTERVAL_BRACKET_GROWTH", "constant", tier=3,
+        value=2.0,
+        evidence=("no stated source; doubling from one esd; where window recompiles give a "
+                  "profile several crossings the growth can choose which one the bracket holds "
+                  "(the generality judge, 2026-10-23); fit and run_stage call profile_interval "
+                  "for every moment angle the stationary test leaves out (B2 option 2); inline "
+                  "in _walk until the B14 lift"),
+        grounds=("A numerical setting of the profile walk, on the default path since B2 "
+                 "option 2; tier 3 with a test bounding its error over the claimed domain "
+                 "owed (WP-2017), tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.schemas.interval.PARAMETER_INTERVAL_CHI2_TOL", "constant", tier=3, value=0.01,
         evidence=("fit and run_stage call profile_interval for every moment angle the "
                   "stationary test leaves out (B2 option 2, 2026-10-19), 20-32 refits an angle on the "
@@ -2050,8 +2641,40 @@ ROWS: tuple[Row, ...] = (
                  "option 2; tier 3 with a test bounding its error over the claimed domain "
                  "owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
         approved="2026-10-19"),
+    Row("rietx.schemas.pattern.POISSON_FLOOR_COUNTS", "constant", tier=2, value=1.0,
+        evidence=("TOPAS weights a file without esds by 1/Max(Yobs, 1) (Technical Reference "
+                  "section 6.2, docs/wp/2002-batch/rulings.md B5); GSAS-II 5.8.4's xye reader "
+                  "gives w = 0 at y <= 0 instead (imports/G2pwd_xye.py:172-185, checked); one "
+                  "rule for PatternData.sig, RefinementResult.sig, background.diagnostics and "
+                  "io.formats.base.sigma_from_scaled, four literals until the B14 lift")),
+    Row("rietx.schemas.pattern.SIGMA_FLOOR_RELATIVE", "constant", tier=3, value=0.001,
+        evidence=("#650 (relative floor) and WP-1952's inherited note (#897): a zero esd then "
+                  "weighs ~1e6x its neighbours; no source for the 1e-3; inline in _floor_sigma "
+                  "until the B14 lift"),
+        grounds=("Kept until WP-1952 replaces it: a channel with sigma <= 0 takes no weight by "
+                 "default, the reader warns with the count and the lines, and a reader option "
+                 "keeps such channels at one count (B5, ruled 2026-10-19)."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.plan.CLOSING_WINDOW_TOL", "constant", tier=1, value=0.001,
+        evidence=("numerical setting with a domain test (tests/test_window_domain.py, "
+                  "test_the_closing_stage_meets_the_bar): its windows are within 0.1 sigma of "
+                  "5e-5's at every point on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.022-0.091), "
+                  "and the closing answer within 0.1 plain esd of the 5e-5 fixed point on FAP, "
+                  "cpd-1a and NAC (0.008-0.019); LaB6 misses that by 0.908 esd on U from the "
+                  "Gaussian-variance clamp, which moves U at any window (WP-1467); 1.05-2.05x the "
+                  "fit time (WP-2002, the sixth round's Q1 and Q2)")),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
-    Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", value=1e-06),
+    Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", tier=3, value=1e-06,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.plan.PHASE_SUPPORT_SIGMA", "constant", tier=3, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
                   "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "
@@ -2063,6 +2686,21 @@ ROWS: tuple[Row, ...] = (
                  "2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.schemas.results.HIGH_CORRELATION_MAX", "constant", value=10),
+    Row("rietx.schemas.structure.BISO_SEED", "constant", tier=3, value=0.5,
+        evidence=("starts 0.5 and 1.5 within 0.1 plain esd behind the closing stage on FAP and "
+                  "11-BM NAC (0.000, 0.000; tests/test_staged_start_invariance.py); cpd-1a 0.070 "
+                  "until the width twin hold kept a start-dependent X/Y split, 15.68 on zincite's "
+                  "lor_strain since (WP-2002, a strict xfail); LaB6's two starts land in its "
+                  "mirrored axial minima (1.16 esd, 9.36 before WP-2002; WP-2012), a strict "
+                  "xfail; the Atom.biso "
+                  "default and the literal of three readers for a site with no ADP "
+                  "(crystallography/cif.py, io/recipe.py, io/projects/topas.py) until the B14 "
+                  "lift"),
+        grounds=("The maintainer delegated this tier to the lead on 2026-10-23 ('use your best "
+                 "judgement'), on the generality judge's reading that an answer-invariant claim "
+                 "has no conditional form (MAGNETIC_SIZING_FLOOR's precedent): tier 3, with "
+                 "WP-2017 measuring the start without the closing stage on three families."),
+        approved="2026-10-23"),
     Row("rietx.schemas.structure.MARCH_R_MIN", "constant", tier=1, value=1e-06,
         evidence=("arithmetic: the March factor (r^2 cos^2 a + sin^2 a / r)^(-3/2) divides by "
                   "r, a pole at 0; at 1e-6 the factor (<= 1e18) and its r-derivative "
@@ -2103,6 +2741,27 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
+    Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
+        evidence=("#1016 review round 4 (2026-10-23), the maintainer's suggestion: q <= 12 "
+                  "holds 1/2, 1/3, 1/4, 1/6, 1/8 and 1/12. No tool surveyed reads a printed "
+                  "occupancy as a fraction: checkCIF FORMU01 alerts past a fixed 0.01 atom per "
+                  "formula unit, pymatgen's CifParser.check warns at 0.01 in implied Z, "
+                  "cod-tools' EstimateZ.pm compares ratios exactly (the seven Rietveld programs not "
+                  "checked); fails where the true q > 12 (1/16 printed 0.06 is read as written); "
+                  "tests/test_solve_chemistry.py"
+                  "::test_the_inventory_tolerance_scales_with_the_part_occupied_multiplicity"),
+        grounds=("Judgement ground: Composition.require is a gate on a model the caller "
+                 "supplies (the S2 engine writes occupancy 1.0 on every site it places), and "
+                 "it reads 0.33, 0.333 and 0.3333 as 1/3 and 0.5 as 1/2 only, so a "
+                 "two-decimal 1/3 site holds 64 on a 192-fold site at any formula unit "
+                 "(checkCIF's fixed 0.01 refuses it written as Cu2 at Z = 32) and a half "
+                 "site holds 96 and nothing in 87-105. The as-written sum still counts, so a "
+                 "formula that says 0.17 is met by 0.17. Mechanical ground: pending; three "
+                 "published part-occupied structures from unrelated laboratories and "
+                 "materials, each accepted at its published composition and refused when "
+                 "mis-stated, before a default path calls require. Approved on the "
+                 "judgement ground while only tests call it (ruled 2026-10-24)."),
+        approved="2026-10-24"),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("magnetic.py docstring: the Ba2FeSbSe5 pair sits 0.081 deg apart, inside 0.5 deg "
@@ -2211,25 +2870,160 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.strategy.staged.RESOLUTION_CONE_TOL", "constant", tier=1, value=1e-09,
         evidence="numerical floor: same association-order argument as STEPHENS_CONE_TOL"),
     Row("rietx.strategy.staged.ROUGHNESS_ABSORPTION_GUARD", "constant", value=0.9),
+    Row("rietx.strategy.staged.ROUGHNESS_SEED", "constant", tier=3, value=0.3,
+        evidence=("_ROUGHNESS_STAGE's seed, recorded per model on StageResult.seeded. Suortti's "
+                  "b: start-invariant from 0.3 and 0 on five lab patterns from three families "
+                  "(NIST LaB6, GSAS-II FAP, CPD corundum, fluorite, zincite), every Biso, scale "
+                  "and b within 2.7e-3 of the smaller esd (tests/test_seed_invariance.py). "
+                  "Pitschke's c: not start-invariant, from 0 CPD zincite lands in the turned-over "
+                  "regime (scale x2.1, ROUGHNESS_OUTSIDE_REGIME) and corundum's Biso moves 0.26 "
+                  "esd; no program supplies a Pitschke start (FullProf's examples start at "
+                  "1.2-1.5; docs/practice.md); suggest.SUGGEST_SEED_ROUGHNESS and "
+                  "viz.compare's two roughness variants take it by reference since the B14 lift"),
+        grounds=("Suortti's start is answer-invariant and Pitschke's is kept at 0.3 because "
+                 "from 0.3 the fit reaches the switched-off branch inside the model's valid "
+                 "range, while from 0 the lower chi2 is one the model flags as invalid (the "
+                 "sixth round's Q3, ruled (c) 2026-10-21: one number in the code, the two models "
+                 "recorded apart)."),
+        approved="2026-10-21"),
     Row("rietx.strategy.staged.STEPHENS_CONE_TOL", "constant", tier=1, value=1e-09,
         evidence=("numerical floor: absorbs last-bit disagreement between the solver's and the "
                   "guard's association orders; ~6 decades above fp64 noise")),
-    Row("rietx.strategy.suggest.SUGGEST_SEED_ROUGHNESS", "constant", value=0.3),
-    Row("rietx.strategy.suggest.SUGGEST_SEED_STEPHENS", "constant", tier=3, value=1000.0,
-        evidence=("= lab_sample_refine's strain_seed, 1000 ppm on the isotropic ray: GSAS-II "
+    Row("rietx.strategy.staged.STRAIN_SEED_PPM", "constant", tier=3, value=1000.0,
+        evidence=("lab_sample_refine's strain_seed, 1000 ppm on the isotropic ray: GSAS-II "
                   "5.8.4's isotropic microstrain default, its generalised start 0.01 each "
                   "(GSASIIddataGUI.py:180-190, :1432; checked); WP-1467, one pattern: chi2 1.160 "
-                  "from 1000 ppm against 1.482 from the previous stage's strain; second family "
-                  "owed"),
+                  "from 1000 ppm against 1.482 from the previous stage's strain. Second family, "
+                  "2026-10-20 (tests/test_acceptance_stephens.py's plan): CPD brucite chi2 7.7662 "
+                  "from 1000 ppm against 8.3241 from the isotropic value; CPD corundum both starts "
+                  "equal to 2e-10; suggest.SUGGEST_SEED_STEPHENS and viz.compare's Stephens "
+                  "variant take it by reference since the B14 lift"),
         grounds=("Some start is forced, since the width's square root has unbounded slope at "
                  "zero; kept at 1000 ppm until a second dataset compares the starts (B3, ruled "
-                 "2026-10-19)."),
+                 "2026-10-19); the second compared them on 2026-10-20 and favoured 1000 ppm."),
         approved="2026-10-19"),
-    # default: 109
+    Row("rietx.strategy.suggest.SUGGEST_SEED_ROUGHNESS", "constant", value=0.3),
+    Row("rietx.strategy.suggest.SUGGEST_SEED_STEPHENS", "constant", tier=3, value=1000.0,
+        evidence=("= strategy.staged.STRAIN_SEED_PPM by reference (B14 lift), 1000 ppm on the "
+                  "isotropic ray: GSAS-II "
+                  "5.8.4's isotropic microstrain default, its generalised start 0.01 each "
+                  "(GSASIIddataGUI.py:180-190, :1432; checked); WP-1467, one pattern: chi2 1.160 "
+                  "from 1000 ppm against 1.482 from the previous stage's strain. Second family, "
+                  "2026-10-20 (tests/test_acceptance_stephens.py's plan): CPD brucite, whose "
+                  "isotropic strain folds to 0.35 ppm, chi2 7.7662 from 1000 ppm (800 ppm the "
+                  "same to 0.01 esd) against 8.3241 from the isotropic value, the block left at "
+                  "the singularity; CPD corundum (903 ppm) both starts equal to 2e-10. So 1000 "
+                  "ppm reached the lower or equal minimum in all three comparisons; brucite "
+                  "tests only a near-zero start, and these are the plan's solve seed: the "
+                  "suggestion probe's own start is unmeasured, as SUGGEST_SEED_ROUGHNESS's is"),
+        grounds=("Some start is forced, since the width's square root has unbounded slope at "
+                 "zero; kept at 1000 ppm until a second dataset compares the starts (B3, ruled "
+                 "2026-10-19); the second compared them on 2026-10-20 and favoured 1000 ppm."),
+        approved="2026-10-19"),
+    # default: 117
+    Row("rietx.schemas.instrument.ProfileTCHZ:shape", "default", tier=2, ambiguity=2, value="tchz_pv",
+        evidence=("GSAS-II 5.8.4's constant-wavelength peak is the Thompson, Cox & Hastings (1987) "
+                  "pseudo-Voigt with the FCJ asymmetry (GSASIIpwd.getFWHM :916, getFCJVoigt3 "
+                  ":1316; checked); 'voigt' is the opt-in true Voigt")),
+    Row("rietx.schemas.instrument.ProfileTCHZ:u", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -32400.0, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
+        evidence=("TCHZ_DEFAULTS' seed 0 and TCHZ_BOUNDS' box, dicts the constant walk cannot see; the "
+                  "seed is start-invariant for a freed width (tests/test_seed_invariance.py, LaB6, CPD "
+                  "and 11-BM NAC within 1.3e-4 esd) and is the held value of an uncalibrated one; the "
+                  "ceiling is TCHZ_CEILING_DEG squared; no per-coefficient floor: a finite bound at "
+                  "-180^2 deg^2 (TCHZ_CEILING_DEG squared, the ceiling's mirror image) no width "
+                  "reaches, kept finite for TRF's step scaling; the physical condition is held as "
+                  "Gamma_G^2 >= eps by LM (optimize.least_squares.gaussian_width_inequalities), guarded "
+                  "under TRF by RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, "
+                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round); the walk along its specimen "
+                  "twin, which the floor bounded, is held instead (StageResult.width_twins_held)"),
+        grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
+                 "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
+                 "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
+        approved="2026-10-23"),
+    Row("rietx.schemas.instrument.ProfileTCHZ:v", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -32400.0, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
+        evidence=("TCHZ_DEFAULTS' seed 0 and TCHZ_BOUNDS' box, as ProfileTCHZ:u; the public D1B Co3O4 "
+                  "model's V = -0.501, under the old X-ray floor of -0.5, now builds on every preset, "
+                  "which retired TCHZ_BOUNDS_COARSE; no per-coefficient floor: a finite bound at -180^2 "
+                  "deg^2 (TCHZ_CEILING_DEG squared, the ceiling's mirror image) no width reaches, kept "
+                  "finite for TRF's step scaling; the physical condition is held as Gamma_G^2 >= eps by "
+                  "LM (optimize.least_squares.gaussian_width_inequalities), guarded under TRF by "
+                  "RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, W, X, Y "
+                  "(docs/wp/2002-batch/rulings.md, fourth round)"),
+        grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
+                 "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
+                 "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
+        approved="2026-10-23"),
+    Row("rietx.schemas.instrument.ProfileTCHZ:w", "default", tier=3, ambiguity=1, value={"value": 0.001, "vary": False, "min": 1e-08, "max": 32400.0, "expr": None, "unit": "deg^2", "stderr": None},
+        evidence=("TCHZ_DEFAULTS' seed 1e-3 deg^2, start-invariant for a freed width from 1e-6 "
+                  "to 1.0 on LaB6 (tests/test_seed_invariance.py), a start too wide losing NAC's "
+                  "phase at w = x = 1e-2; the floor is caglioti._MIN_GAMMA_G2 and the ceiling "
+                  "TCHZ_CEILING_DEG squared, each tiered on its own row"),
+        grounds=("Its floor and ceiling are tier 3 on their own rows (_MIN_GAMMA_G2 under B10; "
+                 "TCHZ_CEILING_DEG, the sixth round's Q7, ruled 2026-10-21); the seed is "
+                 "start-invariant on the side the default sits on."),
+        approved="2026-10-21"),
+    Row("rietx.schemas.instrument.ProfileTCHZ:x", "default", tier=3, ambiguity=1, value={"value": 0.001, "vary": False, "min": 0.0, "max": 180.0, "expr": None, "unit": "deg", "stderr": None},
+        evidence=("TCHZ_DEFAULTS' seed 1e-3 deg: start-invariant on LaB6 except starts at x = "
+                  "0.02-0.03, which land 0.38 esd away in u on a mirrored S/L-H/L minimum (WP-2012); "
+                  "FAP's GSAS protocol holds x at it, and x = 0 instead moves lor_size 0.69 esd at "
+                  "equal chi2 (tests/test_seed_invariance.py); the floor 0 is physical, kept when U, V "
+                  "and Y lost theirs: at theta -> 0 the tan term vanishes and the instrument's "
+                  "Lorentzian FWHM is X itself; the ceiling TCHZ_CEILING_DEG; GSAS-II 5.8.4 and "
+                  "FullProf bound none of U, V, W, X, Y (docs/wp/2002-batch/rulings.md, fourth round)"),
+        grounds=("Its ceiling is TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21); its "
+                 "floor is a width's own, which the ruling of 2026-10-23 kept."),
+        approved="2026-10-23"),
+    Row("rietx.schemas.instrument.ProfileTCHZ:y", "default", tier=3, ambiguity=1, value={"value": 0.0, "vary": False, "min": -180.0, "max": 180.0, "expr": None, "unit": "deg", "stderr": None},
+        evidence=("TCHZ_DEFAULTS' seed 0, start-invariant for a freed width "
+                  "(tests/test_seed_invariance.py); the ceiling TCHZ_CEILING_DEG; a negative Y is "
+                  "physical as a coefficient: a constant positive Lorentzian width projected onto "
+                  "{1/cos, tan} over 18-120 deg 2theta is X = 1.20, Y = -0.73 (WP-2002 9th session), "
+                  "so Y >= 0 would refuse a real instrument; cost measured on tests/test_v02_core.py's "
+                  "synthetic calibration, whose truth Y = 0 sat on the old floor: Y -0.0059, X 58 % "
+                  "high, sample lor_size 55 % low against 27-39 %, HIGH_CORRELATION raised; no "
+                  "per-coefficient floor: a finite bound at -180 deg (TCHZ_CEILING_DEG, the ceiling's mirror image) no "
+                  "width reaches, kept finite for TRF's step scaling; the physical condition is held as "
+                  "Gamma_L >= 0 by LM (optimize.least_squares.lorentzian_width_inequalities), guarded "
+                  "under TRF by RESOLUTION_NOT_POSITIVE; GSAS-II 5.8.4 and FullProf bound none of U, V, "
+                  "W, X, Y (docs/wp/2002-batch/rulings.md, fourth round); the walk along its specimen "
+                  "twin, which the floor bounded, is held instead (StageResult.width_twins_held)"),
+        grounds=("The floor went on the maintainer's ruling of 2026-10-23 ('remove the per-coefficient "
+                 "floors'; B9, no chosen limit on a quantity that stays physical); the far bound and "
+                 "the ceiling are TCHZ_CEILING_DEG's (the sixth round's Q7, ruled 2026-10-21)."),
+        approved="2026-10-23"),
     Row("rietx.schemas.plan.PlanSpec:stages", "default", tier=1, ambiguity=1, value=(),
         evidence="arithmetic: the empty container; resolve_plan supplies every plan a fit runs"),
     Row("rietx.schemas.plan.PlanSpec:correlation_guard", "default", value=0.98),
-    Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", value=1e-06),
+    Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", tier=3, ambiguity=1, value=1e-06,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
+    Row("rietx.schemas.plan.PlanSpec:closing_window_tol", "default", tier=2, ambiguity=1, value=0.001,
+        evidence=("BGMN ends every refinement ladder with a closing run, all free and restarted "
+                  "from the answer, by default (manual A.4; Doebelin & Kleeberg 2015 J. Appl. "
+                  "Cryst. 48, 1573, 2); RIETAN-FP's NAUTO = 2 ends with everything refining "
+                  "together, its windows moving each evaluation; MAUD's wizard has no final "
+                  "cycle, but its windows also move every evaluation, so the window error the "
+                  "stage removes never arises there (docs/practice.md); the value "
+                  "is CLOSING_WINDOW_TOL's row; SRM 660c's cell 4.1568823 A without it and "
+                  "4.1568821 with it, +24.6 ppm from the reference both ways; it fails twice: on "
+                  "SRM 660c one closing solve sits 0.908 esd from the fixed point in u (the "
+                  "Gaussian clamp, WP-1467), and under TRF it collapses CPD brucite's S_HKL "
+                  "(t = -268); recorded in RefinementResult.stages as the stage named "
+                  "'closing'; solve_magnetic runs it on its winner too, when the package "
+                  "chose the plan and the verdict is solved, after ranking every trial "
+                  "without it (2026-10-22)"),
+        grounds=("The maintainer's ruling (the sixth round's Q2, option 3, 2026-10-21): every "
+                 "plan ends with a closing stage at tight windows, which removes the 2 % "
+                 "window's error from the answer and most of a staged plan's start dependence; "
+                 "None runs the declared stages alone, bit-identical to before.")),
     Row("rietx.schemas.plan.PlanSpec:lebail_passes", "default", tier="caller", ambiguity=1, value=1,
         evidence="opt-in: lebail_passes > 1, default 1 (one run, bit-identical to pre-WP-1323)"),
     Row("rietx.schemas.plan.PlanSpec:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
@@ -2245,8 +3039,26 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.schemas.plan.StageSpec:turn_on", "default", tier=1, ambiguity=1, value=(),
         evidence="arithmetic: the empty container"),
-    Row("rietx.schemas.plan.StageSpec:max_iter", "default", value=100),
-    Row("rietx.schemas.plan.StageSpec:ftol", "default", value=None),
+    Row("rietx.schemas.plan.StageSpec:max_iter", "default", tier="invariant", ambiguity=1, value=100,
+        evidence=("answer-invariant: caps evaluations at max_iter x NFEV_PER_ITERATION, "
+                  "never iterations; the worst stage under the shipped schedule ran 48 "
+                  "iterations (2.1x, reported, not asserted) and 49 evaluations (8.2x); tests/test_budget_and_tolerance_invariance.py "
+                  "asserts a bit-identical answer at max_iter 25 under LM and TRF, on the shipped "
+                  "schedule; B7's ruling triggers a re-measure (WP-2002, 2026-10-21)"),
+        grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
+                 "once a test confirms its margin under both LM and TRF."),
+        approved="2026-10-19"),
+    Row("rietx.schemas.plan.StageSpec:ftol", "default", tier=3, ambiguity=1, value=None,
+        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
+                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
+                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
+                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
+                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
+                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
+                 "stated, where the alternative is the arm that runs out of budget (the sixth "
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("rietx.schemas.plan.StageSpec:lebail_cycles", "default", tier=3, ambiguity=1, value=3,
         evidence=("no stated source; issue #740 (synthetic LaMnO3-like neutron, cell and profile "
                   "at truth): Rwp 4.56 % at 3 cycles, 1.62 % at 100-400, 1.09 % for the true "
@@ -2256,19 +3068,19 @@ ROWS: tuple[Row, ...] = (
                  "changing, under a cap; #740 is its stated failure (B11, ruled 2026-10-19)."),
         approved="2026-10-19"),
     Row("rietx.schemas.plan.StageSpec:seed", "default", tier="caller", ambiguity=1, value=0.0,
-        evidence=("opt-in: Stage.seed > 0, default 0; the one shipped seed is _ROUGHNESS_STAGE's "
-                  "0.3 (hand row)")),
+        evidence=("opt-in: Stage.seed > 0, default 0; the one shipped seed is "
+                  "strategy.staged.ROUGHNESS_SEED's 0.3")),
     Row("rietx.schemas.plan.StageSpec:strain_seed", "default", tier="caller", ambiguity=1, value=0.0,
         evidence=("opt-in: Stage.strain_seed > 0, default 0; the one shipped value is "
-                  "lab_sample_refine's 1000 ppm (hand row)")),
+                  "strategy.staged.STRAIN_SEED_PPM's 1000 ppm")),
     Row("rietx.schemas.plan.StageSpec:restraint_weight_scale", "default", tier=1, ambiguity=1, value=1.0,
         evidence=("arithmetic: c_w = 1 is the identity, every restraint at the σ its caller "
                   "declared (bit-identical to pre-WP-1074)")),
     Row("rietx.schemas.plan.StageSpec:window_slack_deg", "default", tier=3, ambiguity=1, value=None,
-        evidence=("None resolves to WINDOW_MIN_DEG and inherits its tier; a test bounding the error over "
-                  "the claimed domain is owed"),
-        grounds=("A numerical setting with no test yet bounding its error over the domain it claims; "
-                 "tier 3 with that test owed, tier 1 once it passes (B10 option 2, ruled 2026-10-19)."),
+        evidence=("None resolves to WINDOW_MIN_DEG and compiles bit-identical windows and pattern "
+                  "(tests/test_window_domain.py), so it inherits that row's tier"),
+        grounds=("A numerical setting whose domain test covers less than the domain it claims; "
+                 "tier 3 under B10 option 2 (ruled 2026-10-19) until that is measured."),
         approved="2026-10-19"),
     Row("rietx.schemas.instrument.Source:kind", "default", tier=1, ambiguity=1, value="xray_cw",
         evidence="arithmetic: a union tag, no value judgement"),
@@ -2287,15 +3099,17 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.instrument.Source:dispersion", "default", tier=2, ambiguity=1, value={"table": "cromer_liberman", "overrides": {}},
         evidence=("GSAS-II 5.8.4 applies Cromer-Liberman f', f'' to every X-ray histogram with no "
                   "switch (GSASIIstrIO.py:251-273, on every refinement path; checked); WP-1001: "
-                  "round-robin QPA RMS 2.26 to 0.62 wt %; None declines it and "
-                  "DISPERSION_NEGLECTED says so")),
+                  "round-robin QPA RMS 2.26 to 0.62 wt % (0.69 on 1.10.0); None declines it and "
+                  "DISPERSION_NEGLECTED says so"
+                  "; seven programs, 2026-10-21 (docs/practice.md): all seven apply f', f'' by default, BGMN through the .ano table its default LAMBDA names")),
     Row("rietx.schemas.instrument.Source:harmonics", "default", tier=1, ambiguity=1, value=(),
         evidence=("physics/arithmetic: an X-ray Source refuses a declared harmonic "
                   "(harmonics_supported False, f' shared across lines), so empty is the only legal "
                   "value; off is exact")),
     Row("rietx.refine.Refinement.fit:mode", "default", tier=2, ambiguity=1, value="rietveld",
         evidence=("GSAS-II 5.8.4 GSASIIphsGUI.py:9404: a phase-histogram's 'LeBail' defaults False,"
-                  " i.e. Rietveld (checked)")),
+                  " i.e. Rietveld (checked)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS make the user state it")),
     Row("rietx.refine.Refinement.fit:plan", "default", tier=3, ambiguity=1, value="mccusker_default",
         evidence=("McCusker et al. (1999) J. Appl. Cryst. 32, 36, the order only (docstring); no "
                   "program ships a default plan; it frees the zero and no displacement, which "
@@ -2307,7 +3121,8 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.refine.Refinement.fit:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to the "
-                  "full data range on import (checked)")),
+                  "full data range on import (checked)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.Refinement.fit:events", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: an observation channel; "
                   "tests/test_answer_invariant_defaults.py asserts the answer bit-identical with it"
@@ -2331,12 +3146,26 @@ ROWS: tuple[Row, ...] = (
                   " on")),
     Row("rietx.refine.Refinement.run_stage:mode", "default", tier=2, ambiguity=1, value=None,
         evidence=("None continues the Refinement's current mode (the last fit, run_stage or "
-                  "checkout set it), 'rietveld' on a fresh one: GSAS-II LeBail False, checked")),
+                  "checkout set it), 'rietveld' on a fresh one: GSAS-II LeBail False, checked"
+                  "; seven programs, 2026-10-21 (docs/practice.md): none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS make the user state it")),
     Row("rietx.refine.Refinement.run_stage:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("None continues the Refinement's current limits (the last fit, run_stage or "
                   "checkout set them), the full range on a fresh one: GSAS-II full-range Limits, "
-                  "checked")),
+                  "checked"
+                  "; seven programs, 2026-10-21 (docs/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.Refinement.run_stage:correlation_guard", "default", value=0.98),
+    Row("rietx.refine.Refinement.run_stage:window_area_tol", "default", tier=1, ambiguity=1, value=None,
+        evidence=("None resolves to schemas.plan.CLOSING_WINDOW_TOL, the windows an answer is "
+                  "measured on, and inherits that row's tier and domain test; the stage records "
+                  "the fraction it ran at"),
+        grounds=("No closing stage follows a stage driven by hand (the GUI's Run this stage "
+                 "among them), so its own windows compute its answer; at the declared stages' "
+                 "2 % that answer carried up to 0.97 esd on lab data. A caller wanting the fast "
+                 "stage passes WINDOW_AREA_TOL, and cherry_pick passes a recorded node's "
+                 "through forward.recorded_window_tol. Ruled 2026-10-21 (the seventh round's "
+                 "Q1, evaluation outside a fit at the closing windows, which the brief extended "
+                 "to this seat)."),
+        approved="2026-10-21"),
     Row("rietx.refine.Refinement.run_stage:phase_support_sigma", "default", tier=3, ambiguity=1, value=3.0,
         evidence=("WP-1523: 3 sigma, = indexing ABSENT_SIGMA by test; 20 blank fits read 1 phase "
                   "seen, 9 at the old 1 sigma; fails on a real phase at ~1/16 000 of a strong "
@@ -2364,7 +3193,8 @@ ROWS: tuple[Row, ...] = (
                   "the answer bit-identical with it on")),
     Row("rietx.refine.refine:mode", "default", tier=2, ambiguity=1, value="rietveld",
         evidence=("GSAS-II 5.8.4 GSASIIphsGUI.py:9404: a phase-histogram's 'LeBail' defaults False,"
-                  " i.e. Rietveld (checked)")),
+                  " i.e. Rietveld (checked)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS make the user state it")),
     Row("rietx.refine.refine:plan", "default", tier=3, ambiguity=1, value="mccusker_default",
         evidence=("McCusker et al. (1999) J. Appl. Cryst. 32, 36, the order only (docstring); no "
                   "program ships a default plan; it frees the zero and no displacement, which "
@@ -2376,7 +3206,8 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.refine.refine:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to the "
-                  "full data range on import (checked)")),
+                  "full data range on import (checked)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.refine.refine:backend", "default", tier="caller", ambiguity=1, value="numpy",
         evidence=("opt-in: jax/torch/torch-mps need an extra no default install has; not "
                   "answer-invariant, since another backend agrees only to fp tolerance (torch-mps "
@@ -2384,7 +3215,8 @@ ROWS: tuple[Row, ...] = (
                   "holds columns, not answers)")),
     Row("rietx.refine.refine:solver", "default", tier=2, ambiguity=1, value="lm",
         evidence=("GSAS-II 5.8.4 GSASIIobj.DefaultControls 'deriv type': 'analytic Hessian' runs "
-                  "GSASIImath.HessianLSQ, a Marquardt-damped solve (checked)")),
+                  "GSASIImath.HessianLSQ, a Marquardt-damped solve (checked)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): Marquardt-damped in six; FullProf dissents, Gauss-Newton with relaxation factors")),
     Row("rietx.refine.refine:history", "default", tier="invariant", ambiguity=1, value=False,
         evidence=("answer-invariant: a history tree; tests/test_answer_invariant_defaults.py "
                   "asserts the answer bit-identical with it on")),
@@ -2402,6 +3234,33 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.refine:label", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts "
                   "the answer bit-identical with it on")),
+    Row("rietx.refine.Refinement.summary:deliverable", "default", tier="invariant", ambiguity=3,
+        value=None,
+        evidence=("answer-invariant: a view of a finished fit; None infers no purpose and prints "
+                  "no purpose's rows in full (WP-2037 clause 3), the maintainer's ruling of "
+                  "2026-10-23 (WP-2037 Decision 3) with its registered agent run the tripwire, "
+                  "still owed; tests/test_termination_view.py asserts the result unchanged")),
+    Row("rietx.refine.Refinement.summary:plot", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: None writes no picture and names the call instead; "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:plan", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: the plan the report's Layer-2 veto reads; None skips the "
+                  "plan-stage veto while the free-path veto stands, and ignores the plan the "
+                  "last fit() ran (_last_plan, which run_stage and a checkout leave stale); "
+                  "tests/test_termination_view.py asserts the result unchanged, not the "
+                  "printed suggestions (WP-2004 inherits the question)")),
+    Row("rietx.refine.Refinement.summary:report", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: None builds the report a caller would have passed in; "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:levels", "default", tier="caller", ambiguity=1,
+        value=None,
+        evidence=("opt-in: the caller's per-code override, {code: allow|warn|deny}, default None "
+                  "(the audited levels stand); never lowers an error, and a refused allow is to be "
+                  "reported, not dropped (the maintainer, 2026-10-24, generality.md clause 4; "
+                  "WP-2004 builds the report)")),
     Row("rietx.background.auto.auto_background:kind", "default", tier=3, ambiguity=2, value="pspline",
         evidence=("GSAS-II 5.8.4 defaults to a 3-term Chebyshev (GSASIIdataGUI.py:2207, "
                   "inventory check), TOPAS and FullProf to polynomials (recalled); WP-1454: the "
@@ -2422,7 +3281,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.background.auto.auto_background:two_theta_limits", "default", tier=2, ambiguity=1, value=None,
         evidence=("the range a fit without limits uses (Refinement.fit:two_theta_limits); "
                   "GSAS-II 5.8.4 GSASIIdataGUI.py:2192-2201: a histogram's Limits default to "
-                  "the full data range on import (checked, the fit row)")),
+                  "the full data range on import (checked, the fit row)"
+                  "; seven programs, 2026-10-21 (docs/practice.md): the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated")),
     Row("rietx.background.auto.auto_background:source", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: as wavelength, it reaches only the contamination screen; "
                   "tests/test_answer_invariant_defaults.py asserts the BackgroundChoice equal "
@@ -2431,7 +3291,8 @@ ROWS: tuple[Row, ...] = (
         evidence=("unseeded, every coefficient at the schema's 0.0; GSAS-II 5.8.4 starts a new "
                   "Chebyshev at the constant (1.0, 0, 0) and not from the data "
                   "(GSASIIdataGUI.py:2207, inventory check); seed=True is the opt-in, and #725 "
-                  "is open on flipping it")),
+                  "is open on flipping it"
+                  "; seven programs, 2026-10-21 (docs/practice.md): none of the seven seeds a background from the data by default")),
     Row("rietx.sequential.refine_sequential:carry", "default", value=("*",)),
     Row("rietx.sequential.refine_sequential:carry_hkl_intensities", "default", value=True),
     Row("rietx.sequential.refine_sequential:backend", "default", value="numpy"),
@@ -2490,7 +3351,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.SearchSpec:seed", "default", value=0),
     Row("rietx.indexing.engines.SearchSpec:prior_cells", "default", value=()),
     Row("rietx.indexing.engines.SearchSpec:prior_spacegroups", "default", value=()),
-    # suggestion: 196
+    # suggestion: 197
     Row("ABSORPTION_ESTIMATE_UNAVAILABLE.suggestion", "suggestion", value=1),
     Row("ABSORPTION_MU_R_OUT_OF_RANGE.suggestion", "suggestion", value=1),
     Row("ABSORPTION_THICKNESS_MATTERS.suggestion", "suggestion", value=1),
@@ -3441,18 +4302,14 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.io.projects.registry.INP_SNIFF_BYTES",
     "rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM",
     "rietx.io.projects.topas_input.DEFAULT_RADIUS_MM",
-    "rietx.io.projects.topas_input._SABINE_LAUE",
     "rietx.io.projects.topas_input._SABINE_XPOL",
     "rietx.io.projects.topas_input._TCH_ETA",
     "rietx.io.projects.topas_input._TCH_GAMMA",
     "rietx.io.readers.TWO_THETA_MAX_DEG",
-    "rietx.model.profiles.fcj.MAX_NODES",
     "rietx.optimize.identifiability.EXCHANGE_MIN_LOADING",
     "rietx.optimize.identifiability.SOFT_MODES_K",
     "rietx.optimize.identifiability.SOFT_MODE_MIN_LOADING",
     "rietx.optimize.identifiability.TOP_CORRELATIONS_K",
-    "rietx.optimize.least_squares.NFEV_PER_ITERATION",
-    "rietx.optimize.lm._INNER_MAX",
     "rietx.optimize.statistics.EFFECTIVE_OBS_ALPHA",
     "rietx.optimize.statistics.MAX_SHIFT_CONVERGED",
     "rietx.optimize.statistics.OBS_PER_PARAMETER_MIN",
@@ -3575,17 +4432,10 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.indexing.SMITH_VOLUME_C1",
     "rietx.schemas.indexing.SMITH_VOLUME_C2",
     "rietx.schemas.instrument.EXTRA_PEAK_FWHM_MIN",
-    "rietx.schemas.instrument.HARMONIC_WEIGHT_SEED",
     "rietx.schemas.instrument.HUMP_FWHM_MIN",
     "rietx.schemas.plan.CORRELATION_GUARD",
-    "rietx.schemas.plan.INTERMEDIATE_FTOL",
     "rietx.schemas.plan.PlanSpec:correlation_guard",
-    "rietx.schemas.plan.PlanSpec:intermediate_ftol",
-    "rietx.schemas.plan.StageSpec:ftol",
-    "rietx.schemas.plan.StageSpec:max_iter",
     "rietx.schemas.results.HIGH_CORRELATION_MAX",
-    "rietx.schemas.results.StageResult.ftol",
-    "rietx.schemas.results.StageResult.seeded",
     "rietx.schemas.results._cap_one_code.suggestion",
     "rietx.schemas.sequential.SeriesEntry.reseeded",
     "rietx.schemas.sequential.SeriesEntry.rung",
@@ -3640,4 +4490,263 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.strategy.staged.HUMP_MIN_WIDTH_MULT",
     "rietx.strategy.staged.ROUGHNESS_ABSORPTION_GUARD",
     "rietx.strategy.suggest.SUGGEST_SEED_ROUGHNESS",
+)
+
+#: The code rows still without a response, sorted.  Written once when the
+#: column opened (WP-2037, 2026-10-24); it shrinks as WPs 2004-2007 give each
+#: code its response, so a code new to the table enters with one.
+RESPONSE_BASELINE: tuple[str, ...] = (
+    "ABSORPTION_ESTIMATE_UNAVAILABLE",
+    "ABSORPTION_MU_R_OUT_OF_RANGE",
+    "ABSORPTION_PLATE_THICKNESS",
+    "ABSORPTION_THICKNESS_MATTERS",
+    "ADP_NOT_POSITIVE_DEFINITE",
+    "AIR_SCATTER_UNDECLARED",
+    "BACKGROUND_ABSORPTION",
+    "BACKGROUND_ORDER_AT_CAP",
+    "BISO_NEGATIVE",
+    "BISO_UNUSUALLY_LARGE",
+    "BOUND_HIT",
+    "BRINDLEY_OUTSIDE_REGIME",
+    "BRML_ABSORBER_ENGAGED",
+    "CAPILLARY_OFFSET_UNAVAILABLE",
+    "CELL_DEGENERATE_PROBE",
+    "CELL_RUNAWAY",
+    "CHILD_GROUP_UNNAMED",
+    "CIF_CELL_ANGLE_CORRECTED",
+    "CIF_MAGNETIC_CENTERING_ASSUMED",
+    "CIF_MAGNETIC_ION_UNCHARGED",
+    "CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED",
+    "CIF_MAGNETIC_MOMENT_ON_ALLOWED",
+    "CIF_MAGNETIC_NUCLEAR_GROUP",
+    "CIF_MAGNETIC_NUCLEAR_SETTING",
+    "CIF_MAGNETIC_NUMBER_MISMATCH",
+    "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED",
+    "CIF_MAGNETIC_SYMMFORM",
+    "CIF_MAGNETIC_UNIDENTIFIED",
+    "CIF_SITE_LISTED_TWICE",
+    "CIF_SITE_MULTIPLICITY_DISAGREES",
+    "CIF_SITE_TWINS_MERGED",
+    "CIF_SPECIES_NORMALISED",
+    "CONSTRAINT_ACTIVE",
+    "COVARIANCE_DIRECTION_DISCARDED",
+    "COVARIANCE_UNAVAILABLE",
+    "DATA_SUPPORT_LOW",
+    "DECLARED_RANGE_NOT_RESTORED",
+    "DECLARED_RANGE_RESTORED",
+    "DISPERSION_NEGLECTED",
+    "EXTINCTION_CONDITIONS_PARTIAL",
+    "EXTINCTION_FORBIDDEN_INTENSITY",
+    "EXTINCTION_GROUPS_NOT_SEPARABLE",
+    "EXTINCTION_PRIOR_APPLIED",
+    "EXTINCTION_SCREEN_FAILED",
+    "EXTINCTION_SYMBOL_AMBIGUOUS",
+    "EXTRA_PEAK_NO_INTENSITY",
+    "EXTRA_PEAK_ON_REFLECTION",
+    "FLAT_DIRECTION",
+    "FLAT_DIRECTION_OMITTED",
+    "FROZEN_COMPILE_STALE",
+    "FULLPROF_MAGNETIC_PHASE_OMITTED",
+    "FULLPROF_MAGNETIC_PHASE_READ",
+    "FULLPROF_OCCUPANCY_UNCHECKED",
+    "FULLPROF_ORIGIN_CHOICE",
+    "FULLPROF_RHOMBOHEDRAL_RESTATED",
+    "FULLPROF_SPECIES_NORMALISED",
+    "FULLPROF_SPECIES_WRITTEN_NEUTRAL",
+    "FULLPROF_TIE_DROPPED",
+    "GSAS2_CIF_DEUTERIUM_AS_D",
+    "GSAS2_CIF_FIELD_NOT_WRITTEN",
+    "GSAS2_CIF_RHOMBOHEDRAL_RESTATED",
+    "GSAS2_CIF_SETTING_IN_OPERATORS",
+    "GSAS2_CIF_SPECIES_WRITTEN_NEUTRAL",
+    "GSAS2_GPX_BACKGROUND_NOT_CARRIED",
+    "GSAS2_GPX_CONSTRAINT_NOT_CARRIED",
+    "GSAS2_GPX_COORDINATES_SYMMETRY_FIXED",
+    "GSAS2_GPX_ITEM_NOT_READ",
+    "GSAS2_GPX_PHASE_MAGNETIC",
+    "GSAS2_GPX_SCALE_NOT_COMPARABLE",
+    "GSAS2_GPX_SETTING_FROM_OPERATORS",
+    "GSAS2_GPX_SPECIES_NORMALISED",
+    "GSAS2_GPX_TEXTURE_CONVERTED",
+    "GSAS2_GPX_TEXTURE_NOT_CARRIED",
+    "GSAS2_INSTPRM_CONVENTION_ASSUMED",
+    "GSAS2_INSTPRM_FIELD_DROPPED",
+    "GSAS2_INSTPRM_FIELD_NOT_READ",
+    "GSAS2_INSTPRM_FIELD_NOT_WRITTEN",
+    "GSAS2_INSTPRM_GEOMETRY_ASSUMED",
+    "GSAS2_INSTPRM_VALUE_DEFAULTED",
+    "GSAS2_INSTPRM_VALUE_FLOORED",
+    "GSAS2_INSTPRM_VALUE_MERGED",
+    "GSAS_BANK_COMMENTED",
+    "GSAS_EXP_BACKGROUND_NOT_CARRIED",
+    "GSAS_EXP_COORDINATES_SYMMETRY_FIXED",
+    "GSAS_EXP_HISTOGRAM_NOT_READ",
+    "GSAS_EXP_PHASE_MAGNETIC",
+    "GSAS_EXP_REFINE_FLAG_MERGED",
+    "GSAS_EXP_SCALE_NOT_COMPARABLE",
+    "GSAS_EXP_SPECIES_NORMALISED",
+    "GSAS_EXP_SPECIES_WRITTEN_NEUTRAL",
+    "GSAS_EXP_VALUE_NARROWED",
+    "GSAS_FIELD_OVERFLOW",
+    "GSAS_IPARM_FIELD_DROPPED",
+    "GSAS_IPARM_LEGACY_LAYOUT",
+    "GSAS_IPARM_PROFILE_DECLINED",
+    "GSAS_IPARM_PROFILE_READ",
+    "GSAS_PRM_FIELD_DROPPED",
+    "GSAS_PRM_FIELD_NOT_WRITTEN",
+    "GSAS_PRM_GEOMETRY_ASSUMED",
+    "GSAS_PRM_PROFILE_SET_DEFAULTED",
+    "GSAS_PRM_VALUE_NARROWED",
+    "HARMONIC_ABSENT",
+    "HARMONIC_FRACTION",
+    "HARMONIC_HELD",
+    "HIGH_CORRELATION",
+    "HIGH_CORRELATION_OMITTED",
+    "HOLD_BLOCKED_PLAN",
+    "HUMP_TOO_NARROW",
+    "INDEX_ABSTAINED",
+    "INDEX_BRAVAIS_AMBIGUOUS",
+    "INDEX_BUDGET_EXHAUSTED",
+    "INDEX_CANDIDATES_TRUNCATED",
+    "INDEX_CELL_SYSTEMATIC_UNQUANTIFIED",
+    "INDEX_DATA_INSUFFICIENT",
+    "INDEX_DOMINANT_ZONE",
+    "INDEX_GEOMETRIC_AMBIGUITY",
+    "INDEX_IMPURITY_LINES",
+    "INDEX_INLIER_RETRY",
+    "INDEX_MULTIPLE_SOLUTIONS",
+    "INDEX_NOT_VALIDATED",
+    "INDEX_PANEL_REDUCED",
+    "INDEX_PREDICTED_BUT_ABSENT",
+    "INDEX_PRIOR_USED",
+    "INDEX_SEARCH_INCOMPLETE",
+    "INDEX_SHIFT_ALLOWANCE",
+    "INDEX_SHIFT_DETECTED",
+    "INDEX_SHIFT_FROM_PAIRS",
+    "INDEX_SHIFT_MODEL_AMBIGUOUS",
+    "INDEX_SINGLE_ENGINE",
+    "INDEX_SUPERCELL_REFUTED",
+    "INDEX_SYSTEMS_NOT_COVERED",
+    "INDEX_VALIDATION_FAILED",
+    "INDEX_VOLUME_UNPHYSICAL",
+    "INDEX_Z_NOT_INTEGER",
+    "K_VECTOR_UNSEPARATED",
+    "LANDE_G_ASSUMED",
+    "LAUE_CLASS_NOT_SEPARABLE",
+    "LEBAIL_ALTERNATION_STOPPED",
+    "LOW_ANGLE_UNMODELLED",
+    "MAGNETIC_ION_ASSUMED",
+    "MAGNETIC_SUBGROUP_PREFERRED",
+    "MAGNETIC_WIDTH_MOVED_MOMENT",
+    "MAGNETIC_WIDTH_UNMEASURED",
+    "MAGNETIC_WIDTH_UNMODELLED",
+    "MICROABSORPTION_SKIPPED",
+    "MODEL_FAR_FROM_DATA",
+    "MOMENT_ANGLE_STATIONARY",
+    "MOMENT_PAIR_DEGENERATE",
+    "NEUTRON_RESONANT_ABSORBER",
+    "OCCUPANCY_ABOVE_ONE",
+    "ORIGIN_FIXED_ON_POLAR_AXIS",
+    "ORIGIN_NOT_FIXED",
+    "PARAMETRIC_FORM_REJECTED",
+    "PARAMETRIC_OUT_OF_RANGE",
+    "PARAMETRIC_TARGET_UNSEEN",
+    "PATTERN_DEAD_CHANNELS",
+    "PATTERN_DUPLICATE_POINTS",
+    "PATTERN_INTENSITY_SCALED",
+    "PATTERN_MULTISCAN_DEFAULTED",
+    "PATTERN_ROWS_DROPPED",
+    "PATTERN_SCAN_REVERSED",
+    "PATTERN_SIGMA_CONSTANT",
+    "PATTERN_X_AXIS_ASSUMED",
+    "PATTERN_X_AXIS_IMPLAUSIBLE",
+    "PAWLEY_OFF_DATA_RIDGED",
+    "PAWLEY_OVERLAP_UNRESOLVED",
+    "PEAK_ASYMMETRY_UNMODELLED",
+    "PEAK_AXIAL_TAIL",
+    "PEAK_CONTAMINATION_LINE",
+    "PEAK_EXPECTED_FALSE_LINES",
+    "PEAK_KALPHA2_ALIAS",
+    "PEAK_KALPHA2_RESIDUAL",
+    "PEAK_LIST_TOO_SHORT",
+    "PEAK_NOT_SEPARABLE",
+    "PEAK_POSITION_PRECISION",
+    "PEAK_SHOULDER_SEEDED",
+    "PEAK_SIGMA_ASSUMED",
+    "PEAK_UNRESOLVED_SHOULDER",
+    "PEAK_UNRESOLVED_SPLIT",
+    "PEAK_WIDTH_CAPPED",
+    "PEAK_WIDTH_LAW_MISMATCH",
+    "PHASE_UNCONSTRAINED",
+    "QPA_ESD_UNAVAILABLE",
+    "QPA_FRACTION_RANGE",
+    "QPA_UNAVAILABLE",
+    "RAS_ATTENUATOR_PRESENT",
+    "READER_OPTION_IGNORED",
+    "RECIPE_BACKGROUND_PEAK_DEGENERATE",
+    "RECIPE_BACKGROUND_RESEEDED",
+    "RECIPE_BOUND_HONOURED",
+    "RECIPE_CONVENTION_ASSUMED",
+    "RECIPE_DISPERSION_DECLINED",
+    "RECIPE_ENGINE_DEFAULT_DECLINED",
+    "RECIPE_FIELD_DROPPED",
+    "RECIPE_FIT_RANGE_CHANNELS",
+    "RECIPE_FLAG_DROPPED",
+    "RECIPE_FLAG_TRANSLATED",
+    "RECIPE_NOTHING_REFINED",
+    "RECIPE_PLAN_STAGED",
+    "RECIPE_SCALE_RESEEDED",
+    "RECIPE_SCHEMA_UNTESTED",
+    "RECIPE_ZERO_WEIGHT_EXCLUDED",
+    "RESOLUTION_NOT_POSITIVE",
+    "RESTRAINT_TENSION",
+    "RIGID_BODY_MISFIT",
+    "RIGID_BODY_UNSUPPORTED",
+    "ROUGHNESS_ABSORPTION",
+    "ROUGHNESS_OUTSIDE_REGIME",
+    "ROUGHNESS_UNCONSTRAINED",
+    "SCALE_B_INSEPARABLE",
+    "SEQUENTIAL_CANCELLED",
+    "SEQUENTIAL_DISCONTINUITY",
+    "SEQUENTIAL_MOMENT_HOLD",
+    "SEQUENTIAL_MOMENT_ONSET",
+    "SEQUENTIAL_PATH_CHECK_INCOMPLETE",
+    "SEQUENTIAL_PATH_DEPENDENT",
+    "SEQUENTIAL_PERSISTENT_FINDING",
+    "SEQUENTIAL_RESEED",
+    "SEQUENTIAL_RWP_OUTLIER",
+    "SEQUENTIAL_UNRECOVERED",
+    "SEQUENTIAL_WIDTH_GROWTH",
+    "SERIES_PATTERN_FAILED",
+    "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
+    "SIZE_UNUSUALLY_SMALL",
+    "SOLVE_B_TIED_PER_PARENT_SITE",
+    "SPACE_GROUP_SETTING_ASSUMED",
+    "SPECIES_FALLBACK_NEUTRAL",
+    "STAGE_FREED_NOTHING",
+    "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
+    "STAGE_MAX_ITER",
+    "STAGE_PATH_NOT_FREE",
+    "STAGE_PATH_UNKNOWN",
+    "STEPHENS_STRAIN_NOT_POSITIVE",
+    "STRAIN_UNUSUALLY_LARGE",
+    "TEXTURE_NOT_POSITIVE",
+    "TOPAS_BLOCK_SKIPPED",
+    "TOPAS_CELL_COUPLING_DROPPED",
+    "TOPAS_FEATURES_NOT_IMPORTED",
+    "TOPAS_FEATURE_REFUSED",
+    "TOPAS_FIELD_NOT_WRITTEN",
+    "TOPAS_FIRST_RUN_READ",
+    "TOPAS_MAGNETIC_GROUP_READ",
+    "TOPAS_MAGNETIC_PART_MERGED",
+    "TOPAS_MOMENT_CONVENTION",
+    "TOPAS_MOMENT_G_HELD",
+    "TOPAS_MOMENT_ION_UNCHARGED",
+    "TOPAS_ORIGIN_TRANSLATED",
+    "TOPAS_PHASE_RESTATED_IN_P1",
+    "TOPAS_PHASE_TERM_READ",
+    "TOPAS_SPECIES_NORMALISED",
+    "TOPAS_SPECIES_WRITTEN_NEUTRAL",
+    "WAVELENGTH_CALIBRATION",
+    "XRDML_ATTENUATOR_APPLIED",
 )

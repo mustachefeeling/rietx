@@ -60,7 +60,8 @@ The convergence schedule these rankings were produced under is the package
 default (``intermediate_ftol``, WP-1123), inherited deliberately: the plan the
 validation fit runs is ``indexing.workflow.validation_plan``, which declares it
 there with the reason, and a ranking is only worth pinning if it is the ranking
-a caller actually gets.
+a caller actually gets.  The same plan declares ``closing_window_tol=None``
+(WP-2002): candidates fitted alike pay for no closing stage.
 """
 
 from __future__ import annotations
@@ -2435,19 +2436,26 @@ def test_the_isospectral_rival_is_ranked_beside_the_truth(lab6_index):
 #: bracket the knee.  Each run is a cubic-only LaB6 search, ~7 s.
 CONTAMINATION_KS = (0, 2, 3, 6)
 CONTAMINATION_SEEDS = (1000, 1001)
+#: The strong-impurity arm's k: six lines at the stronger half's intensities,
+#: 26-27 % of the total, the positive control that ``indexed_fraction_low``
+#: still fires once an impurity carries intensity.
+CONTAMINATION_STRONG_K = 6
 #: Minimum separation (° 2θ) between an injected line and any certified
 #: position.  An "impurity" landing on a real line is not an impurity, and at
 #: 0.30° it is well clear of both the ~0.04° systematic and the ~0.09° FWHM.
 CONTAMINATION_MIN_SEP = 0.30
 
 
-def _contaminate(peaks, k: int, seed: int, allowed: np.ndarray):
+def _contaminate(peaks, k: int, seed: int, allowed: np.ndarray, *,
+                 strong: bool = False):
     """``(peak list, injected positions)`` — k lines no certified position explains.
 
     Intensities are drawn from the **weaker half** of the observed lines, which
     is what keeps the injected total inside Le Bail (2004) §V's stated regime
     (impurity intensity < 15 % of the total); measured here it runs 0-18 % across
-    the grid, so the regime is reported rather than assumed.
+    the grid, so the regime is reported rather than assumed.  ``strong`` draws
+    them from the **stronger** half instead: the arm where the impurity carries
+    a real share of the intensity (26-27 % at k = 6).
     """
     rng = np.random.default_rng(seed)
     tt_base, inten_base = peaks.two_theta(), peaks.intensity()
@@ -2462,8 +2470,10 @@ def _contaminate(peaks, k: int, seed: int, allowed: np.ndarray):
             continue
         extra.append(x)
     assert len(extra) == k, f"only placed {len(extra)} of {k} impurity lines"
-    weak = np.sort(inten_base)[: max(1, len(inten_base) // 2)]
-    extra_i = rng.choice(weak, size=k) if k else np.array([])
+    ranked = np.sort(inten_base)
+    half = len(inten_base) // 2
+    pool = ranked[half:] if strong else ranked[: max(1, half)]
+    extra_i = rng.choice(pool, size=k) if k else np.array([])
     tt = np.concatenate([tt_base, np.array(extra)])
     it = np.concatenate([inten_base, extra_i])
     order = np.argsort(tt)
@@ -2474,7 +2484,7 @@ def _contaminate(peaks, k: int, seed: int, allowed: np.ndarray):
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
-def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
+def test_weak_impurity_lines_cost_the_certificate_its_rank_never_and_its_grade_only_a_notch(
         lab6_peaks):
     """The contamination sweep: what k injected impurity lines actually break.
 
@@ -2483,20 +2493,30 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
     — three synthetic tests and an A/B control on ``n_unindexed``.  This row is
     that measurement, on the one bundled list whose answer is certified.
 
-    **What breaks is the grade, and it breaks by arithmetic rather than by the
-    search failing.**  At every k on this grid the truth indexes *exactly* its own
-    25 lines and never an injected one, so ``indexed_fraction`` is 25/(25+k) by
-    construction — 1.00, 0.93, 0.89, 0.81 — and the 0.9 bar is crossed between
-    k = 2 and k = 3.  That is where ``high`` becomes ``low``, on
-    ``indexed_fraction_low``, while the *ranking* is untouched.  A reader who sees
-    the confidence fall should therefore look at how many lines are unexplained,
-    not at whether the cell is wrong.
+    **What used to break was the grade, by arithmetic.**  At every k on this
+    grid the truth indexes *exactly* its own 25 lines and never an injected one,
+    so ``indexed_fraction`` is 25/(25+k) by construction — 1.00, 0.93, 0.89,
+    0.81 — and while ``indexed_fraction_low`` read that count, ``high`` became
+    ``low`` between k = 2 and k = 3 with the ranking untouched: the same 25
+    lines charged twice, once in the search's acceptance and again in the gate
+    (issue #933).  Since WP-1969 the caveat reads the share of the *intensity*
+    the cell indexes, and these impurities, drawn from the weaker half of the
+    observed lines, leave it at 0.93-1.00 through k = 6, so the truth is never
+    refuted while the line count drops below 0.9.  That count caps the grade
+    at ``medium`` (``indexed_lines_low``, yue-here's ruling on #1042): ``high``
+    at k = 0 and 2, ``medium`` at k = 3 and 6, rank 1 throughout.
 
-    **The rank is far more robust than the grade, and how robust depends on a
-    budget the user does not have.**  The full curve, eleven k and eight seeds
-    each, is in the WP-1041 handover.  Two protocols, because ``n_unindexed`` is
-    how many lines a candidate may leave unexplained and CLAUDE.md records that
-    it is *absolute*:
+    **The caveat still fires where the impurity carries intensity, and that arm
+    is the row's positive control.**  The same six lines drawn from the
+    *stronger* half take the truth's indexed intensity to 0.73-0.74, and it
+    is ``low`` on ``indexed_fraction_low`` at rank 1.  Without that arm a
+    caveat that could no longer fire would pass the weak grid identically.
+
+    **The rank is far more robust than the grade ever was, and how robust
+    depends on a budget the user does not have.**  The full curve, eleven k and
+    eight seeds each, is in the WP-1041 handover.  Two protocols, because
+    ``n_unindexed`` is how many lines a candidate may leave unexplained and
+    CLAUDE.md records that it is *absolute*:
 
     ======  ===========================  ===========================
     k       first, ``n_unindexed`` = k   first, ``n_unindexed`` = 3
@@ -2553,11 +2573,12 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
     # validation on; the row runs the same protocol.
     data, instrument = _lab6_inputs()
 
-    seen: dict[int, list[dict]] = {}
+    seen: dict[tuple[int, bool], list[dict]] = {}
     searches = []
-    for k in CONTAMINATION_KS:
+    arms = [(k, False) for k in CONTAMINATION_KS] + [(CONTAMINATION_STRONG_K, True)]
+    for k, strong in arms:
         for seed in CONTAMINATION_SEEDS:
-            peaks, injected = _contaminate(clean, k, seed, allowed)
+            peaks, injected = _contaminate(clean, k, seed, allowed, strong=strong)
             spec = SearchSpec(systems=("cubic",), max_volume=300.0,
                               budget_seconds=REAL_DATA_BUDGET_SECONDS,
                               n_unindexed=max(REAL_DATA_N_UNINDEXED, k))
@@ -2571,16 +2592,17 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
                     rank, truth = i + 1, c
                     break
             assert truth is not None, (
-                f"k={k} seed={seed}: the certified lattice is not in the list at "
-                f"all, over {len(res.candidates)} candidates")
-            seen.setdefault(k, []).append(
+                f"k={k} strong={strong} seed={seed}: the certified lattice is "
+                f"not in the list at all, over {len(res.candidates)} candidates")
+            seen.setdefault((k, strong), []).append(
                 {"rank": rank, "n_indexed": truth.n_indexed,
                  "n_lines": truth.n_lines,
+                 "by_intensity": truth.fom_value("indexed_intensity_fraction"),
                  "confidence": truth.confidence,
                  "caveats": set(truth.confidence_caveats),
                  "injected": len(injected)})
 
-    for k, runs in seen.items():
+    for (k, strong), runs in seen.items():
         for r in runs:
             # the sharp one: an injected line is never absorbed into the cell —
             # a claim about what was found, so it does not wait for the clock
@@ -2590,26 +2612,30 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
             assert r["n_lines"] == n_clean + k
 
     _skip_unless_finished(*searches)
-    for k, runs in seen.items():
+    for (k, strong), runs in seen.items():
         for r in runs:
-            assert r["rank"] == 1, f"k={k}: truth ranked {r['rank']}"
+            assert r["rank"] == 1, f"k={k} strong={strong}: truth ranked {r['rank']}"
 
-    # …so the grade is decided by 25/(25+k) against the 0.9 bar, and nothing else
-    for k, runs in seen.items():
-        expected_high = n_clean / (n_clean + k) >= 0.9
-        for r in runs:
-            low_flag = "indexed_fraction_low" in r["caveats"]
-            assert low_flag is not expected_high, (
-                f"k={k}: indexed_fraction {n_clean}/{n_clean + k} = "
-                f"{n_clean / (n_clean + k):.3f} against the 0.9 bar, but "
-                f"indexed_fraction_low is {low_flag}")
-            assert (r["confidence"] == "high") is expected_high, (
+    # weak impurities: the count no longer refutes the truth (#933), but a line
+    # count under the bar caps it at ``medium`` through ``indexed_lines_low``
+    # (yue-here's ruling on #1042), so the grade steps at the 0.9 count bar
+    for k in CONTAMINATION_KS:
+        count_ok = n_clean / (n_clean + k) >= 0.9
+        for r in seen[(k, False)]:
+            assert r["by_intensity"] >= 0.9, (k, r["by_intensity"])
+            assert "indexed_fraction_low" not in r["caveats"], (k, r["caveats"])
+            assert ("indexed_lines_low" in r["caveats"]) is not count_ok, (
+                k, r["caveats"])
+            assert r["confidence"] == ("high" if count_ok else "medium"), (
                 f"k={k}: confidence {r['confidence']} with caveats {r['caveats']}")
-
-    # the knee is inside this grid, which is what makes the row a calibration
-    # rather than two anecdotes at the same grade
-    grades = {k: runs[0]["confidence"] for k, runs in seen.items()}
-    assert grades[0] == "high" and grades[max(CONTAMINATION_KS)] == "low", grades
+    # the count bar is inside this grid, so the cap is exercised on both sides
+    assert n_clean / (n_clean + max(CONTAMINATION_KS)) < 0.9 <= (
+        n_clean / (n_clean + min(CONTAMINATION_KS)))
+    # the positive arm: impurity carrying intensity still refutes the truth
+    for r in seen[(CONTAMINATION_STRONG_K, True)]:
+        assert r["by_intensity"] < 0.9, r["by_intensity"]
+        assert "indexed_fraction_low" in r["caveats"], r["caveats"]
+        assert r["confidence"] == "low", r["confidence"]
 
 
 @pytest.mark.slow

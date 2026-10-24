@@ -341,6 +341,20 @@ they were built from. Their licence texts ship in the wheel and sdist as
 | uPlot | MIT | **Vendored** (WP-1461) — `src/rietx/viz/static/uPlot.iife.min.js` and `uPlot.min.css`, unmodified, with the licence beside them as `uPlot.LICENSE`. `npm run build` copies them from the exact pin in `gui/package.json` (`gui/scripts/vendor.py`), and `tests/test_gui_dist.py` holds the file's banner version equal to that pin. The page `viz.html.write_html` writes inlines the code with the licence as a comment beside it, because a written file leaves the package. |
 | svgcanvas (Zeno Zeng; canvas2svg, Gliffy Inc.) | MIT | **Vendored** (WP-1461) — `src/rietx/viz/static/svgcanvas.esm.js`, unmodified, with the licence beside it as `svgcanvas.LICENSE`, whose notice names both copyright holders. The charts' SVG export redraws each pane through it, loading it on the first export. `npm run build` copies it from the exact pin in `gui/package.json` (`gui/scripts/vendor.py`), records the version in `VENDORED.json` beside it, and `tests/test_gui_dist.py` holds that equal to the pin. The page `viz.html.write_html` writes inlines it with the licence as a comment. |
 
+## Fonts the manual serves
+
+The manual carries its two faces rather than loading them from a font service
+(WP-2021), so they are redistributed: in the repository, on rietx.org and in the
+sdist, which carries `docs/`. They are not in the wheel. Both are unmodified
+Fontsource 5.3.0 builds, from npm, under `docs/docs/_static/fonts/`, each with
+its licence text beside it as the OFL requires. The landing page loads the same
+two faces from Google Fonts and redistributes nothing.
+
+| Face | License | Relationship |
+|---|---|---|
+| Instrument Sans (The Instrument Sans Project Authors) | SIL OFL 1.1 | **Redistributed** — the variable woff2 files, latin and latin-ext, upright and italic; licence `OFL-InstrumentSans.txt` |
+| IBM Plex Mono (IBM Corp.) | SIL OFL 1.1 | **Redistributed** — regular, italic and semibold woff2 files, latin and latin-ext; licence `OFL-IBMPlexMono.txt` |
+
 ## Data tables
 
 - `src/rietx/data/hershey_simplex.json` — the 95 printable ASCII characters of
@@ -382,6 +396,45 @@ they were built from. Their licence texts ship in the wheel and sdist as
   *Atlas of Neutron Resonances* (2006) for 113Cd (0.178 eV), 149Sm (0.0973 eV)
   and 168Yb (0.597 eV); the copy to hand lacks the 155Gd and 157Gd pages and
   151Eu was not located, so those three rest on ENDF alone.
+- `src/rietx/data/r_ion_Shannon.dat` — effective ionic and crystal radii,
+  all 497 rows of Table 1 (pp. 752–753) of Shannon, R. D. (1976). *Acta
+  Cryst.* A**32**, 751–767, doi:10.1107/S0567739476001551, with every printed
+  column and Shannon's derivation/reliability flags. **Shannon is the sole
+  source of every ionic radius here.** Transcribed for this package from
+  the page images (2026-10-02). No file was copied. Two independent digital
+  copies were read as checks only: the Imperial College Shannon database
+  agrees on all 994 radii and differs on one flag, and Wikipedia's "Ionic
+  radius" tables differ on two cells. In all three cases the page agrees
+  with this transcription. The file header lists those cells, the page
+  checks, and the one printed exception to Shannon's CR = IR ± 0.14 Å
+  (N⁵⁺ III). Read by `crystallography.radii.ionic_radius`.
+- `src/rietx/data/r_cov_Pyykko.dat` — molecular covalent radii from
+  Pyykkö, P. & Atsumi, M. (2009). *Chem. Eur. J.* **15**, 186–197,
+  doi:10.1002/chem.200800987 (single bonds, r₁, Fig. 2, 118 elements), and
+  Pyykkö, P. & Atsumi, M. (2009). *Chem. Eur. J.* **15**, 12770–12779,
+  doi:10.1002/chem.200901472 (double bonds, r₂, Fig. 3, 108 elements).
+  Transcribed from the figures (2026-10-02). Fig. 3 is marked "This table
+  copyright © 2009 by Pekka Pyykkö", so only the numbers are reproduced,
+  never the figure. Wikipedia's "Covalent radius" table was a check only,
+  and agrees on all 226 values. These radii are for covalent bonds in
+  molecules and rigid bodies (`crystallography.radii.covalent_radius`).
+  The bond table in `model/geometry.py` does not read them; it uses gemmi's
+  Cordero et al. (2008) radii.
+- `src/rietx/data/r_metal_Pauling.dat` — metallic valences and radii (v,
+  R(L12), R₁) for 72 elements, Table 11-1, "Metallic valences and radii of
+  the elements" (p. 403) of Pauling, L. (1960). *The Nature of the Chemical
+  Bond and the Structure of Molecules and Crystals*, 3rd ed., Cornell
+  University Press, Ithaca NY. Transcribed for this package from the page
+  images of two copies of the 3rd edition (2026-10-02). No file was copied.
+  Checked against Pauling, L. (1947). *J. Am. Chem. Soc.* **69**, 542–553,
+  doi:10.1021/ja01195a024 (Table I), and Pauling's own relation
+  R(L12) = R₁ + 0.300 log(12/v) (p. 412). Table 11-1 is used rather than the
+  book's Table 7-18 (p. 256), which is essentially the 1947 R(1) set. Three
+  printed cells are corrected misprints, each with the printed value kept in
+  the file: Gd R(L12) 2.804 → 1.804, Eu v 3 → 2, and the Sr cell labelled
+  "Sn"; Pm R(L12) is kept as printed and flagged. Read by
+  `crystallography.radii.metallic_radius`, for metal–metal contacts in
+  intermetallic and anion-free phases; the bond table does not read it.
 - `src/rietx/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
   redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).

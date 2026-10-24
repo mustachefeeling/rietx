@@ -293,7 +293,9 @@ def validation_plan(candidate: CellCandidate, instrument: Instrument,
         Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                           "instrument.profile.x", "instrument.profile.y"],
               window_slack_deg=slack),
-    ])
+    # a validation verdict compares candidates fitted alike, and pays for no
+    # closing stage (WP-2002, the sixth round's Q1 and Q2)
+    ], closing_window_tol=None)
 
 
 def seed_widths(instrument: Instrument, peaks: PeakList) -> tuple[Instrument, bool]:

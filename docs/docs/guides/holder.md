@@ -69,9 +69,9 @@ The script fits the pattern three ways and compares each with the fit to the pat
 
 <!-- output of examples/guides/holder.py -->
 ```text
-ignored   largest move 1.91 esd, phases.0.atoms.6.x
-excluded  largest move 0.25 esd, phases.0.atoms.6.x
-declared  largest move 0.22 esd, phases.0.atoms.6.x
+ignored   largest move 1.88 esd, phases.0.atoms.6.x
+excluded  largest move 0.28 esd, phases.0.atoms.6.x
+declared  largest move 0.25 esd, phases.0.atoms.6.x
 ```
 
 `phases.0.atoms.6.x` is the x coordinate of O7.
@@ -90,12 +90,12 @@ The declared line comes back close to the one that was made:
 
 <!-- output of examples/guides/holder.py -->
 ```text
-center 44.6507(77)
-area   67.5(61)
-fwhm   0.122(25)
+center 44.6506(77)
+area   68.8(61)
+fwhm   0.122(26)
 ```
 
-Each lies within 1.3 esd of the value it was made with.
+Each lies within 1.5 esd of the value it was made with.
 
 ## Read what the fit reports
 
@@ -149,14 +149,14 @@ Declare the same peak on the pattern without the steel line:
 
 <!-- output of examples/guides/holder.py -->
 ```text
-area 7.7(96)
-warning[BOUND_HIT]: instrument.extra_components.0.center refined to its bound (ρ=-0.017).
+area 8.4(97)
+warning[BOUND_HIT]: instrument.extra_components.0.center refined to its bound (ρ=-0.013).
   at: instrument.extra_components.0.center
   help: Widen the bound or fix the parameter.
-warning[BOUND_HIT]: instrument.extra_components.0.fwhm refined to its bound (ρ=-0.031).
+warning[BOUND_HIT]: instrument.extra_components.0.fwhm refined to its bound (ρ=-0.034).
   at: instrument.extra_components.0.fwhm
   help: Widen the bound or fix the parameter.
-warning[BOUND_HIT]: instrument.extra_components.0.eta refined to its bound (ρ=-0.030).
+warning[BOUND_HIT]: instrument.extra_components.0.eta refined to its bound (ρ=-0.033).
   at: instrument.extra_components.0.eta
   help: Widen the bound or fix the parameter.
 ```

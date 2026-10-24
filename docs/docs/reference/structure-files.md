@@ -24,10 +24,11 @@ print([note.code for note in notes])
 
 ```text
 fluorapatite P 63/m 7
-['SITE_SNAPPED_TO_SPECIAL_POSITION']
+[]
 ```
 
-The bundled file writes Ca1 at (0.3333333333, 0.6666666667, z), 3.3 × 10⁻¹¹ from the special position (1/3, 2/3, z), so the reader reports that it expanded the site there.
+The bundled file writes Ca1 at (0.3333333333, 0.6666666667, z).
+That is 3.3 × 10⁻¹¹ from the special position (1/3, 2/3, z), inside the file's own rounding of the ten decimals it prints, so the reader stores the site on the position and reports nothing.
 
 | Argument | Default | Meaning |
 |---|---|---|
@@ -70,7 +71,9 @@ The methylammonium C in COD 4335638 sits at 26.8 Å², and a light atom is somet
 Refine such a value, or set a physical start before a stage holds it.
 A fit that keeps a negative B reports [`BISO_NEGATIVE`](diagnostics-refinement.md#biso_negative).
 
-A site within 1e-4 of a special position, as a file quoting five decimals often leaves one, has its orbit expanded at that position.
+A site whose coordinates are its special position rounded to the digits the file prints is read on that position, and nothing is reported.
+A coordinate printed to d decimals stands for any value within half its last digit (`rietx.crystallography.cif.CIF_PRINTED_ROUNDING`), so a move no larger than that is the file's rounding and not a number of the file's.
+A site further off, but within 1e-4 of a special position, has its orbit expanded at that position.
 The 1e-4 bounds each operation's displacement R·x + t − x, so on a mirror, which moves the site by twice its offset, the reach is 5e-5.
 Its multiplicity is the special one, and [`SITE_SNAPPED_TO_SPECIAL_POSITION`](diagnostics-structures.md#site_snapped_to_special_position) names the site, the shift and the multiplicity.
 The stored coordinates are unchanged and the fit is unaffected, with one exception.

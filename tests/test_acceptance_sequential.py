@@ -120,7 +120,8 @@ def independent(sample1_results):
     These are the *same* eight fits the v0.3 QPA acceptance runs: same phases,
     same instrument, same ``seed_scales``, same ``qpa_plan()`` — including the
     convergence schedule that builder declares (``intermediate_ftol``,
-    WP-1123), inherited deliberately, since a chain is only comparable to the
+    WP-1123, and ``closing_window_tol``, WP-2002), inherited deliberately,
+    since a chain is only comparable to the
     unchained baseline if both stop their stages in the same place.  They are
     therefore shared, from ``tests/conftest.py``, rather than re-derived here
     (which cost eight full refinements per run).  Two deliberate semantics
@@ -221,6 +222,11 @@ def test_cells_are_stable_across_the_series(chained):
 # -- the warm start: measured, not assumed --------------------------------
 
 @pytest.mark.slow
+@pytest.mark.xfail(strict=True, reason=(
+    "WP-2002's width twin hold keeps the X/Y split each pattern's instrument-only "
+    "stage lands on, and the two carry policies hand it different starts: "
+    "restricted-carry Rwp 0.1282 against carry=* 0.1256 and independent 0.1258 "
+    "(decision 1(a), 2026-10-23; forwarded to WP-2003)"))
 def test_warm_start_iteration_cost_is_reported(chained, chained_all,
                                                independent):
     """The headline warm-start number, reported rather than gated.

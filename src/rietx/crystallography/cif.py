@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import os
 import re
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from pathlib import Path
 
 import gemmi
@@ -12,6 +13,7 @@ import numpy as np
 
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import (
+    BISO_SEED,
     AnisoU,
     Atom,
     Cell,
@@ -51,6 +53,17 @@ def _strip_su(value: str) -> float:
 #: did, because choosing between "the angle is wrong" and "the symbol is wrong"
 #: is the caller's to make.
 CIF_ANGLE_CORRECT_MAX_DEG = 0.1
+
+#: How far, in units of a coordinate's last printed digit, the value a file
+#: rounded can lie from the number it printed (WP-2037).  A coordinate printed
+#: to d decimals is any value within 0.5·10⁻ᵈ of the print, so a snap onto a
+#: special position that moves every coordinate of a site by no more than that
+#: is the file's own rounding: Ca1 of the bundled fluorapatite is printed
+#: ``0.3333333333`` and snaps 3.3e-11 onto 1/3, which is no statement of the
+#: file's and is not reported.  A snap past it still is, whatever its size.
+#: Arithmetic, not a choice: the half is what rounding to the nearest digit
+#: means, ties included.
+CIF_PRINTED_ROUNDING = 0.5
 
 #: the grammar both form-factor lookups parse: an element symbol plus an
 #: optional *trailing* charge (``Cl1-``) — see ``scattering.normalize_species``
@@ -767,7 +780,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             # by the metric — adp.u_equivalent); it only feeds the isotropic
             # fallback, where the tensor is being discarded anyway
             u_eq = (site.aniso.u11 + site.aniso.u22 + site.aniso.u33) / 3.0
-            u_iso = u_eq if u_eq > 0 else 0.5 / (8.0 * math.pi ** 2)
+            u_iso = u_eq if u_eq > 0 else BISO_SEED / (8.0 * math.pi ** 2)
         b_iso = b_from_u(u_iso)
         raw = site.type_symbol or site.element.name
         species, note = normalize_cif_species(raw)
@@ -780,7 +793,7 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             y=Parameter(value=site.fract.y),
             z=Parameter(value=site.fract.z),
             occ=Parameter(value=(site.occ if site.occ or said.get("occ")
-                                 else 1.0), min=0.0, max=1.5),
+                                 else 1.0), min=0.0),
             biso=Parameter(value=b_iso, unit="A^2"),
             aniso=(AnisoU.from_values([site.aniso.u11, site.aniso.u22, site.aniso.u33,
                                        site.aniso.u12, site.aniso.u13, site.aniso.u23])
@@ -794,6 +807,9 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     # the file's own statement first: a site it says is on a special position is
     # moved there under its own diagnostic, before the twin merge below can
     # collapse it unannounced.  The rows carry labels until the list is final.
+    # Before either, a site the file printed to its own rounding of a special
+    # position is read on it (CIF_PRINTED_ROUNDING), which reports nothing.
+    _read_rounded_sites_on_position(sg, atoms, site_statements)
     stated_diagnostics = _snap_to_stated_multiplicity(sg, atoms, site_statements, path=path)
     if diagnostics is not None:
         diagnostics.extend(stated_diagnostics)
@@ -1030,16 +1046,20 @@ def _site_statements(path: str, name: str) -> dict[str, dict]:
     ``small.sites`` holds ``u_iso = 0`` and ``occ = 1`` for a column the file
     does not carry and for one that states them, so "stated zero" and "absent"
     are not told apart there.  Returns ``{label: {"iso": bool, "occ": bool,
-    "multiplicity": int | None}}`` read from the block itself; a null (``.``
-    or ``?``) is not a statement.  The multiplicity comes from
-    ``_atom_site_symmetry_multiplicity``, else the number leading a
-    ``_atom_site_Wyckoff_symbol`` (``6e``).
+    "multiplicity": int | None, "printed": tuple | None}}`` read from the block
+    itself; a null (``.`` or ``?``) is not a statement.  The multiplicity comes
+    from ``_atom_site_symmetry_multiplicity``, else the number leading a
+    ``_atom_site_Wyckoff_symbol`` (``6e``).  ``printed`` is the three fractional
+    coordinates as the file prints them, esd dropped, which is what
+    :func:`_within_printed_rounding` reads the file's precision from; ``None``
+    where any of the three is not a plain decimal.
     """
     doc = gemmi.cif.read(path)
     block = doc.find_block(name) or doc[0]
     table = block.find("_atom_site_", [
         "label", "?U_iso_or_equiv", "?B_iso_or_equiv", "?occupancy",
-        "?symmetry_multiplicity", "?Wyckoff_symbol"])
+        "?symmetry_multiplicity", "?Wyckoff_symbol",
+        "?fract_x", "?fract_y", "?fract_z"])
     out: dict[str, dict] = {}
     for row in table:
         def stated(k):
@@ -1051,10 +1071,74 @@ def _site_statements(path: str, name: str) -> dict[str, dict]:
         if multiplicity is None and stated(5):
             digits = re.match(r"\d+", gemmi.cif.as_string(row[5]).strip())
             multiplicity = int(digits.group()) if digits else None
+        printed = tuple(_printed_decimal(gemmi.cif.as_string(row[k]))
+                        if stated(k) else None for k in (6, 7, 8))
         out.setdefault(gemmi.cif.as_string(row[0]), {
             "iso": stated(1) or stated(2), "occ": stated(3),
-            "multiplicity": multiplicity})
+            "multiplicity": multiplicity,
+            "printed": None if None in printed else printed})
     return out
+
+
+def _printed_decimal(token: str) -> Decimal | None:
+    """A CIF number as the decimal it prints, its esd dropped: ``0.24198(3)`` →
+    ``Decimal('0.24198')``, which keeps the printed digit count.  ``None`` for
+    anything that is not a plain number."""
+    try:
+        value = Decimal(re.sub(r"\(\d+\)$", "", token.strip()))
+    except InvalidOperation:
+        return None
+    return value if value.is_finite() else None
+
+
+def _within_printed_rounding(position, printed) -> bool:
+    """Whether moving a site to ``position`` changes no coordinate by more than
+    the file's own rounding of it (:data:`CIF_PRINTED_ROUNDING` of its last
+    printed digit).  Exact in decimal, so a special value that falls on a
+    rounding tie (1/8 printed ``0.12``) is within it rather than a float's
+    width outside.  The difference is taken modulo a lattice translation, the
+    snap's own convention."""
+    if printed is None:
+        return False
+    for value, token in zip(position, printed, strict=True):
+        diff = Decimal(float(value)) - token
+        diff -= diff.to_integral_value(rounding=ROUND_HALF_EVEN)
+        half = Decimal(repr(CIF_PRINTED_ROUNDING)).scaleb(token.as_tuple().exponent)
+        if abs(diff) > half:
+            return False
+    return True
+
+
+def _read_rounded_sites_on_position(sg, atoms: list[Atom], stated: dict[str, dict]) -> None:
+    """Store a site on its special position where the file printed its rounding.
+
+    A site whose snap moves no coordinate by more than
+    :data:`CIF_PRINTED_ROUNDING` of the digit it is printed to is a site the
+    file *placed* there: ``0.3333333333`` is 1/3 to the ten decimals the file
+    gives, and the 3.3e-11 between them is not a number of the file's.  So the
+    value stored is the position itself, and neither this reader nor the fit's
+    own check (``refine._symmetry_silence_diagnostics``) reports a snap the
+    file did not make.  A site moved by more is left as printed, for
+    ``SITE_SNAPPED_TO_SPECIAL_POSITION`` to report, since there the deviation
+    is the file's number and may be real.  A site whose orbit cannot be built
+    is left alone, so the snap report raises its refusal naming the file.
+    """
+    for atom in atoms:
+        printed = stated.get(atom.label, {}).get("printed")
+        if printed is None:
+            continue
+        xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
+        try:
+            orbit = site_orbit(sg, xyz)
+        except ValueError:
+            continue
+        if not orbit.shift or not _within_printed_rounding(orbit.position, printed):
+            continue
+        delta = orbit.position - xyz
+        delta -= np.rint(delta)
+        for axis, value in zip(("x", "y", "z"), xyz + delta, strict=True):
+            setattr(atom, axis, getattr(atom, axis).model_copy(
+                update={"value": float(value)}))
 
 
 def _snap_to_stated_multiplicity(sg, atoms: list[Atom], stated: dict[str, dict],
@@ -1101,8 +1185,12 @@ def _snap_to_stated_multiplicity(sg, atoms: list[Atom], stated: dict[str, dict],
                 for axis, value in zip(("x", "y", "z"), new, strict=True):
                     setattr(atom, axis, getattr(atom, axis).model_copy(
                         update={"value": float(value)}))
-                moved.append((atom.label, float(np.max(np.abs(delta))), want,
-                              where))
+                # moved either way; reported only where the move is more than
+                # the file's rounding of what it printed (CIF_PRINTED_ROUNDING)
+                if not _within_printed_rounding(
+                        near.position, stated[atom.label].get("printed")):
+                    moved.append((atom.label, float(np.max(np.abs(delta))), want,
+                                  where))
                 continue
         disagree.append((atom.label, want, have, where))
     out: list[Diagnostic] = []

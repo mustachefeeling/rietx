@@ -360,7 +360,7 @@ def test_old_python_passing_a_transform_to_a_declared_field_keeps_its_floor():
     from rietx.schemas.instrument import ProfileTCHZ
 
     prof = ProfileTCHZ(u=Parameter(value=0.01, transform="softplus"))
-    assert (prof.u.min, prof.u.max, prof.u.unit) == (0.0, 1.0, "deg^2")
+    assert (prof.u.min, prof.u.max, prof.u.unit) == (0.0, 180.0 ** 2, "deg^2")
 
 
 def test_an_unknown_transform_is_refused_by_name():
@@ -371,15 +371,19 @@ def test_an_unknown_transform_is_refused_by_name():
 def test_a_bare_width_outside_the_declared_box_is_refused_by_name():
     """WP-1312's ruling reached a bare *number* and let a bound-less
     ``Parameter`` through unbounded; inheriting the box closes that, and the
-    refusal names the field, the box and ``coarse`` rather than arriving as
-    ``Parameter``'s anonymous bounds error.  An explicit bound still wins."""
+    refusal names the field and the box rather than arriving as
+    ``Parameter``'s anonymous bounds error.  An explicit bound still wins.
+    The box's chosen ceilings went on 2026-10-21 (WP-2002, the fifth round's
+    Q5) and its chosen U, V and Y floors on 2026-10-23, so the refusal is of a
+    value under ``x``'s floor of 0, the Lorentzian floor left."""
     from rietx.schemas.instrument import ProfileTCHZ
 
-    with pytest.raises(ValidationError, match=r"ProfileTCHZ\.u: value 1\.576 lies "
-                       r"outside bounds \[-0\.05, 1\.0\].*ProfileTCHZ\.coarse"):
-        ProfileTCHZ(u=Parameter(value=1.576, vary=True))
-    wide = ProfileTCHZ(u=Parameter(value=1.576, vary=True, min=0.0, max=5.0))
-    assert (wide.u.min, wide.u.max, wide.u.unit) == (0.0, 5.0, "deg^2")
+    with pytest.raises(ValidationError, match=r"ProfileTCHZ\.x: value -0\.1 lies "
+                       r"outside bounds \[0\.0, 180\.0\]"):
+        ProfileTCHZ(x=Parameter(value=-0.1, vary=True))
+    assert ProfileTCHZ(u=Parameter(value=1.576, vary=True)).u.value == 1.576
+    wide = ProfileTCHZ(u=Parameter(value=-0.1, vary=True, min=-0.5, max=5.0))
+    assert (wide.u.min, wide.u.max, wide.u.unit) == (-0.5, 5.0, "deg^2")
 
 
 def test_inheriting_does_not_touch_the_callers_parameter_on_any_class():

@@ -131,11 +131,18 @@ def test_the_flagged_lines_are_still_scored():
 def test_916s_flat_silicon_is_driven_by_its_own_lines(tmp_path):
     import rietx as rx
     from rietx.indexing import index_pattern
+    from rietx.model.forward import WINDOW_AREA_TOL
     from tests.test_peak_fdr import LAM, RANGE, _silicon
 
     ins = rx.Instrument.debye_scherrer(wavelength=LAM)
     ins.profile.w.value, ins.profile.u.value, ins.profile.x.value = 3e-4, 5e-4, 5e-3
-    peaks = rx.pick_peaks(_silicon(tmp_path, steep=False, hi=62.0), ins,
+    # Drawn at the declared stages' 2 % windows, where the control below was
+    # measured.  At the closing windows ``predict`` now uses (WP-2002) the
+    # pattern has full tails, the picker finds three fewer weak components, and
+    # the stripped set (15 lines) indexes: 4 candidates, so the control would
+    # no longer show the rule is needed on this pattern.
+    peaks = rx.pick_peaks(_silicon(tmp_path, steep=False, hi=62.0,
+                                   window_area_tol=WINDOW_AREA_TOL), ins,
                           two_theta_range=RANGE)
     spec = SearchSpec(systems=("cubic",), n_unindexed=2)
 

@@ -427,7 +427,10 @@ def test_the_ascent_out_of_the_floor_terminates_at_once(solver, max_iter):
     data = simulate(4.5, 4400, scale=6.0, background=300.0)
     ref = rx.Refinement(Structure(phases=[mnf2(MOMENT_FLOOR_MU_B)]), neutron(),
                         solver=solver)
-    result = ref.fit(data, plan=moment_plan(max_iter=max_iter))
+    plan = moment_plan(max_iter=max_iter)
+    # the declared stages' iteration budget; the closing stage is tests/test_closing_stage.py's
+    plan.closing_window_tol = None
+    result = ref.fit(data, plan=plan)
     table = ParameterTable(ref.structure, ref.instrument)
     row = analyse_moments(
         ref._model, table.decode(table.x0()), ref.structure,

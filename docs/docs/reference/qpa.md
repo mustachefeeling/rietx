@@ -4,7 +4,7 @@ This page gives the weight fractions a Rietveld fit reports for its phases: the 
 
 A Rietveld fit refines one scale per phase, and the scales are proportional to how much of each phase is present.
 The Hill-Howard relation {cite}`hill1987` turns them into weight fractions, W<sub>p</sub> ∝ S<sub>p</sub>·(ZMV)<sub>p</sub>, renormalised to sum to 1 across the phases {eq}`corr-qpa`.
-Every Rietveld fit reports them on `RefinementResult.qpa`, and a single phase reads 100 %.
+Every Rietveld fit reports them on `RefinementResult.qpa`, and a single phase reads 100 % (unless it has no reflection in range, which leaves it none).
 A Le Bail or Pawley fit reports none, because its scales are degenerate with the extracted intensities.
 [How to find the weight fraction of each phase in a mixture](../guides/qpa.md) gives the procedure on a shipped pattern.
 
@@ -24,6 +24,8 @@ for row in result.qpa.phases:
 | `QuantitativePhaseAnalysis.phases` | one `PhaseQuantity` per phase |
 | `QuantitativePhaseAnalysis.method` | `"zmv"`, the Hill-Howard route, and the only one |
 | `QuantitativePhaseAnalysis.crystalline_only` | `True`: the fractions are of the modelled crystalline content alone |
+| `QuantitativePhaseAnalysis.unmeasured_phases` | the phases with no fraction: no reflection in range, or a scale a stage held |
+| `QuantitativePhaseAnalysis.unmeasured_held` | the part of that list a stage held while a reflection is in range at the answer |
 | `QuantitativePhaseAnalysis.microabsorption` | the `MicroabsorptionCorrection` record, when the correction ran |
 | `QuantitativePhaseAnalysis.microabsorption_skipped` | why it did not run, when a phase asked for it |
 
@@ -32,7 +34,7 @@ for row in result.qpa.phases:
 | Field | Holds |
 |---|---|
 | `PhaseQuantity.name` | the phase name |
-| `PhaseQuantity.weight_fraction` | its mass fraction, from 0 to 1 |
+| `PhaseQuantity.weight_fraction` | its mass fraction, from 0 to 1, or `None` for an unmeasured phase |
 | `PhaseQuantity.weight_fraction_stderr` | that fraction's esd, or `None` |
 | `PhaseQuantity.scale` | the refined scale it came from |
 | `PhaseQuantity.cell_mass` | Z·M, the mass in one unit cell, in g/mol |
@@ -159,7 +161,7 @@ Before 1.10 the record was the warning `QPA_FRACTION_UNDETERMINED`, which fired 
 The basins separate only on information the fit does not have: a width held at a value the specimen justifies, a background that can take the hump itself, or more counts on the phase's strongest lines.
 
 The synthetic trace is LaB₆ with 1 wt % CaF₂ and a small amorphous hump under a six-term Chebyshev background, in `tests/test_qpa_multimodal.py`.
-The fit reports CaF₂ at 1.18 ± 0.39 wt %, and the profile admits everything from 0.86 % to 77 %, in two basins separated by a barrier the data can see.
+The fit reports CaF₂ at 0.93 ± 0.33 wt %, and the profile admits everything from 0.93 % to 77.1 %, in two basins separated by a barrier the data can see.
 
 A wrong Z·M·V is a different failure.
 A wrong site multiplicity or a wrong space-group setting ([`SITE_SNAPPED_TO_SPECIAL_POSITION`](diagnostics-structures.md#site_snapped_to_special_position), [`SPACE_GROUP_SETTING_ASSUMED`](diagnostics-structures.md#space_group_setting_assumed)) moves the Z·M·V factor of one phase by a fixed multiple, at unchanged Rwp.
@@ -183,6 +185,16 @@ An amorphous fraction is a broad hump the background has to absorb, and a missin
 It is the RMS of what remains in the background envelope after a cubic and a 1/(2θ) term, over the median level, so it measures broad structure no ordinary background shape accounts for.
 
 Quote a fraction as a share of the crystalline content: 57.3 % corundum is wrong if the specimen is 20 % glass, while 57.3 % of the crystalline content is right either way.
+
+### A phase with no reflection in the fitted range
+
+A phase none of whose reflections lies in the fitted range has no fraction: its `weight_fraction` and esd are `None`, and `QuantitativePhaseAnalysis.unmeasured_phases` names it.
+Its scale's column is zero at every value, so the stage holds the scale at the value you handed in, under every solver, and a fraction read off it would be that start value.
+The other fractions are normalised over the phases seen in range, so they sum to 1 without it.
+They are relative to those phases, not to the crystalline content: a specimen known to hold the unmeasured phase has no absolute fractions from this range.
+[`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) says so, and so do the QPA table's caveats.
+The Brindley correction is skipped while a phase is unmeasured, with that reason in `microabsorption_skipped`, because its mixture-average µ needs every phase's fraction.
+A phase with no line wants a wider range; one whose scale a stage held (a refined zero shift moved a line into range afterwards) wants a start where a reflection is already in range, so its scale refines. Either may be taken out of the model.
 Internal-standard and amorphous quantification, spiking a known weight of a known phase and solving for the rest, is not implemented.
 
 ## Microabsorption

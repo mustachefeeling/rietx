@@ -501,8 +501,10 @@ def test_a_joint_fit_reaches_the_boundary_survives_it_and_says_so():
         patterns.append(PatternData(two_theta=tt.tolist(),
                                     intensity=np.ones_like(tt).tolist()))
 
+    # the declared stage's probes; the closing stage is tests/test_closing_stage.py's
     plan = RefinementPlan(stages=[
-        Stage(name="cell", turn_on=["phases.0.cell.alpha"], max_iter=3)])
+        Stage(name="cell", turn_on=["phases.0.cell.alpha"], max_iter=3)],
+        closing_window_tol=None)
     result = MultiHistogramRefinement(structure, instruments).fit(
         patterns, plan=plan)
 

@@ -130,7 +130,7 @@ the tree that day.
   Left: 18, 24.
   Item 18 waits on WP-1910 and WP-1510, whose findings on the shipped
   fluorapatite pattern it would otherwise document; item 24 on the magnetic WPs in flight
-  (1326, 1327, 1418). Item 10 has the spike's page to start from, but no
+  (1327, 1418; 1326 closed 2026-10-23). Item 10 has the spike's page to start from, but no
   LaB6 pattern ships in `rietx.examples`. The maintainer chose (2026-10-17) to fetch data a
   guide needs rather than ship it: `rietx.examples.fetch` downloads a `REMOTE_FILES` entry from
   `tests/data/` at a pinned commit, and `test_examples.py`'s `fetched_state` fixture fills the
@@ -292,6 +292,21 @@ the tree that day.
   survives in `gui-power.md`, without the `{ref}` to the old compatibility page.
 - `start/gui-quickstart.md` § Where to go next links the Guides index where the old page
   linked the Python quickstart. Repoint it when the tutorials render under Start.
+
+### Inherited
+
+- **2026-10-23, from [1510](1510-what-the-chemist-knows-reaches-the-search.md) (closed): guide
+  18's wait on WP-1510 is now a wait on [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md).**
+  The findings guide 18 would document on the shipped fluorapatite pattern are 2030's: the
+  windowed `FAP.XRA` search abstains, and the true cell implies Z = 1.14. Context's two
+  mentions of WP-1510 as the thing guide 18 waits on (around lines 131 and 226) read WP-2030.
+- **2026-10-23, from [1912](1912-a-polar-axis-has-no-origin.md) (closed): the floating-origin behaviour is settled for now, so the polar-origin guide can be written against it.** The maintainer decided on 2026-10-23 that both modes stay opt-in and off by default. `Refinement.hold_floating_origin()` (or `Phase.floating_origin = "hold"`) holds one atom per floating direction. `"centroid"` restrains a weighted centroid of every site (Flack & Schwarzenbach 1988), so every coordinate keeps an esd. `None` is the default. The reference text now lives in `docs/docs/reference/data.md` § Floating origin and `theory/parameterisation.md` (`par-origin-*`), since the old `using/concepts.md` retired. The round-robin zincite numbers are in WP-2029's Context. A guide written now shows the opt-in calls and promises no default. Whether the centroid becomes the default is [WP-2029](2029-whether-the-centroid-fixes-a-polar-origin-by-default.md). If it flips, its manual task updates the guide, or tells this WP if no guide has been written yet.
+- From WP-2021: the Guides menu names each guide without its "How to". So guides 18 and 24
+  each enter `guides/index.md`'s toctree as `Label <doc>`, the label being the H1 less
+  "How to", capitalised; the H1 keeps it.
+  `tests/test_manual.py::test_a_tabs_menu_names_each_page_without_the_prefix_its_tab_says`
+  fails on a bare entry. A new numbered equation re-runs `check_equations.py`, now measured
+  in the manual's own face.
 
 ## Non-goals
 

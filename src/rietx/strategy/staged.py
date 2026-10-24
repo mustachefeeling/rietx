@@ -15,20 +15,26 @@ import dataclasses
 import functools
 import re
 from dataclasses import dataclass, field
+from typing import Literal
 
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
-# INTERMEDIATE_FTOL, CORRELATION_GUARD and PHASE_SUPPORT_SIGMA are defined
-# beside the mirror because the pydantic fields need them at class-definition
-# time and this module is the *upper* layer; they are re-exported here, where
-# plan policy is read.
+# INTERMEDIATE_FTOL, CORRELATION_GUARD, PHASE_SUPPORT_SIGMA and
+# CLOSING_WINDOW_TOL are defined beside the mirror because the pydantic fields
+# need them at class-definition time and this module is the *upper* layer;
+# they are re-exported here, where plan policy is read.
 from ..schemas.plan import (
+    CLOSING_WINDOW_TOL,
     CORRELATION_GUARD,
     INTERMEDIATE_FTOL,
     PHASE_SUPPORT_SIGMA,
     PlanSpec,
+    check_closing_window_tol,
 )
+
+#: The name of the stage :meth:`RefinementPlan.closing_stage` appends.
+CLOSING_STAGE_NAME = "closing"
 
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
@@ -125,7 +131,8 @@ class Stage:
     #: this stage's own ftol (relative cost-decrease termination), overriding
     #: whatever schedule the plan sets.  ``None`` = take it from the plan
     #: (:attr:`RefinementPlan.intermediate_ftol` for every stage but the last,
-    #: the solver's 1e-9 for the last) — which is why the two cannot be told
+    #: the solver's 1e-9 for the last, which is the closing stage when the
+    #: plan has one) — which is why the two cannot be told
     #: apart here and a plan is where the schedule is declared.  Set it to say
     #: that *this* stage is different: an early stage whose seed the next one
     #: is unusually sensitive to, or a one-stage validation fit that must
@@ -147,7 +154,8 @@ class Stage:
     #: microstrain (ppm of ΔM/M) to put a freed but still all-zero Stephens
     #: block on before solving.  ``seed`` cannot serve: the S_HKL DOFs are
     #: unbounded below, and their pathology at zero is the *exploding*
-    #: gradient of √Σ.  0 = no seed.
+    #: gradient of √Σ.  0 = no seed.  ``ParameterTable.seed_stephens``;
+    #: recorded in ``StageResult.seeded``, every DOF of the block at its seed.
     strain_seed: float = 0.0
     #: c_w of McCusker eq (7), S = S_y + c_w·S_G: how heavily this stage weights
     #: the geometric 'observations' (every soft restraint the phases declare)
@@ -200,9 +208,26 @@ class Stage:
 #: every freed row sitting exactly on a floor of 0 or above
 #: (``ParameterTable.seed_floored``, WP-1938).  Pitschke's ``tau`` at its 0.05
 #: default is above its floor, so it starts where it is (issue #499).
+#:
+#: The one 0.3 starts both models' strength, and the two are recorded apart
+#: (WP-2002, the sixth round's Q3, ruled (c)).  Suortti's start does not change
+#: the answer (``tests/test_seed_invariance.py``, five patterns, three families).
+#: Pitschke's does: from c = 0 CPD zincite lands in the model's turned-over
+#: regime, which ``ROUGHNESS_OUTSIDE_REGIME`` flags, and from 0.3 it reaches the
+#: switched-off branch inside the valid range.  No program supplies a Pitschke
+#: start, so 0.3 stays, at tier 3.  A per-model value would need a per-path seed
+#: or a second stage, and an inert stage re-solves everything already freed.
+ROUGHNESS_SEED = 0.3
 _ROUGHNESS_STAGE = (
-    Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
+    Stage("roughness", ["instrument.geometry.surface_roughness.*"],
+          seed=ROUGHNESS_SEED),
 )
+
+#: The microstrain, in ppm of ΔM/M, that ``lab_sample_refine`` puts an all-zero
+#: Stephens block at before solving (``Stage.strain_seed``): the width's square
+#: root has unbounded slope at zero, so some start is forced.  1000 ppm is
+#: GSAS-II's isotropic microstrain default, on the isotropic ray (WP-1467).
+STRAIN_SEED_PPM = 1000.0
 
 
 #: Additive background peaks (:class:`~rietx.schemas.instrument.HumpComponent`)
@@ -336,8 +361,59 @@ class RefinementPlan:
     #: support, and no cell is windowed.  ``PHASE_UNCONSTRAINED`` still reports
     #: a phase under :data:`PHASE_SUPPORT_SIGMA`, whose structural parameters
     #: then refined without signal.  The default reproduces every fit before
-    #: the field, bit for bit.
+    #: the field, bit for bit.  A phase with no reflection in the fitted range
+    #: is held whole, scale included, at any value here, ``None`` too
+    #: (WP-1958): that is a count, not a significance call.
     phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
+    #: the area fraction the closing stage's peak windows may drop (WP-2002,
+    #: the sixth round's Q1 and Q2).  After the declared stages, one more
+    #: recompiles at the answer with these windows and solves with every glob
+    #: the plan freed (:meth:`closing_stage`); :data:`CLOSING_WINDOW_TOL` says
+    #: what it fixes, what it costs and what other programs do.  ``None``
+    #: runs the declared stages alone, which reproduces every fit before the
+    #: field, bit for bit.
+    closing_window_tol: float | None = CLOSING_WINDOW_TOL
+
+    def closing_stage(self) -> Stage | None:
+        """The stage a fit runs after the declared ones, or ``None``.
+
+        It frees every glob any declared stage freed, in first-seen order,
+        and takes the last declared stage's discrete settings (iterations, Le
+        Bail cycles, c_w, window slack, its own ``ftol``), so a schedule's end
+        state is what it re-solves.  It seeds nothing: a row back on its floor
+        at the answer is where the data put it.  Its window fraction is
+        :attr:`closing_window_tol`, which :meth:`stage_window_tols` carries.
+        ``None`` when that is ``None`` or the plan declares no stage.
+        """
+        if check_closing_window_tol(self.closing_window_tol) is None or not self.stages:
+            return None
+        last = self.stages[-1]
+        globs = list(dict.fromkeys(g for s in self.stages for g in s.turn_on))
+        return Stage(CLOSING_STAGE_NAME, globs, max_iter=last.max_iter, ftol=last.ftol,
+                     lebail_cycles=last.lebail_cycles,
+                     restraint_weight_scale=last.restraint_weight_scale,
+                     window_slack_deg=last.window_slack_deg)
+
+    def run_stages(self) -> list[Stage]:
+        """The stages a fit runs, in order: the declared ones, then :meth:`closing_stage`.
+
+        Every runner iterates this, never :attr:`stages`, together with
+        :meth:`stage_ftols` and :meth:`stage_window_tols`, which are parallel
+        to it.
+        """
+        closing = self.closing_stage()
+        return [*self.stages, closing] if closing is not None else list(self.stages)
+
+    def stage_window_tols(self) -> list[float | None]:
+        """The window area fraction each of :meth:`run_stages` compiles at.
+
+        ``None`` for a declared stage, which takes ``forward.WINDOW_AREA_TOL``,
+        and :attr:`closing_window_tol` for the closing stage.
+        """
+        tols: list[float | None] = [None] * len(self.stages)
+        if self.closing_stage() is not None:
+            tols.append(self.closing_window_tol)
+        return tols
 
     def stage_ftols(self) -> list[float | None]:
         """The tolerance each stage runs at, in order — the one authority.
@@ -351,17 +427,20 @@ class RefinementPlan:
         Three inputs, in precedence order: a stage's own ``ftol`` wins; the
         last stage takes the solver default, because it is the one that
         produces the answer; everything else takes
-        :attr:`intermediate_ftol`.
+        :attr:`intermediate_ftol`.  The list is parallel to
+        :meth:`run_stages`, so with a closing stage the last is the closing
+        stage and the last declared stage is an intermediate one.
 
-        A single-stage plan is therefore all endpoint and nothing is loosened
-        — which is the right reading of a warm series pattern collapsed to one
-        stage, and of the indexing validation fit, neither of which has a
-        successor to seed.
+        A single-stage plan without a closing stage is therefore all endpoint
+        and nothing is loosened, which is the right reading of the indexing
+        validation fit, with no successor to seed.  With one, its stage seeds
+        the closing stage like any other.
         """
-        last = len(self.stages) - 1
+        stages = self.run_stages()
+        last = len(stages) - 1
         return [s.ftol if s.ftol is not None
                 else (None if i == last else self.intermediate_ftol)
-                for i, s in enumerate(self.stages)]
+                for i, s in enumerate(stages)]
 
     def __getattr__(self, name: str):
         if name in _PYDANTIC_SURFACE:
@@ -505,7 +584,7 @@ class RefinementPlan:
             Stage("sample_profile", ["phases.*.lor_size", "phases.*.lor_strain",
                                      "phases.*.gauss_size", "phases.*.gauss_strain",
                                      "phases.*.microstrain.dof.*"],
-                  strain_seed=1000.0),
+                  strain_seed=STRAIN_SEED_PPM),
             Stage("biso", list(_DISPLACEMENT_GLOBS)),
             *_ROUGHNESS_STAGE,
         ])
@@ -974,7 +1053,18 @@ class GuardFinding:
 
     @classmethod
     def nonpositive_resolution(cls, n_bad: int, n_total: int, worst: float,
-                               two_theta: float) -> "GuardFinding":
+                               two_theta: float, *,
+                               width: Literal["gaussian", "lorentzian"] = "gaussian"
+                               ) -> "GuardFinding":
+        """``width="lorentzian"`` is Γ_L's finding: one code for both widths,
+        since the action is the same for either (WP-2002)."""
+        if width == "lorentzian":
+            return cls("RESOLUTION_NOT_POSITIVE",
+                       ("instrument.profile.x", "instrument.profile.y"),
+                       float(worst),
+                       f"the Lorentzian instrument width ({n_bad} of {n_total} "
+                       f"fitted points, worst Γ_L {worst:+.2e}° at "
+                       f"{two_theta:.3f}° 2θ)")
         return cls("RESOLUTION_NOT_POSITIVE",
                    ("instrument.profile.u", "instrument.profile.v",
                     "instrument.profile.w"),
@@ -1619,7 +1709,15 @@ RESOLUTION_CONE_TOL = 1e-9
 
 
 def check_resolution_positive(table, model) -> list[GuardFinding]:
-    """The Caglioti resolution function dipping below zero in the fitted range.
+    """An instrument width going below zero in the fitted range.
+
+    Two widths, one finding each.  The Gaussian one is below.  The Lorentzian
+    one, Γ_L = X/cosθ + Y·tanθ, is a FWHM and must not go negative either.
+    Y has no floor of its own since 2026-10-23 (WP-2002), so a negative Y can
+    take Γ_L below zero at high angle once X is too small to carry it.  The
+    model refuses nothing there: the TCH mixing gives a negative η.  Tested
+    the same way as Γ_G², over the fitted axis, on the instrument alone, at
+    the same relative tolerance.
 
     Γ_G² = U·tan²θ + V·tanθ + W is a **variance**, so the physical constraint
     is on the quadratic as a whole and not on its three coefficients: U, V and
@@ -1659,7 +1757,8 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     histogram also holds the **total** Γ_G², each phase's Gaussian size and
     strain included, at or above ``caglioti._MIN_GAMMA_G2`` at every
     reflection, as a linear inequality (WP-1938 D7,
-    ``optimize.least_squares.gaussian_width_inequalities``).  That keeps the
+    ``optimize.least_squares.gaussian_width_inequalities``), and the total
+    Γ_L at or above zero (``lorentzian_width_inequalities``).  That keeps the
     width columns alive, and it does not make this guard redundant.  A phase
     term can carry the total while the instrument quadratic is negative, the
     points between reflections are not held, and a stage that starts under
@@ -1680,15 +1779,27 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     except KeyError:  # defensive: ParameterTable always adds the five profile
         return []     # entries, so nothing in-tree reaches this
 
-    tan = np.tan(np.radians(0.5 * tt))
+    th = np.radians(0.5 * tt)
+    tan = np.tan(th)
+    out: list[GuardFinding] = []
     g2 = u * tan * tan + v * tan + w
     scale = max(float(np.max(np.abs(g2))), 1.0)
     bad = g2 < -RESOLUTION_CONE_TOL * scale
-    if not bad.any():
-        return []
-    k = int(np.argmin(g2))
-    return [GuardFinding.nonpositive_resolution(
-        int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k]))]
+    if bad.any():
+        k = int(np.argmin(g2))
+        out.append(GuardFinding.nonpositive_resolution(
+            int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k])))
+    x, y = values.get("instrument.profile.x"), values.get("instrument.profile.y")
+    if x is not None and y is not None:
+        gl = x / np.cos(th) + y * tan
+        scale = max(float(np.max(np.abs(gl))), 1.0)
+        bad = gl < -RESOLUTION_CONE_TOL * scale
+        if bad.any():
+            k = int(np.argmin(gl))
+            out.append(GuardFinding.nonpositive_resolution(
+                int(bad.sum()), int(gl.size), float(gl[k]), float(tt[k]),
+                width="lorentzian"))
+    return out
 
 
 #: a free column counts as "on its bound" within this fraction of **the closest

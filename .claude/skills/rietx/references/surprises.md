@@ -28,7 +28,7 @@ settings side by side on the bundled standards, whose cumulative-Δχ² panel sh
 
 **8.2 The opposite also happens: an improvement that passes every statistical
 test and is still rejected.** On round-robin brucite, adding anisotropic strain
-improves Rwp 18.64 → 17.88 % with ΔBIC +21.0 at N/f² — and drives σ²(M) negative on 7
+improves Rwp 18.64 → 18.04 % with ΔBIC +12.5 at N/f² — and drives σ²(M) negative on 19
 of 43 reflections, so the coefficients are unphysical and unquotable. A
 statistical test cannot see a violated positivity cone.
 
@@ -124,8 +124,8 @@ Three things then follow from *which* anode, all measured:
   a `warning` at Co Kα (180 eV under the Fe K edge, f′ = −3.3 e) and an `info`
   at Mo Ka (f′ = +0.3 e). Same specimen, same code, different severity.
 * Contamination checks are per anode. `contamination == []` is *not checked*,
-  not clean, for an unrecognised wavelength (`identify_anode(λ)` is `None`), a
-  neutron source and `kbeta="monochromator"`. `kbeta=None` is undeclared, not
+  not clean, when `contamination_searches == []`: an unrecognised wavelength, a
+  neutron source, `kbeta="monochromator"`. `kbeta=None` is undeclared, not
   "no filter".
 
 **8.12 "Infinitely thick" is a modelling claim you make by saying nothing.**

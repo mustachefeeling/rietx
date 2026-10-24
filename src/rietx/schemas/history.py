@@ -34,7 +34,7 @@ from .instrument import Instrument
 # lives in ``schemas/plan.py`` (WP-1004); the compat re-export was deleted
 # pre-freeze (WP-1003), so import both from there.
 from .params import TieSpec
-from .plan import CORRELATION_GUARD, PHASE_SUPPORT_SIGMA, PlanSpec
+from .plan import CLOSING_WINDOW_TOL, CORRELATION_GUARD, PHASE_SUPPORT_SIGMA, PlanSpec
 from .results import Statistics
 from .structure import Structure
 
@@ -82,6 +82,16 @@ class NodeAction(Base):
     and replays as it always did.  Written on ``"stage"`` nodes only; every
     other kind carries the defaults, which is what ``replay`` reads them at.
 
+    ``window_area_tol`` (WP-2002, the sixth round's Q1 and Q2) is the area
+    fraction the stage's windows were compiled to drop, a ``run_stage``
+    keyword for the same reason: a plan's closing stage runs at
+    ``RefinementPlan.closing_window_tol``, and a cherry-pick or ``replay`` at
+    the default would solve or draw a different model.  ``None`` is
+    ``forward.WINDOW_AREA_TOL``, what every declared stage and every node
+    written before the field ran; ``compile_model``'s own ``None`` is the
+    closing stage's fraction, so a reader passes this through
+    ``forward.recorded_window_tol`` (the seventh round's Q1).
+
     ``ties``/``untied`` (WP-1070) are the ``"set_tie"`` action's own arguments,
     additive under the same rule.  They record what the action *did*, not the
     state it left: the whole tie register lives on
@@ -103,6 +113,8 @@ class NodeAction(Base):
     restraint_weight_scale: float = 1.0
     ftol: float | None = None
     window_slack_deg: float | None = None
+    #: the area fraction the stage's windows dropped (``None``: the default)
+    window_area_tol: float | None = None
     #: the absent-phase hold's threshold the stage ran at (``None``: the hold
     #: was off), written by ``Refinement._run_plan`` and ``run_stage``
     phase_support_sigma: float | None = 3.0
@@ -149,12 +161,19 @@ class NodeAction(Base):
             # the plan settings are run_stage's keywords, not the Stage's, so
             # they follow the Stage's parenthesis, on the same rule.  Compared
             # with run_stage's own defaults, never with this class's literals:
-            # a retuned constant must not drop a keyword the line needs
+            # a retuned constant must not drop a keyword the line needs.  The
+            # window is the fraction the stage ran at, a recorded None being a
+            # declared stage's 2 %, and run_stage's own default is the closing
+            # fraction (the seventh round's Q1)
+            from ..model.forward import recorded_window_tol
+
             settings = "".join(
                 f", {n}={v!r}" for n, v, off in
                 (("correlation_guard", self.correlation_guard, CORRELATION_GUARD),
                  ("phase_support_sigma", self.phase_support_sigma,
-                  PHASE_SUPPORT_SIGMA))
+                  PHASE_SUPPORT_SIGMA),
+                 ("window_area_tol", recorded_window_tol(self.window_area_tol),
+                  CLOSING_WINDOW_TOL))
                 if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
                     f"max_iter={self.max_iter}{extras}){settings})")
@@ -324,6 +343,14 @@ class NodeMetrics(Base):
     cost_initial: float | None = None
     cost_final: float | None = None
     stderr: dict[str, float] = Field(default_factory=dict)  # physical esds by path
+    #: the phases whose own ``scale`` the stage held (``StageResult.held``,
+    #: WP-1958), by index.  A node keeps state, not the stage record, and
+    #: ``replay`` has no record to read the held set from: without this it
+    #: recounts lines at the end values and quotes a fraction for a scale the
+    #: stage held (#1103).  Written by ``Refinement._record`` from the stage
+    #: it commits; ``[]`` on every other kind of node and on one written
+    #: before the field, which replays by the recount as it always did.
+    held_scale_phases: list[int] = Field(default_factory=list)
 
 
 class HistoryNode(Base):

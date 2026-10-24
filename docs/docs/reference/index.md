@@ -29,6 +29,7 @@ Most of them are built from the code that owns their facts, so they match the ve
 - [Joint refinement](joint.md) gives `refine_multi` and `MultiHistogramRefinement`: which parameters the patterns share, two radiations and a refinable wavelength, the per-pattern result, and a report per pattern.
 - [Parametric refinement](parametric.md) gives `CoordinateTable` and `ParametricEquation`, what a declaration refuses, the coefficients a fit reports, the test of the declared form and the equation at any coordinate.
 - [The refinement result](result.md) gives what a `RefinementResult` carries beside the refined values: the agreement statistics, the structure R-factors, the observation count, the identifiability evidence, the restraint and absorption records, the diagnostics and the printed views.
+- [Result fields](result-fields.md) says what each field of a `RefinementResult`, a `StageResult`, a `SeriesResult` and a `SeriesEntry` holds, and what it means when it is empty.
 - [Derived quantities](derived.md) gives the distances, angles, cell volumes, crystallite sizes and microstrain a fit computes, with their esds.
 - [Phase fractions](qpa.md) gives the weight fractions a Rietveld fit reports, the width profile that tests whether a fraction is determined, and the Brindley microabsorption correction.
 - [The fit report](report.md) gives the fields of a `FitReport`: the misfit regions and unmatched peaks, the attribution and its gates, the trends, texture and strain readings, the suggested actions and the report at each stage.
@@ -77,6 +78,7 @@ series
 joint
 parametric
 result
+result-fields
 derived
 qpa
 report

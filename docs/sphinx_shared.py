@@ -53,7 +53,12 @@ from rietx.model.geometry import (
     VARIANCE_CANCELLATION_FLOOR,
 )
 from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
-from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
+from rietx.model.profiles.fcj import (
+    CLOSING_NODES_PER_FWHM,
+    CLOSING_SKIP_EXTENT_FWHM_RATIO,
+    NODES_PER_FWHM,
+    SKIP_EXTENT_FWHM_RATIO,
+)
 from rietx.optimize.least_squares import STATIONARY_ANGLE_LEVEL
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
 from rietx.optimize.statistics import (
@@ -83,6 +88,7 @@ from rietx.report.schemas import (
 from rietx.schemas.fraction import FRACTION_PROFILE_DCHI2
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.interval import PARAMETER_INTERVAL_MAX_REFITS
+from rietx.schemas.plan import CLOSING_WINDOW_TOL
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
 
@@ -103,7 +109,13 @@ MYST_EXTENSIONS = ["dollarmath", "amsmath", "substitution", "colon_fence", "defl
 # spellings and the diagrams followed every one.  mermaid.js itself comes from a CDN when the page
 # is *viewed*; set `mermaid_use_local` if a built copy of the manual has to
 # render diagrams offline.
-MERMAID_LIGHT_THEME = "default"
+#
+# The colours are the site's tokens, set by the manual's `custom.css` over
+# whatever mermaid draws (WP-2021): mermaid's `base` theme takes its variables
+# as literal colours, one set for both themes, which cannot follow a toggle.
+# `neutral` is the light theme so a part the stylesheet misses is grey rather
+# than the stock theme's lilac.
+MERMAID_LIGHT_THEME = "neutral"
 MERMAID_DARK_THEME = "dark"
 # Without the title margin, a subgraph label is drawn on the cluster border and
 # collides with the first node inside it.
@@ -259,6 +271,9 @@ MYST_SUBSTITUTIONS = {
     "Y3_HANDOVER_STOL": f"{_itc_handover('Y3+'):.3f}",
     "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,
+    "CLOSING_NODES_PER_FWHM": CLOSING_NODES_PER_FWHM,
+    "CLOSING_SKIP_EXTENT_FWHM_RATIO": CLOSING_SKIP_EXTENT_FWHM_RATIO,
+    "CLOSING_WINDOW_TOL": CLOSING_WINDOW_TOL,
     "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,
     "SKIP_EXTENT_FWHM_RATIO": SKIP_EXTENT_FWHM_RATIO,
     "STRAIN_CAP_RANGE_FRACTION": STRAIN_CAP_RANGE_FRACTION,

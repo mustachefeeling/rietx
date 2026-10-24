@@ -111,7 +111,13 @@ def test_a_pair_below_sparrows_limit_is_one_line_and_above_it_two():
 def test_flat_topped_lines_are_reported_once(tmp_path):
     """#728 arm c1: 34 usable components on 11 silicon lines before, 2–4 per
     line, the split ones 0.012° apart on a 0.020° fitted width at I/σ_I
-    50–200 — well measured, and ΔBIC pays for every one."""
+    50–200 — well measured, and ΔBIC pays for every one.
+
+    The usable count carries the flank components beside the eleven lines.
+    It was 18 while a prediction drew 2 % windows, and is 20 since it draws
+    every Lorentzian tail (WP-2002).  The flank components went from 7 to 9,
+    and from 3 to 8 of them flagged ``weak_line``; the strongest fell from
+    I/σ_I 10.4 to 4.5.  Each line still keeps exactly one."""
     truth = _si_lines()
     pl = rx.pick_peaks(_silicon_728(tmp_path, steep=False, split=0.012),
                        rx.Instrument.debye_scherrer(wavelength=LAM),
@@ -120,7 +126,7 @@ def test_flat_topped_lines_are_reported_once(tmp_path):
     tt = np.array([p.two_theta for p in use])
     per = [int(np.sum(np.abs(tt - t) <= 0.03)) for t in truth]
     assert sum(n == 1 for n in per) >= 10 and min(per) >= 1, per
-    assert len(use) <= 18
+    assert len(use) <= 20
     assert sum("unresolved_split" in p.flags for p in pl.peaks) >= 15
 
 

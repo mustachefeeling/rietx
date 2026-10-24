@@ -217,11 +217,10 @@ It sets `ProfileTCHZ.w` to the square of the width you observed and leaves `x` a
 A neutron instrument's lines are typically 0.2-0.5° wide, against about 0.03° for the default profile.
 The evaluation windows of each stage are sized from the starting width, so a 0.3° line started from the default is not found.
 
-The width bounds differ from an X-ray instrument's.
-The default box caps `w` at 1 deg², a 1.0° FWHM.
-A long-wavelength neutron line can be wider: 1.10° on the ILL D1B Co₃O₄ set at λ = 2.52 Å, whose published model has U = 1.576, outside the default bound on `u`.
-The neutron constructor therefore builds its profile with `ProfileTCHZ.coarse`, whose box `TCHZ_BOUNDS_COARSE` puts `u` in [−0.5, 8], `v` in [−4, 4], and `w`, `x` and `y` up to 8.
-`fwhm_deg` may reach √8 ≈ 2.83°, and a larger value raises.
+The width bounds are an X-ray instrument's.
+No width has a chosen ceiling. Each stops at the width of the 2θ axis, 180° for `x` and `y` and 180² deg² for `u`, `v` and `w`, which no peak reaches.
+`u`, `v` and `y` have no chosen floor either, so a long-wavelength neutron line's model builds: on the ILL D1B Co₃O₄ set at λ = 2.52 Å the published model has V = −0.501.
+The neutron constructor builds its profile with `ProfileTCHZ.coarse`, which builds all five widths from values.
 
 ```python
 from rietx.schemas.instrument import ProfileTCHZ
@@ -233,7 +232,7 @@ except ValueError as refusal:
 else:
     raise AssertionError("a bare width is refused")
 d1b = ProfileTCHZ.coarse(u=1.576, v=-0.501, w=0.475)
-assert d1b.u.max == 8.0 and d1b.w.max == 8.0
+assert d1b.v.min == -(180.0 ** 2) and d1b.w.max == 180.0 ** 2
 ```
 
 `Geometry.surface_roughness` is refused on a neutron source, because neither roughness model has a regime where the beam penetrates centimetres.
@@ -353,27 +352,33 @@ The beam therefore carries a small λ/n component for every order that is not ex
 At a given 2θ that component diffracts from planes of spacing λ/(2n sin θ), so its peak from a given hkl sits at lower 2θ than the fundamental's, {eq}`pos-harmonic-d`.
 Left out of the model, it is intensity where the model puts none.
 
-Declare it with `Harmonic`, on the source or through the constructor:
+Declare it with `Harmonic`, on the source or through the constructor, naming the orders the monochromator passes:
 
 ```python
 from rietx import Instrument
 from rietx.schemas.instrument import Harmonic
 
+# NIST BT-1's Cu(311) passes λ/2
 bt1 = Instrument.constant_wavelength_neutron(
-    wavelength=1.54040, fwhm_deg=0.3, harmonics=True)
+    wavelength=1.54040, fwhm_deg=0.3, harmonics=[2])
 assert [line.wavelength.value for line in bt1.source.lines] == [1.54040, 0.77020]
 # a harmonic's λ is derived, so it is never free even when the fundamental is
 assert [line.wavelength.vary for line in bt1.source.lines] == [False, False]
 
-# general in n; True above is exactly [2]
+# general in n
 thirds = Instrument.constant_wavelength_neutron(1.54040, harmonics=[2, 3])
 assert len(thirds.source.lines) == 3
 assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
 ```
 
+The order has no default, because which orders pass depends on the monochromator's crystal.
+Cu(311) and graphite pass λ/2.
+In the diamond structure of Si and Ge, a reflection on all-odd indices has its second order extinct, so Si(111), Ge(311) and Ge(733) pass λ/3 and no λ/2.
+`harmonics=True` is refused with that message.
+
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Harmonic.order` | `int`, ≥ 2 | 2 | n in λ/n |
+| `Harmonic.order` | `int`, ≥ 2 | none, required | n in λ/n |
 | `Harmonic.weight` | `Parameter` | 0.01, fixed, at or above 0 | intensity relative to line 0, as for any emission line |
 | `Harmonic.wavelength_factor` | `float` | derived | 1/n, the factor on the fundamental wavelength |
 
@@ -442,8 +447,8 @@ A transmission plate has no displacement or transparency model: only `Instrument
 No position correction carries a default bound, and the transparency and the axial ratios keep their floor of 0.
 Before 1.10, `Instrument.zero_shift` was held to ±0.5°, a displacement and each capillary offset to ±1 mm, and the transparency to 0.05.
 Where a scan cannot separate a position error from the cell, the fit reports [`FLAT_DIRECTION`](diagnostics-refinement.md#flat_direction) and the cell's esd grows to show it, with or without a bound.
-On 11-BM NAC over 2-24° 2θ with the zero shift and both capillary offsets free, the bounded fit put the cell 1097 ppm from its reference with an esd of 2612 ppm.
-The unbounded fit let the offsets slide to +4.86 and +2.12 mm, put the cell 5109 ppm away, and reported an esd of 2579 ppm.
+On 11-BM NAC over 2-24° 2θ with the zero shift and both capillary offsets free, 1.9.0's bounded fit put the cell 1097 ppm from its reference with an esd of 2610 ppm.
+The unbounded fit lets the offsets slide to +4.86 and +2.12 mm, puts the cell 5111 ppm away, and reports an esd of 2544 ppm.
 Both fits reported the same two `FLAT_DIRECTION` findings.
 The bound acted as a prior that the mount is aligned, which held on 11-BM, and it left the esd as wide as before.
 That prior is a fact about your instrument, so state a bound yourself where you know the mount.
@@ -505,11 +510,11 @@ Its five widths are in degrees 2θ.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `ProfileTCHZ.u` | `Parameter` | 0.0 deg², in [−0.05, 1] | Gaussian tan²θ term, {eq}`prof-caglioti-g` |
-| `ProfileTCHZ.v` | `Parameter` | 0.0 deg², in [−0.5, 0.5] | Gaussian tan θ term |
-| `ProfileTCHZ.w` | `Parameter` | 1e-3 deg², in [1e-8, 1] | Gaussian constant term |
-| `ProfileTCHZ.x` | `Parameter` | 1e-3 deg, in [0, 1] | Lorentzian 1/cos θ term, {eq}`prof-caglioti-l` |
-| `ProfileTCHZ.y` | `Parameter` | 0.0 deg, in [0, 1] | Lorentzian tan θ term |
+| `ProfileTCHZ.u` | `Parameter` | 0.0 deg², in [−180², 180²] | Gaussian tan²θ term, {eq}`prof-caglioti-g` |
+| `ProfileTCHZ.v` | `Parameter` | 0.0 deg², in [−180², 180²] | Gaussian tan θ term |
+| `ProfileTCHZ.w` | `Parameter` | 1e-3 deg², in [1e-8, 180²] | Gaussian constant term |
+| `ProfileTCHZ.x` | `Parameter` | 1e-3 deg, in [0, 180] | Lorentzian 1/cos θ term, {eq}`prof-caglioti-l` |
+| `ProfileTCHZ.y` | `Parameter` | 0.0 deg, in [−180, 180] | Lorentzian tan θ term |
 | `ProfileTCHZ.shape` | `"tchz_pv"` or `"voigt"` | `"tchz_pv"` | the pseudo-Voigt, or the exact convolution |
 
 Match the physics and not the letters.
@@ -517,17 +522,17 @@ GSAS and FullProf swap the X and Y assignments, so match a value copied from ano
 Size broadening goes as 1/cos θ and strain as tan θ.
 Swapping them gives a different width function.
 
-`x` and `y` are bounded below at 0.
+`x` is bounded below at 0, because as θ → 0 the Lorentzian width is `x` itself.
 `w` stops at 1e-8 deg², the variance under which the Gaussian width is clamped and every width column is zero, {eq}`prof-caglioti-floor`.
 A stored `w` bound below that is raised to it when the object is built.
-`u` and `v` can go negative, so the Gaussian polynomial can bend down.
-What has to stay positive is the total Γ<sub>G</sub>² over the measured range.
-The default solver holds it above the clamp at every reflection, and under `solver="trf"` [`RESOLUTION_NOT_POSITIVE`](diagnostics-refinement.md#resolution_not_positive) reports where it fell below.
-Read a negative `u` or `v` as a statement about the fitted resolution curve, and check the width it gives at both ends of the range.
+`u`, `v` and `y` have no floor of their own, and each stops at the mirror image of its ceiling.
+What has to stay positive is the total Γ<sub>G</sub>² and the total Γ<sub>L</sub> over the measured range, {eq}`prof-lorentzian-floor`.
+The default solver holds both at every reflection, and under `solver="trf"` [`RESOLUTION_NOT_POSITIVE`](diagnostics-refinement.md#resolution_not_positive) reports where either fell below.
+Read a negative `u`, `v` or `y` as a statement about the fitted resolution curve, and check the width it gives at both ends of the range.
 
 A width is a `Parameter` carrying its own bounds, and a bare number for any width is refused by name.
-The message names two ways out: `ProfileTCHZ.coarse(...)`, which builds all five widths in the coarse box from values, or an explicit `Parameter(value, min, max)`.
-A `Parameter` that leaves its bounds out takes the default box, and a value outside it is refused the same way.
+The message names two ways out: `ProfileTCHZ.coarse(...)`, which builds all five widths from values, or an explicit `Parameter(value, min, max)`.
+A `Parameter` that leaves its bounds out takes the default box, and a value outside it is refused.
 
 `shape` is chosen when the model compiles and does not refine.
 Both shapes use the same five widths, so switching shape never changes the parameter table.
