@@ -285,6 +285,21 @@ def test_symmetry_zero_components_at_rounding_level_do_not_split_a_lattice():
     assert not equal_reduced(red, real)[0]
 
 
+def test_boundary_path_floors_symmetry_zero_noise_like_the_as_given_path():
+    """`_equal_across_boundaries` compares a monoclinic image's D, F against
+    each other too: noise of either sign at rounding level, with no floor,
+    splits the pair there as it did in `_equal_as_given` (WP-2035, Yue's
+    round 2 on #1136)."""
+    from rietx.indexing.reduce import _equal_across_boundaries
+    red = np.array(reduced_af(af_from_cell((6.0, 9.0, 5.5, 90.0, 91.0, 90.0))))
+    a, b = red.copy(), red.copy()
+    a[[3, 5]] = [3.0e-17, 1.1e-19]
+    b[[3, 5]] = [-4.0e-17, 7.4e-17 / 3]
+    assert _equal_across_boundaries(a, b, None, None) is not None
+    b[3] = 1e-4                      # a real difference in the slot still separates
+    assert _equal_across_boundaries(a, b, None, None) is None
+
+
 def test_same_lattice_separates_genuinely_different_cells():
     a = af_from_cell((7.0, 8.0, 9.0, 85.0, 95.0, 100.0))
     b = af_from_cell((7.0, 8.0, 9.3, 85.0, 95.0, 100.0))
