@@ -135,6 +135,23 @@ chain family: the Durham in-situ tutorials, the 13-pattern sub-onset ramp (the v
 the ten-pattern warm series of v1.1, the corpus series cited by number. Three families is
 the bar.
 
+**Three real families with independent truths were offered on PR #1150** (2026-10-24, by
+contributor mustachefeeling; the comment carries the citations), each differing from CPD,
+Durham and the synthetic series in lab, instrument and material:
+- **Ba₂FeSbSe₅**, LLB G4.1 neutron, 1.5-200 K (PR #1073), with T_N = 58 K from χ and C_p.
+  It exercises the moment-floor carry, the onset, and path dependence on the two-site split.
+- **CuCr₂O₄ + 1.1 wt % CuO**, APS 11-BM, 17 patterns from 7 to 300 K (the GSAS-II
+  SeqRefine tutorial). A continuous tetragonal → Fddd transition near 130 K means an
+  I4₁/amd chain is a misfit with a known onset, so the fence and the width growth should
+  fire there. An Fddd chain should stay silent, which makes it the fence's
+  false-positive case.
+- **Co₃O₄ quench series**, ILL D1B neutron, ten samples at 1.5 K plus 300 K patterns
+  (CC BY). A second family for the moment carry.
+
+None of the three has a known-bad pattern, so quarantine and `on_error` still need planted
+ones. Vendoring the tutorial and Co₃O₄ files waits on the maintainer (root CLAUDE.md
+§ Licensing, the per-file data fence).
+
 ## Non-goals
 
 - The holds inside one stage: 2002, already landed when this starts.
