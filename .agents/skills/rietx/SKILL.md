@@ -112,7 +112,7 @@ To keep a parameter fixed through a plan, call `ref.hold(globs)`: a plan replace
 
 ## 4. Judging a fit
 
-Judge in this order. `print(result)` shows per-stage status, the diagnostics, provenance, and the agreement indices last. Act on each `d.suggestion`, then grep its code. Evidence: [judging](references/judging.md).
+Judge in this order. Declare your purpose with `ref.summary(deliverable=…)`; act on each warning it prints in full, then grep its code. Evidence: [judging](references/judging.md).
 
 9. **Status and guards first.** `result.usable` is false when the fit did not converge or carries an `"error"` diagnostic: read no value from it. Then `result.diagnostics`, then `result.statistics.max_shift_over_esd`. Above 0.1 under `converged`, a direction is still walking: bound it, or find its correlated partner (rule 7).
 10. **Read the difference curve by region**: `report.regions` (local Rwp, χ² share) and `cumulative_chi2_breakpoints`.

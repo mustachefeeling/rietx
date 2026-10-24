@@ -265,7 +265,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 - [ ] `FLOOR_HIT` on a freed extinction handed to 2004 as an `### Inherited` entry (done
       at filing; keep it current).
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
-- [ ] Skill: § 4's "Act on each `d.suggestion`" becomes *declare your purpose with
+- [x] Skill: § 4's "Act on each `d.suggestion`" becomes *declare your purpose with
       `ref.summary(deliverable=…)` and act on the warnings it prints under it;
       `result.diagnostics` holds every row*; the § 4b table gains the new deliverable
       names. Nothing else; the reading rule lives in the output.
