@@ -1,6 +1,6 @@
 # WP-2041 — a tutorial shows the indexer abstain
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-24 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P4 2026-10-24 — teaching content: no number and no decision moves, and the manual's diagnostics page still explains the abstention
