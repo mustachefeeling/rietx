@@ -221,6 +221,151 @@ summary).
 
 ## Handover log
 
+### 2026-10-24 — the inventory, the reseed fence measured on eight chain families, the first-rung invariance tests; eleven clear defaults tiered and nothing contested
+
+Every decision a series makes between patterns is now listed: 77 rows the table already had (not the 65 the WP assumed) and 34 actions with no row, each with what it decides and what a caller would see without it. The Rwp fence that sends a bad warm fit back to colder starts carries real load on real data. On the CPD round-robin chain it alone rescues a pattern whose warm fit ended at 3.75× the fence with corundum's cell 5 % off and an 18° zero shift. A status-only fence, the second review's proposal, would have kept that fit. On the synthetic series the fence escalates 115 times for 4.3× the evaluations and moves no value past 0.0007 esd. That contrast is the reseed brief's stakes line. The first-rung budget is shown answer-invariant on two chains, but WP-2002's closing stage now hides a truncated first rung from the ladder, so WP-1127's safety escalation no longer fires; that and `reseed=False` escalating anyway are clash-table items, not fixed here. No contested row was tiered: the batch is next session's.
+
+*Done.*
+- Inherited pruned, eleven entries re-checked and folded into Context and Tasks (`9077375`).
+- Task 1, the inventory (`f156c9e`): `2003-batch/inventory.json`, 111 entries (77 rowed, 34 row-less: 18 in `sequential.py`, 16 in the joint fit); `2003-batch/README.md` answers task 3's question. The 12 extra rows over the WP's 65 are `SERIES_PATTERN_FAILED` and the joint fit's five codes (`SIZE_NORMALISED_ACROSS_WAVELENGTHS`, three `PARAMETRIC_*`, `STAGE_FREED_NOTHING`), each with its suggestion row.
+- Task 3 answered, not built: the pattern and its rung are on the record, the successors seeded from an earlier pattern are not, nor is the moment-floor carry. The two proposed fields are in task 3's text; they wait for the batch because an action row cannot enter the table at `unaudited`.
+- Task 4 (`092991c`, `c4edce6`, `f494e2f`, `cc36121`): the invariance test on the thermal ramp (fast) and the CPD chain (slow), each asserting equality to the bit and the margin; `FIRST_RUNG_FACTOR`'s duplicated comment is one paragraph citing the tests, plus one on the closing stage.
+- Eleven defaults tiered (`8b78f2c`, `c4edce6`, `db61420`): seven observation channels of the series seat `invariant`, shown by a new series section in `tests/test_answer_invariant_defaults.py` (made to fail once on purpose at `reseed_factor=0.5`); `backend` `caller` and `solver` tier 2 as on the single fit; `direction` and `verify_discontinuities` `caller`, with the judge's two wording corrections.
+- Task 2's measurement half (`6ca9e2e`): `2003-batch/measure_reseed.py`, `reseed/*.json` (34 files), `reseed.md` (per-pattern tables, facts only).
+- Code review (`/code-review high --fix`), seven findings: six fixed (`f494e2f`: one chain-answer helper comparing every number and code a chain reports, a ratio for every kept first rung including a `max_iter` one, the twin fixtures built by one function, a docstring); one declined, `measure_reseed.py` matching arms by list position, because no committed family recorded a `SeriesFailure`.
+- Forward references (`2e15c3e`): WP-2036 (the closing stage on a warm chain and the BLAS threads under it; the new slow test's cost in `qpa-sample1`), WP-1317 (`planted_series/signals.json` lists 20 reseeds where the tree gives 49).
+
+*Measured* (Linux x86-64, 4-core cloud container, worktree venv `[dev]`, compiled tier on).
+- The reseed fence, per family (`reseed.md` holds the per-pattern tables). Arms: on (1.25), status-only (`reseed_factor=inf`), off (`reseed=False`), plus a cold independent reference.
+
+  | family | on | status-only | off |
+  |---|---|---|---|
+  | CPD sample 1 (real; status/off on 2 patterns) | 1 escalated (1b), 0 reseeded; 987 evals | 1b kept at Rwp 0.7652, 1 220 esd from on; 703 evals | as status, 1b `SEQUENTIAL_RWP_OUTLIER` |
+  | CPD, `closing_window_tol=None` | none escalated; 708 evals | bit-identical | bit-identical |
+  | planted, 248 (synthetic) | 115 escalated, 49 reseeded; 11 790 evals | 1 escalated (budget-forced); 2 716 | as status |
+  | planted null twin | none; 2 080 | bit-identical | bit-identical |
+  | trigger, 10 (simulated) | none; 269 | bit-identical | bit-identical |
+  | Cr₂WO₆ HB-2A pair (real neutron) | none; 873 | bit-identical | bit-identical |
+  | tutorial 05 jump | none; 551 | bit-identical | bit-identical |
+  | tutorial 05 broken | 1 reseeded (pattern 4); 157 | 0; 135 | as status |
+
+  No arm quarantined anything on any family. Planted's 49 reseeds are near-ties (warm and cold Rwp within 7.6e-7 relative) and no value moved past 0.0007 esd. On CPD under on, the chain sits 7.05-14.2 esd from the independent fits, worst path a `lor_strain` each time; mean Rwp 0.12565 against 0.12580 independent; RMS |ΔW| 2.268 against 2.301 wt %. cpd-1b's warm rung came back `max_iter`, not `diverged`, so a status-only fence that also escalated on `max_iter` would have caught it.
+- The first-rung bound: thermal ramp, three armed patterns at 1.0× the running maximum; CPD (from the bounded arm), 0.34-0.39×; factor 3.0. At `first_rung_factor=0.5` on the thermal ramp, patterns 4-6 kept a warm stage truncated at `max_iter` and closed by the closing stage, reading `converged`, within 8e-4 esd of the unbounded chain.
+- Wall clock (context only): the CPD chain with the closing stage costs about an hour an arm here (the slow CPD test 1 h 17 min for two chains, one BLAS thread, beside the lane's runs), against 33.7 s quoted for `cpd-series`.
+- Fast selection, the branch at `f494e2f` (before the matrix row), beside one single-test run of my own: 11 640 passed, 284 skipped, 27 xfailed, 3 failed, 44:57. The three: `test_validation_matrix.py::test_every_acceptance_test_has_a_matrix_row` (mine, fixed in `cc36121`), `test_audit_delta.py::test_the_reader_agrees_with_the_import` (the file was edited mid-run; passes alone), `test_examples.py::…[moment]` (Linux x86-64, recorded in WP-2036's Inherited, not this branch). Added: 8 fast tests (15.65 s locally: 10.09 s the six series channels, 3.82 s the thermal first-rung test, 1.73 s the recorded series), 1 slow (CPD). Main's count not measured (CI's job), so the +8 is by name in the junit file, not by subtraction.
+- Full selection: not run, since the branch moves no measured number (tests, table data, docs, one comment).
+- Lanes (`session_usage.py lanes`): inventory est 40, 122 requests, +$7.14; reseed-measure est 35, 328 requests, −$7.62; kept prune-inherited est 4. Trial row: re-read 0K, 17 main requests a lane, 36K left in main, actual/estimated 3.05, −1 %. Baseline replay, the selective policy (main > 150K and item ≥ 20): 4 sessions, +22 %.
+
+*Gotchas.*
+- The Durham host is denied by this environment's network policy, so the in-situ ZrMo₂O₈, WO₃ and ZrP₂O₇ series (`tests/local_data.py`) were not fetched; the 68-pattern ramp and the corpus series are not on disk here. The families above are what a cloud session has. The held-out Nd₂Ru₂O₇ pair was not used.
+- Run any CPD chain with `OPENBLAS_NUM_THREADS=1` on Linux, or `leggauss` alone costs seconds a call (WP-2036's Inherited).
+- `tests/test_sequential.py::chain_answer` is the one helper for "every number a chain reports"; both invariance files use it.
+- `reseed=inf` is accepted unvalidated (`sequential.py:1028`) and turns every `rwp_fence` to inf, which also disables the discontinuity scan's above-fence drop (tutorial 05 broken gains a `SEQUENTIAL_DISCONTINUITY` under status-only).
+- `SeriesEntry.n_iterations` omits the automatic profile-interval refits (Cr₂WO₆: 873 recorded, 1 146 run).
+
+*Generality* (the `generality-review` judge on `_audit.py`'s eleven changed rows; its sections pasted unedited).
+
+#### Item 1: the seven observation and control defaults go to `invariant`
+`rietx.sequential.SequentialRefinement.fit:{cancel, events, label, on_result, progress, telemetry}` and `rietx.sequential.refine_sequential:history`
+
+**holds.** The evidence for the tier is stronger: a bit-identity test runs the chain's real code path. The case against comes down to coverage gaps in that test, and none of the code I read turns a gap into a changed answer.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "an observation channel" (events, cancel, progress); "the run recorder, one run a job" (telemetry); "a run's name" (label); "a callback handed each kept fit" (on_result); "one history tree per pattern" (history). Each row's `evidence`, `_audit.py` series rows. | None of these picks a value. `telemetry=None` does do something unasked: it writes a run directory and adds a cancel token to every fit (`sequential.py:1261-1273`; the `_audit.py` docstring: "`telemetry=None` records the run"). That is a side effect, not an answer. `cancel` is a control channel, so calling it "an observation channel" is wrong only in wording. | agrees |
+| 2. Ambiguity kind | `ambiguity=1` | Kind 1. No reading of the data is in question. | agrees |
+| 3. Case against | none given | The test chain is three patterns: one cold fit and two warm first rungs (`tests/test_answer_invariant_defaults.py:146-149`). `FIRST_RUNG_SAMPLES` is 3, so the first-rung budget (WP-1127's cap on a warm fit's first attempt) never switches on. No rung escalates, no pattern is quarantined, and neither `direction="both"` nor `verify_discontinuities` runs. Those untested paths are exactly where `cancel` is read again (`sequential.py:1327, 1362, 1411`, and `except RefinementCancelled` at 1585) and where `history` changes file names (the `.cold`, `.verify` and `.backward` suffixes in `_history_spec`). Reading the code, none of those reads feeds a value or a choice of rung, so the gap is in the test, not in the claim. Smaller gaps: (a) the suite runs with `RIETX_TELEMETRY=0`, so in the `label` arm the label reaches nothing, and label with the recorder on is never run for a series (the single-fit file does run it, for `run_stage` and `refine`). (b) Nothing checks that the events file or the progress stream received anything, so a channel that `refine_sequential` silently dropped would still pass. (c) `history` is tested with `True` (trees in memory), never with a directory path. | minor coverage gaps |
+| 4. Case for | The dispatch says the test compares "every kept value, esd, rung, `rungs_tried`, `reseeded`, `rwp_warm`, `rwp_fence`, Rwp, per-entry codes, series codes and `discontinuities`", and was made to fail once on purpose with `reseed_factor=0.5`. | Confirmed: `chain_answer` (added to `tests/test_sequential.py`) compares all of those. It does not compare `y_calc`, which the single-fit `_same` does. The `on_result` arm checks that the callback ran once per pattern (`seen == [0, 1, 2]`), and the telemetry arm checks that exactly one run directory was written, so those two arms cannot pass without the channel running. The rows match the single-fit precedent (`rietx.refine.refine:events`, `…:history` and the rest, `_audit.py:3164-3180`). | supports |
+| 5. Tier and source | `invariant`, tested in `tests/test_answer_invariant_defaults.py` | Tests: `test_a_series_observed_is_the_series_unobserved[events,progress,cancel,label,on_result,history]` and `test_a_recorded_series_is_the_series_unrecorded` (telemetry). generality.md asks an invariant test to also assert its margin. A channel is not a bet like the first-rung budget, so equality is the margin, as in the single-fit rows. | holds |
+| 6. Dataset families | none given | Not a threshold, so families do not apply. The one dataset is the synthetic thermal ramp (`tests/test_sequential.py` `_simulate`). | n/a |
+| 7. Record that it fired | none given | No field is needed for a channel. Telemetry's record is its run directory (`meta.json`). History's record is `SeriesEntry.tree_id` / `node_id`. | adequate |
+
+What would change the verdict: a channel arm on a chain that escalates or quarantines (the author's own `reseed_factor=0.5` chain would do) giving a different answer from the same chain with the channel off.
+
+#### Item 2: `rietx.sequential.refine_sequential:backend` goes to `caller`
+
+**holds.** The evidence for leaving it to the caller is stronger. It copies the single-fit row word for word in substance, and the chain adds no choice of its own inside the switch.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "each pattern's Refinement gets it unchanged (sequential.py:1765)" (row `evidence`) | Confirmed at `sequential.py:1765`. The constructor checks a non-numpy backend and refuses it when the optional package is missing (`:975-981`). | agrees |
+| 2. Ambiguity kind | `ambiguity=1` | Kind 1. | agrees |
+| 3. Case against | none given | none found. No competent refiner wants the package to choose a GPU or autodiff backend for them. | — |
+| 4. Case for | "jax/torch/torch-mps need an extra no default install has, and agree with numpy only to fp tolerance" | Nothing new falls to the caller. One nuance for a chain: a floating-point difference can flip a reseed-fence verdict that sits near 1.25× the median Rwp (the fence sends a pattern back for a colder refit). A chain's choice of rung can then differ by backend, not only its last digits. That is not measured, and it is still the caller's choice. | — |
+| 5. Tier and source | `caller`, citing `rietx.refine.refine:backend` | Both conditions hold. (1) The switch is asked for by name and its off state is `numpy`. (2) Inside it the package picks no number; the floating-point spread comes from the caller's choice of backend. This matches `_audit.py:3155`. | holds |
+| 6. Dataset families | n/a | n/a | n/a |
+| 7. Record that it fired | none given | `RefinementResult.provenance.backend` on each pattern's result (`schemas/results.py:1848`). I did not check whether `SeriesEntry` or `SeriesResult` carries it. | adequate |
+
+What would change the verdict: a default path that passes a non-numpy backend.
+
+#### Item 3: `rietx.sequential.refine_sequential:solver` goes to tier 2
+
+**holds.** The evidence for the tier is stronger. It inherits the single fit's row, and the one dissenter named keeps it at tier 2 under the rule.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "handed to each pattern's Refinement unchanged (sequential.py:1765-1766)" | Confirmed. It sets bounded Levenberg-Marquardt (damped least squares, with an exact set of parameters active at a bound), with TRF (a trust-region solver) available by name. | agrees |
+| 2. Ambiguity kind | `ambiguity=1` | Kind 1, as for the single fit. | agrees |
+| 3. Case against | "FullProf dissents, Gauss-Newton with relaxation factors" | Matches `docs/practice.md:180`. Under generality.md tier 2, a dissenting program does not move a default off tier 2. Nothing in the change says what any program's *sequential* mode defaults to. | dissent named |
+| 4. Case for | "Marquardt-damped in six" | `docs/practice.md:180`: GSAS-II, TOPAS, RIETAN-FP, MAUD, EasyDiffraction, and BGMN (regularised Gauss-Newton). | supports |
+| 5. Tier and source | tier 2; "GSAS-II 5.8.4 GSASIImath.HessianLSQ is Marquardt-damped (checked)" | I checked this in the repository's practice.md only, not in GSAS-II's source. That each program's sequential mode uses the same solver as its single fit is not given; I believe it is so for GSAS-II, from memory only, not checked. | holds |
+| 6. Dataset families | n/a | No threshold. | n/a |
+| 7. Record that it fired | none given | `RefinementResult.provenance.solver` (`schemas/results.py:1848`). | adequate |
+
+What would change the verdict: nothing under the current rule. Even a program whose sequential mode defaults to a different solver would only be one more dissenter.
+
+#### Item 4: `rietx.sequential.SequentialRefinement.fit:direction` goes to `caller`
+
+**holds, but the case for acting is stronger than the row admits, and the row cites none of it.** `direction="both"` runs the chain a second time in reverse and flags parameters whose two trajectories disagree. The caller-class conditions are met, because `'forward'` moves no reported value; it only leaves that check out.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What the caller must now decide | "its off default walks one chain" (row `evidence`) | Under `'both'` the reported entries are still the forward ones (`sequential.py:1076`). So the default changes no value; it leaves out the path-dependence check. The caller decides whether to pay for a second chain. | agrees |
+| 2. Ambiguity kind | `ambiguity=1` | The switch is kind 1. What it opens up (path dependence) is reported as a statistic, under `SEQUENTIAL_PATH_DEPENDENT`. | agrees |
+| 3. Case against defaulting to `'both'` | none given | Cost: a whole extra chain, at least doubling the wall clock; no figure is in the change. Value: `docs/skill/rietx/references/series.md:136-150` says agreement both ways is not evidence of correctness (0 of 35 patterns disagreed on a physically wrong construction), and the largest flags it measured were axis relabellings (81.5σ in `Fddd`). So a default `'both'` would issue codes that need careful reading. Program practice: `docs/practice.md` has no entry on sequential refinement. I recall GSAS-II's reverse-order option being off by default, but I did not check it. | real, unmeasured |
+| 4. Case for defaulting to `'both'` | none given | The package's own words: series.md:131-135, "For any trajectory you intend to publish, run it — it is the only check that separates a measurement from an ordering artefact"; judging.md:418-419, "a one-way chain has not looked"; the root CLAUDE.md says the same. So every caller who publishes a trajectory pays a full rerun of the chain. That cost is not measured. The default is visible: `SeriesResult.direction` (`schemas/sequential.py:699`), and the series summary prints "ordering artefact: NOT measured — this chain ran forward only…" (`schemas/sequential.py:1325-1329`). The row should cite both. | strong, uncited |
+| 5. Tier and source | `caller`; "the GUI's series panel defaults to 'forward' (gui/series.py:80) and passes the user's choice (gui/session.py:1710), and no other default path sets it (searched 2026-10-24)" | Checked: `gui/series.py:77-82`, `gui/session.py:1710`, and a grep of `src/rietx` finds no other caller. Condition 2 holds: `PATH_DEPENDENCE_SIGMA` (3.0), `NOISE_FLOOR_REL` (1e-9) and `SEQUENTIAL_PATH_DEPENDENT` have their own rows, still `unaudited`. That matches how WP-2002 treated TRF's tolerances. A side finding: the GUI's `DEFAULTS` dict holds its own copy of `'forward'`. That is a second seat for this default, which the table cannot see because the value sits in a dict. | holds |
+| 6. Dataset families | n/a | n/a | n/a |
+| 7. Record that it fired | none given | `SeriesResult.direction`, `SeriesResult.backward` and `SEQUENTIAL_PATH_CHECK_INCOMPLETE`. | adequate |
+
+What would change the verdict: a measurement, on the suites' chain families, of how often a forward-only trajectory moves by more than its esds when run both ways, set against the cost of the second chain in evaluations.
+
+#### Item 5: `rietx.sequential.SequentialRefinement.fit:verify_discontinuities` goes to `caller`
+
+**holds for now.** The case for acting is real and the row does not state it. The row will need re-reading once WP-2003's own demotion of `SEQUENTIAL_DISCONTINUITY` (the code that flags a large jump between neighbouring patterns) lands.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What the caller must now decide | "a cold refit of each flagged pair" (row `evidence`) | Whether to refit each flagged pair of patterns cold and independently, and record the cold step as a signed ratio of the chain's step (`sequential.py:1888-1892`). | agrees |
+| 2. Ambiguity kind | `ambiguity=1` | Kind 1 for the switch. It adds a second number to a kind-3 statistic and no threshold. | agrees |
+| 3. Case against defaulting on | none given | `sequential.py:1117-1121`: a cold fit is "roughly triple a warm one", and "a series flagging s steps pays up to 2s of them". The WP's task list adds an ungated moment-angle interval (an automatic profile interval on magnetic moment angles) on each cold refit: 20-32 refits an angle, 2.6-16.7 s on fits of 0.2-1.2 s. | real |
+| 4. Case for defaulting on | none given | `sequential.py:1115`: "It is the check the diagnostic's own suggestion asks the reader for, run automatically"; `help.py:3719` points the reader at it. Measured "~5 %" on the 68-pattern thermal ramp with four flagged steps (`:1122-1124`, WP-1305), on one dataset family. Leaving it off means the caller refits the pairs by hand or reruns. The docstring's "not cheap" and its own "~5 %" pull opposite ways. | real, uncited |
+| 5. Tier and source | `caller`; "no default path sets it, the GUI included (searched 2026-10-24)" | Confirmed by grep: nothing outside `sequential.py` passes it. Condition 2 holds: "no fitted value, entry, rung or median in the reported chain moves" (`:1126-1130`). The row calls what it adds "the verdict added to SEQUENTIAL_DISCONTINUITY", but the code adds a ratio and a reading with no threshold ("near 1.0 … near 0", `:1892-1900`). That is not a verdict, and the row understates its own case. Which pairs get refitted is set by `DISCONTINUITY_FACTOR` 5.0 and `DISCONTINUITY_SIGMA` 3.0, both `unaudited`. The WP's own plan removes that code for `SeriesResult.steps`, a field with no threshold, and says `verify_discontinuities` "moves to the largest steps or is ruled in the batch". Whatever then picks which steps get refitted is a package number inside the switch, and it needs its own row. | holds now |
+| 6. Dataset families | n/a | The 5 % cost figure comes from one family. | n/a |
+| 7. Record that it fired | none given | `Diagnostic.value` and the message on `SEQUENTIAL_DISCONTINUITY`, plus the `<label>.verify` histories. No result field. Once the code is removed, the ratio needs a new home. | adequate now, orphaned after the demotion |
+
+What would change the verdict: the batch's ruling on `SEQUENTIAL_DISCONTINUITY`. If refitting then picks steps by a package-set count or cutoff, that number needs a row before this row stays `caller`.
+
+#### Item 6: eleven names removed from `UNAUDITED_BASELINE`
+
+**holds.** The eleven names removed are exactly the eleven rows tiered above (backend, solver, history, and the eight `fit:` defaults). Nothing was added to `UNAUDITED_BASELINE`, `OTHER_RECORD_FIELDS`, `NOT_WALKED`, `WALKED` or `DEFAULT_SEATS`. A removal from a list that only shrinks needs no reason. `tests/test_audit_table.py` holds the list equal to the tiers; I did not run it.
+
+What would change the verdict: a name removed whose row is still `unaudited`.
+
+#### Second trigger: the findings in the inventory (comment only, not edits)
+
+- **`reseed=False` still escalates.** The `reseed` docstring (`sequential.py:1077-1083`) says "Switching it off leaves each pattern with its first rung". But `forced` (`:1561`, `:1569-1571`) sends a first rung cut short by the budget to the next rung anyway. So the package acts against a switch the caller turned off. It is visible in `rungs_tried`, but the docstring contradicts the code. This belongs in the `reseed` row's batch brief, and the docstring needs fixing. No new row is needed, since `reseed` has one.
+- **The closing stage can hide a budget cut.** If `result.status` reports the closing stage's verdict (`:1603`), a first rung cut by the budget and followed by a converged closing stage is not counted as truncated. Then nothing forces an escalation, and `_prefer` (which ranks a truncated attempt below a completed one) does not rank it down. The budget could then keep a fit that was cut short, which is exactly what `FIRST_RUNG_FACTOR`'s invariance claim rules out. Both new tests assert `max(ratios) < FIRST_RUNG_FACTOR`, meaning the budget never bit, so they cannot see this case. I did not check whether `_bounded_plan`'s cap reaches the closing stage. This should be settled before `FIRST_RUNG_FACTOR` is tiered `invariant`.
+- **Quarantine successors and the moment-floor carry** (the floor reset applied to an unsupported magnetic moment before it seeds the next pattern) have no record field. An action row is keyed on its field, so holding them out of the table until WP-2003's task 3 adds the field is correct.
+
+Author's answers: items 4 and 5's wording corrections are applied (`db61420`); item 1's coverage gaps are accepted as gaps (the escalating `reseed_factor=0.5` chain is the arm to add if a channel is ever suspected); `FIRST_RUNG_FACTOR` is deliberately left `unaudited` for the reason the judge gives.
+
+*Next*, in order:
+1. Tier the remaining 66 rowed entries and give the 34 row-less ones a row or a reason, working from `inventory.json` (task 2), the reseed fence first, since its stakes line now exists: the fence carried load on the one real chain where it acted, and cost 4.3× for nothing on a synthetic one.
+2. The clash table (task 5), with the three clashes found here as its first rows: the bound × the closing stage, `reseed=False` × the forced escalation, the closing stage × the fence.
+3. The batch (task 6), one brief per class, with task 3's two fields and the `reseed` docstring fix in the quarantine's and the fence's briefs.
+4. After the rulings: tasks 3 and 7 (the fields, the demotions with `SeriesResult.steps`), then the width-growth hand-off to 2004.
+
 - **2026-10-21** — the repair itself: WP-2019's session, started under this
   WP's `repair first` flag, wrote the reconstructed entry below (f036bf9, on
   #1095's branch). No work on this WP's tasks, and Next is unchanged.
