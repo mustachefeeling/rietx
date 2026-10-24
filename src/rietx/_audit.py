@@ -883,7 +883,9 @@ ROWS: tuple[Row, ...] = (
     Row("RESOLUTION_UNCONSTRAINED", "code", response="warning",
         responds=("do not quote a width, a crystallite size or a strain from this fit; "
                   "calibrate the instrument on a standard first")),
-    Row("RESTRAINT_PAIRS_STALE", "code", tier=1, ambiguity=1,
+    Row("RESTRAINT_PAIRS_STALE", "code", tier=1, ambiguity=1, response="warning",
+        responds=("rebuild the anti-bump list from the answer's coordinates and refit before "
+                  "judging the named contacts, which no row restrained"),
         evidence=("arithmetic: a pair distance against the caller's own anti-bump minimum r0, for "
                   "a contact entered since the run began that no row restrains; a warning that "
                   "names the pair, moves no value and gates nothing")),
