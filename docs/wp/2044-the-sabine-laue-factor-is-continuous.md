@@ -129,7 +129,7 @@ two truncated expansions. No threshold or automatic action is added.
       backend, or `tests/test_backend_conformance.py` fails. The docstring's
       "out of reach for real powder data" goes, replaced by the QPA fit's
       numbers
-- [ ] The TOPAS writer follows the model, or states where it cannot: an
+- [x] The TOPAS writer follows the model, or states where it cannot: an
       exact form if TOPAS's expression language has the functions, otherwise
       the closest it can spell, with the difference measured and reported at
       write. Its round-trip test re-run
