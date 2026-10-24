@@ -42,8 +42,8 @@ into a wider band.  **WP-0504 re-derived that shape**: it is mostly the
 purpose, so its numbers stay comparable to v0.3), not microabsorption as v0.3
 supposed — see the shape test's docstring and
 ``test_acceptance_dispersion.py``, where enabling it takes the overall RMS
-error from 2.26 to 0.62 wt %.  Sample 2:
-worst 2.9 wt % with brucite March-Dollase r ≈ 0.68 (< 1 = platy in
+error from 2.26 to 0.69 wt % (0.62 on 1.9.0).  Sample 2:
+worst 3.0 wt % with brucite March-Dollase r ≈ 0.67 (< 1 = platy in
 Bragg-Brentano reflection geometry, the expected habit).  Sample 4
 uncorrected: corundum +24, magnetite −15, zircon −9 wt %; Brindley with
 order-of-magnitude radii improves corundum and magnetite but not zircon, and
@@ -372,8 +372,9 @@ def test_sample1_bias_has_the_dispersion_shape(sample1_results):
     different factor — 1.0542 corundum, 0.8441 zincite, 1.0728 fluorite — and
     QPA divides one phase's scale by another's.  That predicts all three signs
     with no free parameters.  Enabling the correction and refitting under this
-    identical protocol takes the overall RMS error from 2.26 to 0.62 wt % and
-    the worst |ΔW| from 5.13 to 1.20 (``test_acceptance_dispersion.py``).
+    identical protocol takes the overall RMS error from 2.26 to 0.69 wt % and
+    the worst |ΔW| from 5.13 to 1.37 (``test_acceptance_dispersion.py``; 0.62
+    and 1.20 on 1.9.0).
 
     Microabsorption is real and still present in the ~0.6 wt % that remains;
     it is no longer the leading term.  Asserting the shape pins the
@@ -428,7 +429,9 @@ def test_sample2_brucite_spherical_harmonics(order):
     spherical-harmonics texture (WP-1960).  The weighed composition is the
     evidence, never Rwp.  Measured 2026-10-14, darwin/arm64: the largest
     error is 3.41 wt % at order 4 and 2.71 at order 6, against
-    March-Dollase's 2.80 on the same protocol.  C2,0 must read platy, which
+    March-Dollase's 2.80 on the same protocol.  On the 1.10.0 tree, after
+    WP-2002's closing stage and width twin hold, they read 3.71, 2.91 and
+    3.01.  C2,0 must read platy, which
     in the frame of WP-1960 D2 (ψ = 0 on a reflection plate) is positive."""
     _require_data()
     biso = ("phases.0.atoms.*.biso", "phases.1.atoms.*.biso",

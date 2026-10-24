@@ -7546,7 +7546,7 @@ def _capillary_offset_diagnostics(model: CompiledModel,
     Info rather than warning, and it deliberately does **not** ask for the
     offsets to be freed.  WP-1073 measured what that costs on 11-BM: the pair is
     a degeneracy the fit walks along while Rwp *improves*, and the cell moves
-    5109 ppm with no bound to stop it (1117 ppm while a ±1 mm default bound
+    5111 ppm with no bound to stop it (1097 ppm while a ±1 mm default bound
     did, until WP-2002).  So they stay report-driven, and this says only that
     the door is shut and which field opens it.
 

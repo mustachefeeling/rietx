@@ -231,7 +231,7 @@ Each comes with the GSAS-II and TOPAS refinements of the same pattern.
 
 The two reference engines disagree.
 On the cathode they differ by 2668 ppm on the cubic cell, and GSAS-II reports its own fit singular.
-rietx lands within 98 ppm of TOPAS on every free lattice parameter.
+rietx lands within 96 ppm of TOPAS on every free lattice parameter.
 [Two phases against TOPAS and GSAS-II](../switching/validation.md#two-phases-against-topas-and-gsas-ii) gives the numbers, and `tests/test_acceptance_powderline.py` asserts them.
 
 Read that as the calibration for any comparison between engines made through this format.

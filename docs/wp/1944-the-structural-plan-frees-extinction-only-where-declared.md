@@ -66,6 +66,8 @@ it.
   see, freed by the plan on a weak phase. The held fit is unchanged at
   1.37 ± 0.07 wt%. Re-pin `examples/guides/qpa.py` and its page if this WP
   changes what the plan frees.
+  The fit moves a quoted weight fraction by more than the fraction itself,
+  which may move this WP's priority row (noted by WP-2043).
 
 ## Non-goals
 

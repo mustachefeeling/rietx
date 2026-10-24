@@ -15,8 +15,8 @@ between each phase's ``Mustrain;mx`` and ``Mustrain;i``, then returns a
 **negative** crystallite size for the monoclinic phase, while TOPAS returns
 5×10⁸ µm — no size broadening at all.  ``tests/data/README.md`` § v1.3 has the
 full table.  What this suite measures is where this package lands in that
-argument, and the answer is close to TOPAS: **10-98 ppm on all five free cell
-parameters**, at Rwp 7.328 % against TOPAS's 7.326 %, while sitting the same
+argument, and the answer is close to TOPAS: **10-96 ppm on all five free cell
+parameters**, at Rwp 7.322 % against TOPAS's 7.326 %, while sitting the same
 365-2 570 ppm from GSAS-II that TOPAS does.
 
 LaB6 is the other kind of fixture — an instrument-profile calibration with the
@@ -38,7 +38,7 @@ GSAS-II's 6.53 % (and beside TOPAS's 8.52 %):
    quarter of the peak width at the top of the range.  Another engine's project
    default is not adopted here; it is reported (``RECIPE_ENGINE_DEFAULT_DECLINED``).
 
-Given all three, the widths agreeing to a **median 1.2 %** is the result, and
+Given all three, the widths agreeing to a **median 0.5 %** (1.2 % on 1.9.0) is the result, and
 it is what this suite asserts.
 """
 
@@ -177,7 +177,7 @@ def test_drx_agrees_with_topas_far_more_closely_than_the_engines_agree(drx):
                                  abs(1e6 * (value - t[key]) / t[key]))
             worst_engine_gap = max(worst_engine_gap,
                                    abs(1e6 * (t[key] - g[key]) / g[key]))
-    assert worst_to_topas < 200.0        # measured 98 ppm
+    assert worst_to_topas < 200.0        # measured 96 ppm (98 on 1.9.0)
     assert worst_engine_gap > 1000.0     # measured 2 668 ppm
     assert worst_to_topas < worst_engine_gap / 10.0
 
@@ -236,7 +236,8 @@ def test_lab6_drawn_peak_widths_match_the_reference_profile(lab6):
     numbers and this one's are not commensurable, while the FWHM of a peak in
     the calculated pattern is.
 
-    Bar: 5 % on every reflection.  Measured median 1.2 %, worst 2.3 %, over the
+    Bar: 5 % on every reflection.  Measured median 0.5 %, worst 1.0 % (1.2 %
+    and 2.3 % on 1.9.0), over the
     first ten reflections — the range where both models are unambiguous, before
     GSAS-II's gamma reaches its floor.
     """
