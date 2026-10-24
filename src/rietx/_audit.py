@@ -647,7 +647,11 @@ ROWS: tuple[Row, ...] = (
     Row("INDEX_RESIDUE_PASS", "code", tier="caller", ambiguity=3,
         evidence=("raised only by workflow.index_residue; no default path calls it. Its "
                   "width-ratio refusal reuses WIDTH_MISMATCH_RATIO, itself unaudited, and is "
-                  "tiered with that constant in WP-2007, not here")),
+                  "tiered with that constant in WP-2007, not here"),
+        response="info",
+        responds=("read the second result as the pattern's remainder after the named cell, "
+                  "and check the flagged picks, which count as unindexed, before trusting "
+                  "its grade")),
     Row("INDEX_SEARCH_INCOMPLETE", "code"),
     Row("INDEX_SHIFT_ALLOWANCE", "code"),
     Row("INDEX_SHIFT_DETECTED", "code"),
