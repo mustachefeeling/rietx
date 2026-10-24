@@ -262,7 +262,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 - [x] The batch aggregate: `rx.diagnostics_summary(results, deliverable=)` (firing rate
       per code, warnings per fit, Pareto); the suite metric built on it and pinned as a
       meta-test over the acceptance suites' collected diagnostics.
-- [ ] A test of silence per warning code that has a fixture today, and the harness for
+- [x] A test of silence per warning code that has a fixture today, and the harness for
       the rest (a registry a code's silence fixture is added to; absence listed, not
       failed, until 2004-2007 fill it).
 - [x] The snap floor from the file's printed precision in `crystallography/cif.py`,
