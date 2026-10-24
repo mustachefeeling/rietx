@@ -1,6 +1,6 @@
 # WP-2044 — The Sabine Laue factor is continuous at x = 1
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-24 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P1 2026-10-24 — a silent wrong answer in a shipped path: a fit parks extinction on a step in the model, and its esd collapses wherever the last Jacobian straddles the step; the 1.10 cut (2043) waits on it
