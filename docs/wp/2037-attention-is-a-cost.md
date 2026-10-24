@@ -343,7 +343,15 @@ npm --prefix gui test && npm --prefix gui run check
   row with its `means:`, so a notebook still explains each code while `print` stays one
   line a row.
 
-  *Measured* (`[dev]` venv, Linux x86-64 cloud container, 4 cores): FILLED-AT-STEP-7.
+  *Measured* (`[dev]` venv, Linux x86-64 cloud container, 4 cores, nothing else running):
+  the fast selection on the final tree (`386516c`, main merged at `db69b83`) gives `1
+  failed, 11386 passed, 277 skipped, 27 xfailed` in 40 min, the one failure being
+  `test_examples.py::…[moment]`, which fails here without this branch too. No base was
+  measured on this machine, so the +N check is the added-tests tool's own count: 52 added
+  cases, 7.2 s in all (`tests/test_summary_deliverables.py` 3.6 s for 15,
+  `test_audit_table.py` 3.4 s for 6, every other file under 0.2 s), none near the tail.
+  The full selection did not run: the change moves FAP's Ca1 by 3.3e-11, and the slow
+  FAP acceptance is the nightly's. Vitest 590 passed, svelte-check clean.
   20 of 257 codes raise at more than one level or a computed one and 8 more through a
   helper `diagnostic_index` cannot read; all 28 stay on the baseline until split. The FAP
   tutorial fit prints, with no deliverable: `diagnostics: 3 rows, 0 errors; no
