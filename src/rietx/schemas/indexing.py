@@ -159,6 +159,14 @@ from .structure import Cell
 #: where it was the constant, so a high-resolution list now matches within its
 #: own widths.  A run whose first pass finds an agreed lattice, and a lab list
 #: with lines 0.05 degrees or wider, answer as at 1.9.
+#: Also in 1.11 (WP-1969, #933): ``indexed_fraction_low`` reads the share of the
+#: usable lines' *intensity* a cell indexes, where it read their count, so a
+#: cell leaving weak foreign lines unindexed can grade above ``low`` and one
+#: missing a strong line cannot.  On SRM 660c with three or six weak impurity
+#: lines the certified cell goes from ``low`` to ``medium``: a line count under
+#: the bar adds the capping caveat ``indexed_lines_low`` (a vocabulary member
+#: of ``IndexCaveat``, no new field); no other indexing acceptance row changes
+#: grade by the intensity reading.
 INDEXING_THRESHOLDS_VERSION = "1.11"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
@@ -508,7 +516,11 @@ SMITH_VOLUME_C1, SMITH_VOLUME_C2 = 0.6, 0.0052
 # Consensus and the confidence gate (WP-1024)
 # ----------------------------------------------------------------------
 #: Share of the **whole usable line list** a candidate must index before it can
-#: be called ``"high"`` confidence.  Note the denominator: the search is driven
+#: be called ``"high"`` confidence, read in two roles against the one bar: the
+#: share of the lines' *intensity* gates the refuting ``indexed_fraction_low``
+#: caveat, and the share of their *count* below it caps the grade at
+#: ``"medium"`` through ``indexed_lines_low`` (see the last paragraph).  Note the
+#: denominator: the search is driven
 #: by the first :data:`~rietx.indexing.engines.DEFAULT_SEARCH_LINES` lines and
 #: may leave ``n_unindexed`` of *those* unexplained, so a cell can pass the
 #: search having said nothing at all about lines 21 onwards — the first of the
@@ -521,6 +533,27 @@ SMITH_VOLUME_C1, SMITH_VOLUME_C2 = 0.6, 0.0052
 #: 20-line list it would demand only 90 % anyway.  A fixed fraction lets a couple
 #: of foreign lines through on a long list and still refuses a cell that explains
 #: only the low-angle half.
+#:
+#: **Read on the intensity the cell explains, not the line count** (WP-1969,
+#: issue #933; ``indexed_intensity_fraction``, falling back to
+#: ``indexed_fraction`` only for a panel built without it).  A count charges a
+#: cell for its own impurities twice, once in the search's acceptance and again
+#: here: on SRM 660c with k weak impurity lines (drawn from the weaker half of
+#: the observed intensities) the certified cell indexes exactly its own 25
+#: lines, so the count put it at 25/(25 + k) and refuted it from k = 3, while it
+#: explains 0.93-1.00 of the intensity through k = 6.  The weighted reading also
+#: refutes what the count passes: a cell missing one strong line.  The same six
+#: impurity lines drawn from the *stronger* half take the share to 0.73-0.74,
+#: and the caveat fires.  The bar is unchanged; on a position-only list every
+#: line weighs 1 and the two readings are one number.
+#:
+#: **The count still acts, as a cap** (yue-here's ruling on #1042).  From the
+#: line list alone a superlattice line and an impurity line look the same, and a
+#: sub-cell missing a superstructure explains every strong line, so on intensity
+#: alone it could reach ``"high"`` with nothing else refuting a smaller cell.  A
+#: line count under this bar therefore adds ``indexed_lines_low``, which caps
+#: and does not refute (GSAS-II scores cells by count only, M20 and X20).  The
+#: weak-impurity LaB6 cell grades ``"medium"`` rather than ``"low"``.
 INDEX_MIN_INDEXED_FRACTION = 0.9
 #: Confidence in one candidate cell.  Three levels, and the top one is
 #: **agreement between independent engines** rather than any statistic: the same
@@ -545,7 +578,13 @@ Confidence = Literal["high", "medium", "low"]
 #: therefore not each other's negation.  ``predicted_but_absent`` — the Le Bail fit found reflections where
 #: the pattern has no intensity, the classic oversized-cell false positive M₂₀
 #: cannot see.  ``indexed_fraction_low`` — below
-#: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines.  ``search_incomplete``
+#: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines' intensity.
+#: ``indexed_lines_low`` — the intensity passes that bar but the cell indexes
+#: fewer than :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines by count
+#: (both numbers are on the panel as ``indexed_intensity_fraction`` and
+#: ``indexed_fraction``); capping, because from the line list alone a sub-cell
+#: missing a superstructure and a cell beside an impurity look the same.
+#: ``search_incomplete``
 #: — a budget expired, so a *negative* result elsewhere in the domain means
 #: nothing.  ``shift_allowance_assumed`` — the matching window was widened by an
 #: *assumed* systematic (``INDEX_SHIFT_ALLOWANCE``), and a cell found inside a
@@ -574,6 +613,7 @@ IndexCaveat = Literal[
     "validation_failed",
     "predicted_but_absent",
     "indexed_fraction_low",
+    "indexed_lines_low",
     "search_incomplete",
     "shift_allowance_assumed",
     "bravais_ambiguous",

@@ -88,7 +88,7 @@ The [forward model](../theory/forward-model.md#discreteness-frozen-per-stage) st
 
 Before it solves, the stage compares each phase's scale with its esd.
 A phase whose scale is under {{ PHASE_SUPPORT_SIGMA }} esds is too weak for the data to fix its cell and atoms, so the stage fixes them and tests the phase again at its answer.
-The plan sets that number (`RefinementPlan.phase_support_sigma`), and `None` turns this hold off.
+The plan sets that number (`RefinementPlan.phase_support_sigma`), and `None` turns off the significance test only: a phase with no reflection in the fitted range is still held, scale included, because its column is zero whatever the value.
 A magnetic moment direction the powder average cannot determine is fixed the same way.
 So is a phase's displacement parameter when its reflections in range cannot separate it from the scale.
 `StageResult.held` lists what was fixed.
