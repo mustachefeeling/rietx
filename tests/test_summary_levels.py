@@ -347,3 +347,21 @@ def test_a_bare_result_can_follow_the_reading_rule():
     with pytest.raises(ValueError, match="unknown deliverable"):
         result.summary(deliverable="cells")
     assert "error[FLOOR_HIT]" in result.summary(levels={"FLOOR_HIT": "deny"})
+
+
+def test_usable_under_a_callers_deny_and_never_above_usable():
+    """Clause 4, ruled 2026-10-24: a denied code makes the fit unusable to
+    the caller who denied it, ``usable`` itself reads nothing but the result,
+    and an override never lifts an error."""
+    result = _result(list(FAP.values()))
+    assert result.usable and result.usable_under({})
+    assert not result.usable_under({"FLOOR_HIT": "deny"})
+    assert result.usable, "usable is the result's own reading, never the caller's"
+    assert result.usable_under({"FLOOR_HIT": "allow", "PATTERN_UNDERSAMPLED": "warn"})
+
+    bound = _result([_d("MODEL_FAR_FROM_DATA", [], level="error")])
+    assert not bound.usable and not bound.usable_under({"MODEL_FAR_FROM_DATA": "allow"})
+    stopped = _result(list(FAP.values())).model_copy(update={"status": "max_iter"})
+    assert not stopped.usable_under({})
+    with pytest.raises(ValueError, match="unknown diagnostic code"):
+        result.usable_under({"FLOOR_HITT": "deny"})

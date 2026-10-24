@@ -142,7 +142,7 @@ with the `info` rows collapsed beside their help text; nothing is hidden from th
 student or the expert. The "N unresolved" header goes.
 
 **4. The audited response is a default, and the caller may set it.** A per-code override
-on `summary()` and in settings, in the compiler's allow-warn-deny form. The audited
+on `summary()` and in settings (the settings half superseded, Decision 6), in the compiler's allow-warn-deny form. The audited
 default is one table row; the override is the audit's caller class and needs no tier.
 The expert who disagrees with a response and the pipeline that treats one code as
 blocking both get what they want without touching the default.
@@ -225,6 +225,15 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 5. The softening of unanimity for a recorded, cheap-to-undo default is deferred to its
    own brief, [WP-2038](2038-the-softening-a-brief-not-a-change.md); it reopens the
    fourth review for a reason unrelated to attention.
+6. (2026-10-24) Clause 4's "in settings" is dropped. `usable` stays a function of the
+   stored result alone, and a caller's map reaches the yes/no reading through
+   `result.usable_under(levels)`. Reason: `usable` is a property with no argument, so it
+   could see a map only through a per-user file, and one stored result would then read
+   usable on one machine and not on another; the structure solver's trial cost
+   (`solve/cost.py`) reads `usable` too. Linters keep such a map per project, never per
+   user (Rust's `[lints]`, pytest's `filterwarnings`; recalled). Chosen over the map in
+   `~/.rietx/settings.json`, over storing the map on the result at fit time, and over
+   stopping at `summary(levels=)`.
 
 ## Non-goals
 
@@ -257,8 +266,10 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 - [x] `DELIVERABLES` extended with `cell`, `microstructure`, `calibration`, `magnetic`,
       each with its deciding rows in `_deliverable_lines`, the skill § 4b table and
       `SeriesResult.summary`'s refusal text updated.
-- [ ] The caller override: `summary(levels={code: "allow"|"warn"|"deny"})`, the same map
+- [x] The caller override: `summary(levels={code: "allow"|"warn"|"deny"})`, the same map
       in settings, `usable` reading a caller's `deny`; one `caller` row in the table.
+      *Superseded in part 2026-10-24 (Decision 6):* no settings file; a caller's `deny`
+      reaches `result.usable_under(levels)`, and `usable` reads the result alone.
 - [x] The batch aggregate: `rx.diagnostics_summary(results, deliverable=)` (firing rate
       per code, warnings per fit, Pareto); the suite metric built on it and pinned as a
       meta-test over the acceptance suites' collected diagnostics.

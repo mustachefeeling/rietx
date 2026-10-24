@@ -2092,9 +2092,30 @@ class RefinementResult(Base):
         counted the day it is written, with nothing here to edit.  ``False``
         means do not read the values; ``True`` is not a pass — the warnings
         still name what each number may not be quoted as (class docstring).
+
+        It reads nothing but the result, so a stored result answers the same
+        on every machine, and the package's own readers (the structure
+        solver's trial cost) never depend on a caller's preferences.  A caller
+        who treats a code as blocking asks :meth:`usable_under` instead.
         """
         return (self.status == "converged"
                 and not any(d.level == "error" for d in self.diagnostics))
+
+    def usable_under(self, levels: dict[str, str]) -> bool:
+        """:attr:`usable` with the caller's per-code override applied
+        (WP-2037 clause 4): ``levels`` maps a code to ``"allow"``, ``"warn"``
+        or ``"deny"``, as ``summary(levels=…)`` takes it, and a code the
+        caller denies makes the fit unusable to them.  The override never
+        lowers an error, so ``usable_under`` is never ``True`` where
+        :attr:`usable` is ``False``.  An unknown code or word is refused.
+
+        A method rather than a setting the property reads (ruled 2026-10-24):
+        :attr:`usable` stays a function of the stored result alone, and the
+        map is the caller's to keep, beside the code that applies it.
+        """
+        return (self.status == "converged"
+                and not any(row.level == "error"
+                            for row in diagnostic_view(self.diagnostics, None, levels)))
 
     # -- numpy views -------------------------------------------------------
     def sig(self) -> np.ndarray:

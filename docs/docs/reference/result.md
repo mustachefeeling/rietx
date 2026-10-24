@@ -341,6 +341,8 @@ Both need no compiled model, so they work on a result read back from a project o
 Every `summary()` also takes `levels=`, a map from a code to `"allow"`, `"warn"` or `"deny"`.
 The caller's word replaces the audited level under every purpose, so an expert can quiet a code and a pipeline can print one as an error.
 It never lowers a diagnostic raised as an error, and the diagnostics header counts the rows it set.
+`RefinementResult.usable_under({"PATTERN_UNDERSAMPLED": "deny"})` is `usable` under the same map, so a pipeline can treat a code as blocking.
+`usable` itself reads nothing but the stored result, so it answers the same on every machine.
 It stays under 80 lines on a five-stage fit.
 [A first fit in Python](../start/first-fit.md) shows one.
 

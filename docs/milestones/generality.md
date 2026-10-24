@@ -222,8 +222,10 @@ clauses give the aim teeth.
    The GUI orders the same way with the `info` rows collapsed beside their help, so
    nothing is hidden from the student or the expert.
 4. **The audited response is a default, and the caller may set it**, per code, in the
-   compiler's allow, warn and deny form, on `summary()` and in settings. The override is
-   the audit's caller class and needs no tier.
+   compiler's allow, warn and deny form, on `summary()` and in `usable_under()`. The
+   override is the audit's caller class and needs no tier. It is passed with each call
+   and kept by the caller, never read from a settings file, so a stored result's
+   `usable` means the same on every machine (ruled 2026-10-24; WP-2037 § Decisions, 6).
 
 **Demotion** moves an item to the kind of DESIGN.md § Rules, 1 its ambiguity belongs to.
 Where the alternatives are enumerable and the data score them, the result is a ranking with
