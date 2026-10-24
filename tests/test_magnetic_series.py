@@ -1341,8 +1341,11 @@ def test_solve_magnetic_on_the_first_pattern_gives_the_model_the_series_refines(
 # 2theta 2-81.9 deg at 0.1 deg, two columns (2theta, counts), the corrected
 # patterns of S. Maier, M. W. Gaultois, N. Matsubara, W. Surta, F. Damay,
 # S. Hebert, V. Hardy, D. Berthebaud and F. Gascoin, Phys. Rev. B 103, 054115
-# (2021), doi:10.1103/PhysRevB.103.054115 (arXiv:2102.06484), vendored with the
-# authors' permission (``tests/data/README.md``, which carries the terms).  The paper reports
+# (2021), doi:10.1103/PhysRevB.103.054115 (arXiv:2102.06484).  M. W. Gaultois, a
+# co-author, released the twelve patterns under CC BY 4.0 for this repository
+# (https://github.com/yue-here/rietx/pull/1073#issuecomment-6316397776; terms and
+# reference values in ``tests/data/README.md``).  We acknowledge the Laboratoire
+# Leon Brillouin for the provision of neutron beam time.  The paper reports
 # T_N = 58 K from chi(T) and c_p(T), k = (1/2, 0, 1/2), the Shubnikov group
 # P_a 2_1/m (BNS 11.55, irreps Gamma4/Gamma8) with the moment along b, and
 # m_y = 4.13(4) mu_B per Fe at 1.5 K with the two Fe moments constrained equal
