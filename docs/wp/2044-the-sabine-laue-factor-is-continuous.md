@@ -146,14 +146,19 @@ two truncated expansions. No threshold or automatic action is added.
       at x = 1. `tests/test_cross_backend.py` rows for extinction; the
       bit-identity goldens that carry extinction recaptured, with the move
       quoted
-- [ ] The QPA guide re-pinned (`examples/guides/qpa.py`, its page), and its
+- [x] The QPA guide re-pinned (`examples/guides/qpa.py`, its page), and its
       first fit re-run on the macOS runner by re-pushing
-      `tmp/wp2043-macos-qpa`. The branch is deleted after
-- [ ] Manual: the Theory tab's extinction equation with its `*Source:*` line.
+      `tmp/wp2043-macos-qpa`. The branch is deleted after. *Done
+      2026-10-24 on a branch of its own*, `tmp/wp2044-macos-qpa` (run
+      40087721222, deleted after), since 2043's branch belongs to a live
+      session: macOS arm64 and Linux x86_64 both give CaF₂ 3.5769 ± 3.5333
+      wt%, compiled tier on and off
+- [x] Manual: the Theory tab's extinction equation with its `*Source:*` line.
       Notes: a "Numbers that move" entry in `docs/releases/1.10.0.md` naming
       who moves (a fit where some reflection's x passes about 0.5)
-- [ ] Skill: none expected. The new `HIGH_CORRELATION` firing is the existing
-      code's row
+- [x] Skill: none expected. The new `HIGH_CORRELATION` firing is the existing
+      code's row. *Confirmed*: the page already quoted that firing at
+      ρ = +0.996, and no skill file quotes the QPA guide's numbers
 
 ## Acceptance
 
