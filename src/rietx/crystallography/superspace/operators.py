@@ -1015,6 +1015,7 @@ class SuperspaceGroup:
         See :class:`SuperspaceTransform` for what S does to q.
         """
         qn = transform.apply_to_q(self.q)
+        self._require_superlattice(transform)
         det = _det_rational(transform.p_matrix)
         if abs(det) == 1:
             # a unimodular basis change maps coset representatives to coset
@@ -1032,6 +1033,28 @@ class SuperspaceGroup:
             ops.append(transform.conjugate(
                 SuperspaceOperator(_IDENTITY_R, unit, 1, (0, 0, 0), Fraction(0))))
         return SuperspaceGroup.from_operations(qn, ops, symbol=None)
+
+    def _require_superlattice(self, transform: SuperspaceTransform) -> None:
+        """Refuse a transformation whose new cell the group does not fill.
+
+        The new unit translations must be translations of this group:
+        u = P⁻¹e_i has to be a lattice vector or a centring, with the internal
+        part the map x₄′ = s_m·x + s_eps·x₄ sends to zero.  Otherwise the image
+        group would assert a translation (P = diag(2,1,1) over P222(0,0,γ)000
+        would assert a/2) that the input does not have."""
+        pinv = _inverse3([list(r) for r in transform.p_matrix])
+        for i in range(3):
+            u = tuple(pinv[k][i] for k in range(3))
+            delta = (-transform.s_eps * sum(transform.s_m[k] * u[k] for k in range(3))) % 1
+            if not any(c.theta == 1 and c.delta % 1 == delta
+                       and all((c.translation[k] - u[k]) % 1 == 0 for k in range(3))
+                       for c in self.centerings):
+                raise ValueError(
+                    f"the new cell's translation {tuple(str(x) for x in u)} (in this "
+                    f"group's cell) is not a translation of this group: the "
+                    f"transformation does not map its lattice onto a lattice "
+                    f"containing the new cell's, so the image would assert "
+                    f"translations the group lacks")
 
     # -- the commensurate section ----------------------------------------
     def section(self, q, t0) -> Section:

@@ -399,6 +399,25 @@ def test_symbol_refusals(text, why):
         parse_symbol(text)
 
 
+def test_a_cell_change_must_map_the_lattice_onto_one_containing_the_new_cell():
+    """P222(0,0,γ)000 has no a/2 translation.  P = diag(½,1,1) doubles a and
+    gives the group the centring x1+½ (order 8 in a primitive count); the
+    inverse change, P = diag(2,1,1), would assert the a/2 the group lacks, and
+    so does a non-integral P of determinant 1 (diag(2,½,1))."""
+    g = parse_symbol("P222(0,0,γ)000")
+    doubled = g.transformed(SuperspaceTransform.build(p_matrix=((F(1, 2), 0, 0), (0, 1, 0), (0, 0, 1))))
+    assert len(doubled) == 8 and len(doubled.centerings) == 2
+    for diag in [(2, 1, 1), (2, F(1, 2), 1)]:
+        pm = tuple(tuple(F(diag[i]) if i == j else F(0) for j in range(3)) for i in range(3))
+        with pytest.raises(ValueError, match="not a translation of this group"):
+            g.transformed(SuperspaceTransform.build(p_matrix=pm))
+    # a group that does carry the translation accepts the change
+    centred = parse_symbol("C222(0,0,γ)000")
+    back = centred.transformed(SuperspaceTransform.build(
+        p_matrix=((1, 0, 0), (-1, 1, 0), (0, 0, 1))))
+    assert len(back) == len(centred)
+
+
 def test_a_shifted_i_centred_group_is_not_named_as_a_c_centred_one():
     """I2₁2₁2₁ and C222₁ both have two centrings; the centring vector decides
     (ITC Table 4.3.2.1).  Moving I2₁2₁2₁(0,0,γ)000 by (¼,0,0) leaves its
