@@ -226,6 +226,26 @@ def test_n1_rule_over_p222_is_in_the_commit_a_list():
     assert got == {"P222.1'(0,0,γ)000s", "P222.1'(0,0,γ)00ss"}
 
 
+@pytest.mark.parametrize("sg, n_free", [("P 1 21/c 1", 2), ("P 1 2/m 1", 2), ("P -1", 3)])
+def test_n1_route_widens_q_to_the_groups_family_like_the_isotropy_route(sg, n_free):
+    """A line declared (0,0,γ) in a group whose point operations allow a wider
+    q family (Pérez-Mato et al. 2012, the printed symbols: P12_1/c1(α,0,γ),
+    P-1(αβγ)) gives one group by either route: same q, same operators, a
+    symbol that parses back to it."""
+    checked = 0
+    for x in inc.line_irreps(sg, "(0,0,γ)", [1 / math.sqrt(7)]):
+        lop = inc.line_order_parameter(x)
+        n1 = inc.n1_superspace_group(lop)
+        iso = inc.isotropy_superspace_groups(lop)
+        assert len(iso) == 1
+        assert n1.q == iso[0].group.q
+        assert len(n1.q.free) == n_free
+        assert equivalent(n1, iso[0].group)
+        assert equivalent(parse_symbol(symbol(n1)), n1)
+        checked += 1
+    assert checked
+
+
 # ---------------------------------------------------------------------------
 # the polar-axial internal-shift sign pin
 # ---------------------------------------------------------------------------

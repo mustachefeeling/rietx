@@ -281,19 +281,16 @@ def _family(lop: LineOrderParameter, rotations_eps):
     return ModulationVector(tuple(lop.q.rational), tuple(free))
 
 
-def _group_of(lop: LineOrderParameter, elements, *, family: bool = True):
+def _group_of(lop: LineOrderParameter, elements):
     from ..superspace.operators import _IDENTITY_R, SuperspaceGroup, SuperspaceOperator
 
     ops = [superspace_operation(lop, j, t, dl) for j, t, dl in elements]
     cen = [SuperspaceOperator(_IDENTITY_R, tuple(c), 1, (0, 0, 0), Fraction(0))
            for c in lop.extended.centrings]
-    if family:
-        seen = {}
-        for o in ops:
-            seen[o.rotation] = o.epsilon
-        q = _family(lop, list(seen.items()))
-    else:
-        q = lop.q
+    seen = {}
+    for o in ops:
+        seen[o.rotation] = o.epsilon
+    q = _family(lop, list(seen.items()))
     return SuperspaceGroup.from_operations(q, ops + cen)
 
 
@@ -311,7 +308,7 @@ def n1_superspace_group(lop: LineOrderParameter):
     neg = [j for j, e in enumerate(lop.epsilons) if e == -1]
     if neg:
         elements.append((neg[0], 1, Fraction(0)))
-    g = _group_of(lop, elements, family=False)
+    g = _group_of(lop, elements)
     if lop.kind == "magnetic":
         g = g.with_time_reversal_shift()
     return g
