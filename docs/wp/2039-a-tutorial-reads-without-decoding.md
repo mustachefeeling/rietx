@@ -326,7 +326,15 @@ vale docs/docs
     97 requests, saved $7.42. Kept items ran 23, 18, 6, 20 and 29 requests against
     estimates of 4, 10, 8, 10 and 18. Actual over estimated 2.60. Selective-policy replay:
     `lane when main > 150K and item >= 20 requests`, 259 sessions, −13 %.
-  - Fast suite: FAST_COUNTS.
+  - Fast suite, `[dev]` venv, darwin/arm64, on the branch merged with `main` at
+    `e921947a0`: 11334 passed, 265 skipped, 27 xfailed and 1 failed, in 10:29 beside
+    another session's suite (load 9-80). The failure was this branch's: the twin of
+    `reference/refinement.md` came out 70 characters over its 50 000 cap after the
+    Provenance block was aligned. Two sentences were trimmed, and the test then passed
+    alone. No base count was run, so the passed+skipped delta is left to CI's comparison.
+    The 17 added tests take 2.64 s together on this machine (`test_display.py` 10 tests
+    1.48 s, `test_viz.py` 5 tests 1.09 s, `test_tutorials.py` 2 tests 0.07 s), so none
+    joins the slow tail.
 
   *Code review* (`/code-review high --fix`): eight findings. The review fixed three: the
   landing page's code box no longer matched tutorial 02 after formatting, which would have
