@@ -107,6 +107,10 @@ decision is taken at compile, from values the stage cannot change.
 with every parameter free and restarted from the previous answer
 (`docs/practice.md` does not yet survey either point).
 
+### Inherited
+
+- **From WP-2003 (2026-10-24, PR #1150): the same runaway on Linux, what the ladder does with it, and one more chain in your acceptance.** WP-2003 measured the hostile series on a 4-core Linux x86-64 cloud container (`[dev]`). Results are in `docs/wp/2003-batch/reseed.md`, families `cpd` and `cpd-noclose`, per pattern. At cpd-1b the warm rung's closing stage ran to its 400-evaluation cap in 2 300-2 600 s and came back `max_iter` at Rwp 0.7652. Under the default fence (1.25 × the median) the ladder escalated to `warm_staged` and kept 0.13779, against 0.13732 for the independent fit. With the fence off, or with an infinite fence, the 0.7652 fit was kept and seeded cpd-1c, whose closing stage then crawled at about 5 evaluations a minute. With `closing_window_tol=None` the warm rung reached 0.16333 and nothing escalated. Two findings bear on the fix. (1) The time per evaluation is mostly FCJ quadrature: node counts climb to the 512 cap, and each new count misses the `leggauss` cache (`model/profiles/fcj.py:88-92`, reached from `refine.py:1548` → `model/forward.py:2212` → `fcj.py:241`). With default BLAS threading, one `leggauss(444)` took 5.4-6.0 s, against 0.014 s with one thread, so on Linux set `OPENBLAS_NUM_THREADS=1` before timing anything here. (2) WP-2003 added `tests/test_acceptance_sequential.py::test_the_first_rung_bound_moves_no_accepted_value`, which builds a second `chained_all`-shaped chain with the first-rung bound off, in the same `qpa-sample1` group. It cost 1 h 17 min for both chains on that machine, so your acceptance's "the nightly `full` job completes inside its 150-minute limit" has to count it. It should fall to the same seconds as `chained_all` once the runaway is cut short. WP-2036's Inherited carries the same measurement from the full suite's side.
+
 ## Non-goals
 
 - Restoring the 0.2 ceilings, or any limit B9 removed. That was ruled.
