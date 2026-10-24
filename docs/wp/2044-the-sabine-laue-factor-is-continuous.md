@@ -1,9 +1,8 @@
 # WP-2044 — The Sabine Laue factor is continuous at x = 1
 
-Milestone: unscheduled · Status: 🔄 2026-10-24 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-24 — E_L = e^(−x)·[I₀ + I₁] on every backend; the QPA guide's esd agrees on macOS and Linux
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P1 2026-10-24 — a silent wrong answer in a shipped path: a fit parks extinction on a step in the model, and its esd collapses wherever the last Jacobian straddles the step; the 1.10 cut (2043) waits on it
 
 ## Goal
 
@@ -181,6 +180,114 @@ Linux to two significant figures.
 - `docs/wp/2043-cut-1-10-0.md` § Context, for the runner measurements.
 
 ## Handover log
+
+### 2026-10-24 (2nd session) — closed: the Laue factor is exact, and the QPA esd no longer depends on the platform
+
+Sabine's Laue extinction factor is now one continuous function, the exact
+integral his papers' series and asymptote both truncate. Any fit with
+extinction on and some reflection past x ≈ 0.5 moves. The QPA guide's free fit
+is the visible case: CaF₂ reads 3.58 ± 3.53 wt% on macOS and Linux alike, where
+1.10's tree had given ± 0.21 on one and ± 2.24 on the other. No other Rietveld
+program surveyed evaluates the factor continuously, so rietx now departs from
+GSAS-II and MAUD here, on the strength of the integral rather than a
+convention. The TOPAS export cannot spell a Bessel function and carries a
+polynomial approximation within 3.6e-8, untested in TOPAS itself.
+
+*Done.* The paper item (eqs 3-4 of Sabine, Von Dreele & Jørgensen 1988; ITC C
+§6.4.5's construction), and the survey into `docs/practice.md` § Extinction.
+The checkpoint did not fire. `model/extinction.py` uses `i0e + i1e`, and both
+ops joined `backend/api.py`'s vocabulary on numpy, jax, torch and torch-mps
+(this item was a lane). An argument shift of 2⁻¹²⁶ (`_ARG_SHIFT`) sets the slope
+at x = 0 to −1/2. Unshifted, numpy reads 0/0 there and jax and torch +1/2. The
+TOPAS writer spells A&S 9.8.1-9.8.4 and says so in the file's head. Also done:
+the column test on the QPA fit (slow), the cross-backend row
+`extinction_strong` (reflections straddling x = 1), the band and continuity
+tests, the two golden recaptures (`tests/data/README.md`), the guide re-pin,
+the Theory-tab equation and the 1.10 notes entry. The macOS check ran on a
+branch of its own, `tmp/wp2044-macos-qpa`, deleted after.
+
+*Measured* (venv `[dev,jax,torch]`, macOS 26.6.2 arm64, Python 3.12.10, numpy
+2.5.4, scipy 1.18.1, unless named):
+- The QPA guide's first fit, run 40087721222 on GitHub (`macos-latest` arm64
+  and `ubuntu-latest` x86_64, Python 3.13, compiled tier on and off): CaF₂
+  3.5769 ± 3.5333 wt%, extinction 1919.38 ± 4065.9 µm² and Rwp 0.081630 in all
+  four cells.
+- The column at that answer: forward difference against central at relative
+  steps 1e-2 to 1e-8, miss 6.7e-7 of the norm from 1e-4 down (5.0e-5 at 1e-2),
+  cosine 1.0. With GSAS-II's branches patched in, the same test misses by
+  100 % at 1e-4.
+- `_laue_and_deriv` on 10⁴ values: 237 µs a call, against 318 µs for the old
+  branches.
+- The TOPAS spelling's error against `i0e + i1e`: supremum 3.5914e-8 relative,
+  at x ≈ 96.6, step 6e-9 at x = 3.75.
+- Goldens: `srm660c` moved in its extinction column only, by 9.3e-6 of the
+  norm. `toy_rich` moved by 1.2e-5 there, and at most 4e-13 elsewhere. Both are
+  rounding of a 1e-9 µm² step at x ≈ 1e-10: there scipy's `i0e` carries about
+  1e-6 of slope error against 8e-8 for the old polynomial. The other nine
+  states were bit-identical.
+- Fast selection, alone on the machine: 11 783 passed, 111 skipped, 27 xfailed,
+  1 failed in 8:38. The failure is `test_display`'s kernel test, from the stale
+  user kernel spec. It passes under `JUPYTER_PREFER_ENV_PATH=1`. Against the
+  lane's run of the same selection earlier today (11 778 + 111 + 27 + 5 failed),
+  the total rose by 1, the one fast test added since
+  (`test_the_written_laue_factor_is_within_its_stated_bound`). The QPA column
+  test is `slow` and absent from the fast run. Added fast tests cost 0.83 s
+  together on this machine (`tests.added_test_times`; worst 0.62 s, the two jax
+  and torch autodiff cases). None joins the slow tail.
+- Full selection, alone on the machine, on this branch with `main` merged
+  (`main` had not moved): 12 191 passed, 114 skipped, 43 xfailed, 3 failed in
+  58:32. `test_watch_app`'s real-GUI boot passes alone, a flake under load. The
+  NAC termination-view golden and the skill placement episode fail identically
+  on an `origin/main` snapshot without this branch. They belong to WP-2037's
+  landed work, and its Inherited has both. The QPA column test passed in this
+  run.
+- Lanes: one, `model ~30`, ran 51 requests (1.70× the estimate) and saved $1.69,
+  9 % of the session. Re-read 5K, 8 main requests, 20K left in main. Selective
+  policy replay (`baseline --u 4561 --mo 8 --d 19602`): lane when main > 150K
+  and item ≥ 20 requests, −14 % over 270 sessions.
+
+*Review* (`/code-review high`). Four findings. One was fixed: the innermost
+Horner coefficient was written bare after `*` (`*-0.00027682`), which the
+replaced writer never did. Two were skipped: the forward-only path computing
+a discarded slope (one division next to two Bessel calls), and three tests
+each computing a phase's x on different set-ups. One needed no change: the
+3.6e-8 bound is the supremum, checked on a 7e-6-wide grid.
+
+*Generality* (the judge on the seven added and two deleted rows):
+- `_BESSEL_SWITCH`, `_I0_SMALL`, `_I1_SMALL`, `_I0_LARGE`, `_I1_LARGE`: holds,
+  tier 1 resting on the test that evaluates the written line. The comment
+  claimed every x > 0 against a tested (0, 10⁴]. The comment now says the
+  tested range. The coefficients match A&S as the judge recalls them, and the
+  test bounds them whatever the print says.
+- `_LAUE_SPELLING_REL`: holds. What TOPAS itself computes from the new
+  spelling is inferred. *Author:* no TOPAS is available here, and WP-1911
+  inherits the note.
+- `_ARG_SHIFT`: holds, with incomplete evidence. The row did not say that it
+  also removes numpy's 0/0 slope at x = 0. The evidence now says so. The fp32
+  reason (torch-mps) is untested by any CI row. The lane ran it locally.
+- `_SABINE_LAUE` (deleted): holds.
+- `_PI2` (deleted): holds. No independent reference is given for the guide's
+  CaF₂ fraction. *Author:* none exists for this specimen. The GSAS-II tutorial
+  publishes no weighed composition. The guide's point is that the fraction is
+  undetermined while extinction is free, which a 3.53 wt% esd now says on every
+  platform.
+
+*Gotchas.* WP-2043's probe branch `tmp/wp2043-macos-qpa` still exists. It
+belongs to that session. The worktree guard refuses heredocs and variables in
+paths, so probe scripts went to the scratchpad by the Write tool. A new git
+branch on GitHub came from the git-data API (`gh api .../git/refs`), because
+this worktree cannot switch branches.
+
+*Forward.* WP-1911 inherits the FullProf fact (its powder extinction is
+empirical, so C3 cannot write Sabine) and the untested TOPAS spelling. WP-1944
+inherits the QPA guide's new numbers. WP-2037 inherits the two slow tests it
+left red on `main`. WP-2043's file exists only on its own
+branch, so its notice went to the maintainer instead. This close unblocks the
+1.10 cut, and this WP was P1 for a silent wrong answer, so a release is owed at
+once. That release is WP-2043.
+
+Next: the maintainer reviews and merges this PR, then WP-2043 cuts 1.10 on top
+of it. Nothing in this WP remains.
 
 - **2026-10-24** — created by WP-2043's session at the maintainer's ask: a
   stub for option 1 that checks the other programs and the paper first. No
