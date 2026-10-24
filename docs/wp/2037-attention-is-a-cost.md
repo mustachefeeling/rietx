@@ -259,7 +259,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
       `SeriesResult.summary`'s refusal text updated.
 - [ ] The caller override: `summary(levels={code: "allow"|"warn"|"deny"})`, the same map
       in settings, `usable` reading a caller's `deny`; one `caller` row in the table.
-- [ ] The batch aggregate: `rx.diagnostics_summary(results, deliverable=)` (firing rate
+- [x] The batch aggregate: `rx.diagnostics_summary(results, deliverable=)` (firing rate
       per code, warnings per fit, Pareto); the suite metric built on it and pinned as a
       meta-test over the acceptance suites' collected diagnostics.
 - [ ] A test of silence per warning code that has a fixture today, and the harness for
@@ -287,7 +287,7 @@ beside the v1.3 baseline.
 
 ```sh
 .venv/bin/python -m pytest tests/test_audit_table.py tests/test_help.py -q
-.venv/bin/python -m pytest tests/test_results.py tests/test_summary*.py -q        # the filter and the derived level
+.venv/bin/python -m pytest tests/test_summary_levels.py tests/test_summary_deliverables.py tests/test_termination_view.py tests/test_display.py -q   # the filter, the derived level, the override (2026-10-24: test_results.py never existed)
 .venv/bin/python examples/skill_worked_default.py                                # the FAP before/after, by eye against 2037-attention/examples.md
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 npm --prefix gui test && npm --prefix gui run check
