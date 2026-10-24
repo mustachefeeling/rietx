@@ -1,9 +1,8 @@
 # WP-2039 — a tutorial reads without decoding: the maintainer's notes as rules, the quickstart's fixes, and the checks that hold them
 
-Milestone: unscheduled · Status: 🔄 2026-10-23 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-24 — every task landed; the skill wording handed over as paste text
 Track: The repo's own process
 Depends on: — (1986 soft, the tutorials' home under Start)
-Priority: P3 2026-10-23 — a shipped tutorial describes output it no longer shows and nothing flags it; a reader works around it by reading the output
 
 ## Goal
 
@@ -269,6 +268,107 @@ vale docs/docs
 - Issue #274: where `dead_channels` comes from.
 
 ## Handover log
+
+- **2026-10-24** — Notebook 01 now reads without decoding, for a reader who knows powder
+  diffraction and not rietx. Its prose says what each output shows. The pattern diagnostics
+  print under three headings and say which checks could not run. Every notebook display is
+  one monospace block, which GitHub renders as written. The data plot draws the starting
+  background and names the radiation. Rebuilding every notebook showed that WP-2002's floor
+  removal had changed outputs in 01, 03, 04 and 05 while their prose still described the old
+  ones. A rebuild now lists each such cell, and Vale reads the tutorials' prose. Notebook 03
+  no longer shows the indexer abstaining, and that lesson needs a new example (WP-2040's
+  Inherited).
+
+  *Renumbered.* Filed as WP-2037, with its sibling as WP-2038. `main` filed its own WP-2037
+  and WP-2038 while this branch was open, so this WP is 2039 and the sibling 2040. The
+  branch's commit messages were rewritten to match. A force-push of the rewrite was refused,
+  so the work moved to a new branch, `wp2039-tutorial-reads`, and a new pull request; #1137
+  was closed in its favour. The worktree directory keeps the old name.
+
+  *Decisions (the maintainer, 2026-10-23, recorded in § Context).* 1a: one `<pre>` per
+  notebook display, with each diagnostic's explanation as `means:` in the notebook form only.
+  2a: `PatternDiagnostics` prints all fifteen rows under three headings.
+
+  *Done.* GitHub's render measured first (task 1): its sanitiser strips `<details>` and
+  `<summary>`, so both causes of note 10 were real. Tutorials README § How a tutorial reads.
+  Quickstart and template prose rewritten, with a cell that draws the starting background at
+  100-130° before any fit. Sweep of 02-06: one motion metaphor (06), one second name for the
+  background level (03), four "cell edge" (03, 05). Tutorials formatted by `ruff format` at
+  79 columns (`examples/tutorials/ruff.toml`, with `src` re-pointed so `rietx` stays
+  first-party), checked in CI's lint job. Trees align their values. `PatternDiagnostics`
+  numbers print to three figures, "not checked" is read off fields, and a new
+  `contamination_searches` field records the ghost searches that could have raised a flag.
+  Every `_repr_html_` is one `<pre>`, four that added nothing were deleted, and `means:`
+  wraps at 88 columns. `data.plot(model=)` draws the starting background dashed and names
+  the radiation and λ from the model or the file (`_stated_radiation`: a preset's exact
+  lines, never a nearness). `build.py` lists changed text outputs with the markdown under
+  each, and `--prose` feeds Vale (`[examples/tutorials/_prose/*.md]` in `.vale.ini`, with
+  `Microsoft.We` off for tutorials). Notebooks 02b, 03, 04 and 05 were reread against every
+  changed output: a Sonnet reviewer listed the disagreements, and each was checked here.
+
+  *Measured.*
+  - GitHub's notebook frame shows about 100 monospace characters, which sets the 88-column
+    wrap. The rebuilt quickstart renders as one block (`notebooks.githubusercontent.com`,
+    headless Chrome 1243, 2026-10-24).
+  - Notebook 03's search is load-sensitive at the default 30 s per slice. At load 30-78 on
+    10 cores, svd did not finish, the row read `search_incomplete` and the verdict NO CELL.
+    At load 4 it finished and graded `high`, CELL. With `budget_seconds=300` at load 135 the
+    call took 57.5 s and gave CELL; with 120 s at load 118, CELL. An `origin/main` snapshot
+    (`e921947a0`) gives the same CELL, so the change from the committed NO CELL is
+    WP-2002's.
+  - The quickstart's first pass no longer ends on `FLOOR_HIT`: y = −0.0141(45), where the
+    committed notebook had 0.0000(47) before WP-2002 removed the Y floor.
+  - The quickstart's 5th-percentile background start (65 counts) runs along the lowest
+    counts above 60°. Between 15° and 20° the counts never fall below 384.
+  - Lanes (`session_usage.py lanes`): main 231 requests, peak 448K, $18.06; three lanes
+    $19.00. Diagnostics display: estimated 30, 96 requests, saved $5.66. Notebook displays:
+    estimated 25, 93 requests, saved $7.14. Plot background and radiation: estimated 22,
+    97 requests, saved $7.42. Kept items ran 23, 18, 6, 20 and 29 requests against
+    estimates of 4, 10, 8, 10 and 18. Actual over estimated 2.60. Selective-policy replay:
+    `lane when main > 150K and item >= 20 requests`, 259 sessions, −13 %.
+  - Fast suite: FAST_COUNTS.
+
+  *Code review* (`/code-review high --fix`): eight findings. The review fixed three: the
+  landing page's code box no longer matched tutorial 02 after formatting, which would have
+  failed `test_the_landing_box_is_the_tutorial`; `means:` could land inside a multi-line
+  `help:`; an empty cell broke the rebuild report. Four were fixed after it:
+  `contamination_searches` had counted a search with fewer than `GHOST_MIN_PARENTS` parents,
+  so a short scan read "none" where nothing could be flagged (the class this WP removes); the
+  starting background drew a chord across an excluded band; `--prose` left a renamed
+  tutorial's file for Vale; the anode was looked up twice. Declined: an aligned one-line
+  container can run a few columns past `ONE_LINE_WIDTH`, which is cosmetic.
+
+  *Generality.* Not dispatched. `_audit.py` is untouched and `audit_delta` reports no row
+  change. The new constants (`SIGNIFICANT`, `NOTEBOOK_WIDTH`) and the radiation fallback
+  order live in `_display.py` and `viz`, both in `NOT_WALKED`. The ghost screen's change
+  records a count it already made.
+
+  *Skill wording, handed over as paste text for a claude-config session* (task 2; the full
+  text went to the maintainer with this session's report). `yue-docs-style`: rule 3 widened
+  to "nothing the reader needs comes before it is explained or linked", with the
+  one-sentence option; "a thing keeps one name on a page"; the metaphor ban widened from
+  price to motion and agency; § Tutorial gains predict-then-run and "each piece of a model
+  is shown against the data before a fit uses it". `yue-figure-style`: a figure seen without
+  a caption states the radiation on the figure, draws every part of the model that exists,
+  and is described by what the reader can see, then the cause, then the consequence.
+  `yue-prose` has no rule for the last, so it goes with captions. Note 7 was already in
+  `diffraction.md` ("state the wavelength or source"), so the gap was rietx's plot.
+
+  *Gotchas.* The builder's stderr carries `[IPKernelApp] WARNING | Kernel is running over
+  TCP without encryption`, from jupyter_client and not from a cell; `problems()` reads cell
+  outputs only, so the build passes. Vale needs `vale sync` once in a new worktree. A nested
+  `ruff.toml` moves the first-party root, so it carries `src`. A rebuild under load can
+  still change a wall-clock-bounded output; check `uptime` before rebuilding 03.
+
+  *Not generalised.* `plot_result` names no radiation, because a `RefinementResult` stores
+  no source (WP-2040's Inherited). It probably also draws its curves across an excluded band,
+  unverified, and fixing it would move committed manual figures. A `SeriesResult` has no
+  notebook form, so a series shows no `means:`. `at:` lines and table rows do not wrap. A
+  nested model inside the diagnostics print keeps eight digits (11-BM NAC's coverage region
+  prints `inflation: 2.8029311`).
+
+  Next: none on this WP; it closes. WP-2040 takes the two tutorial gaps when it starts, after
+  WP-1986.
 
 - **2026-10-23** — Created from the maintainer's ten notes on notebook 01, in a cloud
   session. The quickstart's prose has fallen behind its outputs since the closing stage, and
