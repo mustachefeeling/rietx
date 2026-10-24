@@ -258,7 +258,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
 - [ ] A test of silence per warning code that has a fixture today, and the harness for
       the rest (a registry a code's silence fixture is added to; absence listed, not
       failed, until 2004-2007 fill it).
-- [ ] The snap floor from the file's printed precision in `crystallography/cif.py`,
+- [x] The snap floor from the file's printed precision in `crystallography/cif.py`,
       tier 1, with the FAP case silent and a real snap still firing.
 - [ ] Before/after counts on the four families in the handover; the agent run
       registered, run once, reported beside the v1.3 baseline.

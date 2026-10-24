@@ -1166,6 +1166,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.attenuation._HC_EV_ANGSTROM", "constant", value=12398.4198),
     Row("rietx.crystallography.attenuation._NA_BARN", "constant", value=0.602214076),
     Row("rietx.crystallography.cif.CIF_ANGLE_CORRECT_MAX_DEG", "constant", value=0.1),
+    Row("rietx.crystallography.cif.CIF_PRINTED_ROUNDING", "constant", tier=1,
+        evidence="arithmetic: a number printed to d decimals by rounding to the nearest "
+                 "digit stands for every value within half its last digit, ties included "
+                 "(computed exactly in decimal, cif._within_printed_rounding); a snap "
+                 "inside it is the file's rounding, one past it is still reported "
+                 "(tests/test_cif_stated_columns.py, WP-2037)",
+        value=0.5),
     Row("rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL", "constant", value=0.001),
     Row("rietx.crystallography.cif.DUPLICATE_U_TOLERANCE", "constant", value=0.0002),
     Row("rietx.crystallography.cif.OCCUPANCY_TOLERANCE", "constant", value=0.01),
