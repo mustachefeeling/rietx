@@ -3261,13 +3261,28 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.SequentialRefinement.fit:two_theta_limits", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:direction", "default", tier="caller", ambiguity=1,
         value="forward",
-        evidence=("opt-in: direction='both' is asked by name and its off default walks one chain; the GUI's series panel defaults to 'forward' (gui/series.py:80) and passes the user's choice (gui/session.py:1710), and no other default path sets it (searched 2026-10-24). What 'both' turns on is tiered on its own: PATH_DEPENDENCE_SIGMA, NOISE_FLOOR_REL and SEQUENTIAL_PATH_DEPENDENT (WP-2003)")),
+        evidence=("opt-in: direction='both' is asked by name and its off default walks one chain, "
+                  "moving no reported value (the entries are the forward pass's either way); the "
+                  "GUI's series panel defaults to 'forward' (gui/series.py:80, its own copy in a "
+                  "dict) and passes the user's choice (gui/session.py:1710), and no other default "
+                  "path sets it (searched 2026-10-24). The case for acting is the package's own: "
+                  "the skill says to run 'both' for any trajectory to be published "
+                  "(references/series.md), and the default stays visible in SeriesResult.direction "
+                  "and the summary's 'ordering artefact: NOT measured' line. What 'both' turns on "
+                  "is tiered on its own: PATH_DEPENDENCE_SIGMA, NOISE_FLOOR_REL and "
+                  "SEQUENTIAL_PATH_DEPENDENT (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:reseed", "default", value=True),
     Row("rietx.sequential.SequentialRefinement.fit:reseed_factor", "default", value=1.25),
     Row("rietx.sequential.SequentialRefinement.fit:first_rung_factor", "default", value=3.0),
     Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", tier="caller", ambiguity=1,
         value=False,
-        evidence=("opt-in: verify_discontinuities=True is asked by name and off by default; no default path sets it, the GUI included (searched 2026-10-24). What it turns on (a cold refit of each flagged pair and the verdict added to SEQUENTIAL_DISCONTINUITY) is tiered with that code (WP-2003)")),
+        evidence=("opt-in: verify_discontinuities=True is asked by name and off by default; no "
+                  "default path sets it, the GUI included (searched 2026-10-24). What it turns on, "
+                  "a cold refit of each flagged pair and the cold step as a signed ratio of the "
+                  "chain's with a reading and no threshold (sequential.py:1888-1900), moves no "
+                  "fitted value; which pairs it refits is set by DISCONTINUITY_FACTOR and "
+                  "DISCONTINUITY_SIGMA, so this row is re-read when WP-2003's demotion of "
+                  "SEQUENTIAL_DISCONTINUITY lands")),
     Row("rietx.sequential.SequentialRefinement.fit:prepare", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:constrain", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", tier="invariant", ambiguity=1, value=None,
