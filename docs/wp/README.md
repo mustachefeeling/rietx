@@ -43,6 +43,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1997](1997-the-direct-space-solver-on-main.md) | The direct-space solver on main: site classes, kernels, chemistry, engine and entry point | 2026-10-23 | P2 | [structure-solution](#structure-solution) |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 2026-10-21 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2037](2037-attention-is-a-cost.md) | Attention is a cost: two channels, a response per code, relevance by purpose | 2026-10-24 | P2 | [generality](#generality-the-registry-and-the-guard) |
+| [2040](2040-the-tutorials-link-the-manual-at-first-mention.md) | The tutorials link the manual at each concept's first mention | 2026-10-24 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 
 ## Next, by priority
 
@@ -729,7 +730,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2027](2027-a-meaning-beside-each-field.md) | A meaning beside each field of a model | ⬜ | P4 | — ([2024](2024-a-parameters-list-under-each-call.md) soft) |
 | [2036](2036-main-is-green-on-every-nightly-leg.md) | Main is green on every nightly leg: a full suite that finishes, two Windows tooling tests, and answers that move with the platform | ⬜ | P1 | — ([2002](2002-the-single-fit-actions.md), [2012](2012-the-axial-ratios-are-interchangeable.md) soft) |
 | [2039](2039-a-tutorial-reads-without-decoding.md) | A tutorial reads without decoding: the maintainer's notes as rules, the quickstart's fixes, and the checks that hold them | ✅ 2026-10-24 | — | — ([1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) soft) |
-| [2040](2040-the-tutorials-link-the-manual-at-first-mention.md) | The tutorials link the manual at each concept's first mention | ⬜ | P4 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) |
+| [2040](2040-the-tutorials-link-the-manual-at-first-mention.md) | The tutorials link the manual at each concept's first mention | 🔄 2026-10-24 | P4 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) |
 
 ### <a id="unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement"></a>Candidates — named on a use case, not yet on a measurement
 

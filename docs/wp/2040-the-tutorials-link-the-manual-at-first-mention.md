@@ -1,6 +1,6 @@
 # WP-2040 — the tutorials link the manual at each concept's first mention
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-24 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 1986 (the Guides tab complete)
 Priority: P4 2026-10-23 — links change no number, and the pages they would point at are still moving under WP-1986
