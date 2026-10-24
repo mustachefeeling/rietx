@@ -368,7 +368,7 @@ It also decides which diagnostics print in full: the errors and the warnings for
 `"phase_id"` adds the unmatched observed peaks and the Le Bail gap ratio.
 `"qpa"` adds the worst entry of `background.absorption` and the weight fractions with esds.
 `"structure"` adds `identifiability.exchangeability`.
-`"cell"` adds each phase's refined cell with its esds and volume, then the same exchangeability rows.
+`"cell"` adds each phase's refined cell with its esds and volume, then the rows of `identifiability.exchangeability` that name a cell path.
 `"microstructure"` adds each phase's `result.microstructure` readings, or says the size and strain are not quotable when `RESOLUTION_UNCONSTRAINED` fired.
 `"calibration"` adds the instrument parameters the fit refined, and whether the standard's cell was held fixed, as a calibration needs.
 `"magnetic"` adds each site's moment rows and the moment directions the stages held or turned (`StageResult.moment_flat_axes`, `StageResult.moment_turned`).
