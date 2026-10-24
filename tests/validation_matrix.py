@@ -1498,8 +1498,8 @@ CLAIMS: tuple[Claim, ...] = (
                   "it 'what an uncalibrated lab pattern costs'; it was not, it "
                   "was dichotomy's duplicate-leaf hash skipping the leaf that "
                   "held the certificate's c (WP-1026, _box_key)",
-        measured="ranked first, trigonal R, a +110 ppm and c +57 ppm, 45 of 47 "
-                  "lines, chi2_red 0.67.  Confidence low on three caveats: "
+        measured="ranked first, trigonal R, a +89 ppm and c +60 ppm, 44 of 46 "
+                  "lines, chi2_red 0.55.  Confidence low on three caveats: "
                   "engines_disagree, predicted_but_absent (11 -- the R-3c "
                   "c-glide, not an oversized cell) and fom_panel_disagrees.  "
                   "best_or_none() returns None.  WP-1038 cleared two of the "
@@ -1514,7 +1514,9 @@ CLAIMS: tuple[Claim, ...] = (
                   "assumed 0.05 deg window are WP-1038's, not re-run).  The "
                   "wider window is not free: a window that cannot rule out a "
                   "constant must stay at |c| everywhere, where the true "
-                  "cos(theta) deviation has fallen to 0.26|c| by 150 deg",
+                  "cos(theta) deviation has fallen to 0.26|c| by 150 deg.  "
+                  "1.9.0 read a +110 and c +57 ppm, 45 of 47 lines and "
+                  "chi2_red 0.67; the peak picker's changes before #1050 (#947 to #951, not bisected among them) took one line from the usable list",
         diagnostics=("INDEX_SHIFT_FROM_PAIRS",),
     ),
     Claim(
@@ -1531,18 +1533,21 @@ CLAIMS: tuple[Claim, ...] = (
                   "cell and the figures of merit are asserted TOGETHER, "
                   "because f_n's stated blind spot is that a refined shift can "
                   "manufacture a large figure of merit on its own",
-        measured="fitted shift -0.0749 +/- 0.0187 deg; a +110 -> -114 ppm, "
-                  "c +57 -> -109 ppm, c/a -54 -> +5 ppm; M20 23.7 -> 160.0, "
-                  "F_N 16.6 -> 114.9, Le Bail Rwp 0.285 -> 0.224.  Since "
+        measured="fitted shift -0.0699 +/- 0.0192 deg; a +89 -> -111 ppm, "
+                  "c +60 -> -96 ppm, c/a -29 -> +15 ppm; M20 23.3 -> 187.1, "
+                  "F_N 15.3 -> 145.0, Le Bail Rwp 0.256 -> 0.176.  Since "
                   "WP-1038 the two mechanisms are cleanly separated: the "
                   "pair-MEASURED magnitude widens the window and finds lines "
-                  "(both calls index 45 of 47, so indexed_fraction_low has "
+                  "(both calls index 44 of 46, so indexed_fraction_low has "
                   "already cleared before the template is declared), and the "
                   "DECLARED shape is what moves the cell.  Three routes to one "
                   "systematic, none told the answer: -0.0641 from pairs "
                   "pre-search, -0.0749 from the post-candidate fit, -0.065 "
                   "measured against the certificate.  Still low, on caveats "
-                  "that have nothing to do with the shift",
+                  "that have nothing to do with the shift.  1.9.0 read -0.0749 "
+                  "+/- 0.0187 deg, a +110 -> -114 and c +57 -> -109 ppm, c/a "
+                  "-54 -> +5, M20 23.7 -> 160.0, F_N 16.6 -> 114.9 and Le Bail "
+                  "Rwp 0.285 -> 0.224: the peak picker's changes before #1050 (#947 to #951, not bisected among them) took one line from the usable list, and WP-2002's closing stage and width twin hold (#1085, #1113) moved the Le Bail checks",
         diagnostics=("INDEX_SHIFT_FROM_PAIRS",),
     ),
     Claim(
@@ -1744,13 +1749,13 @@ CLAIMS: tuple[Claim, ...] = (
         measured="truth ranked FIRST (was: every one of twelve candidates a "
                  "supercell, c x 3.002 first, the truth in none of them).  "
                  "a = 3.1476, c = 4.7697.  Forward coverage cannot separate "
-                 "them -- 25 of 29 lines for the truth and the c x 2 cell "
+                 "them -- 25 of 28 lines for the truth and the c x 2 cell "
                  "alike (it read 31, 31 and 32 of 37, the supercells indexing "
                  "MORE, before the peak list lost its duplicate copies) -- "
                  "while predicted_seen_fraction reads 0.86 against 0.43, the "
                  "exact 1/2 an exact supercell must give (no c x 3 cell is "
                  "in the list any more; it read 0.32).  Still low on "
-                 "predicted_but_absent (1 of 29, the 6_3 screw); "
+                 "predicted_but_absent (1 of 28, the 6_3 screw); "
                  "indexed_fraction_low, 0.89 of the lines, cleared with "
                  "WP-1969, which reads the 0.98 of the intensity, and the "
                  "line count under the bar is now the capping "
@@ -1768,7 +1773,9 @@ CLAIMS: tuple[Claim, ...] = (
                  "finished 1.7.0 search (52 s, [dev], darwin/arm64) the c x 2 "
                  "cells are third and fourth and the a x 2 ones fifth and "
                  "sixth.  The rank reads the order, so it waits for a "
-                 "finished search",
+                 "finished search.  1.9.0 read 25 of 29 lines: the peak "
+                 "picker's changes before #1050 (#947 to #951, not bisected among them) took "
+                 "one line from the usable list",
     ),
     Claim(
         "test_acceptance_indexing",
@@ -1796,15 +1803,15 @@ CLAIMS: tuple[Claim, ...] = (
                  "WP-1043 measured "
                  "why: the detector's inputs are the candidate's to buy -- "
                  "the rival's own fit drives the co-refined background "
-                 "NEGATIVE (mean -5.8 counts; no physical floor in the "
+                 "NEGATIVE (mean -7.3 counts, -5.8 on 1.9.0; no physical floor in the "
                  "validation plan), so net clears 3 sigma at 99.6 % of "
                  "channels and nothing can read absent; with the truth's "
                  "background under the same positions 8-14 absences return, "
                  "while swapping widths alone (inflated 2-3x in both fits) "
-                 "restores none.  Rwp 0.21 against 0.72 is the same corrupted "
+                 "restores none.  Rwp 0.21 against 0.65 (0.72 on 1.9.0) is the same corrupted "
                  "fit seen by a different instrument, so it stays surfaced "
                  "and never ranked on.  best_or_none() returns None either "
-                 "way",
+                 "way.  The 99.6 % was measured on 1.9.0 and not re-run",
     ),
     Claim(
         "test_acceptance_indexing",
@@ -1941,10 +1948,10 @@ CLAIMS: tuple[Claim, ...] = (
                  "candidate per search, denying the supercells its vote -- the "
                  "flagship result was protected by a bug rather than by the "
                  "gate.  Everything that refutes the supercell is measured and "
-                 "ungated: Rwp 0.100 vs 0.861/0.660, predicted_seen_fraction "
+                 "ungated: Rwp 0.100 vs 0.860/0.654, predicted_seen_fraction "
                  "1.00 vs 0.88/0.49, m_rev 2245 vs 6.8/1.9, unmatched_observed 21 "
-                 "vs 169/127 (20 vs 166/124 on 1.8.0, before WP-1908 moved the "
-                 "ticks that count reads), while the one gated detector "
+                 "vs 168/129 (169/127 and Rwp 0.861/0.660 on 1.9.0, before "
+                 "WP-2002's width twin hold moved the Le Bail checks), while the one gated detector "
                  "(predicted_but_absent) "
                  "reads 0 for all three.  Also measured: declaring the "
                  "probe-trimmed screen's own sigma_sys (0.0078, the residual the "
@@ -2012,11 +2019,14 @@ CLAIMS: tuple[Claim, ...] = (
                   "chooses.  The primitive twin indexes exactly as many "
                   "OBSERVED lines, so forward coverage cannot separate them -- "
                   "only coverage scored in the other direction can",
-        measured="tetragonal I ranked first, a +140 ppm and c +2011 ppm, 45 of 56 "
-                 "lines; the P twin indexes 44 and loses on "
+        measured="tetragonal I ranked first, a +140 ppm and c +2011 ppm, 45 of 55 "
+                 "lines; the P twin indexes 45 too and loses on "
                  "predicted_seen_fraction 0.53 against 0.27.  "
-                 "predicted_but_absent = 6 (4_1 screw and glides on top of the "
-                 "centring); low, best_or_none() None",
+                 "predicted_but_absent = 7 (4_1 screw and glides on top of the "
+                 "centring); low, best_or_none() None.  1.9.0 read 45 of 56, "
+                 "the P twin 44, and 6 absent: the peak picker's changes "
+                 "before #1050 took one line from the usable list, and "
+                 "WP-2002's width twin hold moved the Le Bail check",
     ),
     Claim(
         "test_acceptance_indexing",
@@ -2035,13 +2045,13 @@ CLAIMS: tuple[Claim, ...] = (
                   "Coelho's N_c/N_o gate, and search_trial_error solves the "
                   "metric from a few base lines; neither meets that resolution",
         measured="zero boxes explored by the dichotomy, premise unchanged; svd "
-                 "AND trial_error both return a = 10.2512 A, +19 ppm from the "
+                 "AND trial_error both return a = 10.2512 A, +21 ppm (+19 on 1.9.0) from the "
                  "certified 10.2510, in both the P and the I description of "
                  "identical axes.  Le Bail chooses: I predicts 0 of 837 absent "
                  "at Rwp 0.155, P predicts 80 of 1668 at Rwp 0.193.  The panel "
                  "does NOT -- borda leads with P 4-3 on margins of 0.5 % and "
-                 "0.01 % against m_rev separating them 693x (970.1 vs 1.40) "
-                 "and m_sym 399x; pinned until 2026-09-27, when the supercell "
+                 "0.01 % against m_rev separating them 961x (1425.5 vs 1.48; "
+                 "693x on 1.9.0) and m_sym 1926x (399x); pinned until 2026-09-27, when the supercell "
                  "check inverted it (WP-1449): the P description is an index-2 "
                  "superlattice of the I cell, and 1 of its 187 added lines no "
                  "extinction could remove sits on an observed line at "
@@ -2073,8 +2083,10 @@ CLAIMS: tuple[Claim, ...] = (
                   "REFUSAL rather than rank, because writing it as 'rank 0 is "
                   "the answer' would mean tuning the panel on a dataset whose "
                   "reference is another code's fit",
-        measured="a +123 ppm, c +414 ppm, found by EVERY engine, 131 of 136 "
-                 "lines.  Ranked FOURTH until WP-1046, below three cells "
+        measured="a +131 ppm, c +410 ppm, found by EVERY engine, 130 of 135 "
+                 "lines (1.9.0: +123 and +414 ppm, 131 of 136, before the peak "
+                 "picker's changes ahead of #1050 took one line from the "
+                 "usable list).  Ranked FOURTH until WP-1046, below three cells "
                  "966-1396 ppm out that index 152 and score a higher M20 "
                  "(today's single-engine cells scoring a higher M20 are "
                  "607-1028 ppm out and index 110-119); it "
