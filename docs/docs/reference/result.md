@@ -51,7 +51,7 @@ When the two χ² differ by more than 1 %, the result carries [`FROZEN_COMPILE_S
 The esds are not re-measured.
 They are the last solve's, read off its Jacobian, and the history node keeps the frozen compile's figures.
 A Pawley result reports the frozen compile's figures and never carries `FROZEN_COMPILE_STALE`, because its intensity block belongs to the solve.
-A joint fit compiles each pattern again at its answer and compares the χ² summed over its patterns.
+A joint fit compiles each pattern again at its answer and compares each pattern's χ², naming the worst.
 
 The literature is not consistent about which quantity is called χ².
 The IUCr guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should approach 1.

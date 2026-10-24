@@ -8341,26 +8341,28 @@ FROZEN_COMPILE_CHI2_REL = 1e-2
 
 
 def _frozen_compile_diagnostics(chi2_frozen: float, chi2_fresh: float, *,
-                                joint: bool = False) -> list[Diagnostic]:
+                                histogram: int | None = None) -> list[Diagnostic]:
     """``FROZEN_COMPILE_STALE`` when the two χ² differ past :data:`FROZEN_COMPILE_CHI2_REL`.
 
     One comparison for both runners: the single fit's
     :meth:`Refinement._final_compile` and the joint fit's
-    ``MultiHistogramRefinement._final_compiles``, which sums its histograms
-    (``joint``) and keeps no history node to hold the frozen figure.
+    ``MultiHistogramRefinement._final_compiles``, which passes its worst
+    histogram's pair and index (``histogram``) and keeps no history node to
+    hold the frozen figure.
     """
     rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
            if chi2_frozen > 0 else 0.0)
     if not rel > FROZEN_COMPILE_CHI2_REL:
         return []
-    summed = ", summed over the histograms," if joint else ""
+    joint = histogram is not None
+    whose = f" for histogram {histogram}" if joint else ""
     kept = ("the last stage's record keeps the frozen one" if joint
             else "the history node keeps the frozen one")
     return [Diagnostic(
         level="info", code="FROZEN_COMPILE_STALE",
         message=(
             f"A fresh compile at the returned parameters gives "
-            f"chi2{summed} = {chi2_fresh:.6g}. The last stage's own compile gives "
+            f"chi2{whose} = {chi2_fresh:.6g}. The last stage's own compile gives "
             f"{chi2_frozen:.6g} at the same parameters, "
             f"{100 * rel:.2g} % apart. The result reports the fresh "
             f"figure and {kept}."),

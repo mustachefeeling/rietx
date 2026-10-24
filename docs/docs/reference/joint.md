@@ -330,7 +330,7 @@ A joint result's curves come from a compile at its answer, as a single fit's do.
 The last stage solved on windows sized at the values it started from.
 If it broadened the peaks, their tails stop at those windows, and a report read off that compile counts the cut as unmatched peaks.
 On that size pair with the closing stage switched off, that compile gives 38 and 28 unmatched peaks, and the compile at the answer gives none.
-When the χ² of the two compiles, summed over the patterns, differ by more than 1 %, the result carries [`FROZEN_COMPILE_STALE`](diagnostics-refinement.md#frozen_compile_stale).
+The two compiles' χ² are compared pattern by pattern. When any pattern's differ by more than 1 %, the result carries one [`FROZEN_COMPILE_STALE`](diagnostics-refinement.md#frozen_compile_stale) naming the pattern that moved most.
 
 ## Precision of a joint fit
 

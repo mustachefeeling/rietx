@@ -283,8 +283,8 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "_max_iter_diagnostics": (
         (FIT,), "a stage's budget is spent by the one joint solve"),
     "_frozen_compile_diagnostics": (
-        (FIT,), "χ² summed over the histograms, the joint solve's objective "
-                "(WP-1421)"),
+        (FIT,), "one finding per fit naming the histogram whose own χ² moved "
+                "most: a pooled χ² would hide one pattern (WP-1421)"),
     "_phase_support_diagnostics": (
         (FIT,), "a phase is unseen only when every histogram misses it, so the "
                 "statement is joint"),
@@ -1699,7 +1699,8 @@ class MultiHistogramRefinement:
         with the last stage's own discrete settings and nothing else changed.
         The solve, the covariance, every esd, the weights (the solve's σ,
         WP-1309) and the origin rows (WP-1912) stay the solve's, exactly as
-        there.  ``FROZEN_COMPILE_STALE`` compares χ² summed over histograms.
+        there.  ``FROZEN_COMPILE_STALE`` tests each histogram's own χ² and
+        reports the worst, naming it.
         """
         values = [t.decode(th) for t, th in zip(
             self.mtable.tables, self.mtable.split(outcome.theta), strict=True)]
@@ -1712,14 +1713,19 @@ class MultiHistogramRefinement:
                 self.mtable.tables, strict=True)]
         # the solve's moment frames, never the fresh compiles' (#598)
         self.mtable.push_moment_frames(fresh)
-        chi2_frozen = chi2_fresh = 0.0
+        pairs = []
         for old, new, v in zip(models, fresh, values, strict=True):
             new.sigma = old.sigma
             new.origin = old.origin
-            chi2_frozen += float(np.sum(((old.y_obs - old.evaluate(v)) / old.sigma) ** 2))
-            chi2_fresh += float(np.sum(((new.y_obs - new.evaluate(v)) / new.sigma) ** 2))
-        return fresh, _frozen_compile_diagnostics(chi2_frozen, chi2_fresh,
-                                                  joint=True)
+            pairs.append((
+                float(np.sum(((old.y_obs - old.evaluate(v)) / old.sigma) ** 2)),
+                float(np.sum(((new.y_obs - new.evaluate(v)) / new.sigma) ** 2))))
+        # each pattern's own gap, never the sum: a pooled χ² hides one pattern
+        # (MODEL_FAR_FROM_DATA's reason), and a pattern's private parameters
+        # are fitted by its χ² alone; one finding, naming the worst
+        rel = [abs(b - a) / a if a > 0 else 0.0 for a, b in pairs]
+        worst = int(np.argmax(rel))
+        return fresh, _frozen_compile_diagnostics(*pairs[worst], histogram=worst)
 
     def _emit_stage_start(self, stream, stage, index, n_stages, models, *,
                           freed, held, unknown_paths, unreached, **extra) -> None:

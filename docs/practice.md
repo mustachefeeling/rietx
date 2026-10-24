@@ -48,7 +48,8 @@ The Lorentzian column is the area a pure Lorentzian loses to the default cut.
 Surveyed 2026-10-25 for WP-1421 (#774's zero case). rietx sizes the FCJ nodes and the peak
 window as if S/L = H/L = 0.02 when both sit at zero and either is free, so that a refinement
 starting from zero has a live finite-difference column. A model at zero therefore draws a
-curve that depends on its free set, by 1.66e-4 of the strongest peak.
+curve that depends on its free set, by 4.8e-5 of the strongest peak on 2026-10-25 (1.66e-4 on
+2026-10-16), measured on #774's rutile reproducer.
 
 | Program | At zero | Does a refine flag reach the profile? |
 |---|---|---|

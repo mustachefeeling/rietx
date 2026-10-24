@@ -40,6 +40,7 @@ from rietx.params.multi import (
     size_value_scales,
 )
 from rietx.params.vector import ParameterTable
+from rietx.refine import FROZEN_COMPILE_CHI2_REL
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.structure import Structure
 from rietx.strategy.staged import RefinementPlan, Stage
@@ -518,6 +519,10 @@ def test_a_joint_result_is_measured_on_a_compile_at_its_answer(size_fixture):
                                    fresh.evaluate(table.decode(table.x0())),
                                    rtol=1e-12, atol=1e-9)
         assert ref.report(h).unmatched == [], f"hist {h}: cut tails read as peaks"
+    # the gap is tested per pattern and the finding names the worst one
+    stale = [d for d in result.diagnostics if d.code == "FROZEN_COMPILE_STALE"]
+    assert len(stale) == 1 and stale[0].value > FROZEN_COMPILE_CHI2_REL
+    assert "histogram 1" in stale[0].message
 
 
 def test_a_joint_fit_recovers_one_crystallite_at_both_wavelengths(size_fixture):
