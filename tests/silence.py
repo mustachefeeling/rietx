@@ -30,6 +30,12 @@ so this module stays cheap to import, and name it in ``source``.  Keep a pair
 under about 2 s: the fast tier grows by its tail (``tests/CLAUDE.md`` § Budgets
 in tests).  A guard finding is passed through ``refine._guard_diagnostics``, so
 the code tested is the one the reader sees.
+
+**A pair verifies; it does not validate.**  Each fixture is built from the
+code's own condition, so it shows the branch fires and stays quiet as
+written.  The mechanical ground's families (real data with a known truth)
+are a separate test, and a pair whose fixtures sit far from the threshold
+says nothing about the threshold.
 """
 
 from __future__ import annotations
@@ -331,12 +337,14 @@ def _raised() -> dict[str, dict[str, set]]:
 
 
 def declared_warnings() -> list[str]:
-    """The codes whose audit row declares ``response="warning"``: each must have
-    a pair, and ``tests/test_silence.py`` fails one that has none."""
+    """The codes whose audit row declares ``response="warning"`` or ``"error"``:
+    each must have a pair, and ``tests/test_silence.py`` fails one that has
+    none.  An error is included because a false one costs more: it turns
+    ``usable`` false, which the package itself reads (``solve/cost.py``)."""
     from rietx import _audit
 
     return sorted(row.name for row in _audit.ROWS
-                  if row.kind == "code" and row.response == "warning")
+                  if row.kind == "code" and row.response in ("warning", "error"))
 
 
 def warning_codes() -> list[str]:

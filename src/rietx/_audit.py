@@ -3127,17 +3127,20 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.Refinement.summary:deliverable", "default", tier="invariant", ambiguity=3,
         value=None,
         evidence=("answer-invariant: a view of a finished fit; None infers no purpose and prints "
-                  "no purpose's rows in full (WP-2037 clause 3); "
-                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+                  "no purpose's rows in full (WP-2037 clause 3), the maintainer's ruling of "
+                  "2026-10-23 (WP-2037 Decision 3) with its registered agent run the tripwire, "
+                  "still owed; tests/test_termination_view.py asserts the result unchanged")),
     Row("rietx.refine.Refinement.summary:plot", "default", tier="invariant", ambiguity=1,
         value=None,
         evidence=("answer-invariant: None writes no picture and names the call instead; "
                   "tests/test_termination_view.py asserts the result unchanged by a summary")),
     Row("rietx.refine.Refinement.summary:plan", "default", tier="invariant", ambiguity=1,
         value=None,
-        evidence=("answer-invariant: the plan the report's Layer-2 veto reads, never the fit's, "
-                  "and None applies no strategy veto to the report's suggestions; "
-                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+        evidence=("answer-invariant: the plan the report's Layer-2 veto reads; None skips the "
+                  "plan-stage veto while the free-path veto stands, and ignores the plan the "
+                  "last fit() ran (_last_plan, which run_stage and a checkout leave stale); "
+                  "tests/test_termination_view.py asserts the result unchanged, not the "
+                  "printed suggestions (WP-2004 inherits the question)")),
     Row("rietx.refine.Refinement.summary:report", "default", tier="invariant", ambiguity=1,
         value=None,
         evidence=("answer-invariant: None builds the report a caller would have passed in; "
@@ -3145,7 +3148,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.Refinement.summary:levels", "default", tier="caller", ambiguity=1,
         value=None,
         evidence=("opt-in: the caller's per-code override, {code: allow|warn|deny}, default None "
-                  "(the audited levels stand); never lowers an error (WP-2037 clause 4)")),
+                  "(the audited levels stand); never lowers an error, this WP's own choice beside "
+                  "clause 2's error for every purpose, put to the maintainer 2026-10-24")),
     Row("rietx.background.auto.auto_background:kind", "default", tier=3, ambiguity=2, value="pspline",
         evidence=("GSAS-II 5.8.4 defaults to a 3-term Chebyshev (GSASIIdataGUI.py:2207, "
                   "inventory check), TOPAS and FullProf to polynomials (recalled); WP-1454: the "
