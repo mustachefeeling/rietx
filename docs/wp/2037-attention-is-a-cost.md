@@ -262,7 +262,7 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
       tier 1, with the FAP case silent and a real snap still firing.
 - [ ] Before/after counts on the four families in the handover; the agent run
       registered, run once, reported beside the v1.3 baseline.
-- [ ] `FLOOR_HIT` on a freed extinction handed to 2004 as an `### Inherited` entry (done
+- [x] `FLOOR_HIT` on a freed extinction handed to 2004 as an `### Inherited` entry (done
       at filing; keep it current).
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
 - [x] Skill: § 4's "Act on each `d.suggestion`" becomes *declare your purpose with
