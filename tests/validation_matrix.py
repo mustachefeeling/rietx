@@ -274,7 +274,7 @@ CLAIMS: tuple[Claim, ...] = (
         reference="the *clean* arm of this same fixture, refined by the same "
                   "protocol — not the NIST certificate, because what is being "
                   "measured is the bias an unmodelled overlapping line adds, "
-                  "and the protocol's own +25 ppm offset from the certificate "
+                  "and the protocol's own +24 ppm offset from the certificate "
                   "is common to every arm and cancels",
         measured="declare -0.1 ppm against the clean arm, ignore -0.4 ppm "
                  "(bar 20 ppm; the test asserts only that declaring is the "
@@ -2847,7 +2847,8 @@ CLOSING_WINDOW_TOL_DEFAULT = 1e-3
 #:   information the caller does not already have** — capillary absorption
 #:   wants µR, roughness a surface, Stephens a strain model, March-Dollase a
 #:   habit; dispersion wants the species and the wavelength, both already in
-#:   the model.  Neglecting it costs RMS 2.26 → 0.62 wt % on round-robin QPA.
+#:   the model.  Neglecting it costs RMS 2.26 → 0.69 wt % on round-robin QPA
+#:   (0.62 on 1.9.0).
 #: * *Anchors survive.*  SRM 660c's cell does not move (4.156882 Å either
 #:   way since WP-1938, 4.156895 Å before).  SRM 676a's certificate-grade c/a moves +30.2 → +30.6 ppm against a
 #:   100 ppm bar — measured for this WP, since WP-0504 never checked it.
@@ -2894,7 +2895,7 @@ GAPS: tuple[tuple[str, str], ...] = (
      "ROUGHNESS_UNCONSTRAINED.  Closing it needs a pattern starting below "
      "~15 deg with real low-angle reflections."),
     ("The SRM 660c certificate band is not reached and is not claimed.",
-     "Measured +25 ppm against a certificate uncertainty of +-8e-6 A.  The "
+     "Measured +24 ppm against a certificate uncertainty of +-8e-6 A.  The "
      "residual is a characterised cotTheta/sin2Theta aberration — equatorial "
      "divergence, tube tails, monochromator passband — which is the "
      "fundamental-parameters territory fenced to v2, not a tuning gap."),
@@ -3202,7 +3203,7 @@ def render_markdown() -> str:
       "absorption wants muR,\nroughness a surface, Stephens a strain model, "
       "March-Dollase a habit — dispersion\nwants the species and the "
       "wavelength, both already in the model. Neglecting it\ncosts RMS 2.26 "
-      "-> 0.62 wt % on round-robin QPA.\n")
+      "-> 0.69 wt % on round-robin QPA (0.62 on 1.9.0).\n")
     w("**The anchors survive.** SRM 660c's cell does not move (4.156882 A "
       "either way since WP-1938, 4.156895 A before).\nSRM 676a's certificate-grade c/a moves +30.2 -> +30.6 "
       "ppm against a 100 ppm bar —\nmeasured for this WP, since WP-0504 never "

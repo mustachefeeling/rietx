@@ -117,7 +117,7 @@ WP-1103's design case on real data: the SRM 660c protocol, contaminated by injec
 
 **Claims:** declaring a sharp intruder that overlaps sample peaks recovers the cell the same data gives when the intruder is not there; ignoring it costs the cell its precision, and since WP-2002 under a ppm of its value
 
-**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is the bias an unmodelled overlapping line adds, and the protocol's own +25 ppm offset from the certificate is common to every arm and cancels
+**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is the bias an unmodelled overlapping line adds, and the protocol's own +24 ppm offset from the certificate is common to every arm and cancels
 
 **Measured:** declare -0.1 ppm against the clean arm, ignore -0.4 ppm (bar 20 ppm; the test asserts only that declaring is the closer); the ignore arm inflates the cell esd 9.9x (2.14e-05 -> 2.11e-04 A) and Rwp 4.4x (0.0874 -> 0.3837). The lines go in at the clean fit's ticks, which follow the displacement since WP-1908, 0.039 deg higher than before; 1.9.0 read -0.2 and +6.3 ppm and 10.1x, before WP-2002's width twin hold (#1113) moved the ignore arm's cell
 
@@ -1641,7 +1641,7 @@ default, and measured the question rather than inheriting the recommendation.
 information the caller does not already have*. Capillary absorption wants muR,
 roughness a surface, Stephens a strain model, March-Dollase a habit — dispersion
 wants the species and the wavelength, both already in the model. Neglecting it
-costs RMS 2.26 -> 0.62 wt % on round-robin QPA.
+costs RMS 2.26 -> 0.69 wt % on round-robin QPA (0.62 on 1.9.0).
 
 **The anchors survive.** SRM 660c's cell does not move (4.156882 A either way since WP-1938, 4.156895 A before).
 SRM 676a's certificate-grade c/a moves +30.2 -> +30.6 ppm against a 100 ppm bar —
@@ -1681,7 +1681,7 @@ should know about before trusting a number, each with what would close it.
 
 - **No dataset here can constrain a low-angle intensity correction.** The qarr phases first reflect at 25.6/28.3/31.8 deg and SRM 660c at 21.4, so surface roughness (WP-0502) has a negative acceptance result only: two of three phases collapse to the identity and raise ROUGHNESS_UNCONSTRAINED.  Closing it needs a pattern starting below ~15 deg with real low-angle reflections.
 
-- **The SRM 660c certificate band is not reached and is not claimed.** Measured +25 ppm against a certificate uncertainty of +-8e-6 A.  The residual is a characterised cotTheta/sin2Theta aberration — equatorial divergence, tube tails, monochromator passband — which is the fundamental-parameters territory fenced to v2, not a tuning gap.
+- **The SRM 660c certificate band is not reached and is not claimed.** Measured +24 ppm against a certificate uncertainty of +-8e-6 A.  The residual is a characterised cotTheta/sin2Theta aberration — equatorial divergence, tube tails, monochromator passband — which is the fundamental-parameters territory fenced to v2, not a tuning gap.
 
 - **GoF does not reach 1 on lab data and should not be expected to.** Cline et al. (2015) put the floor for analytical-PSF fits on this instrument class at 1.5-1.9; FPA reaches 1.08.  Measured 1.63 on corundum with Rexp ~ 8.9 %, so Rwp 14.6 % is mostly counting statistics.  A policy demanding GoF -> 1 would be demanding FPA.
 

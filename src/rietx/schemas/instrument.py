@@ -1226,8 +1226,8 @@ class Geometry(_InheritsDeclaredDefaults):
     #: ±1 mm and ±0.5° on 2026-10-20.  The fit reports the degeneracy with or
     #: without them: on 11-BM NAC over 2-24° 2θ with zero and both offsets
     #: free, bounded, the cell lands 1097 ppm from its reference with an esd
-    #: of 2612 ppm; unbounded, the offsets slide to +4.86 and +2.12 mm and
-    #: the cell to 5109 ppm with an esd of 2579 ppm, and both fits carry the
+    #: of 2610 ppm; unbounded, the offsets slide to +4.86 and +2.12 mm and
+    #: the cell to 5111 ppm with an esd of 2544 ppm, and both fits carry the
     #: same two ``FLAT_DIRECTION`` findings naming the cell and an offset
     #: (``tests/test_capillary_displacement.py``).  The bound acted as a
     #: prior that the mount is aligned, true on 11-BM and so nearer the
