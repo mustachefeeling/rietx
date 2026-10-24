@@ -1,6 +1,6 @@
 # WP-2003 — The chain actions: what a series decides between patterns
 
-Milestone: generality · Status: 🔄 2026-10-24 — the inventory, the reseed fence measured on eight chain families, and the first-rung invariance tests landed (PR #1150); next the tiers, the clash table and the batch
+Milestone: generality · Status: 🔄 2026-10-24 — claimed by @yue-here: the tiers, the clash table and the batch (the inventory, the reseed measurement and the first-rung tests landed in PR #1150)
 Track: The audits
 Depends on: 2002, 2037
 Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
