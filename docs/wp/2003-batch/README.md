@@ -25,7 +25,9 @@ an earlier pattern instead?
   `SEQUENTIAL_UNRECOVERED` names it (`sequential.py:2127-2148`), derived from that status, so a reloaded result says the same.
 - **(b) The rung: yes.** `SeriesEntry.rung` is the kept rung and `rungs_tried` every rung climbed, with `rungs_raised`
   beside them (`schemas/sequential.py:147-174`, written at `sequential.py:1667-1669`). Under `reseed=False`,
-  `rungs_tried` is `["warm"]`, which says truthfully that the ladder was not climbed.
+  `rungs_tried` is `["warm"]` *unless* WP-1127's budget truncated the first rung: that escalation is
+  forced past `reseed` (`sequential.py:1561`, `1569-1571`), seen at planted pattern 87 in every arm
+  (`reseed.md`; corrected 2026-10-24 by the measurement).
 - **(c) The successors: no field.** No `SeriesEntry` field says where its warm start came from, and nothing names the
   successor that started from the last accepted pattern in place of the quarantined one (`sequential.py:1697-1710`).
   A reader can only infer it from walk order and each predecessor's `status`. The message says "It seeded no
