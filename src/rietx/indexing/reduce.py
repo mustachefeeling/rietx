@@ -961,7 +961,10 @@ def _equal_across_boundaries(red_a, red_b, cov_a, cov_b, *, gated: bool = False
         images = ts @ red_b
         deltas = red_a - images
         if not with_cov:
+            # the same rounding-level floor as `_equal_as_given`, per image row:
+            # a monoclinic image's D, E are noise against noise (WP-2035)
             scale = np.maximum(np.abs(red_a), np.abs(images))
+            scale = np.maximum(scale, 1e-12 * scale.max(axis=1, keepdims=True))
             ok = np.all(np.abs(deltas) <= CELL_EQUALITY_RELATIVE * scale, axis=1)
             return (True, float("nan")) if bool(np.any(ok)) else None
         sigmas = cov_a + ts @ cov_b @ ts.transpose(0, 2, 1)
