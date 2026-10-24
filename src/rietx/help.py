@@ -3193,7 +3193,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "with a hump component for a broad amorphous or capillary hump. The 5σ "
             "threshold was measured on four unrelated deposits labelled net (a "
             "synchrotron capillary, a laboratory Stoe Stadi-P, a laboratory "
-            "X'Pert MPD Pro and a neutron powder pattern), whose smallest y/σ run "
+            "PANalytical MPD Pro and a neutron powder pattern), whose smallest y/σ run "
             "from 14 to about 6 000, against a synthetic zero baseline. It misfires "
             "on a subtracted pattern windowed onto a peak cluster with no empty "
             "baseline in range."

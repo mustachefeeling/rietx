@@ -704,7 +704,7 @@ ROWS: tuple[Row, ...] = (
                   "NET_BACKGROUND_MIN_SIGMA = 5 of zero in y/sigma; the statistic is "
                   "arithmetic, the 5 is ours: the smallest y/sigma is 14.1 (COD 2242872, "
                   "synchrotron capillary), 955 (2017714, Stoe Stadi-P), 1212 (2242532, "
-                  "X'Pert MPD Pro) and 6037 (2310780, neutron) against |y|/sigma of order "
+                  "PANalytical MPD Pro) and 6037 (2310780, neutron) against |y|/sigma of order "
                   "1 on a synthetic zero baseline; misfires on a subtracted pattern "
                   "windowed onto a peak cluster; reports only, y is never shifted and "
                   "the caller decides, as Rule 1's third kind asks"),
