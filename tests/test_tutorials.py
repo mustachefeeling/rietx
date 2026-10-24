@@ -96,8 +96,14 @@ def test_tutorial_executes_clean(path):
     if path.stem == LANDING_TUTORIAL:
         printed = _flat(_printed(nb.cells))
         out = _landing_box()[1]
-        # a diagnostic prints as `warning[CODE]: message` (WP-1985)
-        codes = re.findall(r"\[([A-Z_]+)\]:", out)
+        # a diagnostic printed in full reads `warning[CODE]: message` (WP-1985);
+        # one printed short names the purposes it is a warning under (WP-2037):
+        # `CODE at <paths>: warning under …`, `CODE: warning under …` with no
+        # paths, and `info: CODE at <paths> (warning under …)` under a deliverable.
+        # The panel wraps its lines, so read the codes off the flattened text.
+        codes = [full or short for full, short in re.findall(
+            r"\[([A-Z_]+)\]:|\b([A-Z][A-Z_]+)(?: at [^:()]+)?(?:: | \()warning under",
+            _flat(out))]
         assert codes, "found no diagnostic code in the landing page's output panel"
         quoted = [_flat(out.splitlines()[0]), *codes]  # the status line, then each code
         missing = [code for code in quoted if code not in printed]

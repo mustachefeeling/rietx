@@ -45,14 +45,20 @@ result = ref.fit(data, plan="mccusker_structural",
 print(result)
 
 # %% [markdown]
-# Four warnings came back.
+# Three warnings came back, one line each.
+# A warning matters for some uses of a fit and not others, so each line ends with the purposes it is a warning under.
+# `structure` is the atoms, `qpa` the phase fractions, `microstructure` the crystallite size and strain, and `calibration` an instrument calibrated on a standard.
 #
-# - `SITE_SNAPPED_TO_SPECIAL_POSITION`: the CIF gives Ca1's x as 0.3333333333, and the reader placed it exactly on 1/3.
 # - `FLOOR_HIT`: the extinction coefficient ended on its floor of 0, so this specimen shows no extinction to measure.
 # - `RESOLUTION_UNCONSTRAINED`: the peaks are mostly Lorentzian, so do not quote the Gaussian widths U, V and W.
 # - `PATTERN_UNDERSAMPLED`: the step count notebook 01 measured.
 #
 # None of them invalidates the structure, but each one limits what you can quote.
+# Two are warnings under `structure`, and the third concerns only the peak widths.
+#
+# `print(result)` is not told what the fit is for, so it prints none of them in full.
+# The line after the three says how to read them: pass your purpose to `ref.summary` as `deliverable=`, or look in `result.diagnostics`, which holds every warning with its message.
+# Notebook 02b ends by printing the summary for a structure.
 # [Diagnostic codes](https://rietx.org/docs/stable/reference/diagnostics.html) lists every code.
 #
 # Look at the fit before reading any number.
