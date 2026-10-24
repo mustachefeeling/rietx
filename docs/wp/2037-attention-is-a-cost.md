@@ -235,6 +235,17 @@ tiering into interruptive and non-interruptive; van der Sijs 2006, Paterno 2009)
    `~/.rietx/settings.json`, over storing the map on the result at fit time, and over
    stopping at `summary(levels=)`.
 
+### Inherited
+
+- **2026-10-24, from [WP-2040](2040-the-tutorials-link-the-manual-at-first-mention.md):
+  a display change leaves the tutorials' committed outputs stale, and no check sees it.**
+  WP-2040 rebuilt all seven notebooks on `origin/main` `99b00b82e`. Four of them (01, 02b,
+  04, 05) still carried the diagnostics format from before `b6d3430c7`. Notebook 01's prose
+  described the `help:` and `at:` lines that format printed, and WP-2040 rewrote it.
+  `build.py --check` compares cells and never outputs, so it stayed green. When a later task
+  here changes what a result, a summary or a series prints, rebuild the notebooks
+  (`examples/tutorials/build.py`) and reread each cell the rebuild lists.
+
 ## Non-goals
 
 - Re-levelling the 248 unaudited codes: 2004 to 2007, under this WP's column and tests.
