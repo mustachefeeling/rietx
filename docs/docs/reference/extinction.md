@@ -135,7 +135,7 @@ Even that returns a class, which lists its space groups, so the type cannot expr
 | `ExtinctionScreen.reference_rwp_net` | the reference fit's misfit over the net signal, the gate's quantity |
 | `ExtinctionScreen.prior` | the declared `ExtinctionPrior`, or `None` |
 | `ExtinctionScreen.z` | the formula units per cell the member filter used, or `None` |
-| `ExtinctionScreen.z_from_density` | the Z the declared density gives on `cell`, unrounded, or `None` |
+| `ExtinctionScreen.z_from_density` | the Z the declared density gives on `cell`, not rounded, or `None` |
 | `ExtinctionScreen.status` | `"converged"`, `"failed"` (no class could be screened), `"unreliable"` (ranked, but the reference fit failed its gate) or `"cancelled"` |
 | `ExtinctionScreen.thresholds_version` | the indexing thresholds version that produced the ranking |
 | `ExtinctionScreen.diagnostics` | findings about the answer |
