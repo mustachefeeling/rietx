@@ -35,16 +35,16 @@ The case is the hostile series' cpd-1a → cpd-1b
   −5.5. Its frozen model reads Rwp 0.760. A fresh compile at the same values
   reads 1.29, and the stage started at 1.75.
 - At that answer, the frozen windows drop 73.4 % of the Bragg intensity that
-  a fresh compile computes, and χ²(fresh)/χ²(frozen) is 3.27. On every
-  declared stage of cpd-1a's fit the same measure is 0.00-1.32 %, with a χ²
-  ratio of 0.94-1.00.
+  a fresh compile computes, and χ²(fresh)/χ²(frozen) is 3.27. On each of
+  cpd-1a's eight declared stages and its closing stage, the same measure is
+  0.00-1.32 %, with a χ² ratio of 0.94-1.00.
 - The same warm fit split into short stages, each of which recompiles
-  (closing stage off):
+  (closing stage off; times are one run each, orders of magnitude only):
 
   | recompile every | outcome |
   |---|---|
-  | 10 iterations | Rwp 0.142, `axial_sl` 0.0077, 11 s |
-  | 3 iterations | the same answer, 25 s |
+  | 10 iterations | Rwp 0.142, `axial_sl` 0.0077, about 10 s |
+  | 3 iterations | the same answer, about 25 s |
   | 50 iterations | worse: `axial_sl` 4 041, zincite's scale 0, Rwp 0.779 |
   | never (one frozen stage at `ftol` 1e-9) | Rwp 0.196 |
 

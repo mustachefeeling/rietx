@@ -14,7 +14,7 @@ OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2045-batch/pro
 `OPENBLAS_NUM_THREADS=1` matters on Linux, because WP-2003 measured
 `leggauss` at 5.4-6.0 s a call under default threading.
 
-| Script | What it measures | Run time measured 2026-10-24 |
+| Script | What it measures | Run time, one run on 2026-10-24 |
 |---|---|---|
 | `probe.py` | Work at each compile, and Rwp at the runaway answer on the frozen model, on fresh declared- and closing-precision compiles, and at the stage's start | ~20 s |
 | `probe2.py` | The warm fit as short recompiling stages, every K = 400, 50, 10 and 3 iterations | ~5 min |
@@ -23,7 +23,17 @@ OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2045-batch/pro
 | `probe5.py` | A re-solve from the runaway answer on fresh windows at `ftol` 1e-6 and 1e-9 | ~3 min |
 
 The run times were on a Linux x86-64 cloud container (4 cores, `[dev]`,
-Python 3.12) at `7d24e09e7`, and the numbers are in WP-2045's Context. These
-scripts are records, not tests: nothing runs them, so a change to
+Python 3.12) at `7d24e09e7`, and the numbers are in WP-2045's Context.
+
+These scripts are records, not tests. Nothing runs them, so a change to
 `compile_model`'s signature or to `CompiledPhase.win`/`fcj_n` can break them
-silently.
+silently. Each one repeats its setup rather than sharing a helper, so each
+file is exactly what produced its numbers.
+
+`probe4.py` pairs consecutive compiles as one stage's start and answer.
+That held in the recorded run: cpd-1a compiled eight times for its eight
+declared stages, then once for the closing stage and once for the final
+result. A change that adds a compile inside a stage would split its row.
+`probe.py`'s abort test was aligned with the other four's (`axial_sl` > 1 at
+a 1e-3 compile) after the run. In the recorded run both tests fire at the
+same compile, the twelfth.

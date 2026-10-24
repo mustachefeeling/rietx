@@ -3,7 +3,10 @@
 Captures the warm attempt's start models as probe.py does, then refits cpd-1b
 from them with the warm stage cut into short stages that each recompile (an
 emulation of windows that follow the parameters, at a recompile every K
-iterations), closing stage off. K = 400 is the shipped single frozen stage.
+iterations), closing stage off. K = 400 is one frozen stage that is the last
+stage, so it runs at the solver's ftol 1e-9. It is not the shipped warm
+stage, which runs at intermediate_ftol 1e-6 before a closing stage
+(probe3.py measures that one).
 """
 import sys
 import time
@@ -74,8 +77,8 @@ for k in (400, 50, 10, 3):
     r = (fresh.y_obs - yc) / fresh.sigma
     w = fresh.y_obs / fresh.sigma
     rwp_fresh = float(np.sqrt((r @ r) / (w @ w)))
-    evals = sum(s.n_iterations for s in res.stages)
+    iters = sum(s.n_iterations for s in res.stages)   # iterations, not evaluations
     print(f"K={k:>3}: {len(stages)} stage(s) {time.perf_counter() - t:6.1f} s  "
           f"Rwp(as fitted)={res.statistics.rwp:.5f}  Rwp(fresh 1e-3)={rwp_fresh:.5f}  "
           f"axial_sl={g.axial_sl.value:.5g}  v={ref.instrument.profile.v.value:.4g}  "
-          f"scales={[f'{s:.4g}' for s in sc]}  evals={evals}", flush=True)
+          f"scales={[f'{s:.4g}' for s in sc]}  iters={iters}", flush=True)

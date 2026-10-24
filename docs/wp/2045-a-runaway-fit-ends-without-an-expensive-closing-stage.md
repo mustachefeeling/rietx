@@ -84,7 +84,9 @@ cloud container, 4 cores, `[dev]`, Python 3.12, `OPENBLAS_NUM_THREADS=1`,
 tree `7d24e09e7`; the probes are in [`2045-batch/`](2045-batch/README.md)). The
 probes ran cpd-1a → cpd-1b under `chained_all`'s protocol. They wrapped
 `refine.compile_model` and stopped at the runaway closing compile, which they
-reached in 13.6 s. The warm stage ended "converged" at `axial_sl` 555, with
+reached within seconds. Every time quoted below comes from one run on that
+container, so it gives an order of magnitude, not a benchmark. The warm
+stage ended "converged" at `axial_sl` 555, with
 `w` 0.27 and `v` −5.5. Its closing compile holds 873.7 M point-nodes
 (window points × FCJ nodes, all phases and lines). That is 1 608× the warm
 stage's own compile, where cpd-1a's normal closing compile is 19× its last
@@ -95,9 +97,9 @@ declared stage's.
   frozen windows Rwp is 0.760. On fresh windows it is 1.376 at the declared
   precision and 1.294 at the closing precision. The stage started at 1.748.
   At the answer the frozen windows drop **73.4 %** of the Bragg intensity
-  a fresh compile computes, and χ²(fresh)/χ²(frozen) is 3.27. On every
-  declared stage of cpd-1a's fit the same measure is 0.00-1.32 %, with a χ²
-  ratio of 0.94-1.00. The mechanism, inferred from `forward.py:3980-3990`
+  a fresh compile computes, and χ²(fresh)/χ²(frozen) is 3.27. On each of
+  cpd-1a's eight declared stages and its closing stage, the same measure is
+  0.00-1.32 %, with a χ² ratio of 0.94-1.00. The mechanism, inferred from `forward.py:3980-3990`
   and `fcj.py:129-149`: as S/L grows, the asymmetry spreads each peak beyond
   the window frozen at the stage's start, and the part outside drops out of
   the model. So S/L, and the widths, act as an intensity sink, and the warm
@@ -112,15 +114,15 @@ declared stage's.
   and the looser tolerance the closing stage gave the stage before it.
 - **Windows that follow the parameters remove the runaway.** The probes ran
   the same warm fit as short stages, each recompiling, closing stage off:
-  every 10 iterations ends at Rwp 0.142 (`axial_sl` 0.0077) in 11 s, and
-  every 3 at the same answer in 25 s. The independent fit gets 0.137.
-  Every 50 iterations runs further away (`axial_sl` 4 041, zincite's scale
-  0, Rwp 0.779, 261 s): the windows catch up too late.
+  every 10 iterations ends at Rwp 0.142 (`axial_sl` 0.0077) in about 10 s,
+  and every 3 at the same answer in about 25 s. The independent fit gets
+  0.137. Every 50 iterations runs further away (`axial_sl` 4 041, zincite's
+  scale 0, Rwp 0.779, about 4 minutes): the windows catch up too late.
 - **A re-solve after the runaway does not repair it.** From the answer, on
   fresh declared-precision windows, `ftol` 1e-6 goes further (`axial_sl`
-  4 114, Rwp 0.782, 32 s). At 1e-9 it reaches 4 100 and hits its
-  400-evaluation cap (156 s). So a check at the stage boundary can refuse to
-  build on a runaway but cannot undo one.
+  4 114, Rwp 0.782, about 30 s). At 1e-9 it reaches 4 100 and hits its
+  400-evaluation cap (about 2.5 minutes). So a check at the stage boundary
+  can refuse to build on a runaway but cannot undo one.
 
 **Moving windows were described but never offered.** The freeze dates from
 v0.1 (DESIGN.md rule 1, whose stated reason, "gradient bias", the record
@@ -208,7 +210,8 @@ keeps it per solve and gives it up per stage.
 (`GSASIIstrMath.py`, `GSASIIpwd.py`; checked in GSAS-II 5.8.4 source on
 2026-10-24). No program surveyed has a closing stage of this kind; BGMN ends
 with every parameter free and restarted from the previous answer
-(`docs/practice.md` does not yet survey either point). BGMN holds its
+(`docs/practice.md` does not survey axial limits; its § Staging carries
+BGMN's closing run). BGMN holds its
 ray-traced instrument function for the whole fit (`practice.md` § Staging),
 so its closing run cannot move the axial geometry. That precedent does not
 cover a closing stage that frees `axial_sl`. GSAS-II's `dropOOBvars`
@@ -240,20 +243,26 @@ clamps a cell after a solve", which was recalled, not checked.
       acceptance protocols (SRM 660c LaB6, the fluorapatite tutorial,
       cpd-1a, 11-BM NAC), the whole-fit time and the largest shift in plain
       esd against the shipped tree, in the shape of WP-2002's eighth-round
-      table. Emulate it first with the last declared stage's own `ftol` set
-      to `optimize.lm.FTOL`, since a stage's own `ftol` wins in
-      `stage_ftols`. If the cost exceeds what `intermediate_ftol` saves
-      (1.2-1.6× fewer evaluations, WP-1123), put the numbers to the
-      maintainer.
+      table, plus one joint fit, since `MultiHistogramRefinement.fit` reads
+      `stage_ftols` too (`multi.py:1434`). On a single fit, emulate it with
+      the last declared stage's own `ftol` set to `optimize.lm.FTOL`, since a
+      stage's own `ftol` wins in `stage_ftols`. On a series that emulation
+      does nothing: the collapsed warm plan (`sequential.py:502`) builds its
+      one stage without an `ftol`. There, `probe3.py`'s single stage at
+      `ftol` 1e-9 is the measured stand-in. Compare evaluations, not
+      iterations: `StageResult.n_iterations` counts iterations, and WP-1123's
+      saving is 1.2-1.6× fewer evaluations. If option 5 costs more than that
+      saving, put the numbers to the maintainer.
 - [ ] The implementation: `RefinementPlan.stage_ftols` gives the last
       declared stage the solver's tolerance when a closing stage follows it,
-      a stage's own `ftol` still winning. `PlanSpec` reaches it through
-      `resolve_plan`, and the collapsed warm plan in `sequential.py` through
-      the plan it builds. `StageResult.ftol` already records what a stage
-      ran at.
+      a stage's own `ftol` still winning. Every runner then inherits it:
+      `PlanSpec` through `resolve_plan`, the joint fit through
+      `multi.py:1434`, and the collapsed warm plan in `sequential.py`
+      through the plan it builds. `StageResult.ftol` already records what a
+      stage ran at.
 - [ ] A test that fails before the change: the hostile series' cpd-1b warm
-      stage from cpd-1a's closing answer ends with `axial_sl` under 1 (it
-      reaches 555 on the 1.10.0 tree in about 14 s on Linux), and a fast
+      stage from cpd-1a's closing answer ends with `axial_sl` under 1 (on
+      the 1.10.0 tree it reaches 555 within seconds on Linux), and a fast
       `stage_ftols` test on a plan with and without a closing stage
 - [ ] The `intermediate_ftol` rows in `src/rietx/_audit.py`, and the
       `INTERMEDIATE_FTOL` and `CLOSING_WINDOW_TOL` docstrings, re-read
@@ -310,8 +319,8 @@ re-rated P1 → P2 with this WP as a hard dependency. The five probes are in
 `2045-batch/`. No code changed.
 
 *Measured* (Linux x86-64 cloud container, 4 cores, `[dev]`, Python 3.12,
-`OPENBLAS_NUM_THREADS=1`, tree `7d24e09e7`). The runaway reproduces in
-13.6 s at `axial_sl` 555. Its closing compile is 873.7 M point-nodes, 1 608×
+`OPENBLAS_NUM_THREADS=1`, tree `7d24e09e7`, one run per probe). The runaway
+reproduces within seconds at `axial_sl` 555. Its closing compile is 873.7 M point-nodes, 1 608×
 the warm stage's, against 19× for cpd-1a's normal one. The full set (frozen
 against fresh Rwp, intensity dropped, the `ftol` and K tables, the
 re-solves) is in Context's four bullets.
@@ -324,11 +333,26 @@ re-solves) is in Context's four bullets.
 - A force push to the session's branch was refused by the harness. The
   branch's old tip was an ancestor of `main`, so a fast-forward push did
   the job.
+- A stage's own `ftol` never reaches a series' warm stage, which is built
+  without one, so the single-fit emulation does nothing there (second task).
 
-Next: measure option 5 on the four standards before building it (the
-second task), by setting the last declared stage's own `ftol` to the
-solver's. If its cost beats what `intermediate_ftol` saves, build it (third
-and fourth tasks). If not, the numbers go to the maintainer before any code.
+*Review* (`/code-review high`, run without `--fix` because the probes record
+runs whose numbers are already quoted). Ten findings. Fixed: the "Next"
+decision rule had been written inverted; the series emulation gap; the
+joint fit's use of `stage_ftols`; single-figure timings, now one-run orders
+of magnitude; the Practice paragraph contradicting itself; probe2's
+docstring and its iterations labelled "evals"; probe.py's abort test,
+aligned with the other four (both tests fire at the same compile in the
+recorded run, so no number moves). Checked, not changed: probe4 pairs
+consecutive compiles as stages, which holds for the recorded run (eight
+declared stages, then the closing compile, then the final compile; the
+wording now says so). Declined: one shared helper for the five probes,
+because rewriting a record changes the script that produced its numbers.
+
+Next: measure option 5 on the four standards and one joint fit before
+building it (the second task). If it costs no more than what
+`intermediate_ftol` saves, build it (third and fourth tasks). If it costs
+more, the numbers go to the maintainer before any code.
 
 - **2026-10-24** — filed by WP-2043's session (the 1.10 cut), after its
   VALIDATION lane found the hostile series never finishing and the session

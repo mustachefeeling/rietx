@@ -14,7 +14,6 @@ import numpy as np
 sys.path.insert(0, sys.argv[1])  # the worktree root, for `tests.`
 
 import rietx as rx  # noqa: E402
-from rietx.model import forward  # noqa: E402
 
 refine_mod = sys.modules["rietx.refine"]  # `rietx.refine` the attribute is the function
 from rietx.params.vector import ParameterTable  # noqa: E402
@@ -53,10 +52,10 @@ def wrapped(structure, instrument, pattern, **kw):
     print(f"compile #{len(calls)}: tol={kw.get('window_area_tol')} work={w[0]:,} "
           f"max_nodes={w[1]} max_window_pts={w[2]} "
           f"sl={instrument.geometry.axial_sl.value:.4g}", flush=True)
-    if (kw.get("window_area_tol") == forward.CLOSING_WINDOW_TOL if hasattr(forward, "CLOSING_WINDOW_TOL")
-            else False) or kw.get("window_area_tol") == 1e-3:
-        if w[1] >= 512:
-            raise Abort()
+    # the same abort test as probes 2-5; the recorded run aborted at compile
+    # #12 under this test and under the earlier "max FCJ nodes >= 512" alike
+    if kw.get("window_area_tol") == 1e-3 and instrument.geometry.axial_sl.value > 1.0:
+        raise Abort()
     return model
 
 
