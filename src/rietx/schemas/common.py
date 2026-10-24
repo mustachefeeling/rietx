@@ -545,7 +545,12 @@ from .._nearmiss import did_you_mean
 #: And ``QuantitativePhaseAnalysis.unmeasured_held`` (which of those a stage held
 #: rather than found lineless) and ``NodeMetrics.held_scale_phases`` (the held
 #: scales a node's replay reads), both defaulting to the empty list.
-SCHEMA_VERSION = "0.59"
+#: 0.59 → 0.60 (WP-2042): ``RefinementResult.radiation`` and
+#: ``HistogramResult.radiation``, the source's kind and line wavelengths a
+#: fit used, which ``result.plot()`` names on its 2θ axis.  Additive and
+#: defaulted to ``None``, "not recorded", the 0.25 → 0.26 rule; both fit
+#: builders write it on every result and every histogram.
+SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
 #: partitions the observed intensity among reflections by an iterated
