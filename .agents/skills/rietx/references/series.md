@@ -90,6 +90,15 @@ What an operator must know, all measured:
   the median that decides every later trigger.  So a single failure cannot
   propagate down the chain or quietly raise the bar for the patterns after it —
   but it is still *reported*, and reading its parameters is on you.
+- **A warm attempt that runs away can stall the chain in its closing stage**
+  (1.10.0; WP-2045 owns the fix).  The closing stage rebuilds the model at
+  whatever answer the declared stages reach, so a runaway axial ratio or width
+  gives it windows as wide as the pattern, and the ladder judges the attempt
+  only after that stage returns.  Pass a plan with `closing_window_tol=None`,
+  or leave `phases.*.scale` out of `carry` and re-seed the scales in
+  `prepare`.  *(Measured: WP-2043, the round-robin acceptance chain carrying
+  everything: cpd-1b's attempt walked `axial_sl` to 557.8 and ran over 50
+  CPU-minutes in that stage.)*
 - **A tie or a named variable reaches a chain only through `constrain=`.**  The
   chain builds its own `Refinement` per pattern, so a constraint you declare on
   one you built yourself fits one pattern and nothing after it — there is no
