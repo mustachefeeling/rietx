@@ -265,7 +265,7 @@ Every decision a series makes between patterns is now listed: 77 rows the table 
 
 *Generality* (the `generality-review` judge on `_audit.py`'s eleven changed rows; its sections pasted unedited).
 
-#### Item 1: the seven observation and control defaults go to `invariant`
+**Item 1: the seven observation and control defaults go to `invariant`**
 `rietx.sequential.SequentialRefinement.fit:{cancel, events, label, on_result, progress, telemetry}` and `rietx.sequential.refine_sequential:history`
 
 **holds.** The evidence for the tier is stronger: a bit-identity test runs the chain's real code path. The case against comes down to coverage gaps in that test, and none of the code I read turns a gap into a changed answer.
@@ -282,7 +282,7 @@ Every decision a series makes between patterns is now listed: 77 rows the table 
 
 What would change the verdict: a channel arm on a chain that escalates or quarantines (the author's own `reseed_factor=0.5` chain would do) giving a different answer from the same chain with the channel off.
 
-#### Item 2: `rietx.sequential.refine_sequential:backend` goes to `caller`
+**Item 2: `rietx.sequential.refine_sequential:backend` goes to `caller`**
 
 **holds.** The evidence for leaving it to the caller is stronger. It copies the single-fit row word for word in substance, and the chain adds no choice of its own inside the switch.
 
@@ -298,7 +298,7 @@ What would change the verdict: a channel arm on a chain that escalates or quaran
 
 What would change the verdict: a default path that passes a non-numpy backend.
 
-#### Item 3: `rietx.sequential.refine_sequential:solver` goes to tier 2
+**Item 3: `rietx.sequential.refine_sequential:solver` goes to tier 2**
 
 **holds.** The evidence for the tier is stronger. It inherits the single fit's row, and the one dissenter named keeps it at tier 2 under the rule.
 
@@ -314,7 +314,7 @@ What would change the verdict: a default path that passes a non-numpy backend.
 
 What would change the verdict: nothing under the current rule. Even a program whose sequential mode defaults to a different solver would only be one more dissenter.
 
-#### Item 4: `rietx.sequential.SequentialRefinement.fit:direction` goes to `caller`
+**Item 4: `rietx.sequential.SequentialRefinement.fit:direction` goes to `caller`**
 
 **holds, but the case for acting is stronger than the row admits, and the row cites none of it.** `direction="both"` runs the chain a second time in reverse and flags parameters whose two trajectories disagree. The caller-class conditions are met, because `'forward'` moves no reported value; it only leaves that check out.
 
@@ -330,7 +330,7 @@ What would change the verdict: nothing under the current rule. Even a program wh
 
 What would change the verdict: a measurement, on the suites' chain families, of how often a forward-only trajectory moves by more than its esds when run both ways, set against the cost of the second chain in evaluations.
 
-#### Item 5: `rietx.sequential.SequentialRefinement.fit:verify_discontinuities` goes to `caller`
+**Item 5: `rietx.sequential.SequentialRefinement.fit:verify_discontinuities` goes to `caller`**
 
 **holds for now.** The case for acting is real and the row does not state it. The row will need re-reading once WP-2003's own demotion of `SEQUENTIAL_DISCONTINUITY` (the code that flags a large jump between neighbouring patterns) lands.
 
@@ -346,13 +346,13 @@ What would change the verdict: a measurement, on the suites' chain families, of 
 
 What would change the verdict: the batch's ruling on `SEQUENTIAL_DISCONTINUITY`. If refitting then picks steps by a package-set count or cutoff, that number needs a row before this row stays `caller`.
 
-#### Item 6: eleven names removed from `UNAUDITED_BASELINE`
+**Item 6: eleven names removed from `UNAUDITED_BASELINE`**
 
 **holds.** The eleven names removed are exactly the eleven rows tiered above (backend, solver, history, and the eight `fit:` defaults). Nothing was added to `UNAUDITED_BASELINE`, `OTHER_RECORD_FIELDS`, `NOT_WALKED`, `WALKED` or `DEFAULT_SEATS`. A removal from a list that only shrinks needs no reason. `tests/test_audit_table.py` holds the list equal to the tiers; I did not run it.
 
 What would change the verdict: a name removed whose row is still `unaudited`.
 
-#### Second trigger: the findings in the inventory (comment only, not edits)
+**Second trigger: the findings in the inventory (comment only, not edits)**
 
 - **`reseed=False` still escalates.** The `reseed` docstring (`sequential.py:1077-1083`) says "Switching it off leaves each pattern with its first rung". But `forced` (`:1561`, `:1569-1571`) sends a first rung cut short by the budget to the next rung anyway. So the package acts against a switch the caller turned off. It is visible in `rungs_tried`, but the docstring contradicts the code. This belongs in the `reseed` row's batch brief, and the docstring needs fixing. No new row is needed, since `reseed` has one.
 - **The closing stage can hide a budget cut.** If `result.status` reports the closing stage's verdict (`:1603`), a first rung cut by the budget and followed by a converged closing stage is not counted as truncated. Then nothing forces an escalation, and `_prefer` (which ranks a truncated attempt below a completed one) does not rank it down. The budget could then keep a fit that was cut short, which is exactly what `FIRST_RUNG_FACTOR`'s invariance claim rules out. Both new tests assert `max(ratios) < FIRST_RUNG_FACTOR`, meaning the budget never bit, so they cannot see this case. I did not check whether `_bounded_plan`'s cap reaches the closing stage. This should be settled before `FIRST_RUNG_FACTOR` is tiered `invariant`.
