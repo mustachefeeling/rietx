@@ -147,8 +147,11 @@ the bar.
 
 ## Tasks
 
-- [ ] Inventory: one row per action and constant, with what it decides, what the caller
-      sees without it, and whether it is opt-in or answer-invariant.
+- [x] Inventory: one row per action and constant, with what it decides, what the caller
+      sees without it, and whether it is opt-in or answer-invariant. `2003-batch/inventory.json`
+      (2026-10-24): the 77 table rows 2003 owns (not 65: `SERIES_PATTERN_FAILED` and the
+      joint fit's five codes, with their suggestion rows) and 34 row-less actions; task 3's
+      question answered in `2003-batch/README.md`.
 - [ ] Tier each row per part, with evidence. The `RESEED_FACTOR` question measured on
       three chain families with the fence on, off and status-only: patterns reseeded,
       accepted values that differ, and the cost in evaluations.
