@@ -1471,8 +1471,6 @@ def level_under(diagnostic: Diagnostic, purpose: str) -> str:
     purpose, since an unusable fit is unusable for all of them, and an
     ``info`` stays one.
     """
-    from ..purposes import PURPOSES
-
     if purpose not in PURPOSES:
         raise ValueError(f"unknown purpose {purpose!r}; one of "
                          f"{', '.join(repr(p) for p in PURPOSES)}")
@@ -1566,7 +1564,9 @@ def _count(n: int, noun: str) -> str:
 def _compress_paths(paths: list[str]) -> str:
     """``where`` as one line: a sibling of the last path printed in full (the
     same prefix up to its last dot) prints as its ``.leaf``, so
-    ``instrument.profile.u, .v, .w``."""
+    ``instrument.profile.u, .v, .w``.  Only a parameter path is a stem: a
+    ``where`` naming a region (``12.300-12.550``) or a peak (``12.3400°``)
+    has decimal points, not path segments, and always prints whole."""
     out: list[str] = []
     stem = ""
     for path in paths:
@@ -1575,7 +1575,7 @@ def _compress_paths(paths: list[str]) -> str:
             out.append(f".{leaf}")
         else:
             out.append(path)
-            stem = path[:path.rfind(".") + 1]
+            stem = path[:path.rfind(".") + 1] if path.startswith(_PATH_ROOTS) else ""
     return ", ".join(out)
 
 
@@ -1625,12 +1625,19 @@ def _diagnostic_parts(diagnostics: list[Diagnostic], deliverable: str | None = N
     The counts in the header are the *stored* list's, accurate and uncapped;
     only the rows printed are bounded (:func:`_cap_high_correlation`), so a
     header counting 23 rows can be followed by fewer lines without lying.
+    The rows printed in full and the rows printed short are bounded apart, so
+    a pair that is a warning under the deliverable is never cut to make room
+    for stronger pairs that are ``info`` for it.
     """
     stored = diagnostic_view(diagnostics, deliverable)
     if not stored:
         return "  diagnostics: none", [], None
-    capped = _cap_high_correlation(diagnostics)
-    rows = stored if capped is diagnostics else diagnostic_view(capped, deliverable)
+    rows = []
+    for full in (True, False):
+        pool = [r for r in stored if r.full is full]
+        found = [r.diagnostic for r in pool]
+        capped = _cap_high_correlation(found)
+        rows += pool if capped is found else diagnostic_view(capped, deliverable)
     # the cap's own row says how many it left out, which its code alone does not
     printed = [(r, None if r.full or r.diagnostic.code in _OMITTED_CODES
                 else _one_line(r, deliverable)) for r in rows]

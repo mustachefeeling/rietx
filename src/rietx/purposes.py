@@ -37,20 +37,22 @@ PURPOSES: dict[str, Purpose] = {
     "phase_id": Purpose(
         depends=("phases.*.scale", "phases.*.cell.*", "instrument.zero_shift",
                  "instrument.geometry.sample_displacement",
-                 "instrument.geometry.sample_transparency"),
+                 "instrument.geometry.sample_transparency",
+                 "instrument.geometry.capillary_offset_*"),
         why=("A phase is identified by where its lines fall, set by its cell and by the "
              "zero and specimen-position corrections that shift every line, and by "
              "whether its scale is significant: a scale under 3 sigma of its "
              "counting-noise esd reads as absent (refine._answer_significance, WP-1523)."),
     ),
     "qpa": Purpose(
-        depends=("phases.*.scale", "phases.*.atoms.*.occ", "phases.*.atoms.*.biso",
-                 "phases.*.atoms.*.u*", "phases.*.atoms.*.adp.*", "phases.*.extinction",
-                 "phases.*.preferred_orientation.*", "phases.*.texture.*",
-                 "instrument.background.*", "instrument.polarization",
+        depends=("phases.*.scale", "phases.*.cell.*", "phases.*.atoms.*.occ",
+                 "phases.*.atoms.*.biso", "phases.*.atoms.*.u*", "phases.*.atoms.*.adp.*",
+                 "phases.*.extinction", "phases.*.preferred_orientation.*",
+                 "phases.*.texture.*", "instrument.background.*", "instrument.polarization",
                  "instrument.geometry.surface_roughness.*"),
         why=("A weight fraction is W = S·ZMV over the phases (Hill & Howard 1987, J. Appl. "
-             "Cryst. 20, 467), so it moves with the scale; occupancies set the cell's "
+             "Cryst. 20, 467), so it moves with the scale and with the cell volume V; "
+             "occupancies set the cell's "
              "content, displacement parameters and every angle-dependent intensity "
              "factor (polarisation, roughness, extinction) trade against the scale, "
              "texture redistributes the intensity the scale is read from, and a flexible "

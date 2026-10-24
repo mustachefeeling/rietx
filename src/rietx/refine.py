@@ -6180,8 +6180,11 @@ def _cell_lines(result: RefinementResult) -> list[str]:
     lines = []
     for i, ps in sorted(rows.items()):
         name = {p.path: p.path.rsplit(".", 1)[1] for p in ps}
+        # a cell whose every row is tied (to a named variable) has no free row
+        # to quote, so its tied rows carry the values instead
+        quoted = [p for p in ps if p.vary] or ps
         text = ", ".join(f"{name[p.path]} = {_number(p.value, p.stderr)} "
-                         f"{_CELL_UNITS[name[p.path]]}" for p in ps if p.vary)
+                         f"{_CELL_UNITS[name[p.path]]}" for p in quoted)
         tied = [name[p.path] for p in ps if not p.vary]
         if tied:
             text += f" ({', '.join(tied)} tied)"
