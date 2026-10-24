@@ -2061,9 +2061,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "The final stage fixes its peak windows at the values it started from. At "
             "the returned values, those windows give a chi-squared that differs "
             "noticeably from a fresh calculation. The reported statistics and curves use "
-            "the fresh one. The fit is not biased, and the esds are those of the last "
-            "solve. The history node keeps the earlier figure. If the gap matters, split "
-            "that stage in two."
+            "the fresh one, and the esds are those of the last solve. The history node "
+            "keeps the earlier figure. A large gap means the last stage carried its peaks "
+            "past the windows it was solved on, so the solve may have stopped short of the "
+            "minimum that windows sized at the answer give. Run one more stage with nothing "
+            "new freed and compare. A plan's closing stage does this already."
         ),
     ),
     "FULLPROF_MAGNETIC_PHASE_OMITTED": HelpEntry(

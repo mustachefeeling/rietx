@@ -5470,8 +5470,11 @@ class Refinement:
         per-point residual are therefore measured here, on one more compile
         with the last stage's own discrete settings (moving set, c_w, window
         slack, and the closing stage's window area) and nothing else changed.  **What this does not move**: the
-        solve, which ran on the frozen compile and is not biased by it (the
-        issue measured the minimum moving ≤ 0.0014 esd); the covariance and
+        solve, which ran on the frozen compile (on #272's two fixtures the
+        minimum moved ≤ 0.0014 esd between the two, but a stage that carries
+        its peaks past their windows can stop at a minimum the windows moved:
+        9 % of χ² on the fluorapatite tutorial, WP-1986, recovered by one more
+        stage, which is why a plan ends on a closing stage); the covariance and
         every esd, which stay those of that solve's Jacobian; the weights,
         which stay the solve's σ, so ``result.sigma`` is still a lookup of the
         σ the model used (WP-1309: a measured background widens σ at the scale

@@ -170,7 +170,7 @@ below are folded here, and their mailbox is emptied.
       asserts the statement; under (b) every golden stays bit-identical.
 - [ ] Skill: a `references/judging.md` row saying which compile a reported
       Rwp comes from, and that the difference is not a fit defect.
-- [ ] `FROZEN_COMPILE_STALE` claims only what its evidence shows: drop "the
+- [x] `FROZEN_COMPILE_STALE` claims only what its evidence shows: drop "the
       fit is not biased" from `help.py`, `_final_compile`'s docstring and the
       skill's `diagnostics.md` row, and say what does re-solve (the closing
       stage, an empty stage).
