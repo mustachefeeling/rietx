@@ -352,6 +352,10 @@ def _in_setting(group, cells, printed):
 
 @pytest.fixture(scope="module")
 def srfeo3():
+    """The SrFeO₃ order parameter's isotropy groups (built once per worker).
+
+    **Consumers must carry** ``@pytest.mark.xdist_group("srfeo3-isotropy")``,
+    or a second worker rebuilds it."""
     irr = inc.line_irreps("P m -3 m", "(γ,γ,γ)", [1 / math.sqrt(7)])
     # mLD3 by character: the 2-D small irrep of 3m; mLD2 the 1-D one odd under
     # the mirrors (the [111] component of an axial vector)
@@ -365,6 +369,7 @@ def srfeo3():
     return inc.isotropy_superspace_groups(primary), inc.line_order_parameter(ld2[0])
 
 
+@pytest.mark.xdist_group("srfeo3-isotropy")
 def test_srfeo3_has_six_mssgs_with_figure6_degrees_of_freedom(srfeo3):
     groups, secondary = srfeo3
     assert len(groups) == 6
@@ -405,6 +410,7 @@ def test_isotropy_groups_of_a_centred_parent_print_a_symbol_that_names_them_or_r
     assert named and refused
 
 
+@pytest.mark.xdist_group("srfeo3-isotropy")
 def test_srfeo3_groups_are_figure6s_printed_groups(srfeo3):
     """Each printed group is one of the six, up to equivalence, after the
     change of cell its setting needs; SrFeO₃'s published group (MAGNDATA
@@ -423,7 +429,8 @@ def test_srfeo3_groups_are_figure6s_printed_groups(srfeo3):
 
 
 @pytest.mark.parametrize("row", [
-    pytest.param(r, id=r[0], marks=[pytest.mark.slow] if r[0].startswith("P") else [])
+    pytest.param(r, id=r[0], marks=[pytest.mark.xdist_group("srfeo3-isotropy")]
+                 + ([pytest.mark.slow] if r[0].startswith("P") else []))
     for r in FIG6])
 def test_srfeo3_groups_are_in_the_commit_a_lists(srfeo3, row):
     """The bridge: each OPD's group is one the enumerator returns over its

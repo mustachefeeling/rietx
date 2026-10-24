@@ -748,7 +748,13 @@ def factor_system_exponents(little: LittleGroup) -> np.ndarray:
 def factor_system_free_exponents(little: LittleGroup) -> np.ndarray:
     """The free part of a line's factor system: ``(n, n, d)`` of exact
     ``Fraction`` d_j·a_ij, so that ω(i, j) = exp(2πi(e_ij − Σ_j λ_j d_j·a_ij))
-    with e_ij from :func:`factor_system_exponents`.  All zero off a line."""
+    with e_ij from :func:`factor_system_exponents`.  All zero off a line.
+
+    ω(i, j) = exp(−2πi k·a_ij) is Bradley & Cracknell (1972), *The
+    Mathematical Theory of Symmetry in Solids*, § 3.7 pp. 155-157; k on a
+    declared line, r + Σ_j λ_j d_j, is Perez-Mato, Ribeiro, Petříček & Aroyo
+    (2012), *J. Phys.: Condens. Matter* **24**, 163201, eq. (16).
+    """
     _, shifts = little.composition
     n = little.order
     free = () if little.line is None else little.line.free

@@ -501,8 +501,11 @@ def _space_counts(number: int) -> dict[int, int]:
 
 
 def count_magnetic_superspace_groups(numbers=range(1, 231)) -> dict[int, dict[int, int]]:
-    """Types 1-4 per basic space group; summed over the 230 they are Stokes &
-    Campbell (2022) Table 6's d = 1 row (p. 369)."""
+    """Types 1-4 per basic space group.  Summed over the 230, types 1-3 reproduce
+    Stokes & Campbell (2022) Table 6's printed d = 1 counts (p. 369) and type 4 is 4 651
+    against the printed 4 653 (:data:`N_MAGNETIC_SUPERSPACE_TYPES_D1`; the gap
+    is open and the strict xfail in ``tests/test_magnetic_superspace.py`` keeps
+    it visible)."""
     return {n: _space_counts(n) for n in numbers}
 
 

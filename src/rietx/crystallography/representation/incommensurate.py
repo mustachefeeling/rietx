@@ -146,6 +146,10 @@ def line_order_parameter(irrep: SmallIrrep, *, kind: str = "magnetic") -> LineOr
     the rest are B_{g₀h} = B₀ D(h).  Refused when no such B₀ exists (the
     irrep is not paired with its −k image by G_{k,−k}, so its real order
     parameter is larger than 2N).
+
+    The extended group and its intertwiner B_g are Perez-Mato, Ribeiro,
+    Petříček & Aroyo (2012), *J. Phys.: Condens. Matter* **24**, 163201,
+    eqs (16)-(19) (B on our side of their block A, eq. (19)).
     """
     if kind not in ORDER_PARAMETER_KINDS:
         raise ValueError(f"kind is one of {ORDER_PARAMETER_KINDS}, not {kind!r}")
@@ -214,7 +218,13 @@ def operation_matrix(lop: LineOrderParameter, j: int, theta: int, delta) -> np.n
     """The real (2N × 2N) matrix of the (3+1)D operation (g_j, θ, δ) on the
     order parameter (Re c, Im c): c ↦ e^{−2πi(δ − k·v)} Γ(g_j, θ)[c], the
     module docstring's rule.  A fixed vector is an order parameter the
-    operation leaves invariant."""
+    operation leaves invariant.
+
+    Perez-Mato, Ribeiro, Petříček & Aroyo (2012), *J. Phys.: Condens. Matter*
+    **24**, 163201, eq. (17), the invariance equation; the section phase
+    δ − k·v is de Wolff, Janssen & Janner (1981), *Acta Cryst.* A**37**, 625,
+    eq. (3.2).
+    """
     mat, anti = lop.gamma[j]
     sign = theta if lop.kind == "magnetic" else 1
     v = lop.extended.translations[j]
@@ -427,7 +437,13 @@ def isotropy_superspace_groups(lop: LineOrderParameter, *, seed: int = 0
     and their intersections; one is kept when the full stabiliser of a generic
     point in it — ε = −1 internal translations read continuously — fixes
     exactly it.  For a one-dimensional irrep there is one, the N = 1 rule's
-    group (:func:`n1_superspace_group`)."""
+    group (:func:`n1_superspace_group`).
+
+    Isotropy subgroups of the order parameter, one per conjugacy class:
+    Perez-Mato, Ribeiro, Petříček & Aroyo (2012), *J. Phys.: Condens. Matter*
+    **24**, 163201, §§ 3-4; Gallego, Tasci, de la Flor, Perez-Mato & Aroyo
+    (2016), *J. Appl. Cryst.* **49**, 1941, § 4.
+    """
     elems = _elements(lop)
     dim = 2 * lop.dimension
     eye = np.eye(dim)

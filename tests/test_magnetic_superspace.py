@@ -424,23 +424,30 @@ def test_p222_family_counts_from_the_web_interface_example():
     The fast count and the object path agree."""
     assert sum(_space_counts(16).values()) == 40
     by_ssg = [len(magnetic_superspace_groups(g)) for g in superspace_groups(16)]
+    # the paper prints the 12 and the total of 40 (Stokes & Campbell 2022); the
+    # 6 and 10 are this generator's own count, not a printed one
     assert sorted(by_ssg) == [6, 10, 12, 12] and sum(by_ssg) == 40
 
 
 @pytest.fixture(scope="module")
 def table6():
-    """The whole d = 1 count, about a minute single-core on the Mac."""
+    """The whole d = 1 count, about a minute single-core on the Mac.
+
+    **Consumers must carry** ``@pytest.mark.xdist_group("magnetic-table6")``,
+    or a second worker rebuilds it."""
     counts = count_magnetic_superspace_groups()
     return tuple(sum(c[t] for c in counts.values()) for t in (1, 2, 3, 4))
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("magnetic-table6")
 def test_table6_types_1_to_3(table6):
     assert table6[:3] == N_MAGNETIC_SUPERSPACE_TYPES_D1[:3]
     assert sum(N_MAGNETIC_SUPERSPACE_TYPES_D1) == N_MAGNETIC_SUPERSPACE_GROUPS_D1
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("magnetic-table6")
 @pytest.mark.xfail(strict=True, reason=(
     "measured 4651 type-4 groups against the printed 4653 (WP-1992, open); the "
     "fast and object paths agree on every basic group, so the gap is in the "
