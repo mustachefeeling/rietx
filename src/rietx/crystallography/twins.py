@@ -62,7 +62,8 @@ def _fixed_by_symmetry(atom, sg, position: np.ndarray, diagnostics_note: list[st
     :meth:`~rietx.refine.Refinement.fix_special_positions` would, and projects
     the tensor onto the allowed patterns by the group average U ↦ (1/|G|) Σ R·U·Rᵀ
     over the site group, R untransposed (the Reynolds operator; the patterns
-    are :func:`~.wyckoff.adp_basis`'s, which is the same invariant subspace).
+    are :func:`~.wyckoff.adp_basis`'s, which is the same invariant subspace,
+    Peterse & Palm, 1966, Acta Cryst. 20, 147).
     A mean of congruences of a positive-definite tensor is positive definite,
     so the projection cannot make a tensor the model then refuses
     (``ADP_NOT_POSITIVE_DEFINITE``), which a least-squares projection in the six
