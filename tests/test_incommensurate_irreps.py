@@ -378,6 +378,31 @@ def test_srfeo3_has_six_mssgs_with_figure6_degrees_of_freedom(srfeo3):
     assert all(g.group.magnetic_type == 4 for g in groups)       # all hold {1′|000½}
 
 
+def test_line_atol_sits_in_a_gap_of_the_relative_singular_values(monkeypatch):
+    """The audit row for ``LINE_ATOL`` rests on this: over these cases the
+    relative singular values ``_null`` cuts split into a dropped cluster and a
+    kept one with no value between them, so any tolerance in the gap returns
+    the same subspaces.  (Cases: the isotropy groups of every irrep of
+    P n m a at (0,0,γ) and P m -3 m at (γ,γ,γ); not a proof for other lines.)"""
+    seen = []
+    real = inc._null
+
+    def recording(m, tol=inc.LINE_ATOL):
+        if m.size:
+            sv = np.linalg.svd(m, compute_uv=False)
+            seen.extend(float(x) / max(1.0, float(sv[0])) for x in sv)
+        return real(m, tol)
+
+    monkeypatch.setattr(inc, "_null", recording)
+    for sg, q in [("P n m a", "(0,0,γ)"), ("P m -3 m", "(γ,γ,γ)")]:
+        for irr in inc.line_irreps(sg, q, [1 / math.sqrt(7)]):
+            inc.isotropy_superspace_groups(inc.line_order_parameter(irr))
+    dropped = [x for x in seen if x <= inc.LINE_ATOL]
+    kept = [x for x in seen if x > inc.LINE_ATOL]
+    assert dropped and kept
+    assert max(dropped) < 1e-12 and min(kept) > 1e-3
+
+
 def test_a_symbol_in_rhombohedral_axes_is_refused_by_name():
     """Pm-3m at (γ,γ,γ): the isotropy group is an R lattice on rhombohedral
     axes (the parent's cubic cell), and symbols are written in hexagonal
