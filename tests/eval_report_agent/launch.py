@@ -18,7 +18,8 @@ runner's:
   was given: the evidence that its condition reached it.  The closing
   ``result`` event carries the tokens and the cost.
 
-The session's own transcript is copied into the record as
+The session's own transcript is kept whole as ``launches/<eid>/session.jsonl``
+and, without the rows that repeat each message as sent (``WIRE_ROW``), as
 ``transcripts/agent-<eid>.jsonl``, the layout ``mine_transcripts`` reads.
 The record directory must not sit above any workspace, or a cell still
 running could read a finished cell's transcript.
@@ -36,7 +37,6 @@ import json
 import os
 import shutil
 import subprocess
-import time
 import uuid
 from pathlib import Path
 
@@ -95,9 +95,28 @@ def transcript_for(session: str) -> Path | None:
     return hits[0] if hits else None
 
 
+#: a session-transcript row repeating an assistant message as it was sent on
+#: the wire (Claude Code 2.1.310): mined, it counts every tool call twice
+WIRE_ROW = "api-request-blob"
+
+
+def minable(raw: str) -> str:
+    """The session transcript without its ``WIRE_ROW`` rows."""
+    kept = [line for line in raw.splitlines()
+            if line.strip() and json.loads(line).get("type") != WIRE_ROW]
+    return "\n".join(kept) + "\n"
+
+
 def launch(workspaces: list[Path], record: Path, *, model: str,
            effort: str) -> list[dict]:
-    """Run every cell at once, wait for all, and record each."""
+    """Run every cell at once, wait for all, and record each.
+
+    A cell's time is its ``result`` events' ``duration_ms``, never the
+    launcher's clock, which reads a cell only once every earlier cell in the
+    list has been collected (2.3, recorded post-hoc).  A session can carry
+    more than one ``result``: it wakes when a background task it started
+    ends after its answer.
+    """
     eids = [_check(ws, record) for ws in workspaces]
     env = clean_env()
     running = []
@@ -112,18 +131,19 @@ def launch(workspaces: list[Path], record: Path, *, model: str,
             cmd, cwd=ws, env=env, stdin=subprocess.DEVNULL,
             stdout=open(out / "stream.jsonl", "w", encoding="utf-8"),
             stderr=open(out / "stderr.txt", "w", encoding="utf-8"))
-        running.append((ws, eid, out, session, cmd, proc, time.time()))
+        running.append((ws, eid, out, session, cmd, proc))
     rows = []
-    for ws, eid, out, session, cmd, proc, started in running:
+    for ws, eid, out, session, cmd, proc in running:
         returncode = proc.wait()
         row = {"episode": eid, "workspace": str(ws), "session_id": session,
-               "command": cmd, "returncode": returncode,
-               "wall_seconds": round(time.time() - started, 1)}
+               "command": cmd, "returncode": returncode}
         transcript = transcript_for(session)
         if transcript is not None:
+            shutil.copyfile(transcript, out / "session.jsonl")
             dest = record / "transcripts" / f"agent-{eid}.jsonl"
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(transcript, dest)
+            dest.write_text(minable(transcript.read_text(encoding="utf-8")),
+                            encoding="utf-8")
             dest.with_suffix(".meta.json").write_text(
                 json.dumps({"model": model, "effort": effort,
                             "session_id": session}) + "\n", encoding="utf-8")
@@ -131,8 +151,7 @@ def launch(workspaces: list[Path], record: Path, *, model: str,
         (out / "launch.json").write_text(json.dumps(row, indent=1) + "\n",
                                          encoding="utf-8")
         rows.append(row)
-        print(f"{eid}: rc={returncode} session={session} "
-              f"{row['wall_seconds']} s")
+        print(f"{eid}: rc={returncode} session={session}")
     return rows
 
 

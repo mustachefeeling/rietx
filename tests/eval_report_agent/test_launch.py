@@ -3,6 +3,7 @@ call."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -33,6 +34,19 @@ def test_the_command_keeps_user_settings_out_and_names_the_cell(tmp_path):
     assert cmd[cmd.index("--output-format") + 1] == "stream-json"
     assert cmd[cmd.index("--effort") + 1] == "medium"
     assert cell_of(cmd[2]) == ("python", "sonnet", "N1")
+
+
+def test_the_mined_transcript_counts_each_tool_call_once():
+    """2.3's record: the session file repeats an assistant message as a wire
+    row, and mining both counted a/C1's 11 tool calls as 21."""
+    use = {"type": "tool_use", "id": "t1", "name": "Bash", "input": {}}
+    rows = [{"type": "assistant", "message": {"role": "assistant",
+                                              "content": [use]}},
+            {"type": la.WIRE_ROW, "message": {"role": "assistant",
+                                              "content": [use]}}]
+    raw = "\n".join(json.dumps(r) for r in rows) + "\n"
+    kept = [json.loads(x) for x in la.minable(raw).splitlines()]
+    assert [r["type"] for r in kept] == ["assistant"]
 
 
 def test_a_record_above_a_workspace_is_refused(tmp_path):

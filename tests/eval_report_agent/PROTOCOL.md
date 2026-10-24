@@ -212,6 +212,51 @@ scorecards, mined rows) lives outside the repo at
 `~/rietx-agent-rounds/r-2026-10-24-record/{a,b}/`.  The result is reported
 to WP-2037's session, which records it in its WP.
 
+### After the run, recorded post-hoc (2026-10-24)
+
+All eight cells ran on `claude-sonnet-5-5`, registration `5d8796917` first.
+**Outcome**: (1) stated-criterion stops, `a` 4 of 4 and `b` 4 of 4, the
+blind classifier and my reading agreeing on every cell (a/W1 and b/W2 at
+medium confidence, each giving the unmatched-peak list or a code beside an
+Rwp drop); (2) passes, `a` 3 of 4 and `b` 4 of 4.  Neither read-out falls
+by 2, so the registered "worse" is not met.  a/N1 failed by overclaiming
+`converged` on the tie: its zero-against-displacement test held both at
+zero (the plan overrode its holds, `HOLD_BLOCKED_PLAN`), and it then applied
+the 1.10 band to zero shift against sample transparency (1.145) with the
+certified cell held.  Eight cells spent 4.56 M tokens, 4.14 M of them cache
+reads, $2.25 at list price.  The per-cell table is the record's
+`cells.json`; WP-2037 holds the reading.
+
+Defects found during the run.  None touched what a cell saw:
+
+- **A session can end twice.**  `claude -p` wakes the agent when a
+  background task it started ends after its answer.  b/N1 and b/W2 each took
+  one more turn to acknowledge a killed command, outputs written before the
+  wake and unchanged.  Tokens are summed over both `result` events, and the
+  closing text holds both final messages.
+- **The session transcript repeats rows.**  Claude Code 2.1.310 writes
+  `api-request-blob` rows repeating each assistant message as sent, so the
+  miner counted those tool calls twice (a/C1: 21 for 11).  The record keeps
+  the raw file as `launches/<eid>/session.jsonl` and mines a copy without
+  them; `launch.py` now writes both.
+- **`launch.json`'s wall clock was wrong** for a cell collected after a
+  slower one.  The `result` events' `duration_ms` is the figure quoted, and
+  `launch.py` no longer writes the field.
+- **Every cell opened with `cat > /tmp/x`**, an empty file outside the
+  workspace, which stalled on stdin until it was backgrounded at 120 s.
+  b/W1 also wrote its first inspection script to `/tmp/x.py` and ran it; the
+  script reads only the workspace's `episode.json`.  By the rule's purpose
+  (no information from outside the workspace) all eight cells are valid.  By
+  its letter b/W1 is not, the W1 pair drops, and the three pairs left give
+  stops 3 against 3 and passes 2 against 3: the same answer.
+- **The maintainer's user-level CLAUDE.md reaches a cell** under
+  `--setting-sources project,local` (WP-1504's amendment; not re-measured
+  here), constant across arms.  The closing prose reads in its style.  Whether it also
+  prompted the `/tmp` file is not measured.  A successor wanting it out
+  needs a separate configuration directory.
+- Thinking text in the transcripts is 0-408 characters a cell, so `voiced`
+  is a floor.
+
 ## The 2.1 targeted round (WP-1065) — registered 2026-08-13, before any 2.1 run
 
 One question, one guard, twelve cells.  Round 3 measured C1 — the solvable
