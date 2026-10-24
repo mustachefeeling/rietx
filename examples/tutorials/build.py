@@ -214,8 +214,9 @@ def changed_outputs(old, new) -> list[str]:
         if seen and seen.pop(0) == _text_outputs(cell):
             continue
         under = next((c for c in new.cells[i + 1:] if c.cell_type == "markdown"), None)
-        first = under.source.splitlines()[0] if under is not None else "(no markdown follows)"
-        found.append(f"Out[{cell.execution_count}] {cell.source.splitlines()[0]!r}: "
+        first = ((under.source.splitlines() or [""])[0] if under is not None
+                 else "(no markdown follows)")
+        found.append(f"Out[{cell.execution_count}] {(cell.source.splitlines() or [''])[0]!r}: "
                      f"reread {first!r}")
     return found
 

@@ -499,9 +499,9 @@ def diagnostic_lines(d, indent: str = "", *, on: str | None = None,
     if not notebook:
         return [indent + line for line in (head, *rest)]
     if d.explanation:
-        after = next((i + 1 for i, line in enumerate(rest) if line.startswith("  help: ")),
-                     len(rest))
-        rest.insert(after, f"  means: {d.explanation}")
+        # ``help:`` is the last thing ``str(d)`` prints, so the end is after it
+        # even when a suggestion runs over several lines
+        rest.append(f"  means: {d.explanation}")
     width = NOTEBOOK_WIDTH - len(indent)
     lines = _wrapped(head, f"{d.level}[{d.code}]: ", width)
     for line in rest:
