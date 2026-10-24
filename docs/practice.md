@@ -54,7 +54,13 @@ curve that depends on its free set, by 1.66e-4 of the strongest peak.
 |---|---|---|
 | rietx | FCJ off when both are 0; sized at 0.02 when free (`forward.AXIAL_SIZING_FLOOR`) | yes, at exactly zero only |
 | GSAS-II | never computed: one parameter SH/L = (S+H)/L, floored at 0.002 by value for the profile and its window at every evaluation, refined or not; the Fortran's zero branch gives a stand-in derivative of 0.002·sign(Δ2θ) (checked) | no; windows come from values each evaluation |
-| TOPAS, FullProf, RIETAN-FP | not read this session | not read this session |
+| RIETAN-FP | not described; Gauss-Legendre N between 10 and 100 "depending on τmin", which follows rs and rd (§3.10.3, checked) | no flag named; the count follows the values |
+| FullProf | not described; S_L and D_L act only below `AsymLim`, an angle (LINE 30 notes, checked) | no flag named |
+| TOPAS | not read this session | not read this session |
+
+No program read makes a calculation depend on whether a parameter is refined. GSAS-II avoids a
+zero state by flooring the physics itself, and its zero branch, never reached through the
+profile call, carries a stand-in slope.
 
 GSAS-II 5.8.4 sources: the floor at `GSASIIstrMath.py:3980` (profile) and `:4309`
 (derivatives), 0.0005 at `:3723` (`GetFobsSq`); the window `GSASIIpwd.getWidthsCW`
