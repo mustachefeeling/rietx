@@ -349,6 +349,13 @@ declared stages, then the closing compile, then the final compile; the
 wording now says so). Declined: one shared helper for the five probes,
 because rewriting a record changes the script that produced its numbers.
 
+*Verified.* The branch changes only `docs/wp/`. The probes sit outside
+`testpaths` and ruff's targets, and they compile and pass `ruff check`.
+`tests/test_docs_consistency.py` passes, 25 tests. No count can move, so
+neither the fast nor the full selection ran. No generality judge was
+dispatched: `_audit.py` is untouched, and option 5 adds no threshold until
+it is built.
+
 Next: measure option 5 on the four standards and one joint fit before
 building it (the second task). If it costs no more than what
 `intermediate_ftol` saves, build it (third and fourth tasks). If it costs
