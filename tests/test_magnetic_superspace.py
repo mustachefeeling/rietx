@@ -359,6 +359,29 @@ def test_symbols_round_trip(text):
     assert symbol(g) == text or (g.magnetic_type is None and text.endswith("000"))
 
 
+@pytest.mark.parametrize("space_group, q", [
+    ("C 2 2 21", "(1,0,γ)"),      # q → q + (0,0,1) shifts v4 by ½
+    ("P 2", "(0,β,1/2)"),         # a 3D origin shift moves an ε = +1 δ
+    ("A m m 2", "(1/2,0,γ)"),
+])
+def test_type4_symbol_parses_back_to_its_own_class(space_group, q):
+    """Stokes & Campbell 2022 p. 366: the symbol names the class.  The 1′ letter
+    is read in the spelling of X that the symbol parses to, not the caller's:
+    over C222₁(1,0,γ) the two differ by q → q + (0,0,1) plus an internal
+    shift, and the symbol of one class used to parse to its neighbour."""
+    hits = 0
+    for g in superspace_groups(space_group):
+        if q not in symbol(g):
+            continue
+        classes = magnetic_superspace_groups(g, types=(4,))
+        texts = [magnetic_symbol(m) for m in classes]
+        assert len(set(texts)) == len(texts)
+        for m, text in zip(classes, texts):
+            assert equivalent(parse_symbol(text), m), text
+            hits += 1
+    assert hits
+
+
 def test_table2_spellings_name_their_class(p222):
     """Table 2's printed representatives (m4.1 _a, m5.2 _B, …) are other
     spellings of classes the enumerator labels differently; each parses to

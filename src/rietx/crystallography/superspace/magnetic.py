@@ -60,6 +60,7 @@ from .operators import (
     _IDENTITY_R,
     SuperspaceGroup,
     SuperspaceOperator,
+    SuperspaceTransform,
     _inverse3,
     _op_key,
     _rkey,
@@ -548,6 +549,71 @@ def _primed_hm(sg, theta_of) -> str:
     return out
 
 
+def _in_parse_frame(x: SuperspaceGroup, anti: SuperspaceOperator
+                    ) -> tuple[SuperspaceGroup, SuperspaceOperator]:
+    """The description X' that the symbol of ``x`` parses to, and the
+    anti-translation in it.  A symbol names a class, so
+    :func:`.symbols.parse_symbol` builds its own spelling of X; over
+    C222₁(1,0,γ) that spelling differs from a caller's by q → ±q + H, with H
+    along the free direction where the literal q does not show it, plus an
+    internal-origin shift.  H and the sign move the internal part of {1′|v} by H·v
+    (Stokes, Campbell & van Smaalen 2011 eq. (13)) and the origin shift does
+    not (an ε = +1 translation), while the printed letters stay; the 1′ letter
+    is read against the parse's frame, so {1′|v} is carried there first.  H is
+    found by matching the operators of ``x`` shifted by it to X' (ε = +1
+    internal translations equal, ε = −1 ones a common offset)."""
+    from .symbols import parse_symbol
+    from .symbols import symbol as ssg_symbol
+
+    ref = parse_symbol(ssg_symbol(x))
+    ref_of = {_rkey(o.rotation): o for o in ref.operations}
+    ref_free = {tuple(abs(c) for c in f) for f in ref.q.free}
+    quarters = [Fraction(k, 4) for k in range(4)]
+    for e, h in product((1, -1), product(range(-2, 3), repeat=3)):
+        qn = SuperspaceTransform.build(s_m=h, s_eps=e).apply_to_q(x.q)
+        along = {i for f in qn.free for i in range(3) if f[i]}
+        if {tuple(abs(c) for c in f) for f in qn.free} != ref_free or any(
+                qn.rational[i] != ref.q.rational[i] for i in range(3) if i not in along):
+            continue  # the part of q along a free direction is a label
+        for origin in product(quarters, repeat=3):
+            t = SuperspaceTransform.build(s_m=h, s_eps=e, origin=origin)
+            if _matches(t, x, ref_of):
+                return ref, t.conjugate(anti)
+    raise ValueError(f"{ssg_symbol(x)!r} parses to a group that is not x moved by a "
+                     f"change of origin and q → ±q + H; its 1' letter would name "
+                     f"another group")
+
+
+def _matches(t: SuperspaceTransform, x: SuperspaceGroup, ref_of: dict) -> bool:
+    """Whether ``t`` maps ``x`` onto the group whose operators (one per
+    rotation) are ``ref_of``, up to an internal-origin shift: equal R, ε, M,
+    translations modulo the lattice, ε = +1 internal translations equal and
+    ε = −1 ones differing by one common offset."""
+    try:
+        moved = [t.conjugate(o) for o in x.operations]
+        cens = [t.conjugate(c) for c in x.centerings]
+    except ValueError:
+        return False
+    if len(moved) != len(ref_of):
+        return False
+    common = None
+    for o in moved:
+        r = ref_of.get(_rkey(o.rotation))
+        if r is None or r.epsilon != o.epsilon or r.m != o.m:
+            return False
+        diffs = {(r.delta - (o * c).delta) % 1 for c in cens
+                 if all((r.translation[i] - (o * c).translation[i]) % 1 == 0
+                        for i in range(3))}
+        if o.epsilon == 1:
+            if 0 not in diffs:
+                return False
+        else:
+            common = diffs if common is None else common & diffs
+            if not common:
+                return False
+    return True
+
+
 def magnetic_symbol(group: SuperspaceGroup, *, magnetic: bool | None = None) -> str:
     """The MSSG symbol of Stokes & Campbell (2022) p. 366 (module docstring).
 
@@ -572,10 +638,10 @@ def magnetic_symbol(group: SuperspaceGroup, *, magnetic: bool | None = None) -> 
         sg = _setting_of(f)
         theta_of = {o.rotation: o.theta for o in group.operations}
         return f"{_primed_hm(sg, theta_of)}({rest}"
-    x = maximal_subgroup(group)
+    x, anti = _in_parse_frame(maximal_subgroup(group),
+                              next(c for c in group.centerings if c.is_anti_translation))
     text = ssg_symbol(x)
     hm, rest = text.split("(", 1)
-    anti = next(c for c in group.centerings if c.is_anti_translation)
     qr = x.q.rational
     free = {next(i for i in range(3) if f[i]) for f in x.q.free} if x.q.axis_aligned() else set()
     qr_eff = tuple(_F0 if i in free else qr[i] for i in range(3))
