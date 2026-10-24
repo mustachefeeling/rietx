@@ -109,7 +109,7 @@ is the v1.0 form of the same logic; the posterior is a v2 fence.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import gemmi
 import numpy as np
@@ -810,6 +810,7 @@ def _prefit(data: PatternData, candidate: CellCandidate, instrument: Instrument,
     """
     from ..background.auto import auto_background
     from ..refine import Refinement
+    from ..strategy.staged import resolve_plan
 
     ins = instrument
     if _background_unseeded(ins.background):
@@ -818,7 +819,12 @@ def _prefit(data: PatternData, candidate: CellCandidate, instrument: Instrument,
                                          source=ins.source, seed=True).background
     ref = Refinement(structure_from_candidate(candidate, space_group=symbol),
                      ins, history=False)
-    result = ref.fit(data, mode="lebail", plan="profile_only",
+    # the prefit's answer is the cell and widths every class is then compared
+    # at, so it pays for no closing stage either (WP-2002, the sixth round's
+    # Q1 and Q2; the screen's own fits and the validation's run without one)
+    plan = replace(resolve_plan("profile_only", "lebail"),
+                               closing_window_tol=None)
+    result = ref.fit(data, mode="lebail", plan=plan,
                      two_theta_limits=two_theta_limits, telemetry=False,
                      cancel=cancel if hasattr(cancel, "is_set") else None)
     cell = tuple(float(v) for v in

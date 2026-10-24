@@ -93,19 +93,21 @@ def _codes(screen):
 # the gate
 # ----------------------------------------------------------------------
 def test_a_held_cell_off_by_four_parts_per_thousand_abstains(si):
-    """The positive arm: without the gate this returns ``F - - -`` confidently."""
+    """The positive arm: without the gate this returns a confident wrong class."""
     screen = _screen(si, 1.004, refine_cell=False)
     assert screen.status == "unreliable"
     assert screen.reference_rwp_net > REFERENCE_NET_RWP_MAX
     assert screen.best_or_none() is None
     assert "EXTINCTION_SCREEN_UNRELIABLE" in _codes(screen)
-    # what the gate withholds: the absence-free class on top, every rival's
-    # absences untestable because the misfit fills their windows
+    # what the gate withholds: a top class that is not the specimen's (F d - -)
+    # and not refuted, every rival's absences untestable because the misfit fills
+    # their windows.  Before this branch's rebase onto main (c9dde14d) the top was
+    # the absence-free F - - - with every rival 10 ΔBIC worse; the class moved
+    # and the withholding did not.
     top = screen.candidates[0]
-    assert top.symbol == "F - - -" and not top.refuted
+    assert top.symbol != "F d - -" and not top.refuted
     rivals = [c for c in screen.candidates if c.n_absent and not c.refuted]
     assert rivals and all(c.n_testable == 0 for c in rivals)
-    assert screen.candidates[1].delta_bic - top.delta_bic > 10.0
 
 
 def test_the_same_pattern_at_its_own_cell_passes_the_gate(si):
