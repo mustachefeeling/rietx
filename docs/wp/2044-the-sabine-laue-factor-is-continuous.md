@@ -141,7 +141,7 @@ two truncated expansions. No threshold or automatic action is added.
       a central difference by 6.7e-7 of its norm at every step from 1e-2 to
       1e-8, which is its own truncation error. With GSAS-II's branches
       patched back in, the same test misses by 100 % at 1e-4
-- [ ] `tests/test_extinction.py`: the GSAS-II transcription becomes a
+- [x] `tests/test_extinction.py`: the GSAS-II transcription becomes a
       comparison within the band above, and a test asserts E_L is continuous
       at x = 1. `tests/test_cross_backend.py` rows for extinction; the
       bit-identity goldens that carry extinction recaptured, with the move
