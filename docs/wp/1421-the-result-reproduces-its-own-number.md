@@ -174,7 +174,7 @@ below are folded here, and their mailbox is emptied.
       fit is not biased" from `help.py`, `_final_compile`'s docstring and the
       skill's `diagnostics.md` row, and say what does re-solve (the closing
       stage, an empty stage).
-- [ ] `Refinement.report` reads the answer frozen with the result, as the
+- [x] `Refinement.report` reads the answer frozen with the result, as the
       joint `report(h)` does (`multi._freeze_answer`).
 - [ ] The joint result is measured on a compile at its answer, as the single
       fit's is, and `MultiHistogramRefinement.report`'s docstring and

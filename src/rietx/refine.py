@@ -2315,6 +2315,10 @@ class Refinement:
         #: the result it was handed.  ``None`` until a fit returns, and dropped
         #: with ``result_``.
         self._answer_covariance: tuple | None = None
+        #: what :meth:`report` and :meth:`reflection_table` read beside
+        #: ``_model``, frozen with ``result_`` (:meth:`_freeze_answer`), and
+        #: dropped with it.
+        self._answer: dict | None = None
         #: the last ``fit(stage_reports=True)`` run's trajectory, one
         #: :class:`~rietx.report.StageReport` per completed stage (WP-1058).
         #: Empty after a fit that was not asked for one — a report is *derived*
@@ -2477,7 +2481,26 @@ class Refinement:
         self._model = None
         self.result_ = None
         self._answer_covariance = None
+        self._answer = None
         self.stage_reports_ = []
+
+    def _freeze_answer(self) -> dict:
+        """What :meth:`report` and :meth:`reflection_table` read, beside ``_model``.
+
+        Taken when the result is built, because the models are the working
+        state and the result is not: a later fit that is cancelled keeps the
+        stages it completed and the previous result, and a view that read the
+        live models then would pair those values with this result's model
+        (WP-1421; the joint fit's ``MultiHistogramRefinement._freeze_answer``).
+        """
+        table = ParameterTable(self.structure, self.instrument)
+        # the model's moment frames are the last stage's, not this table's (#598)
+        table.pull_moment_frames(self._model)
+        return {"values": table.decode(table.x0()),
+                "structure": self.structure.model_copy(deep=True),
+                "instrument": self.instrument.model_copy(deep=True),
+                "held": list(self._held),
+                "free_paths": list(self._free_paths)}
 
     def _require_history(self) -> RefinementTree:
         if self.history is None:
@@ -4934,7 +4957,8 @@ class Refinement:
                     break
                 gain = None if best is None else (best[0] - rwp) / best[0]
                 best = (rwp, result, self.snapshot(), self._head_id, len(rows),
-                        (self._model, self._answer_covariance, self.stage_reports_))
+                        (self._model, self._answer_covariance, self._answer,
+                         self.stage_reports_))
                 if gain is not None and gain <= LEBAIL_CONVERGED_REL:
                     reason = "converged"
                     break
@@ -4996,7 +5020,7 @@ class Refinement:
         # fitted, so ``result_``, ``report()``, ``predict()`` and the
         # plots read the answer this call returns, not nothing
         self.result_ = result
-        (self._model, self._answer_covariance,
+        (self._model, self._answer_covariance, self._answer,
          self.stage_reports_) = fit_view
         # A fit re-extracts the intensities at its first stage, so the
         # pass after a plain ``fit()`` starts from the parameters alone.
@@ -5195,6 +5219,7 @@ class Refinement:
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
                                        outcome.correlation)
+            self._answer = self._freeze_answer()
             self._stamp(self.result_, tree)
             if self._auto_intervals:
                 # WP-2002, B2: an angle the answer stage left out of its
@@ -5778,6 +5803,7 @@ class Refinement:
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
                                        outcome.correlation)
+            self._answer = self._freeze_answer()
             self._stamp(self.result_, tree)
             if self._auto_intervals:
                 # ``fit``'s rule (WP-2002, B2), on this stage's own record
@@ -5896,14 +5922,15 @@ class Refinement:
             raise RuntimeError("call fit() first")
         if isinstance(plan, str):
             plan = PLAN_PRESETS[plan]()
-        table = ParameterTable(self.structure, self.instrument)
-        # the model's moment frames are the last stage's, not this table's (#598)
-        table.pull_moment_frames(self._model)
+        # the answer frozen with the result, never the live models: a later
+        # cancelled fit keeps its completed stages and this result (WP-1421)
+        answer = self._answer
         return build_report(self.result_, model=self._model,
-                            values=table.decode(table.x0()), plan=plan,
-                            structure=self.structure, instrument=self.instrument,
-                            held=list(self._held),
-                            free_paths=list(self._free_paths), **kw)
+                            values=answer["values"], plan=plan,
+                            structure=answer["structure"],
+                            instrument=answer["instrument"],
+                            held=list(answer["held"]),
+                            free_paths=list(answer["free_paths"]), **kw)
 
     def check_rigid_bodies(self, data: PatternData, **kw):
         """Test each rigid body against the data (``RIGID_BODY_MISFIT``).
@@ -6236,10 +6263,9 @@ class Refinement:
 
         if self._model is None or self.result_ is None:
             raise RuntimeError("call fit() first")
-        table = ParameterTable(self.structure, self.instrument)
-        table.pull_moment_frames(self._model)          # #598, as in report()
-        values = table.decode(table.x0())
-        return reflection_table(self._model, values, self.structure)
+        # the answer frozen with the result, as in report() (WP-1421)
+        answer = self._answer
+        return reflection_table(self._model, answer["values"], answer["structure"])
 
     def write_reflection_table(self, path, **kw) -> None:
         """Write the reflection table to CSV/TSV (delimiter from the suffix)."""
