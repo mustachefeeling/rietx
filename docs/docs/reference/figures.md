@@ -18,7 +18,7 @@ It forwards to `rietx.viz.plots.plot_result`.
 | `show_background` | `True` | draws the background curve |
 | `weighted` | `False` | draws Δ/σ in a panel of its own, with a ±3σ band |
 | `x_axis` | `"two_theta"` | `"q"` or `"d"` redraws against Q or d-spacing |
-| `wavelength` | `None` | the λ in Å written on the 2θ axis, and the one Q and d are derived through |
+| `wavelength` | `None` | the λ in Å written on the 2θ axis in place of the recorded one, and the one Q and d are derived through |
 | `y_scale` | `"linear"` | `"sqrt"`, `"log"` or `"asinh"` |
 | `label_align` | `"bottom"` | `"curve"` puts each curve's name level with the end of its curve |
 | `style` | `"light"` | `"dark"` for a figure going onto a dark page |
@@ -35,8 +35,15 @@ A raw difference shares the intensity axis, so the eye reads a small deviation o
 Δ/σ has expectation 1 under a correct model, and the ±3σ band is a fixed scale.
 It is not the default because its panel separates the residual from the peak that caused it, which the classic layout shows in one glance.
 
-A `RefinementResult` does not carry the emission line, so `wavelength=` has to be passed.
-`x_axis="q"` and `x_axis="d"` raise without it.
+The 2θ axis label names the radiation the fit used, which `RefinementResult.radiation` records as a `Radiation`.
+`Radiation.kind` is the source's `kind`, `"xray_cw"` or `"neutron_cw"`.
+`Radiation.wavelengths` holds each emission line's λ in Å at the answer, primary first, so a refined wavelength is recorded as refined.
+The label reads `2θ (degrees), Cu Kα, λ = 1.54059 Å`, by the rule `PatternData.plot` uses ([Plotting a pattern](data.md#plotting-a-pattern)).
+A refined wavelength, a synchrotron or a neutron source shows λ alone.
+A joint fit records each histogram's own in `HistogramResult.radiation`, so `result.for_histogram(h).plot()` names histogram `h`'s.
+A result saved by a version without the record has `radiation=None` and shows `2θ (degrees)`.
+`wavelength=` replaces the recorded λ.
+`x_axis="q"` and `x_axis="d"` raise without it, because the label converts nothing.
 A d axis is drawn ascending, so the pattern is mirrored rather than the axis reversed.
 
 `y_scale="sqrt"` gives equal display distance to equal counting σ.

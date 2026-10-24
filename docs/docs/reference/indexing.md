@@ -415,7 +415,7 @@ Nothing else in the order changes, and a refuted cell is never moved up.
 *Refuted* means seen no more often than chance, since a non-significant test does not establish the null, so extras seen above chance but not significantly leave the verdict `"undecided"`.
 The check needs only the peak list, so it runs on a bare list too.
 
-Which pairs are asked is a question about the lines, not the volumes (indexing thresholds 1.11).
+Which pairs are asked is a question about the lines, not the volumes (indexing thresholds 1.12).
 A cell is asked as the larger one whenever every observed line the smaller cell indexes it indexes too, and its own line set is the denser.
 That reaches a sublattice pair, and it reaches pairs that are not: a cubic I cell at √2 the edge of a cubic F truth, whose primitive volume is 5.66 times the truth's, and a trigonal description with the truth's own volume, which outranked it on a synthetic silicon pattern.
 `SupercellCheck.relation` says which kind of pair it was.

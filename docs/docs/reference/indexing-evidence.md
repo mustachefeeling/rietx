@@ -70,7 +70,7 @@ A reader told `predicted_but_absent` and `not_validated` in the same breath need
 A `geometric_ambiguity` caveat beside `CandidateEvidence.ambiguity_partners` of 0 means the ambiguity walk never reached the candidate ([The confidence gate](indexing.md#the-confidence-gate)).
 
 Read `CandidateEvidence.lebail_rwp` beside the two counts rather than scoring on it.
-The three together let a reader notice a detector failing: on the magnetite pair recorded in the type's docstring, before C3 (thresholds 1.11) the correct cell read `predicted_but_absent` 2 and its wrong rival 0, which is backwards, while Rwp read 0.25 against 0.79.
+The three together let a reader notice a detector failing: on the magnetite pair recorded in the type's docstring, before C3 (thresholds 1.12) the correct cell read `predicted_but_absent` 2 and its wrong rival 0, which is backwards, while Rwp read 0.25 against 0.79.
 A reader given all three could see that, and the gate, reading one number, could not.
 That argues for showing Rwp, never for ranking on it.
 
