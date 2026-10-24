@@ -25,7 +25,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    payload = json.load(sys.stdin)
+    payload = json.loads(sys.stdin.buffer.read())
     path = payload.get("path") or payload.get("cwd")
     if not path:
         print("worktree_remove: no path in payload", file=sys.stderr)

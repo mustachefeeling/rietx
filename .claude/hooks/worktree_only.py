@@ -128,7 +128,7 @@ def refusal(payload: dict) -> Optional[str]:
 
 
 def main() -> int:
-    payload = json.load(sys.stdin)
+    payload = json.loads(sys.stdin.buffer.read())
     reason = refusal(payload)
     if reason is None:
         return 0

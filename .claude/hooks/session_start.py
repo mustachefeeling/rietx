@@ -629,7 +629,7 @@ def hook_cwd() -> Optional[Path]:
     try:
         if sys.stdin.isatty() or not select.select([sys.stdin], [], [], 0.2)[0]:
             return None
-        text = sys.stdin.read().strip()
+        text = sys.stdin.buffer.read().decode("utf-8", "replace").strip()
         cwd = json.loads(text).get("cwd") if text else None
         return Path(cwd) if cwd else None
     except Exception:

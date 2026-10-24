@@ -96,7 +96,7 @@ def clash_refusal(root: Path, wp: str) -> str:
 
 
 def main() -> int:
-    payload = json.load(sys.stdin)
+    payload = json.loads(sys.stdin.buffer.read())
     root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or Path.cwd())
     name = payload.get("name")
     if not name:
