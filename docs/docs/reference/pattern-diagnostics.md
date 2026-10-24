@@ -33,7 +33,7 @@ An empty finding prints as `none`, and a check that could not run prints as `not
 | `PatternDiagnostics.steps_per_fwhm` | the median, over the resolved peaks, of how many channels span a peak's FWHM | [Peak sampling](#peak-sampling); `None` when no peak was measurable |
 | `PatternDiagnostics.n_peaks_measured` | how many peaks that median was taken over | |
 | `PatternDiagnostics.contamination` | the lines of a Kβ or tungsten Lα contamination finding, each a `ContaminationFlag` | an empty list is the usual answer ([Contamination](#contamination)) |
-| `PatternDiagnostics.contamination_searches` | the ghost searches the contamination screen ran, `"kbeta"` and `"tungsten_la"` | an empty list means the screen ran none, so an empty `contamination` was not checked; `None` on an object written before the field existed |
+| `PatternDiagnostics.contamination_searches` | the ghost searches that could have raised a flag, `"kbeta"` and `"tungsten_la"`, each run with at least five strong lines whose ghost falls in range | an empty list means none could, so an empty `contamination` was not checked; `None` on an object written before the field existed |
 | `PatternDiagnostics.air_scatter_gain` | how much of the envelope's cubic-fit residual variance a 1/(2θ) column explains | a nested-model test for the low-angle air-scatter rise; above 0.3, `auto_background` turns the 1/(2θ) background term on |
 | `PatternDiagnostics.amorphous_hump_score` | the RMS of the envelope residual after both the cubic and the 1/(2θ) term, over the median level | what is left is broad non-polynomial structure, such as amorphous content or capillary glass; above about 0.05 it calls for a more flexible background |
 | `PatternDiagnostics.baseline_lambda` | the arPLS stiffness the whiteness rule picked for this pattern | |
@@ -214,7 +214,8 @@ Measured on the 11-BM pattern, `diagnose(data)` and `diagnose(data, wavelength=0
 The first asked nothing, and the second has a synchrotron wavelength, which has no anode.
 `diagnose(source=)` skips the screen for a neutron source and for one whose `Source.kbeta` is `"monochromator"` ([X-ray source](instrument.md#x-ray-source)).
 `PatternDiagnostics.contamination_searches` tells the two answers apart.
-It lists the searches that ran, and it is empty in each case above, so `print(d)` reads `not checked`.
+It lists the searches that could have raised a flag, and it is empty in each case above, so `print(d)` reads `not checked`.
+A search needs at least five strong lines whose ghost falls inside the scan, so a short scan reads `not checked` too.
 
 The joint test gives up some sensitivity on purpose.
 A Kβ image injected into six round-robin patterns is found on every one of them from about 10 % of its parent upwards.

@@ -645,12 +645,14 @@ class PatternDiagnostics(Base):
       the Kβ position is anode-specific, so a wavelength that matches no
       tabulated Kα1 (:func:`identify_anode`) is silently skipped.
       ``contamination_searches`` tells the two apart.
-    * ``contamination_searches`` — the ghost searches the screen ran,
-      ``"kbeta"`` and ``"tungsten_la"``.  ``[]`` means it ran none, so an
-      empty ``contamination`` is *not checked*: no ``wavelength``, one
-      matching no tabulated Kα1, a source whose beam carries neither line
-      (:func:`ghost_searches`), or no peak to search from.  ``None`` is an
-      object written before the field existed (WP-2037), which cannot say.
+    * ``contamination_searches`` — the ghost searches that could have raised
+      a flag, ``"kbeta"`` and ``"tungsten_la"``: each ran with at least
+      :data:`GHOST_MIN_PARENTS` parents whose ghost falls in range.  ``[]``
+      means none could, so an empty ``contamination`` is *not checked*: no
+      ``wavelength``, one matching no tabulated Kα1, a source whose beam
+      carries neither line (:func:`ghost_searches`), or too few strong lines
+      in range.  ``None`` is an object written before the field existed
+      (WP-2037), which cannot say.
     * ``baseline_lambda`` — the arPLS stiffness the whiteness rule selects
       for this pattern (:func:`rietx.background.select_arpls_lambda`).
     * ``steps_per_fwhm`` / ``n_peaks_measured`` — how finely the peaks were
@@ -1578,14 +1580,14 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     air_gain = float(1.0 - (r_air @ r_air) / rss_cubic) if rss_cubic > 0 else 0.0
     hump = float(np.sqrt(np.mean(r_air ** 2)) / max(med_env, 1e-12))
 
-    # Which searches ran is recorded beside the flags, because an empty list of
-    # flags reads the same for "looked, and clean" and "never looked".
-    searches: tuple[str, ...] = ()
+    # Which searches could have flagged something is recorded beside the flags,
+    # because an empty list of flags reads the same for "looked, and clean" and
+    # "never looked" (or looked with too few parents to decide).
+    searches: list[str] = []
     flags: list[ContaminationFlag] = []
     if wavelength is not None and len(ghost_idx):
-        searches = _searches_run(wavelength, source)
-        flags = _contamination_flags(tt, net, sigma, ghost_idx, wavelength,
-                                     source=source)
+        flags, searches = _contamination_flags(tt, net, sigma, ghost_idx, wavelength,
+                                               source=source)
 
     lam = (select_arpls_lambda(data).selected if baseline_lambda is None
            else baseline_lambda)
@@ -1615,7 +1617,7 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
         steps_per_fwhm=steps,
         n_peaks_measured=n_measured,
         contamination=flags,
-        contamination_searches=list(searches),
+        contamination_searches=searches,
         coverage_plateau=plateau,
         coverage_regions=coverage,
         signal_cutoffs=cutoffs,
@@ -1669,14 +1671,6 @@ def identify_anode(wavelength: float) -> str | None:
     return None
 
 
-def _searches_run(wavelength: float, source: object | None) -> tuple[str, ...]:
-    """The ghost searches the screen runs at ``wavelength``: those
-    :func:`ghost_searches` leaves for ``source``, and none when
-    :func:`identify_anode` names no anode.  One decision, read by the screen
-    and recorded by :func:`diagnose` as ``contamination_searches``."""
-    return ghost_searches(source) if identify_anode(wavelength) is not None else ()
-
-
 def contamination_flags_from_peaks(
     two_theta: np.ndarray, intensity: np.ndarray,
     two_theta_esd: np.ndarray | None, wavelength: float, *,
@@ -1714,23 +1708,43 @@ def contamination_flags_from_peaks(
     than :data:`GHOST_MIN_PARENTS` parents in range is a silence rather than a
     clean bill, exactly as an unrecognised wavelength is.
     """
-    searches = _searches_run(wavelength, source)
+    return _ghost_screen(two_theta, intensity, two_theta_esd, wavelength,
+                         intensity_esd=intensity_esd, tt_range=tt_range,
+                         tol_deg=tol_deg, k_sigma=k_sigma, source=source)[0]
+
+
+def _ghost_screen(
+    two_theta: np.ndarray, intensity: np.ndarray,
+    two_theta_esd: np.ndarray | None, wavelength: float, *,
+    intensity_esd: np.ndarray | None = None,
+    tt_range: tuple[float, float] | None = None,
+    tol_deg: float = GHOST_TOL_DEG, k_sigma: float = GHOST_MATCH_K,
+    source: object | None = None,
+) -> tuple[list[ContaminationFlag], list[str]]:
+    """:func:`contamination_flags_from_peaks`' flags, and the searches that
+    could have raised one (WP-2037): those run with at least
+    :data:`GHOST_MIN_PARENTS` parents whose ghost falls in range.  A search
+    with fewer is a silence, so :func:`diagnose` records it as not run."""
+    searches = ghost_searches(source)
     anode = identify_anode(wavelength)
     if anode is None or not searches:
-        return []
+        return [], []
     tt = np.asarray(two_theta, dtype=np.float64)
     inten = np.asarray(intensity, dtype=np.float64)
     if not len(tt):
-        return []
+        return [], []
     lo, hi = (float(tt.min()), float(tt.max())) if tt_range is None else tt_range
     esd = None if two_theta_esd is None else np.asarray(two_theta_esd, dtype=np.float64)
     flags: list[ContaminationFlag] = []
+    searched: list[str] = []
     for kind, lam_ghost in (("kbeta", _KBETA[anode]), ("tungsten_la", _W_LA1)):
         if kind not in searches:
             continue
         cands, n_searched = _ghost_candidates(
             tt, inten, esd, intensity_esd, lam_ghost / wavelength, lo, hi,
             tol_deg=tol_deg, k_sigma=k_sigma)
+        if n_searched >= GHOST_MIN_PARENTS:
+            searched.append(kind)
         support, leak, chosen = _ghost_consensus(cands)
         if support < GHOST_MIN_PARENTS:
             continue
@@ -1755,7 +1769,7 @@ def contamination_flags_from_peaks(
                 parent_two_theta=float(tt[ip]), intensity_ratio=r,
                 leak_ratio=leak, n_parents=support,
                 n_parents_searched=n_searched))
-    return flags
+    return flags, searched
 
 
 def _ghost_candidates(
@@ -1850,15 +1864,16 @@ def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
                          peak_idx: np.ndarray, wavelength: float,
                          *, tol_deg: float = GHOST_TOL_DEG,
                          source: object | None = None
-                         ) -> list[ContaminationFlag]:
-    """Channel-index view of :func:`contamination_flags_from_peaks`.
+                         ) -> tuple[list[ContaminationFlag], list[str]]:
+    """Channel-index view of :func:`contamination_flags_from_peaks`, with the
+    searches that could have raised a flag (:func:`_ghost_screen`).
 
     This is the pre-WP-1018 surface, kept because :func:`diagnose` works from
     ``find_peaks`` channel indices and has neither a fitted position esd nor an
     integrated intensity: it passes net height for both the ranking and the
     ratio test, and no σ(2θ), so the window is the flat ``tol_deg``.
     """
-    return contamination_flags_from_peaks(
+    return _ghost_screen(
         tt[peak_idx], net[peak_idx], None, wavelength,
         intensity_esd=sigma[peak_idx], tt_range=(float(tt[0]), float(tt[-1])),
         tol_deg=tol_deg, source=source)

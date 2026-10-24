@@ -1267,8 +1267,14 @@ def plot_pattern(data, *, path: str | None = None,
             # modelled, so dashed, in the result panel's background ink.  Over
             # the markers, where the result panel draws its calculated curve:
             # it is the model being checked, and under a full range's markers
-            # (5753 on FAP.XRA) it was hidden wherever it ran through the counts
-            ax.plot(_x_values(bkg_tt, x_axis, wavelength)[0], y_bkg, "--",
+            # (5753 on FAP.XRA) it was hidden wherever it ran through the counts.
+            # Broken where the fit's channels skip an excluded region, found on
+            # the 2θ grid so a Q or d axis's uneven steps break nothing
+            steps = np.diff(bkg_tt)
+            cut = (np.flatnonzero(steps > 1.5 * np.median(steps)) + 1
+                   if steps.size else np.empty(0, dtype=int))
+            ax.plot(np.insert(_x_values(bkg_tt, x_axis, wavelength)[0], cut, np.nan),
+                    np.insert(y_bkg, cut, np.nan), "--",
                     lw=0.8, color=hue["bkg"], zorder=3)
 
         top = float(y_obs.max())

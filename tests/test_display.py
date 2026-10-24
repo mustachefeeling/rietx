@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import rietx as rx
@@ -123,6 +124,19 @@ def test_diagnostics_cut_their_numbers_and_say_which_checks_did_not_run(fap):
     unrecorded = d.model_copy(update={"contamination_searches": None})
     assert ("    contamination:        none, or not checked (not recorded)"
             in str(unrecorded).splitlines())
+
+
+def test_a_ghost_search_with_too_few_parents_is_not_checked(fap):
+    """A search with fewer than ``GHOST_MIN_PARENTS`` parents in range can
+    raise no flag, so its empty answer is a silence and prints as one: two
+    degrees of FAP.XRA hold two parents, and their Kβ images fall outside."""
+    tt, y = np.asarray(fap["data"].two_theta), np.asarray(fap["data"].intensity)
+    window = (tt >= 25.0) & (tt <= 27.0)
+    narrow = rx.PatternData(two_theta=tt[window], intensity=y[window])
+    d = rx.diagnose(narrow, wavelength=1.5406)
+    assert d.contamination == [] and d.contamination_searches == []
+    assert "not checked" in next(ln for ln in str(d).splitlines()
+                                 if ln.strip().startswith("contamination:"))
 
 
 def test_a_number_is_cut_to_three_significant_figures():

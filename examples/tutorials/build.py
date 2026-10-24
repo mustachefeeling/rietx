@@ -226,10 +226,16 @@ def prose(directory: Path = HERE, out: Path | None = None) -> list[Path]:
 
     ``out`` defaults to ``_prose/`` beside the sources, which ``.vale.ini``
     names and git ignores.  Vale matches a section against the path it is
-    given, so run it on that relative path.
+    given, so run it on that relative path.  That default directory is this
+    builder's own, so a file a renamed tutorial left there is removed first;
+    a directory a caller names is left as it was.
     """
+    own = out is None
     out = out or directory / "_prose"
     out.mkdir(exist_ok=True)
+    if own:
+        for stale in out.glob("*.md"):
+            stale.unlink()
     written = []
     for path in sources(directory):
         md = [text for kind, text in parse(path) if kind == "markdown"]

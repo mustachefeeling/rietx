@@ -239,6 +239,10 @@ def test_a_model_draws_its_starting_background_under_the_data(fitted):
     # the synthetic pattern was drawn with TRUE_BKG on this same range, so the
     # starting curve is that Chebyshev series, computed here independently
     tt, y = np.asarray(line.get_xdata()), np.asarray(line.get_ydata())
+    # one break, where the excluded band takes channels out: no chord across it
+    (gap,) = np.flatnonzero(np.isnan(tt))
+    assert np.isnan(y[gap]) and tt[gap - 1] <= EXCLUDED[0] and tt[gap + 1] >= EXCLUDED[1]
+    tt, y = np.delete(tt, gap), np.delete(y, gap)
     lo, hi = pattern.two_theta[0], pattern.two_theta[-1]
     expect = np.polynomial.chebyshev.chebval(2 * (tt - lo) / (hi - lo) - 1, TRUE_BKG)
     assert np.allclose(y, expect, rtol=1e-12)
