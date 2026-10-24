@@ -347,7 +347,7 @@ The CIF reader has one, so it corrects a small deviation and reports [`CIF_CELL_
 
 A child phase can state its cell as its parent's carried through the transform, instead of as six parameters of its own.
 That is how a child whose group names no tabulated type in the child's axes, such as a C-centred type in a primitive doubled cell, gets a metric at all.
-The phase's `Phase.parent_cell` field holds a `ParentCell`, and `None`, the default, leaves the cell as above.
+The phase's `parent_cell` field holds a `ParentCell`, and `None`, the default, leaves the cell as above.
 
 | Field | Type | Meaning |
 |---|---|---|
