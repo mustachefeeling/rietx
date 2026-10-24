@@ -149,8 +149,11 @@ Durham and the synthetic series in lab, instrument and material:
   (CC BY). A second family for the moment carry.
 
 None of the three has a known-bad pattern, so quarantine and `on_error` still need planted
-ones. Vendoring the tutorial and Co₃O₄ files waits on the maintainer (root CLAUDE.md
-§ Licensing, the per-file data fence).
+ones. The maintainer accepted the offer to vendor the tutorial and Co₃O₄ files on
+2026-10-24, and the reply on the PR asked for planted bad patterns too. Each file
+lands with a `tests/data/README.md` row giving its source, its licence and its reference
+values (root CLAUDE.md § Licensing, the per-file data fence). Measure on whichever have
+landed when tiering starts.
 
 ## Non-goals
 
