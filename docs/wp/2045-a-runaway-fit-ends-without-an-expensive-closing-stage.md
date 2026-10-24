@@ -58,6 +58,15 @@ instead of stopping on a bound, and this WP does not reopen it. (2) The
 closing stage polishes whatever the declared stages hand it, and nothing
 asks whether that answer is worth polishing or what the polish costs.
 
+**With the closing stage off, nothing runs away** (same probe,
+`closing_window_tol=None` on `qpa_plan()`, 2026-10-24). All eight patterns
+finish in 9.2 s, each kept on its warm rung, and cpd-1b's warm stage
+converges at Rwp 0.163 (corundum 94.84, zincite 1.08, fluorite 4.08 wt %,
+weighed 94.31, 1.36, 4.33). So the runaway itself depends on the start: it
+begins from cpd-1a's closing-stage answer, not its declared-stage one. A
+design that only makes the expensive stage cheaper leaves a warm attempt
+that still diverges and is then escalated.
+
 **Who sees it.** A user whose fit runs away now waits with no end in sight,
 where 1.9.0 returned a bad Rwp in seconds. Cancelling is cooperative and read
 between residual evaluations, so it should take effect within one evaluation
@@ -117,8 +126,8 @@ with every parameter free and restarted from the previous answer
       `chained_all` rows (marked unmeasured on 1.10.0) re-measured
 - [ ] Notes for 1.10.1 (`docs/releases/`), and the 1.10.0 stated limit
       withdrawn from the skill
-- [ ] Skill: the stated limit's row in `references/surprises.md` removed or
-      rewritten to what the fix does
+- [ ] Skill: the stated limit's bullet in `references/series.md` (beside
+      the quarantine rule) removed or rewritten to what the fix does
 
 ## Acceptance
 

@@ -235,6 +235,10 @@ Run the session-start ritual. The SessionStart hook's report
      second entry path the prompt left out. Restate each memory
      rule that bears on the item in a line, and always this one: a foreground
      command running past about 8 minutes kills the lane, so background it.
+     A lane that runs suites or probes keeps its own context small: each log
+     goes to a file, only the numbers come back, a `CHECKPOINT.md` records
+     what is measured, and it reports once past 300K. WP-2043's VALIDATION
+     lane read its logs whole and reached 813K before anyone saw it.
      Give the acceptance as the fast selection for the touched area, never the
      full suite. Tell it to leave git and the WP file alone, and to end with a
      short report: files changed, tests run with their counts, and
