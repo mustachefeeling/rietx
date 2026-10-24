@@ -88,6 +88,13 @@ def test_a_joint_fits_histogram_scope_is_read_through():
     assert level_under(scoped, "qpa") == "info"
 
 
+def test_a_named_variable_bears_on_every_purpose():
+    """A ``vars.`` name drives paths the record cannot show (WP-1342), so a
+    finding on one is never read as outside a purpose."""
+    driven = _d("FLOOR_HIT", ["vars.shared_b"])
+    assert {level_under(driven, p) for p in PURPOSES} == {"warning"}
+
+
 def test_an_unknown_purpose_is_refused_by_name():
     with pytest.raises(ValueError, match="'phase_id'"):
         level_under(FAP["FLOOR_HIT"], "cells")

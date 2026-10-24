@@ -1427,11 +1427,15 @@ _PATH_ROOTS = ("phases.", "instrument.", "vars.", "hist.")
 def _bears_on(path: str, globs: tuple[str, ...]) -> bool:
     """Whether a ``where`` path names a parameter one of ``globs`` matches, or
     an object holding one: ``phases.0.atoms.0`` is the whole site, so a glob
-    over its coordinates matches it once cut to the path's own depth."""
+    over its coordinates matches it once cut to the path's own depth.  A
+    ``vars.`` name bears on every purpose, because which paths it drives is
+    a fact of the table, not of the record (WP-1342's blind spot)."""
     from fnmatch import fnmatchcase
 
     if path.startswith("hist."):
         path = path.split(".", 2)[2] if path.count(".") >= 2 else path
+    if path.startswith("vars."):
+        return True
     depth = path.count(".") + 1
     return any(fnmatchcase(path, g) or fnmatchcase(path, ".".join(g.split(".")[:depth]))
                for g in globs)
