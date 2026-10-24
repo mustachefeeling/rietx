@@ -2,8 +2,8 @@
 
 Milestone: unscheduled · Status: 🔄 2026-10-24 — claimed by @yue-here
 Track: The repo's own process
-Depends on: 1986 (the Guides tab complete)
-Priority: P4 2026-10-23 — links change no number, and the pages they would point at are still moving under WP-1986
+Depends on: 1986 soft (guides 18 and 24, new pages)
+Priority: P4 2026-10-24 — links change no number; WP-1986 gave every page its final address on 2026-10-22
 
 ## Goal
 
@@ -22,28 +22,15 @@ comes before it is explained or linked.
 - `tests/test_tutorials.py::test_a_tutorial_links_only_pages_the_manual_has` fails on a link
   to a page or anchor the manual does not have, so a link added here is checked.
 - WP-1986 is still moving Guides pages into the new tree. A link written before it lands may
-  point at a page that is about to move, which is why this WP waits for it.
+  point at a page that is about to move, which is why this WP waits for it. *Superseded in
+  part, 2026-10-24:* WP-1986 retired the old tree on 2026-10-22, so every page now has its
+  final address. What it still owes are two new guides, 18 and 24, which add pages and move
+  none. A concept whose only page would be one of those two is listed as having no page.
 - Edit each `examples/tutorials/NN_*.py` and rebuild with `build.py`. Never edit the
-  `.ipynb`.
-
-### Inherited
-
-- **2026-10-24, from WP-2039: two tutorial gaps no open WP owns, left here because this is
-  the next WP to edit the tutorials.** Fold each into a task or file it.
-  1. Notebook 03 no longer shows the indexer abstaining. Since WP-2002 removed the U, V and
-     Y width floors (`879fb1bcc`), its candidate validates with 0 of 105 reflections absent
-     and grades `high`, so the verdict line names the cell. Checked on an `origin/main`
-     snapshot (`e921947a0`), so it is not WP-2039's doing. WP-2039 rewrote the section to
-     what the output shows and gave the search `budget_seconds=120`, because at the 30 s
-     default a busy machine left svd unfinished and flipped the verdict to NO CELL. The
-     lesson "why the indexer abstains" now has no example in the tutorials.
-  2. `best.plot()` names no radiation, while `data.plot()` now does (WP-2039). A
-     `RefinementResult` carries no field naming its source, so `plot_result` can only
-     take `wavelength=`. Closing it needs a recorded field on the result, a schema
-     change.
-- **2026-10-24, from WP-2039: `build.py` now lists every cell whose text output a rebuild
-  changed, with the first line of the markdown under it.** Reread each one it lists before
-  committing a rebuild.
+  `.ipynb`. `build.py` lists every cell whose text output a rebuild changed, with the first
+  line of the markdown under it (WP-2039). Reread each one it lists before committing.
+- WP-2039 left two tutorial gaps that are not links. Both are filed: the indexer's
+  abstention has no worked example (WP-2041), and `best.plot()` names no radiation (WP-2042).
 
 ## Non-goals
 
