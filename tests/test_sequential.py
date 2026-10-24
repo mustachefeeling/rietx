@@ -114,11 +114,7 @@ def thermal_patterns():
 
 @pytest.fixture(scope="module")
 def thermal_series(thermal_patterns):
-    structure, ins = _start_models()
-    return refine_sequential(thermal_patterns, structure, ins,
-                             x=TEMPERATURES, x_label="T (K)",
-                             labels=[f"{int(t)}K" for t in TEMPERATURES],
-                             plan="mccusker_default")
+    return _thermal_series(thermal_patterns)
 
 
 @pytest.fixture(scope="module")
@@ -1153,6 +1149,74 @@ def test_only_a_converged_first_rung_becomes_evidence(thermal_patterns):
     none = run("max_iter")
     assert none[3].rungs_tried == ["warm"] and none[3].status == "max_iter"
     assert none[4].rungs_tried == ["warm"] and none[4].status == "max_iter"
+
+
+def chain_answer(series):
+    """Every number a chain reports, and which rung each pattern kept: per
+    pattern its values, esds, rungs, fence and codes, then the series' own
+    codes and steps.  The tree and node ids a history writes are names, not
+    answers, and are left out."""
+    entries = [(e.label, e.status, e.rung, tuple(e.rungs_tried), e.reseeded,
+                e.rwp_warm, e.rwp_fence, e.statistics.rwp,
+                [(p.path, p.value, p.stderr) for p in e.parameters],
+                [d.code for d in e.diagnostics])
+               for e in series.entries]
+    return entries, [d.code for d in series.diagnostics], series.discontinuities
+
+
+def first_rung_ratios(series):
+    """Each kept first rung's cost over the most expensive one before it.
+
+    Replays :func:`~rietx.sequential._first_rung_budget`'s sample from the
+    record: a warm pattern that kept its first rung reports that rung's
+    evaluations as ``n_iterations``, and only a *converged* one joins the
+    sample.  Once the sample holds :data:`~rietx.sequential.FIRST_RUNG_SAMPLES`
+    (the point the bound arms) every kept first rung gets a ratio, a
+    ``max_iter`` one included: that is the rung a bound would cut.
+    """
+    from rietx.sequential import FIRST_RUNG_SAMPLES
+
+    sample, ratios = [], []
+    for e in series.entries[1:]:
+        if e.rungs_tried == ["warm"]:
+            if len(sample) >= FIRST_RUNG_SAMPLES:
+                ratios.append(e.n_iterations / max(sample))
+            if e.status == "converged":
+                sample.append(e.n_iterations)
+    return ratios
+
+
+def _thermal_series(patterns, **kw):
+    structure, ins = _start_models()
+    return refine_sequential(patterns, structure, ins,
+                             x=TEMPERATURES, x_label="T (K)",
+                             labels=[f"{int(t)}K" for t in TEMPERATURES],
+                             plan="mccusker_default", **kw)
+
+
+@pytest.fixture(scope="module")
+def thermal_series_unbounded(thermal_patterns):
+    return _thermal_series(thermal_patterns, first_rung_factor=None)
+
+
+def test_the_first_rung_bound_moves_no_accepted_value(thermal_series,
+                                                      thermal_series_unbounded):
+    """`FIRST_RUNG_FACTOR` is answer-invariant here, and by how much (WP-2003).
+
+    Invariance is a measured margin, not a construction: a bound that cut a
+    *winning* first rung would keep the next rung's answer instead.  So two
+    things are asserted on the default plan's chain, the bound on and off:
+    every accepted value, esd, rung and code is equal, and every first rung
+    the unbounded chain kept cost less than the budget the bound would have
+    set at that point.  Measured 2026-10-24: three armed patterns, each at
+    1.0× the running maximum (15 evaluations against 15), so the bound sits
+    3× above every rung it could have cut.  The CPD chain's twin is in
+    `test_acceptance_sequential.py`.
+    """
+    assert chain_answer(thermal_series) == chain_answer(thermal_series_unbounded)
+    ratios = first_rung_ratios(thermal_series_unbounded)
+    assert ratios, "the bound armed on no pattern, so nothing was tested"
+    assert max(ratios) < FIRST_RUNG_FACTOR
 
 
 def test_an_unrecovered_pattern_seeds_nothing_and_joins_no_median(
