@@ -104,6 +104,7 @@ from .refine import (
     _phase_agreement,
     _phase_support_diagnostics,
     _quantify_phases,
+    _radiation,
     _reflection_tick_support,
     _refuse_without_phases,
     _reported_support_sigma,
@@ -1932,6 +1933,7 @@ class MultiHistogramRefinement:
                 y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
                 sigma=model.sigma.tolist(),
                 ticks=ticks, tick_hkl=tick_hkl,
+                radiation=_radiation(model, values),
                 qpa=qpa,
                 # per histogram, like the QPA and the absorption record above:
                 # the partition is of *this* pattern's counts, so a joint fit
@@ -2074,6 +2076,7 @@ class MultiHistogramRefinement:
             two_theta=histograms[0].two_theta, y_obs=histograms[0].y_obs,
             y_calc=histograms[0].y_calc, y_background=histograms[0].y_background,
             sigma=histograms[0].sigma, ticks=histograms[0].ticks,
+            radiation=histograms[0].radiation,
             qpa=histograms[0].qpa,
             # WP-1131: one block per phase, read off **histogram 0** — the
             # reference wavelength, whose value scale is exactly 1.0, so its

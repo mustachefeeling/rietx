@@ -4922,6 +4922,16 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "for peaks declared by their centre."
         ),
     ),
+    "RefinementResult.radiation": HelpEntry(
+        title="Radiation",
+        description=(
+            "The source the fit used: its kind and each emission line's wavelength at "
+            "the answer, primary first, so a refined wavelength is recorded as "
+            "refined. `RefinementResult.plot` names it on the 2θ axis. `None` means "
+            "not recorded, as in a result saved before the field existed."
+        ),
+        anchor="reference/figures.html#the-fit-figure",
+    ),
     "RefinementResult.qpa": HelpEntry(
         title="Weight fractions",
         description=(

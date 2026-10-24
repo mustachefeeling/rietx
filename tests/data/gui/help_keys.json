@@ -421,6 +421,7 @@
   "result_fields:RefinementResult.phase_agreement",
   "result_fields:RefinementResult.provenance",
   "result_fields:RefinementResult.qpa",
+  "result_fields:RefinementResult.radiation",
   "result_fields:RefinementResult.restraints",
   "result_fields:RefinementResult.sigma",
   "result_fields:RefinementResult.stages",
