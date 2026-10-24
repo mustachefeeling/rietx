@@ -1622,10 +1622,12 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_indexing",
-        "test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank",
+        "test_weak_impurity_lines_cost_the_certificate_its_rank_never_and_its_grade_only_a_notch",
         "srm660c", ("characterisation",),
-        "the contamination curve: k injected impurity lines cost the certified "
-        "cell its GRADE by arithmetic long before they cost it its RANK",
+        "the contamination curve: k weak injected impurity lines cost the "
+        "certified cell its RANK never and, since WP-1969, its GRADE only a notch "
+        "(medium by the line-count cap); six at the stronger half's "
+        "intensities still cost it the grade (low)",
         reference="Le Bail (2004) Powder Diffr. 19, 249 SS V states the "
                   "fractions -- under 35 % impurity lines by number the "
                   "correct cell is generally first, at 35-50 % it may be found "
@@ -1636,9 +1638,13 @@ CLAIMS: tuple[Claim, ...] = (
                   "parameters, this is one cubic lattice with one, and cubic "
                   "does not appear in that table",
         measured="the truth indexes EXACTLY its own 25 lines at every k and "
-                 "never an injected one, so indexed_fraction is 25/(25+k) and "
-                 "the 0.9 bar falls between k = 2 (0.926, high) and k = 3 "
-                 "(0.893, low on indexed_fraction_low).  Rank is far more "
+                 "never an injected one, so indexed_fraction is 25/(25+k), "
+                 "which crossed the 0.9 bar between k = 2 (0.926) and k = 3 "
+                 "(0.893) and refuted the truth while the caveat read the "
+                 "count.  Read on intensity (WP-1969) it is 0.93-1.00 through "
+                 "k = 6 and the truth is high at every k; six lines at the "
+                 "stronger half's intensities (26-27 % of the total) take it "
+                 "to 0.73-0.74, low on indexed_fraction_low at rank 1.  Rank is far more "
                  "robust than grade, and how robust depends on a budget the "
                  "user does not have -- first at k = 6/9/12/15/18 is "
                  "8/8, 8/8, 8/8, 2/8, 1/8 with n_unindexed = k and "
@@ -1676,8 +1682,11 @@ CLAIMS: tuple[Claim, ...] = (
                  "while predicted_seen_fraction reads 0.86 against 0.43, the "
                  "exact 1/2 an exact supercell must give (no c x 3 cell is "
                  "in the list any more; it read 0.32).  Still low on "
-                 "indexed_fraction_low (25/29) and "
                  "predicted_but_absent (1 of 29, the 6_3 screw); "
+                 "indexed_fraction_low, 0.89 of the lines, cleared with "
+                 "WP-1969, which reads the 0.98 of the intensity, and the "
+                 "line count under the bar is now the capping "
+                 "indexed_lines_low, so the grade is still low; "
                  "best_or_none() returns None.  RANK RE-MEASURED 2026-09-22 "
                  "(WP-1442): an a x 2 supercell had taken the rank on one extra "
                  "panel line, 34 against 33, and WP-1446 measured that the peak "
