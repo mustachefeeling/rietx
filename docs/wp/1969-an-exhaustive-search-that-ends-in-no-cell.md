@@ -1,6 +1,6 @@
 # WP-1969 — an exhaustive search that ends in no cell
 
-Milestone: unscheduled · Status: 🔄 2026-10-17 — PR #951 merged from outside (`ed1c1958`); three measured follow-ups remain
+Milestone: unscheduled · Status: 🔄 2026-10-24 — PR #951 (`ed1c1958`) and PR #1042 (`377c5724`) merged from outside; two measured follow-ups remain
 Track: What fires, and what stays silent
 Depends on: 1956 soft (the line screen, PR #941, may let the inlier rule become the default)
 Priority: P2 2026-10-14 — a defect that fires wrongly: a completed search abstains on a list with three or more stray lines, and raising the count returns oversized cells; declaring the count by hand is the workaround
@@ -89,7 +89,7 @@ second pass on the residue. Both are tasks below.
 - [ ] Follow-up, after WP-1956 lands: widen the retry's trigger or make the
       inlier rule the default, measured, with LaB6's certified cell kept at
       rank 1.
-- [ ] Follow-up: `indexed_fraction_low` on the intensity-weighted fraction
+- [x] Follow-up: `indexed_fraction_low` on the intensity-weighted fraction
       of the driven set, so a truth explaining most of the intensity is not
       capped by its own impurities.
 - [ ] Follow-up: a second pass on the residue, picked at the first cell's
@@ -118,6 +118,27 @@ rank 1. Every indexing acceptance row ranks as on `main`.
   the correct cell generally ranks first.
 
 ## Handover log
+
+- **2026-10-24** — PR #1042 merged (`377c5724`, review round 3), by `/pr-review`.
+  *Done*: the second follow-up. `indexed_fraction_low` now reads the share of the
+  usable lines' *intensity* a cell indexes (`indexed_intensity_fraction`, falling
+  back to the line count where there is none). A line count under the bar adds
+  the capping caveat `indexed_lines_low` (an `IndexCaveat` member, no new
+  field). On SRM 660c with three or six weak impurity lines the certified cell
+  goes from `low` to `medium`; no other indexing acceptance row changes grade.
+  `INDEXING_THRESHOLDS_VERSION` stays 1.11.
+  *Measured*: round 2 ran the slow rows of `test_acceptance_indexing.py`,
+  `test_peak_bounds.py` and `test_indexing_consensus.py` (20 passed); this round
+  the whole suite on a stack including it, and the fast selection on the final
+  stack `bb654fd0` (11 655 passed, macOS arm64).
+  *Gotchas*: `INDEX_MIN_INDEXED_FRACTION` now gates two verdicts, the refuting
+  caveat on intensity and the cap on count; its row is on
+  `UNAUDITED_BASELINE` and WP-2007 should see both roles. #993 (open) adds a
+  1.11 note at the same place in `schemas/indexing.py`; keeping both resolves it.
+  The rebase dropped the PR's tutorial 03 edits, since main had rewritten that
+  text and names neither caveat.
+  Next: the residue pass is #1043 (open, rebase requested 2026-10-24); the retry
+  follow-up waits on WP-1956.
 
 - **2026-10-14** — created, from the 2026-10-14 issue triage (issue #933).
   Checked against the tree at `ee589bab`: every symbol the issue names exists

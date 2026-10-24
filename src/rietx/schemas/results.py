@@ -437,10 +437,16 @@ class PhaseQuantity(Base):
     fine/medium powder regime µ·D ≤ 0.1 (D = 2R), i.e. µ·R ≤ 0.05 — beyond
     that the number travels with the answer so the fence diagnostic can point
     at it.
+
+    ``weight_fraction`` is ``None`` for a phase with no reflection in the
+    fitted range (WP-1958): its scale is the value handed in, so a number read
+    off it would be the caller's start.  Absent rather than zero, the rule its
+    esd already followed; :attr:`QuantitativePhaseAnalysis.unmeasured_phases`
+    names it.
     """
 
     name: str                                       # matches Phase.name / ticks key
-    weight_fraction: float                          # W, renormalised to sum to 1
+    weight_fraction: float | None                   # W over the measured phases; None: unmeasured (WP-1958)
     weight_fraction_stderr: float | None = None     # σ(W); None if scale esds absent
     scale: float                                    # S (refined phases.{i}.scale)
     z: int | None = None                            # formula units per cell (display)
@@ -547,11 +553,25 @@ class QuantitativePhaseAnalysis(Base):
     **crystalline** content.  An unmodelled amorphous fraction or a missing
     phase still makes them sum to 1.  Internal-standard / amorphous
     quantification is fenced to v2.
+
+    ``unmeasured_phases`` (WP-1958): the phases with no reflection in the
+    fitted range.  Each has no fraction, and the others sum to 1 over the
+    phases seen in range, so they are relative to those, not to the modelled
+    content; a specimen known to hold the unmeasured phase has no absolute
+    fractions from this range.  Empty when every phase was seen.
+    ``unmeasured_held`` says which of them a stage held with a line now in range.
     """
 
     phases: list[PhaseQuantity]
     method: Literal["zmv"] = "zmv"
     crystalline_only: bool = True
+    unmeasured_phases: list[str] = Field(default_factory=list)
+    #: the subset of ``unmeasured_phases`` left out because a stage **held**
+    #: the scale (a refined zero shift can bring a line into range after the
+    #: stage's compile), not because the answer has no line; the rest have
+    #: none.  The two read differently to a caller: widening the range helps
+    #: only the second (#1103).
+    unmeasured_held: list[str] = Field(default_factory=list)
 
     # Brindley microabsorption: the mixture-level record when the correction
     # ran, or the reason it was skipped when radii were supplied but the
@@ -1029,8 +1049,11 @@ class StageResult(Base):
     #: (WP-1301).  Disjoint from :attr:`freed` by construction — a held path is
     #: dropped from it — so the two together say exactly what refined.  Empty
     #: on every fit with no unsupported phase, which is every fit that is
-    #: working; the phase's own ``scale`` is never held, because that is how a
-    #: phase legitimately climbs out of the noise.
+    #: working; the phase's own ``scale`` is never held on its significance,
+    #: because that is how a phase legitimately climbs out of the noise — except
+    #: a phase with no reflection in the fitted range, whose scale column is
+    #: zero at every value and is held too (WP-1958), at any
+    #: ``phase_support_sigma``.
     #: Since WP-1342 these are **columns**, not names: a caller's ``vars.X``
     #: driving that cell is what stopped moving, and a path under
     #: ``phases.{ip}.`` need not appear here at all.  What each held column

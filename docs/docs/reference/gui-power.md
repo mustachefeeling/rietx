@@ -86,7 +86,7 @@ Document-level keywords:
 | `plan` | the plan preset name |
 | `tolerance` | the intermediate-stage convergence tolerance, or `none` |
 | `passes` | the Le Bail cap (`lebail_passes`); written only above 1, and absent means one pass |
-| `support` | the absent-phase hold's threshold in esds (`phase_support_sigma`), or `none` for no hold; written only away from 3, and absent means 3 |
+| `support` | the absent-phase hold's threshold in esds (`phase_support_sigma`), or `none` for no significance hold (a phase with no line in range is still held); written only away from 3, and absent means 3 |
 | `closing` | the closing stage's window area fraction (`closing_window_tol`), or `none` for no closing stage; always written, and absent means 1e-3 |
 | `stage` | one stage: its name, then `free` and a comma-separated glob list |
 | `phase` | opens a phase block: its index, then its name quoted |

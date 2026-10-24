@@ -361,7 +361,9 @@ class RefinementPlan:
     #: support, and no cell is windowed.  ``PHASE_UNCONSTRAINED`` still reports
     #: a phase under :data:`PHASE_SUPPORT_SIGMA`, whose structural parameters
     #: then refined without signal.  The default reproduces every fit before
-    #: the field, bit for bit.
+    #: the field, bit for bit.  A phase with no reflection in the fitted range
+    #: is held whole, scale included, at any value here, ``None`` too
+    #: (WP-1958): that is a count, not a significance call.
     phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
     #: the area fraction the closing stage's peak windows may drop (WP-2002,
     #: the sixth round's Q1 and Q2).  After the declared stages, one more

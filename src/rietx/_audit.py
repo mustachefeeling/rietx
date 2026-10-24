@@ -459,7 +459,6 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
     "rietx.schemas.results.RefinementResult.parametric_form_joint",
     "rietx.schemas.results.RefinementResult.phase_agreement",
     "rietx.schemas.results.RefinementResult.provenance",
-    "rietx.schemas.results.RefinementResult.qpa",
     "rietx.schemas.results.RefinementResult.restraints",
     "rietx.schemas.results.RefinementResult.sigma",
     "rietx.schemas.results.RefinementResult.stages",
@@ -831,17 +830,22 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 22
+    # action: 23
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
                   "FullProf and TOPAS hold nothing by default, TOPAS's Remove_Phase is opt-in "
                   "(Tech Ref V9 § 20.19); the collapse restore also appends here, and "
-                  "StageResult.collapsed says which (B14)"),
+                  "StageResult.collapsed says which (B14); WP-1958 (#954, decided "
+                  "2026-10-16): with no line in range the scale is held too, its column "
+                  "zero at every value (tier 1), and TRF walked bcc Fe's to 164.7 on "
+                  "WP-1534's fixture"),
         grounds=("No competent refiner lets a phase the data cannot see refine its cell, and the "
                  "hold touches only what the data cannot determine; on by default, which no "
-                 "program does (B1, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "program does (B1, ruled 2026-10-19). The lineless branch, which holds the "
+                 "scale, is tier-1 arithmetic (a zero column) inside a row tiered on its "
+                 "contested part."),
+        approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.scale_b_held", "action", tier=1, ambiguity=1,
         evidence=("numerical floor: under 2*sqrt(PINV_RCOND) the covariance's pinv cut cannot see "
                   "scale and B as two directions (WP-1534 derivation); measured cases read 1e-12 or"
@@ -1001,6 +1005,20 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in: Geometry.mu_r/mu_t or capillary_radius_mm/thickness_mm, default None "
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "
                   "Acta Cryst. A26, 682 (docstring)")),
+    Row("rietx.schemas.results.RefinementResult.qpa", "action", tier=1, ambiguity=1,
+        evidence=("arithmetic: a phase's scale is not measured where its column is zero at the "
+                  "answer (no reflection in the fitted range), or where the last stage held it "
+                  "(zero when that stage compiled; a refined zero shift can bring a line in by "
+                  "the answer), so the value is the one handed in "
+                  "and a fraction read off it is that start (WP-1958, #954, decided 2026-10-16): "
+                  "such a phase has no fraction (weight_fraction None, unmeasured_phases names it) and "
+                  "the others are normalised over the phases seen, absent rather than zero "
+                  "(WP-1072, WP-1110 item 14); before, TRF read 99.99 wt% iron off a walked "
+                  "scale and LM 0.61 wt%, the start; Brindley is skipped, its mean mu needing "
+                  "every fraction; the set is what the last stage held plus the answer's own "
+                  "no-line count, so a line a zero shift moved into range cannot quote the "
+                  "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
+                  "histogram that has lines counts as measured in every histogram (item 2)")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "
@@ -2652,6 +2670,27 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
+    Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
+        evidence=("#1016 review round 4 (2026-10-23), the maintainer's suggestion: q <= 12 "
+                  "holds 1/2, 1/3, 1/4, 1/6, 1/8 and 1/12. No tool surveyed reads a printed "
+                  "occupancy as a fraction: checkCIF FORMU01 alerts past a fixed 0.01 atom per "
+                  "formula unit, pymatgen's CifParser.check warns at 0.01 in implied Z, "
+                  "cod-tools' EstimateZ.pm compares ratios exactly (the seven Rietveld programs not "
+                  "checked); fails where the true q > 12 (1/16 printed 0.06 is read as written); "
+                  "tests/test_solve_chemistry.py"
+                  "::test_the_inventory_tolerance_scales_with_the_part_occupied_multiplicity"),
+        grounds=("Judgement ground: Composition.require is a gate on a model the caller "
+                 "supplies (the S2 engine writes occupancy 1.0 on every site it places), and "
+                 "it reads 0.33, 0.333 and 0.3333 as 1/3 and 0.5 as 1/2 only, so a "
+                 "two-decimal 1/3 site holds 64 on a 192-fold site at any formula unit "
+                 "(checkCIF's fixed 0.01 refuses it written as Cu2 at Z = 32) and a half "
+                 "site holds 96 and nothing in 87-105. The as-written sum still counts, so a "
+                 "formula that says 0.17 is met by 0.17. Mechanical ground: pending; three "
+                 "published part-occupied structures from unrelated laboratories and "
+                 "materials, each accepted at its published composition and refused when "
+                 "mis-stated, before a default path calls require. Approved on the "
+                 "judgement ground while only tests call it (ruled 2026-10-24)."),
+        approved="2026-10-24"),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("magnetic.py docstring: the Ba2FeSbSe5 pair sits 0.081 deg apart, inside 0.5 deg "

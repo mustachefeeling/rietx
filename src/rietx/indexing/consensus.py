@@ -644,9 +644,25 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
         out.append("validation_failed")
     elif cand.lebail.predicted_but_absent:
         out.append("predicted_but_absent")
-    fraction = cand.fom_value("indexed_fraction")
+    # read on the intensity the cell explains (WP-1969, #933): a cell's own
+    # weak impurity lines are not evidence against it by their count, and a
+    # missed strong line is evidence whatever the count.  The line fraction
+    # stays the reading for a panel built without the weighted member
+    fraction = cand.fom_value("indexed_intensity_fraction")
+    if fraction is None:
+        fraction = cand.fom_value("indexed_fraction")
     if fraction is None or fraction < min_indexed_fraction:
         out.append("indexed_fraction_low")
+    else:
+        # the ruling on the superstructure dissenter (yue-here, #1042): a
+        # sub-cell missing a superlattice explains every strong line and leaves
+        # weak ones, so it can pass on intensity, and from the line list alone a
+        # superlattice line and an impurity line look the same.  A line count
+        # under the same bar therefore caps the grade at ``medium`` (GSAS-II
+        # scores cells by count only: M20, X20), without refuting the cell
+        lines = cand.fom_value("indexed_fraction")
+        if lines is not None and lines < min_indexed_fraction:
+            out.append("indexed_lines_low")
     if not search_complete.get(cand.system, True):
         out.append("search_incomplete")
     if shift_allowance_assumed:
