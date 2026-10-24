@@ -113,6 +113,16 @@ open under the same track; neither tiers a gate.
       in; the eval fixtures that pin the version updated in the same commit.
 - [ ] Goldens re-pinned only if no further from reference; the FAP report golden and the
       slow NAC golden regenerated once, on the final tree.
+- [ ] A refused `allow` is reported, never dropped (ruled by the maintainer 2026-10-24,
+      `docs/milestones/generality.md` § The rule, clause 4). A caller's `levels=` map keeps
+      errors unlowerable, but today an `allow` on a diagnostic raised as an error is ignored
+      in silence. `schemas.results.diagnostic_view` gives that row `override=None`, and
+      `_diagnostic_header` counts only the rows a map set. Report it in the diagnostics
+      header beside "N set by levels=" (for example "1 allow refused: an error stays an
+      error"), in the three `summary()` methods and in `usable_under`'s docstring. A test
+      covers an `allow` on `MODEL_FAR_FROM_DATA`. The low-count case that makes this matter
+      (Rwp > 0.8 on a well-fitted pattern averaging under about 1.6 counts a channel,
+      inferred) is that code's threshold, which WP-2005 owns.
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
 - [ ] Skill: none here. List each `references/judging.md` (5 546 words) and
       `diagnostics-reading.md` row that names a demoted gate, for 2008 (DESIGN.md § Rules,

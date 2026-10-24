@@ -226,6 +226,9 @@ clauses give the aim teeth.
    override is the audit's caller class and needs no tier. It is passed with each call
    and kept by the caller, never read from a settings file, so a stored result's
    `usable` means the same on every machine (ruled 2026-10-24; WP-2037 § Decisions, 6).
+   It never lowers an error, since an error means the values are not to be read for any
+   purpose, and an `allow` it refuses is reported in the diagnostics header rather than
+   dropped (ruled 2026-10-24; built by WP-2004).
 
 **Demotion** moves an item to the kind of DESIGN.md § Rules, 1 its ambiguity belongs to.
 Where the alternatives are enumerable and the data score them, the result is a ranking with

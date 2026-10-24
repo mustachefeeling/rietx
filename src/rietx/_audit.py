@@ -3187,8 +3187,9 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.Refinement.summary:levels", "default", tier="caller", ambiguity=1,
         value=None,
         evidence=("opt-in: the caller's per-code override, {code: allow|warn|deny}, default None "
-                  "(the audited levels stand); never lowers an error, this WP's own choice beside "
-                  "clause 2's error for every purpose, put to the maintainer 2026-10-24")),
+                  "(the audited levels stand); never lowers an error, and a refused allow is to be "
+                  "reported, not dropped (the maintainer, 2026-10-24, generality.md clause 4; "
+                  "WP-2004 builds the report)")),
     Row("rietx.background.auto.auto_background:kind", "default", tier=3, ambiguity=2, value="pspline",
         evidence=("GSAS-II 5.8.4 defaults to a 3-term Chebyshev (GSASIIdataGUI.py:2207, "
                   "inventory check), TOPAS and FullProf to polynomials (recalled); WP-1454: the "
