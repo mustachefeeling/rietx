@@ -220,10 +220,14 @@ and 2045 on 2026-10-25):
       esd over 5× the clean one's (9.9× measured); the validation-matrix row says
       the esd reports the worse fit and measures no bias (McCusker 1999 §10,
       surveyed in `docs/practice.md`).*
-- [ ] Tests: each fix has a test that fails before it, and the 1e-14 nudge is the
-      local check for every platform split.
-- [ ] Skill: none expected, since these fix tests, CI and one esd. If the `qpa` esd
-      changes, check `references/` for a quoted QPA esd.
+- [x] Tests: each fix has a test that fails before it, and the 1e-14 nudge is the
+      local check for every platform split. *Each change here is to a test, and
+      each was checked at the nudged starts that failed it: the null at 12, the
+      lab6 row at 49 pairs, `moment` at 10. The Windows limit has no test; its
+      evidence is the job-time table in the handover entry.*
+- [x] Skill: none expected, since these fix tests, CI and one esd. If the `qpa` esd
+      changes, check `references/` for a quoted QPA esd. *None: no package
+      behaviour changed here. WP-2049 and WP-2050 each carry their skill row.*
 
 ## Acceptance
 
