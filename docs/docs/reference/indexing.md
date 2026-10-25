@@ -464,8 +464,9 @@ The middle one is the classic doubled-cell false positive, which is why validati
 
 The fit holds the cell.
 The candidate is the hypothesis under test, and letting it walk would validate a different cell from the one reported.
-It frees the background and exactly one peak-position parameter chosen from the candidate's own shift template (the zero shift by default, and always on a geometry other than Bragg-Brentano).
-The profile is frozen at the peak list's measured width, shared by every candidate, so a wrong cell cannot broaden a neighbour to cover a line it does not explain.
+It frees the background, then exactly one peak-position parameter chosen from the candidate's own shift template (the zero shift by default, and always on a geometry other than Bragg-Brentano), then `W`, then `U`, `V`, `X` and `Y` together.
+When the declared instrument's widths disagree with the picked lines', `W` starts from the lines' median FWHM.
+`freeze_profile=True` drops the two width stages and keeps the profile at the peak list's measured width, shared by every candidate, so a wrong cell cannot broaden a neighbour to cover a line it does not explain.
 The fit is single-phase, a measured constraint rather than a simplification: Le Bail partitioning has nothing to arbitrate two phases claiming the same channel.
 
 The test runs on the checked candidates only: the top `check_top`, plus every candidate every engine found, since those are the only ones the gate could promote.

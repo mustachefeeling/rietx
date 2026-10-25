@@ -206,6 +206,12 @@ def test_a_resolved_split_is_refuted_and_an_unresolved_one_is_a_tie(tet):
     truth's own line set, has no extra, and is undecided.  Refuting the
     unresolved split is the reading that would refute the resolution
     constant; at 0.5 FWHM it did.
+
+    Seed 2 is the worked example, where the resolved split reads ``refuted``.
+    That reading is not every draw's: across Poisson seeds 1–8 it is ``refuted``
+    on four (2, 4, 5, 6) and ``undecided`` on four (1, 3, 7, 8), one or two of
+    its seven extras landing on a pick by chance — the property of k ≤ n·p₀
+    when n·p₀ < 1.  What holds on every draw is pinned by the next test.
     """
     from rietx.indexing.screen import containment_evidence
 
@@ -222,6 +228,40 @@ def test_a_resolved_split_is_refuted_and_an_unresolved_one_is_a_tie(tet):
             assert ev.n_extra == 0 and ev.verdict() == "undecided"
     assert unresolved.seen_fraction == pytest.approx(truth.seen_fraction)
     # the ordinary index-2 supercell is still refuted, as WP-1449 did
+    doubled = containment_evidence(pattern, s["tP c x2"], truth)
+    assert doubled is not None and doubled.verdict() == "refuted"
+    assert (doubled.relation, doubled.index) == ("sublattice", 2)
+
+
+@pytest.mark.parametrize("seed", range(1, 9))
+def test_a_split_reads_the_same_on_every_poisson_draw(seed):
+    """P2/N2 across Poisson seeds 1–8 (Yue's ruling, 2026-10-24): what holds on
+    every draw, not the one a seed happens to give.  The resolved split is
+    never ``supported`` (``refuted`` on seeds 2, 4, 5, 6; ``undecided`` on
+    1, 3, 7, 8) and sees about half its lines against the truth's all, a
+    reading taken at ``RESOLUTION_FWHM`` too, so it still catches a resolution
+    constant grown large enough to merge the partners.  The unresolved split
+    holds every assertion of the seed-2 test on all eight draws, and the c × 2
+    cell is ``refuted`` as a ``sublattice`` of index 2 on all eight."""
+    from rietx.indexing.screen import containment_evidence
+
+    data = _synth(_TET, 1.0e6, 5000.0, seed)
+    ins = _instrument()
+    peaks = pick_peaks(data, ins, two_theta_range=LIM)
+    pattern, s = _screens(data, ins, peaks, TET_CELLS)
+    truth = s["truth tP"]
+    assert truth.seen_fraction == pytest.approx(1.0)
+    resolved = containment_evidence(pattern, s["oP resolved split"], truth)
+    assert resolved is not None and resolved.verdict() in ("refuted", "undecided")
+    assert resolved.n_extra >= 5 and resolved.n_seen <= 2
+    assert 0.4 < s["oP resolved split"].seen_fraction < 0.7
+    unresolved = s["oP unresolved split"]
+    assert unresolved.n_lines <= truth.n_lines
+    for child, parent in ((unresolved, truth), (truth, unresolved)):
+        ev = containment_evidence(pattern, child, parent)
+        if ev is not None:
+            assert ev.n_extra == 0 and ev.verdict() == "undecided"
+    assert unresolved.seen_fraction == pytest.approx(truth.seen_fraction)
     doubled = containment_evidence(pattern, s["tP c x2"], truth)
     assert doubled is not None and doubled.verdict() == "refuted"
     assert (doubled.relation, doubled.index) == ("sublattice", 2)
