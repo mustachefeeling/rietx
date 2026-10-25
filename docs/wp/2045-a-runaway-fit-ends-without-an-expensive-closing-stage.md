@@ -263,6 +263,10 @@ climb to the 512 cap, and each new count misses the `leggauss` cache
 `chained_all`-shaped chain in the same `qpa-sample1` group. Both chains cost
 1 h 17 min on that machine, so the nightly's 150-minute limit counts both.
 
+### Inherited
+
+- **From WP-2036 (2026-10-25): the first nightly after #1161 is in, and it is this WP's last acceptance line.** Run 40184228951 on `deff4c301`: the Linux `full` job completed in 2:05:47 (4 failed / 12 157 passed / 218 skipped / 41 xfailed), and `test_acceptance_sequential.py` is absent from the 25 slowest rows. Two of the four red rows moved with #1161 on Linux and were reproduced on an arm64 Mac by 1e-14 nudges. (a) The planted series' blank frame now sometimes accepts its warm rung and refines zero shift and U..Y against noise, which flags a zero-shift step at 86→87: filed as WP-2049. (b) The alarm pin this WP re-wrote on the Mac reads +0.75 warnings per result on Linux: all six extra are brucite's `HIGH_CORRELATION` against a flat triple (`gauss_size`, `gauss_strain`, `w`, esds about 1124), a count rounding moves from 35 to 42, filed as WP-2050. Neither is a reason to revisit option 5. The pin cannot be re-written to hold on both platforms until WP-2050 lands.
+
 ## Non-goals
 
 - Restoring the 0.2 ceilings, or any limit B9 removed. That was ruled.
