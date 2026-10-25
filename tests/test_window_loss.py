@@ -148,3 +148,16 @@ def test_the_vectorised_node_count_is_the_compiles(sl, hl, closing):
     want = [fcj_node_count(float(a), float(b), sl, hl, closing=closing)
             for a, b in zip(tt.ravel(), fw.ravel(), strict=True)]
     assert got.tolist() == want
+
+
+@pytest.mark.parametrize("tol", [WINDOW_AREA_TOL, CLOSING_WINDOW_TOL, 1e-3, 5e-5])
+def test_the_tabled_window_multiple_is_the_compiles(tol):
+    """``window_fwhm_mult_interp`` (rewindow's) is within 2e-5 of
+    ``window_fwhm_mult`` (the compile's), relative, over η uniform on [0, 1]
+    and log-uniform down to 1e-9, where k turns at η ~ tol (WP-2051)."""
+    from rietx.model.forward import window_fwhm_mult, window_fwhm_mult_interp
+    rng = np.random.default_rng(0)
+    eta = np.concatenate([rng.random(2000), 10.0 ** rng.uniform(-9.0, 0.0, 2000),
+                          [0.0, 1.0]])
+    want = window_fwhm_mult(eta, tol)
+    assert np.max(np.abs(window_fwhm_mult_interp(eta, tol) / want - 1.0)) < 2e-5

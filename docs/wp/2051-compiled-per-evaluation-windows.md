@@ -78,6 +78,30 @@ compiled kernel is not reached by any part. A compiled kernel is the expensive r
 floor, and the numpy fallback kept exercised (root CLAUDE.md § the compiled
 tier, its four rules). Only the part numpy cannot vectorise goes there.
 
+**The fast resizing, measured 2026-10-25** (task 2). `forward.window_sizing`
+is `rewindow`'s loop with k(η) read off a table built once per window
+tolerance (`window_fwhm_mult_interp`: 8193 nodes, uniform plus geometric
+toward η = 0, within 1.2e-5 of the bisection; `test_window_loss.py` holds it
+to 2e-5 at four tolerances). `compile_model` keeps the bisection, so no
+compiled window and no golden moves. Probe 9
+([`2051-batch/probe9.py`](2051-batch/probe9.py)) is probe 7 with that sizing;
+probe 7's `sync` already rebuilt the layout only for a phase that moved. Same
+machine, alone, median of 5 interleaved pairs:
+
+| | NAC | LaB6 | Fluorapatite | cpd-1a |
+|---|---|---|---|---|
+| `window_sizing`, ms a call (the bisection's loop: 0.86-2.49) | 0.08 | 0.09 | 0.13 | 0.16 |
+| Layouts a sync rebuilds, ms a call (median) | 0.003 | 0.016 | 0.29 | 0.10 |
+| Resizing seconds a fit (probe 7: 0.12, 0.21, 0.35, 1.25) | 0.03 | 0.05 | 0.13 | 0.27 |
+| Fit time ratio (probe 7: 1.24, 1.63, 1.66, 2.08) | 1.05 | 1.29 | 1.48 | 1.49 |
+| Evaluations, shipped → per evaluation | 46 → 49 | 90 → 110 | 49 → 83 | 175 → 216 |
+
+So the resizing is no longer the cost. What remains is the extra evaluations,
+which the taper is for: with the resizing taken out the ratio is 1.0, 1.19,
+1.38 and 1.32. Not done, and why: no compiled kernel, since no part is near
+0.5 ms; no batching across phases and lines, since a line now costs ~20 µs.
+Answers match probe 7's (cpd-1a's 0.99 esd on `profile.v`, the second minimum).
+
 **What a real implementation must settle** (from probe 7, all unmeasured):
 - a policy for LM trial points far from the start, since each now builds
   its own windows (one cpd-1a trial at `axial_sl` 1096 built 17.8× the
@@ -136,7 +160,7 @@ needed, `optimize/least_squares.py` (the closures), `docs/wp/2047-batch/`
 
 - [x] Profile one resize on the four protocols: milliseconds by part
       (`phase_peaks`, sizing, node counts, layout), per phase and line
-- [ ] Vectorise what numpy can (across phases and lines, the layout build);
+- [x] Vectorise what numpy can (across phases and lines, the layout build);
       re-measure; a compiled kernel only for what remains above ~0.5 ms a
       call, under the compiled tier's four rules
 - [ ] A tapered window edge, opt-in on the compile: the cost made

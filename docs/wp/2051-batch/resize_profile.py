@@ -1,7 +1,8 @@
 """WP-2051 task 1: where one resize's time goes, by part, per phase and line.
 
 Runs probe 7's perEval fit once, recording every sizing call's (model, values),
-then times each part of ``forward.rewindow``'s loop on up to NS evenly spaced
+then times each part of ``forward.rewindow``'s loop (and the whole of
+``forward.window_sizing``, its tabled k(η), with the layouts a sync rebuilds) on up to NS evenly spaced
 calls (min of REP repeats each).  Prints one JSON line.
 
     OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2051-batch/resize_profile.py . FAMILY
@@ -99,6 +100,10 @@ def parts(model, values):
         t["equal"] += g
     tr, _ = tmin(lambda: fw.rewindow(model, values))
     t["rewindow_whole"] = tr
+    t["window_sizing"], sized = tmin(lambda: fw.window_sizing(model, values))
+    t["sync_layouts"] = tmin(lambda: [
+        fw._batch_layout(w, f, tt) for (w, f), cp in zip(sized, model.phases)
+        if not (np.array_equal(w, cp.win) and np.array_equal(f, cp.fcj_n))])[0]
     return t, per
 
 

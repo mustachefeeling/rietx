@@ -35,6 +35,7 @@ Differentiability invariants honoured here (see docs/DESIGN.md):
 
 from __future__ import annotations
 
+import functools
 import math
 from dataclasses import dataclass, field, replace
 
@@ -267,6 +268,33 @@ def window_fwhm_mult(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
         hi = np.where(too_wide, mid, hi)
         lo = np.where(too_wide, lo, mid)
     return hi
+
+
+@functools.lru_cache(maxsize=16)
+def _fwhm_mult_table(tol: float) -> tuple[np.ndarray, np.ndarray]:
+    # a uniform grid for η near 1, a geometric one for the knee at η ~ tol,
+    # where k turns from the Gaussian value to η/(π·tol) (WP-2051)
+    eta = np.unique(np.concatenate([np.linspace(0.0, 1.0, 4097),
+                                    np.geomspace(1e-9, 1.0, 4096)]))
+    k = window_fwhm_mult(eta, tol)
+    eta.flags.writeable = k.flags.writeable = False
+    return eta, k
+
+
+def window_fwhm_mult_interp(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
+    """:func:`window_fwhm_mult` read off a table built once per ``tol``.
+
+    For :func:`rewindow`, which sizes at every call it gets and spent 70-88 %
+    of its time in the bisection: 60 steps of a few numpy calls each, so
+    ~0.36 ms per phase and emission line whatever the reflection count
+    (WP-2051).  Linear interpolation on the table's 8193 nodes is within
+    1.2e-5 of the bisection's k, relative, at tolerances 0.02, 1e-3 and 5e-5
+    (40 000 η, measured 2026-10-25).  ``compile_model`` keeps the bisection,
+    so no compiled window moves.
+    """
+    tol = WINDOW_AREA_TOL if tol is None else tol
+    grid, k = _fwhm_mult_table(float(tol))
+    return np.interp(np.clip(np.asarray(eta, dtype=np.float64), 0.0, 1.0), grid, k)
 #: quadrature nodes are sized as if the axial S/L, H/L were at least this
 #: large.  Applied **by value** whenever either is positive, so that
 #: ``predict()`` at given values does not depend on which parameters are free
@@ -4250,20 +4278,17 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     )
 
 
-def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
-    """``model`` with its windows and FCJ node counts sized at ``values``.
+def window_sizing(model: CompiledModel, values: dict[str, float]
+                  ) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Each phase's (windows, FCJ node counts) sized at ``values``.
 
-    Everything else is the compile's: the reflection list, the sites and
-    every frozen correction.  The sizing is ``compile_model``'s rule, a
-    half-width of k(η)·Γ plus the slack, plus the FCJ extent while the
-    aberration acts.  It reads the peaks the forward model draws at
-    ``values`` (``phase_peaks``) where the compile reads its own width
-    estimate, so the two agree to that estimate's ~1 % and not to the bit.
-    The magnetic family and the extra peaks keep their windows.
-
-    The copy is a new frozen model.  A solve running on ``model`` never sees
-    it, so frozen-per-stage discreteness holds (WP-2047, where a stage asks
-    what its frozen windows drop at its answer: ``window_loss``).
+    ``compile_model``'s rule: a half-width of k(η)·Γ plus the slack, plus the
+    FCJ extent while the aberration acts.  It reads the peaks the forward
+    model draws at ``values`` (``phase_peaks``) where the compile reads its
+    own width estimate, so the two agree to that estimate's ~1 % and not to
+    the bit; k(η) comes off :func:`window_fwhm_mult_interp`'s table.  The
+    arrays have the compile's shapes, so a caller can compare them with
+    ``CompiledPhase.win`` and ``.fcj_n`` before building anything.
     """
     tol = model.window_area_tol
     sl = float(values.get("instrument.geometry.axial_sl", 0.0))
@@ -4275,14 +4300,14 @@ def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
     fcj_on = fcj_live(sl, hl)
     closing = tol <= CLOSING_WINDOW_TOL or tol < WINDOW_AREA_TOL
     tt = np.asarray(model.tt, dtype=np.float64)
-    phases = []
+    out = []
     for ip, cp in enumerate(model.phases):
         win = np.zeros_like(cp.win)
         fcj_n = np.zeros_like(cp.fcj_n)
         for il, (pos, w1, w2, _) in enumerate(model.phase_peaks(ip, values)):
             pos = np.asarray(pos, dtype=np.float64)
             gamma, eta = model.peak_gamma_eta(w1, w2)
-            half = window_fwhm_mult(eta, tol) * gamma + model.window_slack_deg
+            half = window_fwhm_mult_interp(eta, tol) * gamma + model.window_slack_deg
             if fcj_on:
                 half = half + fcj_extent_deg(pos, sl, hl)
             valid = np.isfinite(pos) & np.isfinite(half)
@@ -4292,10 +4317,27 @@ def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
                 live = valid & (i1 > i0)
                 fcj_n[il, live] = fcj_node_counts(pos[live], gamma[live], sl, hl,
                                                   closing=closing)
-        phases.append(replace(
-            cp, win=win, fcj_n=fcj_n, batch=_batch_layout(win, fcj_n, tt),
-            fcj_cache={} if (fcj_n.any() or cp.fcj_cache is not None) else None,
-            scalar_cache={}))
+        out.append((win, fcj_n))
+    return out
+
+
+def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
+    """``model`` with its windows and FCJ node counts sized at ``values``
+    (:func:`window_sizing`).
+
+    Everything else is the compile's: the reflection list, the sites and
+    every frozen correction.  The magnetic family and the extra peaks keep
+    their windows.
+
+    The copy is a new frozen model.  A solve running on ``model`` never sees
+    it, so frozen-per-stage discreteness holds (WP-2047, where a stage asks
+    what its frozen windows drop at its answer: ``window_loss``).
+    """
+    tt = np.asarray(model.tt, dtype=np.float64)
+    phases = [replace(cp, win=win, fcj_n=fcj_n, batch=_batch_layout(win, fcj_n, tt),
+                      fcj_cache={} if (fcj_n.any() or cp.fcj_cache is not None) else None,
+                      scalar_cache={})
+              for cp, (win, fcj_n) in zip(model.phases, window_sizing(model, values))]
     return replace(model, phases=phases)
 
 

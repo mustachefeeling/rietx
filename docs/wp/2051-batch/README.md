@@ -10,6 +10,7 @@ OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2051-batch/res
 
 | Script | What it measures | Run time, one run on 2026-10-25 |
 |---|---|---|
-| `resize_profile.py` | One resize's milliseconds by part (`phase_peaks` memo warm and cold, the k(η) bisection, bounds, FCJ extent and node counts, the batch layout, a whole `rewindow`), median over 40 sizing calls of probe 7's perEval fit | 5-15 s a family |
+| `resize_profile.py` | One resize's milliseconds by part (`phase_peaks` memo warm and cold, the k(η) bisection, bounds, FCJ extent and node counts, the batch layout, a whole `rewindow`, a whole `window_sizing` and the layouts a sync rebuilds), median over 40 sizing calls of probe 7's perEval fit | 5-15 s a family |
+| `probe9.py` | Probe 7, every mode, with its sizing replaced by `forward.window_sizing` (k(η) off the table) | as probe 7; `time` 5-25 s a family |
 
 These scripts are records, not tests. Nothing runs them.
