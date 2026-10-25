@@ -65,7 +65,12 @@ The **width twin hold** makes the carry policy matter: on CPD sample 1a-1h the c
 the widths but not the scales averages Rwp 0.1282 against 0.1256 carrying everything and 0.1258
 independent, a strict xfail in
 `tests/test_acceptance_sequential.py::test_warm_start_iteration_cost_is_reported`; the
-iteration saving stands (388 against 1218). The **held-out family** is the Nd₂Ru₂O₇ pair
+iteration saving stands (388 against 1218). Superseded in part 2026-10-25 (WP-2045, PR #1161,
+the last declared stage converged behind the closing stage): that xfail is gone, both chains
+reading mean Rwp 0.1282 against 0.1258 independent at 408 (restricted carry) and 655 (`carry=*`)
+iterations against 1255 (macOS arm64, `[dev]`); the kept first rungs fell to 0.064-0.080 of
+the running maximum, about 40× inside `FIRST_RUNG_FACTOR`, and every CPD pattern after 1a is
+kept on its warm rung. The **held-out family** is the Nd₂Ru₂O₇ pair
 (`tests/data/mg090*`), which no audit may use as evidence. Two of 2002's clash candidates
 reach the chain (`2002-batch/clashes.md`): B16, `multi.py`'s parametric test holding at-bound
 columns through `staged.bound_findings`, whose margin falls to 13/f if class B4 lands; and B7,
@@ -166,8 +171,6 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
 2026-10-24). No new topic, so no new reference.
 
 ### Inherited
-
-- **From WP-2045 (2026-10-25, PR #1161): the carry-policy xfail forwarded here is gone, and the first-rung ratios moved.** With the last declared stage converged behind the closing stage, `test_warm_start_iteration_cost_is_reported` passes: both chains read mean Rwp 0.1282 against 0.1258 independent, at 408 (restricted carry) and 655 (carry=*) iterations against 1255 (macOS arm64, `[dev]`). The strict xfail citing "carry=* 0.1256 … forwarded to WP-2003" was removed there. `test_the_first_rung_bound_moves_no_accepted_value` printed kept first-rung ratios 0.064-0.080 of the running maximum, against your 0.34-0.39 on Linux with cpd-1b's runaway in the chain, so the margin against `FIRST_RUNG_FACTOR` 3.0 is now about 40×. Every pattern after cpd-1a is kept on its warm rung, so the reseed fence's families here no longer include a runaway on this chain.
 
 ## Non-goals
 
