@@ -194,6 +194,12 @@ and 2045 on 2026-10-25):
       four now hold (2026-10-25, `deff4c301`, `[dev]`): the 150 K null and both
       axial-floor rows pass, and the three start rows that fail carry strict
       xfails citing WP-2002 or WP-2012. What remains is the Linux reading.*
+- [x] The extra-peaks ordering (Context, "Since 2026-10-24"). *Ruled by the
+      maintainer 2026-10-25: assert the inflated esd, not the ordering. The test
+      now asserts the declared cell within 20 ppm of clean and the ignored arm's
+      esd over 5× the clean one's (9.9× measured); the validation-matrix row says
+      the esd reports the worse fit and measures no bias (McCusker 1999 §10,
+      surveyed in `docs/practice.md`).*
 - [ ] Tests: each fix has a test that fails before it, and the 1e-14 nudge is the
       local check for every platform split.
 - [ ] Skill: none expected, since these fix tests, CI and one esd. If the `qpa` esd

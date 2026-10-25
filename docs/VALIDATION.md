@@ -115,11 +115,11 @@ WP-1103's design case on real data: the SRM 660c protocol, contaminated by injec
 
 `own_result` · dataset `srm660c`
 
-**Claims:** declaring a sharp intruder that overlaps sample peaks recovers the cell the same data gives when the intruder is not there; ignoring it costs the cell its precision, and since WP-2002 under a ppm of its value
+**Claims:** declaring a sharp intruder that overlaps sample peaks recovers the cell the same data gives when the intruder is not there; ignoring it inflates the cell's reported esd about tenfold, and since WP-2002 moves the cell under a ppm, which no assertion orders
 
-**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is the bias an unmodelled overlapping line adds, and the protocol's own +24 ppm offset from the certificate is common to every arm and cancels
+**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is what an unmodelled overlapping line does to the cell and its esd, and the protocol's own +24 ppm offset from the certificate is common to every arm and cancels
 
-**Measured:** declare -0.1 ppm against the clean arm, ignore -0.4 ppm (bar 20 ppm; the test asserts only that declaring is the closer); the ignore arm inflates the cell esd 9.9x (2.14e-05 -> 2.11e-04 A) and Rwp 4.4x (0.0874 -> 0.3837). The lines go in at the clean fit's ticks, which follow the displacement since WP-1908, 0.039 deg higher than before; 1.9.0 read -0.2 and +6.3 ppm and 10.1x, before WP-2002's width twin hold (#1113) moved the ignore arm's cell
+**Measured:** declare -0.1 ppm against the clean arm, ignore -0.4 ppm (bar 20 ppm on declare); the ignore arm inflates the cell esd 9.9x (2.14e-05 -> 2.11e-04 A) against a bar of 5x, and Rwp 4.4x (0.0874 -> 0.3837).  An esd scales with the misfit, so the inflation measures no bias (WP-2036). The lines go in at the clean fit's ticks, which follow the displacement since WP-1908, 0.039 deg higher than before; 1.9.0 read -0.2 and +6.3 ppm and 10.1x, before WP-2002's width twin hold (#1113) moved the ignore arm's cell
 
 **Diagnostics:** `EXTRA_PEAK_ON_REFLECTION`
 
