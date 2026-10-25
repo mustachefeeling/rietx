@@ -379,7 +379,23 @@ on about three of ten cores during the probes, idle during the module run).
   cpd-1a 0.0004, NAC 0.000, cpd-1a with zircon declared 0.009.
 - `test_staged_start_invariance.py`, `test_budget_and_tolerance_invariance.py`
   and `test_bound_hit_at_convergence.py`: 43 passed, 3 xfailed.
-- FAST_SUITE_PLACEHOLDER
+- The fast selection (`-m "not slow"`, `-n auto`): 2 failed, 11 672 passed,
+  272 skipped, 27 xfailed in 8:05, with nothing else running. Both failures
+  were this change's and are fixed: the handover log's `####` judge headings
+  (the session hook reads only dated headings there, so they are now bold
+  lines), and `examples/guides/path.py` (next bullet); each re-ran green. No
+  fast test was added (the new test is slow), so the fast total should match
+  main's.
+- **One cost the table did not show.** `examples/guides/path.py`'s planted
+  1.5 % cell jump at 700 K now breaks the warm start on *both* sides of the
+  step. The 800 K warm start, the step back down, now fails at Rwp 0.941 and
+  is fitted cold, where at 1e-6 it stopped short of that minimum and stayed
+  warm. Both end at Rwp 0.0395 and 0.0402, and the jump is still flagged at
+  the same pair. Ten starts nudged by 1e-14 gave the same rungs every time;
+  the 700 K first attempt's Rwp ranged 0.04-0.95 (Accelerate). So converging
+  the last declared stage can cost a series an extra cold fit after a real
+  discontinuity. The guide and its page now say so.
+- FULL_SUITE_PLACEHOLDER
 
 *Gotchas.*
 - A probe's emulation (a stage's own `ftol`) is inert on this tree, since
@@ -402,7 +418,7 @@ above instead.
 
 *Generality* (the `generality-review` judge, report pasted as given):
 
-#### `rietx.optimize.lm.FTOL`
+**`rietx.optimize.lm.FTOL`**
 
 **Verdict: holds for the edit, weak as a row.** The evidence for keeping 1e-9 is the stronger side. But this change gives the value a new job, and the row carries none of the evidence for that job.
 
@@ -420,7 +436,7 @@ Would change the verdict: WP-2017's 1e-8 and 1e-10 refits running the cpd-1a →
 
 *Author's answer:* the row now cites the new job, its one family and the new test (`d86504ea2`), and the 1e-8 refit on the pair went to WP-2017's Inherited.
 
-#### `rietx.schemas.plan.INTERMEDIATE_FTOL`, `PlanSpec:intermediate_ftol`, `StageSpec:ftol`, `StageResult.ftol`
+**`rietx.schemas.plan.INTERMEDIATE_FTOL`, `PlanSpec:intermediate_ftol`, `StageSpec:ftol`, `StageResult.ftol`**
 
 All four rows carry the same evidence string, so this one section covers them. INTERMEDIATE_FTOL is the constant. The two `Spec` rows are the defaults that apply it. `StageResult.ftol` is the action row for the schedule.
 
@@ -440,7 +456,7 @@ Would change the verdict: grounds rewritten to the current failing case and the 
 
 *Author's answer:* left for the maintainer, since the grounds and the approval date are the ruling's record. This entry's Next puts it to them.
 
-#### `RefinementPlan.stage_ftols`: the last declared stage converges (not seen by the table)
+**`RefinementPlan.stage_ftols`: the last declared stage converges (not seen by the table)**
 
 **Verdict: holds.** No new row is needed. The case for the rule is strong: a measured runaway, removed at a measured cost of 1.04-1.07×. Its place in the table is the `StageResult.ftol` action row, and that row's grounds do not yet cite the ruling.
 
@@ -458,8 +474,10 @@ Would change the verdict: a second family where the last declared stage stops on
 
 *Author's answer:* the `StageResult.ftol` grounds now cite the 2026-10-24 ruling (`d86504ea2`).
 
-Next: the maintainer, on the four schedule rows' grounds (the judge's
-second section). They still argue from the zircon failing case, which now
+Next: the maintainer, on two things. First, the path guide's extra cold
+fit (Measured, "One cost the table did not show"): an answer-neutral cost,
+recorded and not acted on. Second, the four schedule rows' grounds (the
+judge's second section). They still argue from the zircon failing case, which now
 passes at 0.009; the failing case is LaB6's mirrored minima, which is
 WP-2012's. Rewriting them and re-dating the approval is the maintainer's
 call. Then, after #1161 merges, read the first nightly `full` job: it is
