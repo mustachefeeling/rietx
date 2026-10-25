@@ -1490,7 +1490,23 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.trial_error.SOLVE_CHUNK", "constant", value=200000),
     Row("rietx.indexing.workflow.ABSENT_SIGMA", "constant", value=3.0),
     Row("rietx.indexing.workflow.ABSENT_WINDOW_FWHM", "constant", value=0.5),
-    Row("rietx.indexing.workflow.RESIDUE_MISFIT_RATIO", "constant", value=1.0),
+    Row("rietx.indexing.workflow.RESIDUE_MISFIT_RATIO", "constant", tier=3, value=1.0,
+        evidence=("index_residue flags a residue pick `residue_misfit` when the subtracted "
+                  "first-cell profile under it exceeds RESIDUE_MISFIT_RATIO times the pick's own "
+                  "height (strictly greater; a pick of zero height is flagged on any profile "
+                  "under it). A flagged pick stays usable and is charged to the grade, but never "
+                  "drives the search. Measured on two synthetic pairs (PR #1043, Si + MgO at "
+                  "scales 0.05, 0.1, 0.3 and Si + NaCl at 0.1): MgO's own lines stood on at most "
+                  "1.22 (scale 0.05, one line flagged), 0.54 (0.1) and 0.17 (0.3) of their "
+                  "height of Si profile, NaCl's on at most 0.08; the first-version misfit picks "
+                  "stood on 5-60 times their own height"),
+        grounds=("rietx's own choice; no program or paper default to rest it on. Measured on two "
+                 "synthetic pairs only, no real two-phase family. At the edge a true "
+                 "second-phase line on a first phase's flank is flagged (MgO at 0.05, ratio "
+                 "1.22): it is scored but cannot drive, which can cost it its rank; the ratio "
+                 "does not separate misfit picks from picker junk where it sits. Unanimity: the "
+                 "dissenter (a minor phase on a major phase's flank) is served because the line "
+                 "stays, flagged and graded, rather than dropped")),
     Row("rietx.indexing.workflow.VALIDATION_METRIC_REL", "constant", value=0.01),
     Row("rietx.indexing.workflow.VALIDATION_SLACK_BOUNDS_DEG", "constant", value=(0.3, 6.0)),
     Row("rietx.io.formats.base.HEAD_BYTES", "constant", value=4096),
@@ -4238,7 +4254,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.indexing.trial_error.SOLVE_CHUNK",
     "rietx.indexing.workflow.ABSENT_SIGMA",
     "rietx.indexing.workflow.ABSENT_WINDOW_FWHM",
-    "rietx.indexing.workflow.RESIDUE_MISFIT_RATIO",
     "rietx.indexing.workflow.VALIDATION_METRIC_REL",
     "rietx.indexing.workflow.VALIDATION_SLACK_BOUNDS_DEG",
     "rietx.indexing.workflow.index_pattern:cancel",
