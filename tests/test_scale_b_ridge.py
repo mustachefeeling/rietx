@@ -968,3 +968,46 @@ def test_a_held_variable_driving_a_cell_is_still_structural():
         structure, [held])
     assert "Its 1 structural parameter was held for stage s." in finding.message
     assert "Its scale was held" not in finding.message
+
+
+def test_per_histogram_scales_tied_to_one_variable_are_quoted_everywhere():
+    """A constant ``ParametricEquation`` on iron's scale ties each pattern's
+    own scale to ``vars.S_fe_0``, which the wide scan measures, so the narrow
+    histogram's scale is the wide scan's measurement as a shared one is.  It
+    left iron out under the tie and quoted it under ``SharingMap.shared``."""
+    from rietx.multi import MultiHistogramRefinement
+    from rietx.schemas.parametric import ParametricEquation
+
+    structure, instrument = _models(START_SCALES)
+    narrow = _wide_pattern(TT_NARROW)
+    wide = _wide_pattern(np.arange(25.0, 90.0, 0.02))
+    stages = [Stage(s.name, [*s.turn_on, "vars.*"]) for s in SCALES_ONLY]
+    multi = MultiHistogramRefinement(
+        structure, [instrument.model_copy(deep=True) for _ in range(2)],
+        parametric=[ParametricEquation(name="S_fe", target=FE_SCALE,
+                                       basis="constant")])
+    res = multi.fit([narrow, wide], plan=RefinementPlan(stages=stages))
+    assert all("vars.S_fe_0" in sr.freed and sr.held == [] for sr in res.stages)
+    for hist in res.histograms:
+        assert hist.qpa.unmeasured_phases == []
+        (iron,) = [q for q in hist.qpa.phases if q.name == "iron"]
+        assert iron.weight_fraction is not None
+
+
+def test_a_variable_no_histogram_with_a_line_reaches_measures_nothing():
+    """The negative arm: the same tie over two narrow scans, neither with a
+    line of iron.  The stages hold the variable, and neither histogram
+    quotes iron."""
+    from rietx.multi import MultiHistogramRefinement
+    from rietx.schemas.parametric import ParametricEquation
+
+    structure, instrument = _models(START_SCALES)
+    narrow = _wide_pattern(TT_NARROW)
+    stages = [Stage(s.name, [*s.turn_on, "vars.*"]) for s in SCALES_ONLY]
+    multi = MultiHistogramRefinement(
+        structure, [instrument.model_copy(deep=True) for _ in range(2)],
+        parametric=[ParametricEquation(name="S_fe", target=FE_SCALE,
+                                       basis="constant")])
+    res = multi.fit([narrow, narrow], plan=RefinementPlan(stages=stages))
+    assert all("vars.S_fe_0" in sr.held for sr in res.stages)
+    assert [h.qpa.unmeasured_phases for h in res.histograms] == [["iron"]] * 2
