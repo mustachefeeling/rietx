@@ -28,6 +28,26 @@ other setting at the family's own protocol:
     worse later rung does not displace keeps escalating to the last rung.
     ``fit`` has no such switch, so the arm wraps
     :func:`rietx.sequential._reseed_needed` for its own run alone.
+``status_runaway``
+    as ``status``, and the ladder also escalates while its best attempt so
+    far carries a ``CELL_RUNAWAY`` diagnostic, from any of its stages (batch.md
+    C1, option (iii); added the third session, 2026-10-25).  The same wrapper
+    as ``status_maxiter``, asked about ``RefinementResult.diagnostics``
+    instead of ``.status``; ``_reseed_needed`` has one call site, in
+    ``SequentialRefinement._chain``, looked up as a module global at call
+    time, so the wrapper reaches the forward and the backward pass.
+
+Two arms put the first-rung bound aside (WP-1127, ``first_rung_factor``,
+default :data:`rietx.sequential.FIRST_RUNG_FACTOR`), each to be read against
+the arm it differs from by that alone (clashes.md X1, X2):
+
+``on_nobound``
+    as ``on``, with ``first_rung_factor=None``.
+``off_nobound``
+    as ``off``, with ``first_rung_factor=None``: the one arm with no
+    escalation of any kind, since ``reseed=False`` declines the fence and the
+    status, and with no bound no first rung is truncated, so ``forced`` never
+    fires.
 
 and one reference arm, ``ref``: every pattern fitted cold and alone, as
 ``SequentialRefinement(...).fit([pattern])`` from the chain's own initial
@@ -38,7 +58,9 @@ weighed composition; the synthetic families add their simulated truth.
 
 The families (:data:`FAMILIES`), each at its own test's or example's protocol:
 ``cpd`` (IUCr CPD sample 1a-1h, ``chained_all``), ``cpd-noclose`` (the same
-with ``plan.closing_window_tol = None``, a declared variant), ``planted`` and
+with ``plan.closing_window_tol = None``, a declared variant), ``cpd-ftolnone``
+(the same with ``plan.intermediate_ftol = None``, closing stage on: clashes.md
+X13's open arm, a declared variant), ``planted`` and
 ``planted-null`` (``tests/planted_series.py``, 248 patterns), ``trigger``
 (``examples/bench_refinement.py``'s ``_trigger_series``), ``cr2wo6`` (the
 HB-2A 4 K/150 K pair of ``tests/test_magnetic_series.py``) and
@@ -70,7 +92,10 @@ compared on its own (moved past 1e-6 relative), and the family's anchored
 coordinate DOFs (``ParameterTable.anchored_dof_paths``, recorded per run) are
 left out: such a DOF is a displacement from where its own fit began, so the
 absolute coordinate rows are compared instead.  ``--annotate`` adds that
-list to a JSON written before the field existed.
+list to a JSON written before the field existed.  An arm that differs from
+another by one switch is also compared against that one (:data:`PAIRED`), and
+a declared variant family against its base family arm by arm
+(:data:`VARIANT_OF`), with the base's esd.
 
 How to run (from the repository root; ``[dev]`` extras suffice)::
 
@@ -132,24 +157,45 @@ ARMS = {
     "status": {"reseed": True, "reseed_factor": float("inf")},
     "off": {"reseed": False},
     "status_maxiter": {"reseed": True, "reseed_factor": float("inf")},
+    "status_runaway": {"reseed": True, "reseed_factor": float("inf")},
+    "on_nobound": {"reseed": True, "reseed_factor": RESEED_FACTOR,
+                   "first_rung_factor": None},
+    "off_nobound": {"reseed": False, "first_rung_factor": None},
 }
-#: arms whose rule ``fit`` cannot express, so ``_reseed_needed`` is wrapped
-ESCALATE_STATUSES = {"status_maxiter": ("max_iter",)}
+#: arms whose rule ``fit`` cannot express, so ``_reseed_needed`` is wrapped:
+#: the best attempt so far also escalates on a ``status`` in the first tuple
+#: or a diagnostic ``code`` in the second
+ESCALATE_ON: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "status_maxiter": (("max_iter",), ()),
+    "status_runaway": ((), ("CELL_RUNAWAY",)),
+}
+#: an arm → the arm it differs from by one switch, which ``--table`` also
+#: compares it against (every arm is compared against ``on`` besides)
+PAIRED = {"status_maxiter": "status", "status_runaway": "status",
+          "off_nobound": "off"}
 REFERENCE_ARMS = ("ref", "ref_seeded")
 
 
 @contextmanager
-def _escalating(statuses):
+def _escalating(statuses=(), codes=()):
     """Make ``_reseed_needed`` also reject a best-so-far attempt whose status
-    is in *statuses*, for the ``with`` block alone."""
-    if not statuses:
+    is in *statuses* or that carries a diagnostic whose code is in *codes*,
+    for the ``with`` block alone.
+
+    ``RefinementResult.diagnostics`` holds every stage's ``CELL_RUNAWAY``
+    (``Refinement.fit`` appends each stage's as it runs), so a code asks
+    about the whole rung, its closing stage included.
+    """
+    if not statuses and not codes:
         yield
         return
     import rietx.sequential as seq
     original = seq._reseed_needed
 
     def wrapped(result, accepted_rwp, factor):
-        return result.status in statuses or original(result, accepted_rwp, factor)
+        return (result.status in statuses
+                or any(d.code in codes for d in result.diagnostics)
+                or original(result, accepted_rwp, factor))
 
     seq._reseed_needed = wrapped
     try:
@@ -187,10 +233,16 @@ class Family:
     events: dict[str, int] = field(default_factory=dict)
 
 
-def _cpd(closing: bool = True) -> Family:
+def _cpd(closing: bool = True, ftol_none: bool = False) -> Family:
     """The CPD chain; ``closing=False`` is the declared variant with
     ``plan.closing_window_tol = None``, the bit-identical way back from
-    WP-2002's closing stage, and the one change from the protocol."""
+    WP-2002's closing stage, and the one change from the protocol.
+    ``ftol_none=True`` is the declared variant with ``plan.intermediate_ftol
+    = None`` (WP-1123's way back), closing stage on: clashes.md X13's open
+    arm.  Since WP-2045 the last declared stage converges at the solver's
+    tolerance whatever the plan says, so a collapsed warm rung (one stage) is
+    unchanged by it, and the variant reaches the cold fit of 1a and any
+    ``warm_staged`` or ``cold`` rung."""
     from tests.test_acceptance_qpa_roundrobin import (
         DATA,
         SAMPLE1,
@@ -227,17 +279,26 @@ def _cpd(closing: bool = True) -> Family:
     plan = qpa_plan()
     if not closing:
         plan.closing_window_tol = None
+    if ftol_none:
+        plan.intermediate_ftol = None
+    name, title, change = "cpd", "IUCr CPD sample-1 chain 1a-1h (real, lab Cu Kα)", ""
+    if not closing:
+        name, title = "cpd-noclose", title + ", closing stage off (declared variant)"
+        change = "; the one change: plan.closing_window_tol = None"
+    if ftol_none:
+        name = "cpd-ftolnone" if closing else name + "-ftolnone"
+        title += (", intermediate_ftol = None, closing stage "
+                  + ("on" if closing else "off") + " (declared variant)")
+        change = (change + ", and plan.intermediate_ftol = None" if change else
+                  "; the one change: plan.intermediate_ftol = None (qpa_plan "
+                  "names 1e-6)")
     return Family(
-        name="cpd" if closing else "cpd-noclose",
-        title=("IUCr CPD sample-1 chain 1a-1h (real, lab Cu Kα)" if closing else
-               "IUCr CPD sample-1 chain 1a-1h (real, lab Cu Kα), closing stage "
-               "off (declared variant)"),
+        name=name, title=title,
         protocol=("tests/test_acceptance_sequential.py chained_all: "
                   "SequentialRefinement(structure, qarr_instrument()) with "
                   "seed_scales on 1a, carry=('*',), plan=qpa_plan(), "
                   "refit='single', dispersion declined, compiled tier default"
-                  + ("" if closing else
-                     "; the one change: plan.closing_window_tol = None")),
+                  + change),
         patterns=patterns, start=start, fit_kw={"plan": plan},
         labels=list(SAMPLE1),
         key_paths=["phases.0.cell.a", "phases.0.cell.c", "phases.1.cell.a",
@@ -484,6 +545,7 @@ def _tut05(jump: float) -> Family:
 FAMILIES: dict[str, Callable[[], Family]] = {
     "cpd": _cpd,
     "cpd-noclose": lambda: _cpd(closing=False),
+    "cpd-ftolnone": lambda: _cpd(ftol_none=True),
     "planted": _planted,
     "planted-null": _planted_null,
     "trigger": _trigger,
@@ -685,11 +747,14 @@ def run(family: str, arm: str, out: Path, first: int | None) -> Path:
         kw = {**base_kw, **ARMS[arm]}
         record["settings"] = {k: _num(v) if isinstance(v, float) else v
                               for k, v in ARMS[arm].items()}
-        with _escalating(ESCALATE_STATUSES.get(arm, ())):
+        statuses, codes = ESCALATE_ON.get(arm, ((), ()))
+        with _escalating(statuses, codes):
             series, result, marks, wall, tail = _chain(fam, patterns, fam.start,
                                                        kw, labels, xs)
-        if arm in ESCALATE_STATUSES:
-            record["settings"]["escalates_on_status"] = list(ESCALATE_STATUSES[arm])
+        if statuses:
+            record["settings"]["escalates_on_status"] = list(statuses)
+        if codes:
+            record["settings"]["escalates_on_code"] = list(codes)
         record["patterns"] = [
             _entry_record(e, r, *marks[e.index])
             for e, r in zip(result.entries, series.results_, strict=True)]
@@ -1071,6 +1136,8 @@ def table(out: Path) -> str:
         hdr = ["k"]
         others = [a for a in arms if a != "on"]
         hdr += [f"{a} vs on: worst |Δ|/esd (path)" for a in others]
+        pairs = [(a, PAIRED[a]) for a in arms if PAIRED.get(a) in fam]
+        hdr += [f"{a} vs {b}" for a, b in pairs]
         if ref:
             hdr += [f"{a} vs {ref_name}" for a in arms]
         if truth:
@@ -1078,7 +1145,8 @@ def table(out: Path) -> str:
         lines += ["### Accepted values, per pattern", "",
                   "Worst |Δ|/esd over every refined path both rows carry, and "
                   "the weight fractions (`W.<phase>`), with the esd of the row "
-                  "compared against (`on`, or the reference); against truth, "
+                  "compared against (`on`, the arm's pair, or the reference); "
+                  "against truth, "
                   "|Δ|/esd with the arm's own esd over the key paths of the "
                   "key-value table only.  `0` = equal to the stored precision; "
                   "`≠n no-esd` = esd-less paths that moved; `+n` = paths only "
@@ -1090,6 +1158,9 @@ def table(out: Path) -> str:
             for a in others:
                 r = fam[a]["patterns"][k]
                 cells.append(_wcell(*worst(r, on), moved=noesd_moved(r, on)))
+            for a, b in pairs:
+                r, o = fam[a]["patterns"][k], fam[b]["patterns"][k]
+                cells.append(_wcell(*worst(r, o), moved=noesd_moved(r, o)))
             if ref:
                 for a in arms:
                     r, o = fam[a]["patterns"][k], ref["patterns"][k]
@@ -1131,7 +1202,54 @@ def table(out: Path) -> str:
         lines += _beyond_cut(fam, arms, n, ref_name, ref, head)
         lines += _totals(fam, arms, ref_name, ref, truth)
         lines += _series_codes(fam, arms)
+        lines += _against_base(name, fam, runs.get(VARIANT_OF.get(name, "")), arms)
     return "\n".join(lines) + "\n"
+
+
+#: a declared variant family → the family it changes one setting of, which
+#: ``--table`` compares it against arm by arm
+VARIANT_OF = {"cpd-noclose": "cpd", "cpd-ftolnone": "cpd"}
+
+
+def _against_base(name, fam, base, arms) -> list[str]:
+    """A declared variant against its base family, arm by arm and pattern by
+    pattern, with the base's esd (:func:`worst`)."""
+    shared = [a for a in arms if base is not None and a in base]
+    if not shared:
+        return []
+    base_name = VARIANT_OF[name]
+    skip = frozenset(base[shared[0]].get("anchored_dof_paths", ()))
+    for a in shared:
+        for row in base[a]["patterns"]:
+            row["_skip"] = skip
+    n = min(min(len(fam[a]["patterns"]), len(base[a]["patterns"])) for a in shared)
+    hdr = ["k", "label"]
+    for a in shared:
+        hdr += [f"{a}: rungs [kept] ({base_name})", f"{a}: nfev ({base_name})",
+                f"{a} vs {base_name} {a}"]
+    out = [f"### Against `{base_name}`, arm by arm", "",
+           f"Each arm against the same arm of `{base_name}`, the family this "
+           f"one changes one setting of: rungs and nfev with `{base_name}`'s "
+           f"in brackets, and the worst |Δ|/esd with `{base_name}`'s esd.", "",
+           "| " + " | ".join(hdr) + " |", "|" + "---|" * len(hdr)]
+    for k in range(n):
+        cells = [str(k), fam[shared[0]]["patterns"][k]["label"]]
+        for a in shared:
+            r, o = fam[a]["patterns"][k], base[a]["patterns"][k]
+            cells += [f"{_rungs(r)} ({_rungs(o)})",
+                      f"{r['n_iterations']} ({o['n_iterations']})",
+                      _wcell(*worst(r, o), moved=noesd_moved(r, o))]
+        out.append("| " + " | ".join(cells) + " |")
+    out.append("")
+    for a in shared:
+        pairs = list(zip(fam[a]["patterns"][:n], base[a]["patterns"][:n]))
+        out.append(
+            f"`{a}`: nfev {sum(r['n_iterations'] for r, _ in pairs)} against "
+            f"{sum(o['n_iterations'] for _, o in pairs)}, bit-identical "
+            f"{sum(r['values_sha'] == o['values_sha'] for r, o in pairs)} of "
+            f"{n}, differ {_ix([r for r, o in pairs if differ(r, o)])}.")
+    out.append("")
+    return out
 
 
 def _beyond_cut(fam, arms, n, ref_name, ref, head) -> list[str]:
@@ -1258,8 +1376,10 @@ def _moment_table(fam, arms, ref_name, ref, ks) -> list[str]:
 
 
 def _totals(fam, arms, ref_name, ref, truth) -> list[str]:
+    paired = any(PAIRED.get(a) in fam for a in arms)
     hdr = ["arm", "patterns", "escalated", "reseeded (kept cold)", "quarantined",
            "above fence", "bit-identical to on", "differ from on",
+           "pair: bit-identical, differ" if paired else None,
            f"differ from {ref_name}" if ref else None,
            "nfev (entries)", "kept-rung nfev", "solver nfev / njev",
            "wall per pattern (s)", "wall total (s)"]
@@ -1292,6 +1412,15 @@ def _totals(fam, arms, ref_name, ref, truth) -> list[str]:
                  _ix([r for r in rows if r["status"] == "diverged"]),
                  _ix([r for r in rows if r["above_fence"]]),
                  same, moved]
+        if paired:
+            b = PAIRED.get(a)
+            if b in fam:
+                pairs = list(zip(rows, fam[b]["patterns"]))
+                cells.append(f"`{b}`: " + str(sum(
+                    r["values_sha"] == o["values_sha"] for r, o in pairs))
+                    + ", " + _ix([r for r, o in pairs if differ(r, o)]))
+            else:
+                cells.append("—")
         if ref:
             cells.append("—" if a == ref_name else _ix(
                 [r for r, o in zip(rows, ref["patterns"]) if differ(r, o)]))
