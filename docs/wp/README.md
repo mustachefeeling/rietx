@@ -46,7 +46,7 @@ names hard dependencies, and *soft* marks a preferred order.
 | [2006](2006-readers-crystallography-gui-and-the-dead-surface.md) | Readers, crystallography and GUI codes, and the dead surface | 2026-10-24 | P3 | [generality](#generality-the-audits) |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 2026-10-21 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2041](2041-a-tutorial-shows-the-indexer-abstain.md) | A tutorial shows the indexer abstain | 2026-10-24 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
-| [2045](2045-a-runaway-fit-ends-without-an-expensive-closing-stage.md) | A runaway fit ends without an expensive closing stage | 2026-10-24 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
+| [2045](2045-a-runaway-fit-ends-without-an-expensive-closing-stage.md) | A runaway fit ends without an expensive closing stage | 2026-10-25 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 
 ## Next, by priority
 
@@ -606,7 +606,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | 🔄 2026-10-13 | P2 | [1959](1959-the-dichotomy-grid-compiled-again.md) ([1520](1520-a-search-refines-each-assignment-once.md) soft) |
 | [1959](1959-the-dichotomy-grid-compiled-again.md) | The dichotomy grid compiled again, so a ceiling reaches svd | ✅ 2026-10-14 | — | — |
 | [1999](1999-a-held-cells-ties-leave-the-answer-with-it.md) | A held cell's ties leave the answer with it | ⬜ | P2 | — |
-| [2045](2045-a-runaway-fit-ends-without-an-expensive-closing-stage.md) | A runaway fit ends without an expensive closing stage | 🔄 2026-10-24 | P2 | — |
+| [2045](2045-a-runaway-fit-ends-without-an-expensive-closing-stage.md) | A runaway fit ends without an expensive closing stage | 🔄 2026-10-25 | P2 | — |
 
 ### <a id="unscheduled-one-file-many-patterns"></a>One file, many patterns
 

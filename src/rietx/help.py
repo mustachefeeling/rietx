@@ -2785,12 +2785,21 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "INDEX_PREDICTED_BUT_ABSENT": HelpEntry(
         title="The cell predicts lines the pattern lacks",
         description=(
-            "After a Le Bail fit, some reflections this lattice predicts carry no "
-            "intensity above the background. An oversized cell does this, because it has "
-            "a translation it is not using. A correct cell does it too when a "
-            "space-group extinction removes those reflections. Compare the smaller cell "
-            "that indexes the same lines, and run the extinction screen before you "
-            "reject this one."
+            "Inside de Wolff's window (up to the 20th usable line), this lattice "
+            "predicts lines that no extinction could remove where the picker's envelope "
+            "shows nothing. An oversized cell does this, because it has a translation it "
+            "is not using, and M₂₀ cannot see it. The code caps the grade and never "
+            "refutes: a correct cell's weak general reflections below detection count "
+            "too. Glides and screws are left out of the count, so a correct cell reads "
+            "near 0: 0 on synthetic Si, a synthetic tetragonal set and SRM 676a "
+            "corundum, 2 on the round-robin magnetite and PbSO₄, against 7 to 79 for "
+            "the wrong cells tested (Si's cubic I √2·a₀ 11–12, cubic P 2a₀ 76–79); "
+            "measured on those patterns, untested beyond them. Do not check it with "
+            "Rwp: an oversized cell scored 0.379 against a correct 0.216, a "
+            "gap smaller than the spread between specimens. Without a peak list the "
+            "count is the fitted background's, over the whole range. Compare the "
+            "smaller cell that indexes the same lines, and run the extinction screen "
+            "before you reject this one."
         ),
     ),
     "INDEX_PRIOR_USED": HelpEntry(
@@ -2869,7 +2878,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "lines it predicts, which no extinction could remove, are seen no more often "
             "than chance would place them. So it ranks below the smaller cell. A real "
             "superstructure with extra lines too weak to pick escapes this test. Check "
-            "the pattern at the listed positions if the chemistry suggests one."
+            "the pattern at the listed positions if the chemistry suggests one. "
+            "Measured: it refutes Si's cubic I √2·a₀ (0 of 12 extra lines seen) and "
+            "kept every truth tested as a child, the lowest at p = 0.0072; on the "
+            "finished acceptance searches it put brucite's and 11-BM NAC's truths "
+            "first. Untested beyond those patterns."
         ),
     ),
     "INDEX_SYSTEMS_NOT_COVERED": HelpEntry(
@@ -4234,9 +4247,9 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         title="Stage stopping tolerance",
         description=(
             "This stage's own relative tolerance on the decrease in cost. It overrides "
-            "the plan's schedule. Empty takes the value from the plan: every stage but "
-            "the last stops at the plan's `intermediate_ftol`, and the last stops at "
-            "the solver's 1e-9. The history records the tolerance a stage ran at and "
+            "the plan's schedule. Empty takes the value from the plan: every declared "
+            "stage but the last stops at the plan's `intermediate_ftol`, and the last "
+            "declared stage and the closing stage stop at the solver's 1e-9. The history records the tolerance a stage ran at and "
             "not the one it declared, so a cherry-pick replays what happened."
         ),
         default="null",
@@ -5120,8 +5133,9 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
         title="Tolerance the stage ran at",
         description=(
             "The relative cost-decrease tolerance this stage stopped at. `None` means "
-            "the solver's own default, which the last stage of a plan takes; an earlier "
-            "stage takes the plan's `intermediate_ftol` unless it declares its own."
+            "the solver's own default, which a plan's last declared stage and its "
+            "closing stage take; an earlier stage takes the plan's `intermediate_ftol` "
+            "unless it declares its own."
         ),
         anchor="theory/estimation.html#convergence",
     ),

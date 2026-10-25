@@ -601,6 +601,17 @@ refinement {cite}`stinton2007` is the other route: every pattern in one joint
 residual, with a parameter held to a declared function of each pattern's
 coordinates ({ref}`par-parametric-section`).
 
+A plan's last declared stage converges at the solver's tolerance even though
+the closing stage polishes its answer. A stage computes on peak windows frozen
+at its start. A stage stopped at 1e-6 can stop where a parameter has widened
+the peaks past those windows, and the intensity outside them drops out of the
+model. On the hostile series' cpd-1b, the warm stage stopped that way with the
+axial ratio S/L at 555, where real instruments sit near 0.01-0.05. At 1e-9 the
+same stage reached 0.014. The closing stage at 555 recompiled about 1 600 times
+the work and ran for tens of minutes. Converging the last declared stage costs
+1.04-1.07 times the evaluations on the four acceptance protocols, and moves no
+answer by 0.001 esd.
+
 ## Solvers
 
 The default driver is a bounded Levenberg-Marquardt. scipy's Trust Region
