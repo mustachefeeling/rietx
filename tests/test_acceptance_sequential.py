@@ -201,10 +201,11 @@ def test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway(monkeypatch):
     monkeypatch.setattr(refine_mod, "compile_model", guarded)
     structure = rx.Structure(phases=_phases())
     ins = qarr_instrument()
-    seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
+    patterns = [rx.read_pattern(DATA / f"{s}.prn") for s in SAMPLE1[:2]]
+    seed_scales(structure, ins, patterns[0])
     series = rx.SequentialRefinement(structure, ins)
     try:
-        result = series.fit(_patterns()[:2], labels=list(SAMPLE1[:2]), plan=qpa_plan())
+        result = series.fit(patterns, labels=list(SAMPLE1[:2]), plan=qpa_plan())
     except _Runaway as exc:
         pytest.fail(f"cpd-1b's warm stage ran away: {exc}")
     entry = result.entries[1]

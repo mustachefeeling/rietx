@@ -229,14 +229,6 @@ Three rules decide a stage's tolerance, in this order.
 3. Every other stage runs at `RefinementPlan.intermediate_ftol`.
 
 A one-stage plan is therefore all last stage, and nothing is loosened.
-
-The last declared stage converges even though the closing stage polishes its answer.
-A stage computes on peak windows frozen at its start.
-A stage stopped at 1e-6 can stop where a parameter has widened the peaks past those windows, and the intensity outside them drops out of the model.
-On the hostile series' cpd-1b, the warm stage stopped that way with the axial ratio S/L at 555, where real instruments sit near 0.01-0.05.
-At 1e-9 the same stage reached 0.014.
-The closing stage at 555 recompiled about 1 600 times the work and ran for tens of minutes.
-Converging the last declared stage costs 1.04-1.07 times the evaluations on the four acceptance protocols, and moves no answer by 0.001 esd.
 `StageResult.ftol` records the tolerance each stage ran at, so a result says which schedule produced it.
 `PlanSpec.intermediate_ftol` carries the setting into a project file and a history header, and the GUI's text document writes it as the `tolerance` line ([The GUI as a text document and a wire](gui-power.md)).
 
@@ -309,7 +301,7 @@ Two errors reach the answer of a plan without a closing stage:
 - The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put the fluorapatite's Biso 0.12 esd apart, because each start stopped the early stages elsewhere.
 
 The closing stage takes the last declared stage's iteration budget, Le Bail cycles, restraint weight, window slack and `Stage.ftol`, and seeds nothing.
-It takes the solver's default tolerance, as the last declared stage does ([Stage tolerances](#stage-tolerances)).
+It takes the solver's default tolerance, as the last declared stage does.
 `RefinementResult.stages` ends with it under the name `closing`, and `StageResult.window_area_tol` and `NodeAction.window_area_tol` record the fraction.
 A model rebuilt from `RefinementResult.parameters` reproduces the result's χ² when compiled at the default windows, which are the closing stage's: `compile_model` and `Refinement.predict` evaluate outside a fit at `CLOSING_WINDOW_TOL`.
 A declared stage records `None`, the declared stages' 2 %, so a fit run without a closing stage is rebuilt with `window_area_tol=recorded_window_tol(result.stages[-1].window_area_tol)` (`rietx.model.forward.recorded_window_tol`).
