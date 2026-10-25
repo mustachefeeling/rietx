@@ -309,7 +309,7 @@ Two errors reach the answer of a plan without a closing stage:
 - The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put the fluorapatite's Biso 0.12 esd apart, because each start stopped the early stages elsewhere.
 
 The closing stage takes the last declared stage's iteration budget, Le Bail cycles, restraint weight, window slack and `Stage.ftol`, and seeds nothing.
-It takes the solver's default tolerance, so the last declared stage becomes an intermediate one.
+It takes the solver's default tolerance, as the last declared stage does ([Stage tolerances](#stage-tolerances)).
 `RefinementResult.stages` ends with it under the name `closing`, and `StageResult.window_area_tol` and `NodeAction.window_area_tol` record the fraction.
 A model rebuilt from `RefinementResult.parameters` reproduces the result's χ² when compiled at the default windows, which are the closing stage's: `compile_model` and `Refinement.predict` evaluate outside a fit at `CLOSING_WINDOW_TOL`.
 A declared stage records `None`, the declared stages' 2 %, so a fit run without a closing stage is rebuilt with `window_area_tol=recorded_window_tol(result.stages[-1].window_area_tol)` (`rietx.model.forward.recorded_window_tol`).
