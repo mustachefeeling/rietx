@@ -2327,6 +2327,10 @@ class Refinement:
         #: the result it was handed.  ``None`` until a fit returns, and dropped
         #: with ``result_``.
         self._answer_covariance: tuple | None = None
+        #: what :meth:`report` and :meth:`reflection_table` read beside
+        #: ``_model``, frozen with ``result_`` (:meth:`_freeze_answer`), and
+        #: dropped with it.
+        self._answer: dict | None = None
         #: the last ``fit(stage_reports=True)`` run's trajectory, one
         #: :class:`~rietx.report.StageReport` per completed stage (WP-1058).
         #: Empty after a fit that was not asked for one — a report is *derived*
@@ -2489,7 +2493,26 @@ class Refinement:
         self._model = None
         self.result_ = None
         self._answer_covariance = None
+        self._answer = None
         self.stage_reports_ = []
+
+    def _freeze_answer(self) -> dict:
+        """What :meth:`report` and :meth:`reflection_table` read, beside ``_model``.
+
+        Taken when the result is built, because the models are the working
+        state and the result is not: a later fit that is cancelled keeps the
+        stages it completed and the previous result, and a view that read the
+        live models then would pair those values with this result's model
+        (WP-1421; the joint fit's ``MultiHistogramRefinement._freeze_answer``).
+        """
+        table = ParameterTable(self.structure, self.instrument)
+        # the model's moment frames are the last stage's, not this table's (#598)
+        table.pull_moment_frames(self._model)
+        return {"values": table.decode(table.x0()),
+                "structure": self.structure.model_copy(deep=True),
+                "instrument": self.instrument.model_copy(deep=True),
+                "held": list(self._held),
+                "free_paths": list(self._free_paths)}
 
     def _require_history(self) -> RefinementTree:
         if self.history is None:
@@ -5028,7 +5051,8 @@ class Refinement:
                     break
                 gain = None if best is None else (best[0] - rwp) / best[0]
                 best = (rwp, result, self.snapshot(), self._head_id, len(rows),
-                        (self._model, self._answer_covariance, self.stage_reports_))
+                        (self._model, self._answer_covariance, self._answer,
+                         self.stage_reports_))
                 if gain is not None and gain <= LEBAIL_CONVERGED_REL:
                     reason = "converged"
                     break
@@ -5090,7 +5114,7 @@ class Refinement:
         # fitted, so ``result_``, ``report()``, ``predict()`` and the
         # plots read the answer this call returns, not nothing
         self.result_ = result
-        (self._model, self._answer_covariance,
+        (self._model, self._answer_covariance, self._answer,
          self.stage_reports_) = fit_view
         # A fit re-extracts the intensities at its first stage, so the
         # pass after a plain ``fit()`` starts from the parameters alone.
@@ -5290,6 +5314,7 @@ class Refinement:
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
                                        outcome.correlation)
+            self._answer = self._freeze_answer()
             self._stamp(self.result_, tree)
             if self._auto_intervals:
                 # WP-2002, B2: an angle the answer stage left out of its
@@ -5565,8 +5590,11 @@ class Refinement:
         per-point residual are therefore measured here, on one more compile
         with the last stage's own discrete settings (moving set, c_w, window
         slack, and the closing stage's window area) and nothing else changed.  **What this does not move**: the
-        solve, which ran on the frozen compile and is not biased by it (the
-        issue measured the minimum moving ≤ 0.0014 esd); the covariance and
+        solve, which ran on the frozen compile (on #272's two fixtures the
+        minimum moved ≤ 0.0014 esd between the two, but a stage that carries
+        its peaks past their windows can stop at a minimum the windows moved:
+        9 % of χ² on the fluorapatite tutorial, WP-1986, recovered by one more
+        stage, which is why a plan ends on a closing stage); the covariance and
         every esd, which stay those of that solve's Jacobian; the weights,
         which stay the solve's σ, so ``result.sigma`` is still a lookup of the
         σ the model used (WP-1309: a measured background widens σ at the scale
@@ -5614,19 +5642,7 @@ class Refinement:
             ((model.y_obs - model.evaluate(values)) / model.sigma) ** 2))
         chi2_fresh = float(np.sum(
             ((fresh.y_obs - fresh.evaluate(values)) / fresh.sigma) ** 2))
-        rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
-               if chi2_frozen > 0 else 0.0)
-        if not rel > FROZEN_COMPILE_CHI2_REL:
-            return fresh, []
-        return fresh, [Diagnostic(
-            level="info", code="FROZEN_COMPILE_STALE",
-            message=(
-                f"A fresh compile at the returned parameters gives "
-                f"chi2 = {chi2_fresh:.6g}. The last stage's own compile gives "
-                f"{chi2_frozen:.6g} at the same parameters, "
-                f"{100 * rel:.2g} % apart. The result reports the fresh "
-                f"figure and the history node keeps the frozen one."),
-            value=rel)]
+        return fresh, _frozen_compile_diagnostics(chi2_frozen, chi2_fresh)
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
                       guard, stage_diagnostics, *, significance=None
@@ -5871,6 +5887,7 @@ class Refinement:
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
                                        outcome.correlation)
+            self._answer = self._freeze_answer()
             self._stamp(self.result_, tree)
             if self._auto_intervals:
                 # ``fit``'s rule (WP-2002, B2), on this stage's own record
@@ -5909,7 +5926,9 @@ class Refinement:
         :class:`~rietx.PatternData` whose 2θ column is used — this compiles a
         fresh model on it and evaluates.  With no argument it evaluates on the
         grid the last fit ran on, which is the one form that needs a fit to
-        have happened: nothing else supplies a grid.
+        have happened: nothing else supplies a grid.  That form evaluates the
+        last result's answer on that result's model, so a later fit that is
+        cancelled, keeping its completed stages, does not move it (WP-1421).
 
         **It does not require a fit** (WP-1110 item 6).  Until then it did, and
         the refusal was ``RuntimeError: call fit() first`` on both forms, which
@@ -5924,16 +5943,21 @@ class Refinement:
         a fresh grid carries them over from the fitted model by hkl and there
         is nothing to carry before one exists.
 
-        **The two forms are not bit-identical on the same grid, and that is
-        the frozen-per-stage invariant rather than a defect.**  ``predict()``
-        reuses the model compiled for the last stage, whose per-reflection
-        window index ranges were frozen at the values the stage *started*
-        from; a grid argument compiles fresh, so the windows are sized at the
-        values it *ended* on.  Measured on the synthetic five-stage fit, before
-        the closing stage and so at one window fraction throughout: 36 of
-        4200 channels differ at all, by at most 8e-6 of the peak height, every
-        one of them in a peak tail at a window edge.  ``RefinementResult.y_calc``
-        is the first of the two — the curve the fit actually minimised.
+        **After a default fit the two forms agree bit for bit.**  ``predict()``
+        evaluates the model the result was measured on, a compile at the
+        answer (#272, WP-1421), so it returns ``RefinementResult.y_calc``; a
+        grid compiles at the same values and windows.  Measured on the
+        fluorapatite tutorial under ``mccusker_default``: 0 of 5751 channels
+        differ.
+
+        **The free set reaches the curve in one case** (#774).  With both
+        axial-divergence ratios at exactly zero and either refined, the
+        compile sizes the peak windows as if each were
+        ``forward.AXIAL_SIZING_FLOOR``, so that a stage starting from zero
+        has a derivative to follow; held at zero, the asymmetry is off and
+        the windows are not widened.  The two curves differ by up to 4.8e-5
+        of the strongest peak (the issue's rutile reproducer, 2026-10-25).
+        Every positive value is sized by value alone.
 
         A grid compiles at ``compile_model``'s default windows whatever this
         object has fitted, so a never-fitted twin carrying the same models
@@ -5954,6 +5978,11 @@ class Refinement:
                     "ran on, and this Refinement has not been fitted. Pass the "
                     "pattern (or a 2θ array) to evaluate the model as it "
                     "stands: ref.predict(data).")
+            if self._answer is not None:
+                # the answer frozen with the result, never the live models: a
+                # later cancelled fit keeps its completed stages and this
+                # result, as in report() (WP-1421)
+                return self._model.evaluate(self._answer["values"])
             # the fitted model reads the moment DOFs in the last stage's frames
             table.pull_moment_frames(self._model)
             return self._model.evaluate(table.decode(table.x0()))
@@ -5989,14 +6018,15 @@ class Refinement:
             raise RuntimeError("call fit() first")
         if isinstance(plan, str):
             plan = PLAN_PRESETS[plan]()
-        table = ParameterTable(self.structure, self.instrument)
-        # the model's moment frames are the last stage's, not this table's (#598)
-        table.pull_moment_frames(self._model)
+        # the answer frozen with the result, never the live models: a later
+        # cancelled fit keeps its completed stages and this result (WP-1421)
+        answer = self._answer
         return build_report(self.result_, model=self._model,
-                            values=table.decode(table.x0()), plan=plan,
-                            structure=self.structure, instrument=self.instrument,
-                            held=list(self._held),
-                            free_paths=list(self._free_paths), **kw)
+                            values=answer["values"], plan=plan,
+                            structure=answer["structure"],
+                            instrument=answer["instrument"],
+                            held=list(answer["held"]),
+                            free_paths=list(answer["free_paths"]), **kw)
 
     def check_rigid_bodies(self, data: PatternData, **kw):
         """Test each rigid body against the data (``RIGID_BODY_MISFIT``).
@@ -6329,10 +6359,9 @@ class Refinement:
 
         if self._model is None or self.result_ is None:
             raise RuntimeError("call fit() first")
-        table = ParameterTable(self.structure, self.instrument)
-        table.pull_moment_frames(self._model)          # #598, as in report()
-        values = table.decode(table.x0())
-        return reflection_table(self._model, values, self.structure)
+        # the answer frozen with the result, as in report() (WP-1421)
+        answer = self._answer
+        return reflection_table(self._model, answer["values"], answer["structure"])
 
     def write_reflection_table(self, path, **kw) -> None:
         """Write the reflection table to CSV/TSV (delimiter from the suffix)."""
@@ -6352,8 +6381,13 @@ class Refinement:
 
         if self.result_ is None:
             raise RuntimeError("call fit() first")
-        write_document(refinement_cif_doc(self.result_, self.structure,
-                                          self.instrument, pattern=self._fit_pattern,
+        # the models frozen with the result, as the reflection loop below reads
+        # them: a later cancelled fit moves the live ones and keeps this result
+        answer = self._answer
+        structure = self.structure if answer is None else answer["structure"]
+        instrument = self.instrument if answer is None else answer["instrument"]
+        write_document(refinement_cif_doc(self.result_, structure,
+                                          instrument, pattern=self._fit_pattern,
                                           reflections=self.reflection_table()), path)
 
     def write_qpa_table(self, path, **kw) -> None:
@@ -8400,6 +8434,35 @@ def _restore_lebail(states: list[ReflectionState], model: CompiledModel) -> None
 #: issue's 1.38 % on Si is the compile that claims nothing moves
 #: (``moving_paths=None``), not the frozen one, and would still fire.
 FROZEN_COMPILE_CHI2_REL = 1e-2
+
+
+def _frozen_compile_diagnostics(chi2_frozen: float, chi2_fresh: float, *,
+                                histogram: int | None = None) -> list[Diagnostic]:
+    """``FROZEN_COMPILE_STALE`` when the two χ² differ past :data:`FROZEN_COMPILE_CHI2_REL`.
+
+    One comparison for both runners: the single fit's
+    :meth:`Refinement._final_compile` and the joint fit's
+    ``MultiHistogramRefinement._final_compiles``, which passes its worst
+    histogram's pair and index (``histogram``) and keeps no history node to
+    hold the frozen figure.
+    """
+    rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
+           if chi2_frozen > 0 else 0.0)
+    if not rel > FROZEN_COMPILE_CHI2_REL:
+        return []
+    joint = histogram is not None
+    whose = f" for histogram {histogram}" if joint else ""
+    kept = ("the last stage's record keeps the frozen one" if joint
+            else "the history node keeps the frozen one")
+    return [Diagnostic(
+        level="info", code="FROZEN_COMPILE_STALE",
+        message=(
+            f"A fresh compile at the returned parameters gives "
+            f"chi2{whose} = {chi2_fresh:.6g}. The last stage's own compile gives "
+            f"{chi2_frozen:.6g} at the same parameters, "
+            f"{100 * rel:.2g} % apart. The result reports the fresh "
+            f"figure and {kept}."),
+        value=rel)]
 
 
 #: a Pawley overlap group is reported unresolved when *any* member carries a

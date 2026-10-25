@@ -3296,9 +3296,19 @@ ROWS: tuple[Row, ...] = (
                   "; seven programs, 2026-10-21 (docs/practice.md): none of the seven seeds a background from the data by default")),
     Row("rietx.sequential.refine_sequential:carry", "default", value=("*",)),
     Row("rietx.sequential.refine_sequential:carry_hkl_intensities", "default", value=True),
-    Row("rietx.sequential.refine_sequential:backend", "default", value="numpy"),
-    Row("rietx.sequential.refine_sequential:solver", "default", value="lm"),
-    Row("rietx.sequential.refine_sequential:history", "default", value=False),
+    Row("rietx.sequential.refine_sequential:backend", "default", tier="caller", ambiguity=1,
+        value="numpy",
+        evidence=("opt-in, as rietx.refine.refine:backend: each pattern's Refinement gets it "
+                  "unchanged (sequential.py:1765); jax/torch/torch-mps need an extra no default "
+                  "install has, and agree with numpy only to fp tolerance")),
+    Row("rietx.sequential.refine_sequential:solver", "default", tier=2, ambiguity=1, value="lm",
+        evidence=("the single fit's default (rietx.refine.refine:solver), handed to each "
+                  "pattern's Refinement unchanged (sequential.py:1765-1766): GSAS-II 5.8.4 "
+                  "GSASIImath.HessianLSQ is Marquardt-damped (checked); seven programs, "
+                  "2026-10-21 (docs/practice.md): Marquardt-damped in six; FullProf dissents, "
+                  "Gauss-Newton with relaxation factors")),
+    Row("rietx.sequential.refine_sequential:history", "default", tier="invariant", ambiguity=1, value=False,
+        evidence=("answer-invariant: one history tree per pattern; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:x", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:x_label", "default", value="index"),
     Row("rietx.sequential.SequentialRefinement.fit:labels", "default", value=None),
@@ -3306,20 +3316,45 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.SequentialRefinement.fit:plan", "default", value="mccusker_default"),
     Row("rietx.sequential.SequentialRefinement.fit:refit", "default", value="single"),
     Row("rietx.sequential.SequentialRefinement.fit:two_theta_limits", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:direction", "default", value="forward"),
+    Row("rietx.sequential.SequentialRefinement.fit:direction", "default", tier="caller", ambiguity=1,
+        value="forward",
+        evidence=("opt-in: direction='both' is asked by name and its off default walks one chain, "
+                  "moving no reported value (the entries are the forward pass's either way); the "
+                  "GUI's series panel defaults to 'forward' (gui/series.py:80, its own copy in a "
+                  "dict) and passes the user's choice (gui/session.py:1710), and no other default "
+                  "path sets it (searched 2026-10-24). The case for acting is the package's own: "
+                  "the skill says to run 'both' for any trajectory to be published "
+                  "(references/series.md), and the default stays visible in SeriesResult.direction "
+                  "and the summary's 'ordering artefact: NOT measured' line. What 'both' turns on "
+                  "is tiered on its own: PATH_DEPENDENCE_SIGMA, NOISE_FLOOR_REL and "
+                  "SEQUENTIAL_PATH_DEPENDENT (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:reseed", "default", value=True),
     Row("rietx.sequential.SequentialRefinement.fit:reseed_factor", "default", value=1.25),
     Row("rietx.sequential.SequentialRefinement.fit:first_rung_factor", "default", value=3.0),
-    Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", value=False),
+    Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", tier="caller", ambiguity=1,
+        value=False,
+        evidence=("opt-in: verify_discontinuities=True is asked by name and off by default; no "
+                  "default path sets it, the GUI included (searched 2026-10-24). What it turns on, "
+                  "a cold refit of each flagged pair and the cold step as a signed ratio of the "
+                  "chain's with a reading and no threshold (sequential.py:1888-1900), moves no "
+                  "fitted value; which pairs it refits is set by DISCONTINUITY_FACTOR and "
+                  "DISCONTINUITY_SIGMA, so this row is re-read when WP-2003's demotion of "
+                  "SEQUENTIAL_DISCONTINUITY lands")),
     Row("rietx.sequential.SequentialRefinement.fit:prepare", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:constrain", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: a callback handed each kept fit; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:on_error", "default", value="carry"),
-    Row("rietx.sequential.SequentialRefinement.fit:events", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:cancel", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:progress", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:telemetry", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:label", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:events", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:cancel", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:progress", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:telemetry", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: the run recorder, one run a job; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:label", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.indexing.workflow.index_pattern:peaks", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:data", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:instrument", "default", value=None),
@@ -4455,35 +4490,24 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.sequential.NOISE_FLOOR_REL",
     "rietx.sequential.PATH_DEPENDENCE_SIGMA",
     "rietx.sequential.RESEED_FACTOR",
-    "rietx.sequential.SequentialRefinement.fit:cancel",
     "rietx.sequential.SequentialRefinement.fit:constrain",
-    "rietx.sequential.SequentialRefinement.fit:direction",
-    "rietx.sequential.SequentialRefinement.fit:events",
     "rietx.sequential.SequentialRefinement.fit:first_rung_factor",
-    "rietx.sequential.SequentialRefinement.fit:label",
     "rietx.sequential.SequentialRefinement.fit:labels",
     "rietx.sequential.SequentialRefinement.fit:mode",
     "rietx.sequential.SequentialRefinement.fit:on_error",
-    "rietx.sequential.SequentialRefinement.fit:on_result",
     "rietx.sequential.SequentialRefinement.fit:plan",
     "rietx.sequential.SequentialRefinement.fit:prepare",
-    "rietx.sequential.SequentialRefinement.fit:progress",
     "rietx.sequential.SequentialRefinement.fit:refit",
     "rietx.sequential.SequentialRefinement.fit:reseed",
     "rietx.sequential.SequentialRefinement.fit:reseed_factor",
-    "rietx.sequential.SequentialRefinement.fit:telemetry",
     "rietx.sequential.SequentialRefinement.fit:two_theta_limits",
-    "rietx.sequential.SequentialRefinement.fit:verify_discontinuities",
     "rietx.sequential.SequentialRefinement.fit:x",
     "rietx.sequential.SequentialRefinement.fit:x_label",
     "rietx.sequential.WIDTH_GROWTH_FACTOR",
     "rietx.sequential.WIDTH_GROWTH_GOF_FACTOR",
     "rietx.sequential.WIDTH_GROWTH_SIGMA",
-    "rietx.sequential.refine_sequential:backend",
     "rietx.sequential.refine_sequential:carry",
     "rietx.sequential.refine_sequential:carry_hkl_intensities",
-    "rietx.sequential.refine_sequential:history",
-    "rietx.sequential.refine_sequential:solver",
     "rietx.solve.cost.NAMED_REFLECTIONS",
     "rietx.solve.cost.NUISANCE_RCOND",
     "rietx.strategy.magnetic.SOLVE_D_MIN",

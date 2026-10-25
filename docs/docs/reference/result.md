@@ -50,9 +50,8 @@ The last stage solved on a compile whose peak windows and quadrature node counts
 When the two χ² differ by more than 1 %, the result carries [`FROZEN_COMPILE_STALE`](diagnostics-refinement.md#frozen_compile_stale) with both figures in its message.
 The esds are not re-measured.
 They are the last solve's, read off its Jacobian, and the history node keeps the frozen compile's figures.
-Two results report the frozen compile's figures and never carry `FROZEN_COMPILE_STALE`.
-One is a Pawley result, whose intensity block belongs to the solve.
-The other is a joint fit, which `rietx.multi` builds itself.
+A Pawley result reports the frozen compile's figures and never carries `FROZEN_COMPILE_STALE`, because its intensity block belongs to the solve.
+A joint fit compiles each pattern again at its answer and compares each pattern's χ², naming the worst.
 
 The literature is not consistent about which quantity is called χ².
 The IUCr guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should approach 1.
