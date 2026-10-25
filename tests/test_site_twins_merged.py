@@ -1027,6 +1027,27 @@ def _route_edit_structure(ref, j, site, y0):
     return ref
 
 
+def _route_edit_structure_with_an_atom_added(ref, j, site, y0):
+    """The GUI's add-atom path: O5 drifted by a write-back, then a structure with one more atom."""
+    _drift_y(ref, j, 0.2502)
+    candidate = ref.structure.model_copy(deep=True)
+    extra = candidate.phases[0].atoms[0].model_copy(deep=True)
+    extra.label = "Xtra"
+    extra.x.value = 0.123
+    candidate.phases[0].atoms.append(extra)
+    ref.edit(structure=candidate)
+    return ref
+
+
+def _route_edit_structure_with_an_unrelated_atom_renamed(ref, j, site, y0):
+    _drift_y(ref, j, 0.2502)
+    candidate = ref.structure.model_copy(deep=True)
+    (k,) = [n for n, a in enumerate(candidate.phases[0].atoms) if a.label == "Pb1"] or [0]
+    candidate.phases[0].atoms[k].label += "_renamed"
+    ref.edit(structure=candidate)
+    return ref
+
+
 def _route_edit_instrument(ref, j, site, y0):
     _drift_y(ref, j, 0.2502)
     ref.edit(instrument=ref.instrument.model_copy(deep=True))
@@ -1045,7 +1066,9 @@ def _route_trial(ref, j, site, y0):
 
 @pytest.mark.parametrize("route", [
     _route_set_values, _route_set_values_merge, _route_write_back,
-    _route_edit_structure, _route_edit_instrument, _route_branch, _route_trial])
+    _route_edit_structure, _route_edit_structure_with_an_atom_added,
+    _route_edit_structure_with_an_unrelated_atom_renamed,
+    _route_edit_instrument, _route_branch, _route_trial])
 def test_every_route_keeps_a_hold_on_z_and_a_tie_to_it_on_z(pbso4, route):
     """The class pin (round 5, items 2-6): a hold on z and a tie from x to z on a
     near-special site, through every route that can move the site — z stays held

@@ -131,8 +131,8 @@ def _kept_message(atom, phase_name: str | None, source: str | None, xyz, merge: 
     return message, suggestion
 
 
-def _dof_moves(sg, before: np.ndarray, after: np.ndarray, prefix: str
-               ) -> dict[str, tuple[str | None, float]]:
+def _dof_moves(sg, before: np.ndarray, after: np.ndarray, prefix: str,
+               new_prefix: str | None = None) -> dict[str, tuple[str | None, float]]:
     """Where each coordinate DOF of a site goes when the site gains symmetry.
 
     ``phases.i.atoms.j.dof.k`` is the k-th direction the site symmetry allows,
@@ -154,7 +154,7 @@ def _dof_moves(sg, before: np.ndarray, after: np.ndarray, prefix: str
             new = np.asarray(new, dtype=np.float64)
             scale = float(old @ new) / float(new @ new)
             if np.allclose(old, scale * new, atol=1e-9):
-                target = (f"{prefix}.dof.{j}", scale)
+                target = (f"{new_prefix or prefix}.dof.{j}", scale)
                 break
         moves[f"{prefix}.dof.{k}"] = target
     return moves
@@ -170,20 +170,21 @@ def numbering_moves(old: Structure, new: Structure
     merge fires), a value ``set_values`` wrote.  A holder of a hold, tie, free
     path or stored path applies it with :func:`carry_constraints`, so the
     carry does not depend on which route moved the site (#1014 round 5, items
-    2-6).  Phases and atoms are matched by position and label; a phase whose
-    group or atom list changed is a different model and is left to the
-    caller's own reconciliation.
+    2-6).  Phases are matched by position and atoms by label (see
+    :func:`_matched_atoms`), so a structure edited to add or rename an atom
+    keeps the carry for the others; a phase whose group changed is a different
+    model and is left to the caller's own reconciliation.
     """
     moves: dict[str, tuple[str | None, float]] = {}
     for i, (po, pn) in enumerate(zip(old.phases, new.phases, strict=False)):
-        if (po.space_group != pn.space_group
-                or [a.label for a in po.atoms] != [a.label for a in pn.atoms]):
+        if po.space_group != pn.space_group:
             continue
         try:
             sg = resolve_group(pn.space_group, pn.symmetry_operations)
         except (ValueError, RuntimeError):
             continue
-        for j, (ao, an) in enumerate(zip(po.atoms, pn.atoms, strict=True)):
+        for jo, jn in _matched_atoms(po, pn):
+            ao, an = po.atoms[jo], pn.atoms[jn]
             xo = np.array([ao.x.value, ao.y.value, ao.z.value])
             xn = np.array([an.x.value, an.y.value, an.z.value])
             if np.array_equal(xo, xn):
@@ -193,11 +194,27 @@ def numbering_moves(old: Structure, new: Structure
                 bn = coordinate_basis(stabilizer_rotations(sg, xn))
             except ValueError:
                 continue
-            if len(bo) == len(bn) and np.array_equal(
-                    np.asarray(bo), np.asarray(bn)):
+            if len(bo) == len(bn) and np.array_equal(np.asarray(bo), np.asarray(bn)):
                 continue
-            moves.update(_dof_moves(sg, xo, xn, f"phases.{i}.atoms.{j}"))
+            moves.update(_dof_moves(sg, xo, xn, f"phases.{i}.atoms.{jo}",
+                                    f"phases.{i}.atoms.{jn}"))
     return moves
+
+
+def _matched_atoms(po, pn) -> list[tuple[int, int]]:
+    """(old index, new index) of the atoms the two phases both hold, by label.
+
+    The same list in the same order matches by position.  Otherwise (an atom
+    appended, one renamed, one removed: the GUI's add-atom path) an atom is
+    matched by its label where that label is unique in both phases; an atom
+    with no such partner is a different atom and is left alone (#1014 round 6,
+    item 2).
+    """
+    lo, ln = [a.label for a in po.atoms], [a.label for a in pn.atoms]
+    if lo == ln:
+        return [(j, j) for j in range(len(lo))]
+    return [(lo.index(label), ln.index(label)) for label in lo
+            if lo.count(label) == 1 and ln.count(label) == 1]
 
 
 def carry_constraints(moves: dict[str, tuple[str | None, float]], *,
