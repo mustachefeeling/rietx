@@ -284,17 +284,20 @@ def _fwhm_mult_table(tol: float) -> tuple[np.ndarray, np.ndarray]:
 def window_fwhm_mult_interp(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
     """:func:`window_fwhm_mult` read off a table built once per ``tol``.
 
-    For :func:`rewindow`, which sizes at every call it gets and spent 70-88 %
-    of its time in the bisection: 60 steps of a few numpy calls each, so
-    ~0.36 ms per phase and emission line whatever the reflection count
-    (WP-2051).  Linear interpolation on the table's 8193 nodes is within
-    1.2e-5 of the bisection's k, relative, at tolerances 0.02, 1e-3 and 5e-5
-    (40 000 η, measured 2026-10-25).  ``compile_model`` keeps the bisection,
-    so no compiled window moves.
+    For :func:`window_sizing` (:func:`rewindow`), which sizes at every call it
+    gets and spent 70-88 % of its time in the bisection: 60 steps of a few
+    numpy calls each, so ~0.36 ms per phase and emission line whatever the
+    reflection count (WP-2051).  Linear interpolation on the table's 8192
+    nodes is within 1.2e-5 of the bisection's k, relative, at tolerances
+    0.02, 1e-3 and 5e-5 (40 000 η, measured 2026-10-25).  ``compile_model``
+    keeps the bisection, so no compiled window moves.  ``np.interp`` holds
+    the end values outside [0, 1], which is the bisection's clip.
     """
     tol = WINDOW_AREA_TOL if tol is None else tol
     grid, k = _fwhm_mult_table(float(tol))
-    return np.interp(np.clip(np.asarray(eta, dtype=np.float64), 0.0, 1.0), grid, k)
+    return np.interp(np.asarray(eta, dtype=np.float64), grid, k)
+
+
 #: quadrature nodes are sized as if the axial S/L, H/L were at least this
 #: large.  Applied **by value** whenever either is positive, so that
 #: ``predict()`` at given values does not depend on which parameters are free

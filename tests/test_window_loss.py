@@ -150,7 +150,7 @@ def test_the_vectorised_node_count_is_the_compiles(sl, hl, closing):
     assert got.tolist() == want
 
 
-@pytest.mark.parametrize("tol", [WINDOW_AREA_TOL, CLOSING_WINDOW_TOL, 1e-3, 5e-5])
+@pytest.mark.parametrize("tol", [WINDOW_AREA_TOL, 1e-2, CLOSING_WINDOW_TOL, 5e-5])
 def test_the_tabled_window_multiple_is_the_compiles(tol):
     """``window_fwhm_mult_interp`` (rewindow's) is within 2e-5 of
     ``window_fwhm_mult`` (the compile's), relative, over η uniform on [0, 1]
