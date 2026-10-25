@@ -87,6 +87,10 @@ where a staleness measure would be computed), `strategy/staged.py`
 (`stage_ftols`, the closing stage), `schemas/results.py` (`StageResult`),
 `schemas/history.py` (`NodeAction`).
 
+### Inherited
+
+- **From WP-1421 (2026-10-25, closed): re-check #774's zero case once windows follow the parameters, by the maintainer's instruction.** The case was ruled (c), documented: with both axial ratios at exactly zero and either free, the compile sizes the windows and the FCJ nodes as if each were `forward.AXIAL_SIZING_FLOOR` (0.02), so `predict()` differs from the same model held at zero by 4.8e-5 of the strongest peak (the issue's rutile reproducer). Sizing every zero model at the floor (option a) made the gap exactly 0 and a default fluorapatite `mccusker_default` fit 2.0× slower (0.64-0.71 s → 1.32-1.35 s, `[dev]`, darwin/arm64). The floor does two jobs: a live derivative column at zero (the nodes) and room for the tail the stage grows (the windows). The 4.8e-5 is the windows' job. Once windows follow the parameters between solves, that job is this WP's, so a model at zero could size its nodes from the free set and its windows from its value, which may close the gap at no cost. Unmeasured: check that free and held curves at zero then agree, and that the derivative column at zero stays correct (`test_cross_backend.py`'s axial rows). `forward.MAGNETIC_SIZING_FLOOR` has the same zero-case shape (`forward.py:4008-4013`), unmeasured; check it in the same pass. The sentence to update if the gap closes is in `help.py`'s `axial_sl`/`axial_hl` entries and `Refinement.predict`'s docstring; `docs/practice.md` § Axial divergence at zero has the survey. A second point for your acceptance: WP-1421 re-measured the closing stage against one more empty stage on the fluorapatite tutorial (0.00 % under `mccusker_default`, 9.26 % with `closing_window_tol=None`), and a hand-run `run_stage` has no closing stage, so it keeps that gap. That is your sink at the size of one stage.
+
 ## Non-goals
 
 - Windows that move at every evaluation (WP-2045's option 7). That drops

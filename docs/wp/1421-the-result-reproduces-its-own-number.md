@@ -276,7 +276,7 @@ forward evaluation is small next to a solve, and avoiding it changes the shared 
 **Generality** (the `generality-review` judge, on the branch at `5ee469ad`; its sections
 with some long cells shortened, the author's answer under each verdict short of "holds").
 
-#### 1. The joint fit recompiles at its answer (`MultiHistogramRefinement._final_compiles`, multi.py)
+**1. The joint fit recompiles at its answer (`MultiHistogramRefinement._final_compiles`, multi.py)**
 
 **holds.** The case for acting is much stronger. Every established program that I could check in this repository reports curves built at the final values. The only cost found is one compile per pattern.
 
@@ -292,7 +292,7 @@ with some long cells shortened, the author's answer under each verdict short of 
 
 What would change the verdict: a named workflow that needs the reported χ² to be the minimised objective rather than the value at the answer.
 
-#### 2. `FROZEN_COMPILE_CHI2_REL` (1e-2) now gates `FROZEN_COMPILE_STALE` on the joint fit, tested on χ² summed over the patterns
+**2. `FROZEN_COMPILE_CHI2_REL` (1e-2) now gates `FROZEN_COMPILE_STALE` on the joint fit, tested on χ² summed over the patterns**
 
 **weak.** The case against the pooled test is stronger. The package's own joint-fit scope table already says a pooled figure can hide one pattern. The fixture this WP measured has per-pattern gaps 30× apart. And the threshold row the dispatch calls audited is not audited.
 
@@ -310,7 +310,7 @@ What would change the verdict: per-pattern gaps measured on joint fits, showing 
 
 *Author:* taken (commit `0b521af5`). Each pattern's gap is tested and one finding names the worst pattern in its message; the size pair with the closing stage off now fires it on histogram 1 at 17 %, asserted by `test_a_joint_result_is_measured_on_a_compile_at_its_answer`. The judge's 74 % used a compile that ignores the free set, so it is not the pattern's gap. The threshold's tier stays on `UNAUDITED_BASELINE` as it was; this branch adds no row.
 
-#### 3. The skill and help text: silence is not proof, run one empty stage; "the fit is not biased" removed
+**3. The skill and help text: silence is not proof, run one empty stage; "the fit is not biased" removed**
 
 **holds.** The case for the change is stronger. The removed claim has two measured counterexamples, and the new advice is keyed by a code and backed by a practice outside rietx. One sentence of the shared help text is now wrong for joint fits.
 
@@ -328,7 +328,7 @@ What would change the verdict: a case where an empty stage moved a well-determin
 
 *Author:* the defect is fixed in `0b521af5`.
 
-#### 4. The axial-divergence sizing floor at zero, documented
+**4. The axial-divergence sizing floor at zero, documented**
 
 **holds as documentation.** A measured 2× slowdown against a 4.8e-5 effect, ruled by the maintainer. The number is inconsistent within the diff, and the floor's row does not record that rietx sits outside the surveyed practice.
 
