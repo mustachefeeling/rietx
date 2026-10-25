@@ -2917,8 +2917,48 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.structure.RIGID_BODY_DRIFT_TOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: roundoff drift measured at <= 1e-14 A, tolerance 1e-6 A "
                   "(docstring); refusing at it protects against a hand-edited body atom")),
-    Row("rietx.schemas.structure.RIGID_BODY_INVARIANCE_TOL", "constant", value=0.001),
-    Row("rietx.schemas.structure.RIGID_BODY_OVERLAP_FACTOR", "constant", value=0.7),
+    Row("rietx.schemas.structure.RIGID_BODY_INVARIANCE_TOL", "constant", tier=3, value=0.001,
+        evidence=("add_body with its origin on a special position: each template point's image "
+                  "under the site group must land within it of a same-species point, or "
+                  "RIGID_BODY_NOT_INVARIANT names the point (WP-1807, #1005). Tested on the PbSO4 "
+                  "mirror (SO4 kept 4 of 5 atoms, S 4, O 16), C2/c's 2-fold and a diacetylene "
+                  "tilted 5 and 30 deg out of the mirror (refused); an asymmetric fragment misses "
+                  "by a bond-scale distance. A rounding bound on typed input, not float precision: "
+                  "under a mirror 3-decimal-in-A rounding cancels (max miss 0.0), under a 3-fold "
+                  "it does not (200 000 random points typed to 3 decimals in A: 2.8 % miss by more "
+                  "than 1e-3 A, max 1.3e-3, median 5e-4), so a 6-12-point template on a 3-fold "
+                  "site is refused about 16-29 % of the time; five-decimal fractional input "
+                  "(about 1e-4 A) is unaffected (PR #1005 body)"),
+        grounds=("rietx's own rounding tolerance; no program default found to rest it on. Its "
+                 "stated failure: a 3- or 6-fold site with a template typed to three decimals in "
+                 "A, refused with a message that blames the fragment (the constant's comment "
+                 "claims such templates land well inside it; true under a mirror only). The "
+                 "refusal truncates nothing and names the point and the miss, and the caller "
+                 "can list the atoms and use body_from_atoms(..., origin=) instead. Geometry "
+                 "rather than data: one tolerance checked on three space-group settings, no "
+                 "dataset family.")),
+    Row("rietx.schemas.structure.RIGID_BODY_OVERLAP_FACTOR", "constant", tier=3, value=0.7,
+        evidence=("RIGID_BODY_IMAGE_OVERLAP at table build: a space-group image of a body atom, "
+                  "other than on its own site, nearer than 0.7 x the covalent-radius sum to an "
+                  "atom of the same body (WP-1807, #876). The distance is arithmetic and the "
+                  "radii are Cordero et al. 2008 (gemmi covalent_r); the 0.7 is a free factor. "
+                  "Its window is sourced: the shortest legitimate same-body image distances are "
+                  "bonds (International Tables Vol. C § 9.5): C#C across a centre 1.18 A against "
+                  "1.02, X-ray O-H 0.82 against 0.68, N-H 0.86 against 0.71, N#N 1.10 against "
+                  "0.99; #876's doubled SO4 sat at 0.32 against 1.20. Positive arms: PbSO4 SO4 "
+                  "0.03 off the mirror (0.32 A, S 8, O 32) and on it (0 A), perhydropyrene "
+                  "(COD 1550439) listed whole (0 A, C 64, H 104); silent on perhydropyrene's "
+                  "half molecule (C1-C1' 1.505 A against 1.02), diacetylene (COD 1577467) and "
+                  "HKUST-1 on their sites (test_rigid_body_special.py)"),
+        grounds=("rietx's own factor, chosen below every bond in the sourced list. Four "
+                 "materials, geometry rather than data, no failure case found on them. Its edge "
+                 "by construction: a straddling atom more than half the threshold off the "
+                 "element (0.51 A for C-C) is not caught here, so a diacetylene tilted past "
+                 "about 42 deg passes this check and only add_body's template check refuses it "
+                 "(test_add_body_refuses_a_diacetylene_tilted_out_of_the_mirror). Unanimity on "
+                 "the refusal: no dissenter, since no refiner wants a body the cell counts twice; "
+                 "a disorder_group on the atoms exempts them, and origin= on the element is the "
+                 "named exit.")),
     Row("rietx.schemas.structure.RIGID_BODY_ROTATION_BOUND", "constant", tier=1, value=3.141592653589793,
         evidence=("arithmetic: the increment's Jacobian is singular only at |d omega| = 2 pi; +-pi "
                   "per component keeps |d omega| <= pi*sqrt(3) < 2 pi (docstring, WP-1803 review)")),
@@ -4733,8 +4773,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.sequential.SeriesEntry.rungs_raised",
     "rietx.schemas.sequential.SeriesEntry.rungs_tried",
     "rietx.schemas.sequential.SeriesEntry.rwp_fence",
-    "rietx.schemas.structure.RIGID_BODY_INVARIANCE_TOL",
-    "rietx.schemas.structure.RIGID_BODY_OVERLAP_FACTOR",
     "rietx.schemas.suggest.SUGGEST_ABSORPTION_MAX",
     "rietx.schemas.suggest.SUGGEST_GROUP_R2",
     "rietx.schemas.suggest.SUGGEST_MIN_GAIN",
