@@ -81,6 +81,14 @@ windows at every evaluation. FullProf holds its windows for a whole run, as
 rietx holds them for a stage. No program's manual states what its rule costs
 in accuracy.
 
+**The tier of each rule this WP adds** (written 2026-10-25 by the session
+that started it). The recompile itself is an automatic action of the first
+kind (DESIGN § Rules, 1): every program surveyed rebuilds its windows at some
+point, so the stage acts and records what it did in a field. Its trigger, the
+staleness threshold, is new judgement (tier 3). It is measured on one family,
+the hostile series cpd-1a → cpd-1b, against the independent fit of cpd-1b
+(Rwp 0.137) as the reference. No published number exists for it.
+
 **Files.** `refine.py` (`Refinement._run_stage`, where a stage compiles and
 solves), `model/forward.py` (`compile_model`'s window and FCJ sizing, and
 where a staleness measure would be computed), `strategy/staged.py`
