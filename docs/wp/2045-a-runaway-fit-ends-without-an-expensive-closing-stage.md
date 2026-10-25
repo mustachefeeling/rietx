@@ -154,6 +154,27 @@ maintainer's answer, to the candidates below with the measurements above:
 row of its own. It changes what `stage_ftols` gives the last declared
 stage, so the `intermediate_ftol` rows are re-read against it.
 
+**What option 5 costs, measured 2026-10-25** (macOS arm64, `[dev]`, compiled
+tier on, tree `ab5922dd3`, another session's pytest on about three of ten
+cores; `2045-batch/probe6.py`). Shipped against the last declared stage's own
+`ftol` set to `optimize.lm.FTOL`, two interleaved rounds each. "Away" is the
+largest shift from the shipped answer in plain esd, non-background rows
+(`test_window_domain._shift`). Evaluations counted at `StageResult.n_iterations`.
+
+| Protocol | Evaluations, whole fit | Last declared stage | Closing stage | Wall clock in s | Away |
+|---|---|---|---|---|---|
+| SRM 660c LaB6 | 86 → 90 (1.05×) | 7 → 11 | 12 → 12 | 0.90-1.01 → 0.87-0.94 | 0.000 |
+| fluorapatite | 47 → 49 (1.04×) | 7 → 9 | 9 → 9 | 2.16-2.17 → 2.15-2.87 | 0.000 |
+| cpd-1a | 167 → 175 (1.05×) | 16 from 7 | 14 → 13 | 2.90-3.03 → 2.95-3.07 | 0.0004 |
+| 11-BM NAC | 43 → 46 (1.07×) | 7 → 10 | 7 → 7 | 0.79-0.95 → 0.79-0.80 | 0.000 |
+| mg090 joint (11-BM + BT-1) | 143 → 143 | 3 → 3 | 8 → 8 | 6.15-6.43 → 5.69-6.22 | 0.000 |
+
+Every arm converged, and Rwp agreed to 1e-10. The joint fit is
+`test_acceptance_wavelength._joint(None)`'s protocol. So option 5 hands back
+1.04-1.07× of the 1.2-1.6× `intermediate_ftol` buys, and the second task's
+rule ("if option 5 costs more than that saving, put the numbers to the
+maintainer") does not fire.
+
 **Design candidates, as put to the maintainer.** Each needs the maintainer's ruling, and
 the generality audit table needs a row for any threshold
 (`src/rietx/_audit.py`; root CLAUDE.md § Every heuristic has a row):
@@ -253,7 +274,7 @@ climb to the 512 cap, and each new count misses the `leggauss` cache
 
 - [x] The design, put to the maintainer with this file's numbers. Ruled
       2026-10-24: option 5, and option 4 filed as WP-2047.
-- [ ] Measure option 5 before building it, as the ruling asked: on the four
+- [x] Measure option 5 before building it, as the ruling asked: on the four
       acceptance protocols (SRM 660c LaB6, the fluorapatite tutorial,
       cpd-1a, 11-BM NAC), the whole-fit time and the largest shift in plain
       esd against the shipped tree, in the shape of WP-2002's eighth-round
