@@ -142,9 +142,14 @@ def test_the_biso_start_does_not_change_the_answer(family):
 
 @pytest.mark.parametrize("family", [
     "fap", "cpd1a", "nac",
-    pytest.param("lab6", marks=pytest.mark.xfail(strict=True, reason=(
+    # not strict: the two minima are an exact S/L <-> H/L swap at equal Rwp,
+    # and rounding picks each arm's.  Under 1e-14 start nudges on an arm64 Mac
+    # 23 of 49 arm pairs crossed (8.82 esd) and 26 agreed (7.4e-6), and Linux
+    # took an agreeing pair on deff4c301 (XPASS; WP-2036, 2026-10-25)
+    pytest.param("lab6", marks=pytest.mark.xfail(strict=False, reason=(
         "without the Y floor LaB6's axial ratios reach the mirrored S/L and H/L "
-        "minima (WP-2012): 8.82 esd on axial_sl (WP-2002, 2026-10-23)")))])
+        "minima (WP-2012): 8.82 esd on axial_sl when the two arms take opposite "
+        "minima, which rounding picks (WP-2002, 2026-10-23; WP-2036)")))])
 def test_the_intermediate_tolerance_does_not_change_the_answer(family):
     """``intermediate_ftol`` 1e-6 against every stage at the solver's 1e-9."""
     _assert_within_bar(_fit(family), _fit(family, ftol=None),

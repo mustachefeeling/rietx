@@ -1,6 +1,6 @@
 # WP-1343 — the magnetic peaks are broader, and the moment pays for it
 
-Milestone: magnetic · Status: 🔄 2026-10-21 — 10 of 12 tasks done; PR #1087 merged (the width diagnostic's noise is the nuclear-only scatter); open: a synthetic k = 0 no-esd case with its PNGs, and the identifiability row
+Milestone: magnetic · Status: 🔄 2026-10-25 — 12 of 12 tasks done; PR #1111 merged (the synthetic k = 0 case, a wide esd and the path named); open: the maintainer's choice of fix for `MAGNETIC_WIDTH_UNMODELLED`'s silence where every magnetic reflection is also nuclear (a strict xfail holds the case)
 Depends on: 1327 (the moment, the magnetic |F_⊥|², the shared scale);
 1326 soft (the satellites that make the term identifiable)
 Priority: P2 2026-10-05 — was P3: `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` fires on a warm refit under `fit` (#729), a flag firing wrongly whose workaround is `run_stage`
@@ -351,7 +351,7 @@ the cheaper of the two at the time; the skill row is required either way.
       size term (λ¹, as `lor_size`), or the joint fit shares a coefficient
       that is not one number across wavelengths (WP-1131's invariant), with
       the two-histogram test that catches it.
-- [ ] Identifiability: the unmeasured path named rather than quoted, on all
+- [x] Identifiability: the unmeasured path named rather than quoted, on all
       three regimes above; a synthetic k = 0 case asserted to come back with
       no esd rather than a small one.
 - [x] `MAGNETIC_WIDTH_UNMODELLED`: the differential centre-versus-tails
@@ -369,7 +369,7 @@ the cheaper of the two at the time; the skill row is required either way.
 - [x] Skill: rows in the magnetic `references/` file 1327 opens — the
       turn-on order, what the diagnostic means, and when the width is not
       measurable. Paid for by a named cut if the body moves at all.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`, magnetic-only
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`, magnetic-only
       reflections zoomed.
 - [x] `MAGNETIC_WIDTH_UNMODELLED` divides its statistic by a pooled scatter
       that the misfit itself inflates, so its evidence shrinks as the problem
@@ -452,6 +452,45 @@ the cheaper of the two at the time; the skill row is required either way.
 
 ## Handover log
 
+- **2026-10-25** — PR #1111 (outside contributor) merged as `942f8db4`. It
+  adds `tests/test_magnetic_width_k_zero.py` and lands the last two Tasks rows:
+  the identifiability row and the k = 0 half of the Tests + PNGs row. The k = 0
+  case is CrSBr's ferromagnet along c (BNS 59.409, on the parent cell), on
+  #943's specimen, instrument and counts. Along c, no reflection carrying at
+  least 0.1 % of the strongest magnetic line is over 95 % magnetic, so it is
+  the WP's second regime. The b-axis child is not, because its (0 0 1) is 97 %
+  magnetic, and MnF₂ is the first regime. The identifiability row is met in
+  #524's accepted form: a wide esd that covers the truth, with the path named,
+  never a small esd. On the test draw the width came back 0.2030 ± 0.0729°
+  against 0.1969 ± 0.0046° at k = ½, 15.8× wider. Over 30 scratch draws the
+  esd was 0.062-0.081° and the pulls had s.d. 0.67. Each of five arms names
+  exactly the widths under 3σ, both ways. New PNGs `crsbr_k000_{free,held}`
+  with (1 0 1) and (0 2 1) zooms, since this regime has no magnetic-only line.
+  *What the merge does not do*: it fixes nothing in the source. It records one
+  defect as a strict xfail, `test_k0_held_the_report_names_the_missing_width`.
+  With the width held at zero the k = 0 moment comes back 28.5 % low on the
+  test draw (25 % mean, at least 8.1 esd over 30 draws), and
+  `MAGNETIC_WIDTH_UNMODELLED` fires on 0 of 30. Its statistic differences
+  magnetic-only against nuclear-only reflections, and this regime has no
+  magnetic-only reflection. `_classified_reflections` keeps a row on
+  `f_mag > 0.0`, so its magnetic-only set is five rows extinct to rounding
+  (f_mag ~1e-30) and (1 1 2) at 0.03 % of the strongest line. Nothing in the
+  report says the check could not be made. The PR ranks three fixes: report
+  that the check had nothing to read; floor the classifier relative to the
+  strongest magnetic line (a precondition, silent on its own); or a regime-2
+  statistic on the most magnetic mixed reflections (new design). Which fix,
+  if any, is the maintainer's call, asked on 2026-10-25.
+  *Gate*: stacked with #1073 on tree `1923c693` (main `f9a983d7` + both PRs;
+  macOS arm64, Python 3.12.10, `[dev,jax]`, nothing else running): the whole
+  suite, slow tests included, 12 255 passed, 206 skipped, 43 xfailed in
+  35 min. Main after the last merge (`4cfd4598`) is content-identical to that
+  tree.
+  *Cross-reference*: #1073, merged in the same stack, vendors the real
+  Ba₂FeSbSe₅ G4.1 ramp, which acceptance 4 names as the better k ≠ 0 row. Its
+  description reports that freeing both magnetic widths there costs BIC at 1.5,
+  20, 40 and 50 K (ΔBIC −5.8 to −9.0), with the Biso tied per parent site. Its
+  test does not free the widths. *Next*: the choice among the three fixes, then
+  a Tasks row for it.
 - **2026-10-21** — PR #1087 (outside contributor) merged as `f0c7285b`. It
   lands the last Tasks row. `MAGNETIC_WIDTH_UNMODELLED` now divides its
   statistic by the weighted residual's s.d. over the nuclear-only channels it

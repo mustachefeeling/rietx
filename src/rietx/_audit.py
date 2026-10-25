@@ -745,7 +745,17 @@ ROWS: tuple[Row, ...] = (
     Row("ORIGIN_FIXED_ON_POLAR_AXIS", "code"),
     Row("ORIGIN_NOT_FIXED", "code"),
     Row("PARAMETRIC_FORM_REJECTED", "code"),
-    Row("PARAMETRIC_OUT_OF_RANGE", "code"),
+    Row("PARAMETRIC_OUT_OF_RANGE", "code", tier="caller", ambiguity=1,
+        response="warning",
+        responds=("quote no value of the dependent (a cell, a width, a scale) at the named "
+                  "patterns, where the equation put it outside the target's own min/max; "
+                  "narrow the subset or lower the order and refit"),
+        evidence=("opt-in twice: parametric=None by default, inside refine_multi / "
+                  "MultiHistogramRefinement, which no default path calls (searched 2026-10-24: "
+                  "no call in src/rietx outside multi.py, the GUI included); it reads the "
+                  "caller's own declaration against each target entry's min/max, the schema's "
+                  "default where the caller set none (multi.py:2316-2322), and applies no "
+                  "threshold of its own (WP-1325)")),
     Row("PARAMETRIC_TARGET_UNSEEN", "code"),
     Row("PATTERN_DEAD_CHANNELS", "code"),
     Row("PATTERN_DUPLICATE_POINTS", "code"),
@@ -879,18 +889,45 @@ ROWS: tuple[Row, ...] = (
     Row("ROUGHNESS_OUTSIDE_REGIME", "code"),
     Row("ROUGHNESS_UNCONSTRAINED", "code"),
     Row("SCALE_B_INSEPARABLE", "code"),
-    Row("SEQUENTIAL_CANCELLED", "code"),
+    Row("SEQUENTIAL_CANCELLED", "code", tier="caller", ambiguity=1,
+        response="warning",
+        responds=("the chain the message names stopped early: past the last pattern a "
+                  "cancelled forward chain reached, quote no cell, fraction or width; a "
+                  "cancelled backward chain leaves the forward trajectory whole but unchecked "
+                  "for path dependence; re-run the series to complete it"),
+        scope=("all",),
+        evidence=("opt-in: fires only on a cancel the caller asked for, cancel=None by default; "
+                  "the token runs.attach_cancel gives a recorded series (sequential.py:1275) or "
+                  "the GUI series route carries (gui/session.py:1711) is set only by the "
+                  "person's stop, and no default path sets one (searched 2026-10-24). It "
+                  "reports the requested act, n of N patterns, and moves no value "
+                  "(sequential.py:2153-2167, WP-1016)")),
     Row("SEQUENTIAL_DISCONTINUITY", "code"),
     Row("SEQUENTIAL_MOMENT_HOLD", "code"),
     Row("SEQUENTIAL_MOMENT_ONSET", "code"),
-    Row("SEQUENTIAL_PATH_CHECK_INCOMPLETE", "code"),
+    Row("SEQUENTIAL_PATH_CHECK_INCOMPLETE", "code", tier="caller", ambiguity=1,
+        evidence=("opt-in: fires only under direction='both', off by default, which no default "
+                  "path sets (the GUI series panel defaults to 'forward', gui/series.py:80; "
+                  "searched 2026-10-24). It reports that the requested comparison did not run "
+                  "or ran on less than the series (sequential.py:2170-2241) and moves no value. "
+                  "No response yet: its sites raise at warning (did not run) and info (ran on "
+                  "less), two consequences in one code (WP-2003 batch)")),
     Row("SEQUENTIAL_PATH_DEPENDENT", "code"),
     Row("SEQUENTIAL_PERSISTENT_FINDING", "code"),
     Row("SEQUENTIAL_RESEED", "code"),
     Row("SEQUENTIAL_RWP_OUTLIER", "code"),
     Row("SEQUENTIAL_UNRECOVERED", "code"),
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
-    Row("SERIES_PATTERN_FAILED", "code"),
+    Row("SERIES_PATTERN_FAILED", "code", tier=1, ambiguity=1,
+        response="warning",
+        responds=("the named pattern has no fitted values in the chain the message names: in "
+                  "the forward chain read its place in every trajectory (a cell, a fraction, "
+                  "a width) as a gap rather than a measurement, in the backward chain its "
+                  "forward entry stands unchecked for path dependence; fit it alone to read "
+                  "the exception"),
+        evidence=("arithmetic: fires exactly when every rung the chain tried on a pattern raised, "
+                  "one per SeriesFailure (sequential.py:2244-2278); the policy that carries on "
+                  "past it is SequentialRefinement.fit:on_error's own row, still unaudited")),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code", response="warning",
         responds=("check the site's multiplicity against the source before quoting a weight "
                   "fraction, a density or a site's occupancy from this fit")),
@@ -932,13 +969,30 @@ ROWS: tuple[Row, ...] = (
                   "became of a hold or tie on a renumbered coordinate DOF (maintainer's "
                   "review of #1014, round 5; the GSAS-II citation of round 4 no longer "
                   "supports the row)")),
-    Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code"),
+    Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code", tier=1, ambiguity=1,
+        response="info",
+        responds=("nothing to correct: read the shared size column as histogram 0's "
+                  "coefficient and convert it at each histogram's own wavelength, as the "
+                  "message states"),
+        evidence=("physics: a size coefficient is (180/pi)K lambda/L and the Gaussian one its "
+                  "square (Scherrer; params/multi.py SIZE_LAMBDA_POWER and its docstring), so "
+                  "one specimen's size is one column scaled by (lambda_h/lambda_0)^p; states "
+                  "that conversion and is silent while no scaled term is off zero "
+                  "(multi.py:2249-2300; WP-1131, WP-1343)")),
     Row("SIZE_UNUSUALLY_SMALL", "code"),
     Row("SOLVE_B_TIED_PER_PARENT_SITE", "code", tier="caller", ambiguity=2,
         evidence="opt-in: solve_magnetic(tie_to_parent=True), default False"),
     Row("SPACE_GROUP_SETTING_ASSUMED", "code"),
     Row("SPECIES_FALLBACK_NEUTRAL", "code"),
-    Row("STAGE_FREED_NOTHING", "code"),
+    Row("STAGE_FREED_NOTHING", "code", tier=1, ambiguity=3,
+        response="info",
+        responds=("nothing, where the stage was meant for the other histograms; otherwise add "
+                  "a glob that reaches the named histogram and refit"),
+        evidence=("arithmetic: names the histograms a stage's globs matched no row of while "
+                  "matching another's, read off StageResult.unreached_histograms, which already "
+                  "drops a scoped glob, a declined row and a glob matching nowhere "
+                  "(multi.py:2539-2584); raised only in the joint fit; states and gates nothing, "
+                  "since one histogram can be the intent (issue #265, WP-1414)")),
     Row("STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT", "code"),
     Row("STAGE_MAX_ITER", "code"),
     Row("STAGE_PATH_NOT_FREE", "code"),
@@ -2878,7 +2932,14 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.FIRST_RUNG_SAMPLES", "constant", value=3),
     Row("rietx.sequential.MIN_POINTS_FOR_DISCONTINUITY", "constant", value=5),
     Row("rietx.sequential.MIN_POINTS_FOR_PERSISTENCE", "constant", value=5),
-    Row("rietx.sequential.NOISE_FLOOR_REL", "constant", value=1e-09),
+    Row("rietx.sequential.NOISE_FLOOR_REL", "constant", tier=1, value=1e-09,
+        evidence=("numerical floor: a step or a between-chain gap under 1e-9 of the parameter's "
+                  "magnitude (never under 1e-9 absolute, sequential.py:2290) is about 4.5e6 "
+                  "eps_fp64 and five decades under a refined cell's relative esd (CPD corundum "
+                  "a 4.75804(38), 8e-5; 2003-batch/reseed.md), so only a constant trajectory "
+                  "falls under it; before it an unrefinable profile.y read as a 29 000x step and "
+                  "1e16 sigma of path dependence (its comment, sequential.py:231-242). The fences "
+                  "it guards are tiered on DISCONTINUITY_* and PATH_DEPENDENCE_SIGMA")),
     Row("rietx.sequential.PATH_DEPENDENCE_SIGMA", "constant", value=3.0),
     Row("rietx.sequential.RESEED_FACTOR", "constant", value=1.25),
     Row("rietx.sequential.WIDTH_GROWTH_FACTOR", "constant", value=3.0),
@@ -3460,10 +3521,22 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.SequentialRefinement.fit:x", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:x_label", "default", value="index"),
     Row("rietx.sequential.SequentialRefinement.fit:labels", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:mode", "default", value="rietveld"),
+    Row("rietx.sequential.SequentialRefinement.fit:mode", "default", tier=2, ambiguity=1,
+        value="rietveld",
+        evidence=("the single fit's default (rietx.refine.Refinement.fit:mode), handed to each "
+                  "pattern's fit unchanged (sequential.py:1799); seven programs, 2026-10-21 "
+                  "(docs/practice.md): none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS "
+                  "make the user state it. GSAS-II fits each histogram of a series by RefineCore, "
+                  "the single fit's solver (docs/practice.md § Sequential refinement, checked)")),
     Row("rietx.sequential.SequentialRefinement.fit:plan", "default", value="mccusker_default"),
     Row("rietx.sequential.SequentialRefinement.fit:refit", "default", value="single"),
-    Row("rietx.sequential.SequentialRefinement.fit:two_theta_limits", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:two_theta_limits", "default", tier=2,
+        ambiguity=1, value=None,
+        evidence=("the single fit's default (rietx.refine.Refinement.fit:two_theta_limits), "
+                  "handed to each pattern's fit unchanged (sequential.py:1799-1800); seven "
+                  "programs, 2026-10-21 (docs/practice.md): the full range in GSAS-II, FullProf, "
+                  "RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, "
+                  "TOPAS's default not stated")),
     Row("rietx.sequential.SequentialRefinement.fit:direction", "default", tier="caller", ambiguity=1,
         value="forward",
         evidence=("opt-in: direction='both' is asked by name and its off default walks one chain, "
@@ -3488,8 +3561,19 @@ ROWS: tuple[Row, ...] = (
                   "fitted value; which pairs it refits is set by DISCONTINUITY_FACTOR and "
                   "DISCONTINUITY_SIGMA, so this row is re-read when WP-2003's demotion of "
                   "SEQUENTIAL_DISCONTINUITY lands")),
-    Row("rietx.sequential.SequentialRefinement.fit:prepare", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:constrain", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:prepare", "default", tier="caller",
+        ambiguity=1, value=None,
+        evidence=("opt-in: prepare=None calls no hook; a caller's callable run on each pattern's "
+                  "warmed models (sequential.py:1765), whose every change is the caller's code. "
+                  "No default path passes one, the GUI series route included "
+                  "(gui/session.py:1706-1716; searched 2026-10-24)")),
+    Row("rietx.sequential.SequentialRefinement.fit:constrain", "default", tier="caller",
+        ambiguity=1, value=None,
+        evidence=("opt-in: constrain=None declares nothing; a caller's callable that re-declares "
+                  "ties, variables and holds on each fit (sequential.py:1794), ladder rungs "
+                  "included, since a tie resolves its globs against that fit's own table "
+                  "(WP-1441). No default path passes one, the GUI series route included "
+                  "(gui/session.py:1706-1716; searched 2026-10-24)")),
     Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: a callback handed each kept fit; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:on_error", "default", value="carry"),
@@ -3668,7 +3752,9 @@ ROWS: tuple[Row, ...] = (
     Row("ORIGIN_FIXED_ON_POLAR_AXIS.suggestion", "suggestion", value=2),
     Row("ORIGIN_NOT_FIXED.suggestion", "suggestion", value=1),
     Row("PARAMETRIC_FORM_REJECTED.suggestion", "suggestion", value=2),
-    Row("PARAMETRIC_OUT_OF_RANGE.suggestion", "suggestion", value=1),
+    Row("PARAMETRIC_OUT_OF_RANGE.suggestion", "suggestion", tier="caller", ambiguity=1, value=1,
+        evidence=("opt-in, as its code: names three changes to the caller's own declaration "
+                  "(subset, order, basis) and picks none (multi.py:2334-2336)")),
     Row("PARAMETRIC_TARGET_UNSEEN.suggestion", "suggestion", value=1),
     Row("PATTERN_DEAD_CHANNELS.suggestion", "suggestion", value=2),
     Row("PATTERN_INTENSITY_SCALED.suggestion", "suggestion", value=6),
@@ -3733,18 +3819,27 @@ ROWS: tuple[Row, ...] = (
     Row("ROUGHNESS_OUTSIDE_REGIME.suggestion", "suggestion", value=2),
     Row("ROUGHNESS_UNCONSTRAINED.suggestion", "suggestion", value=1),
     Row("SCALE_B_INSEPARABLE.suggestion", "suggestion", value=1),
-    Row("SEQUENTIAL_CANCELLED.suggestion", "suggestion", value=1),
+    Row("SEQUENTIAL_CANCELLED.suggestion", "suggestion", tier="caller", ambiguity=1, value=1,
+        evidence=("opt-in, as its code: says the one way to extend a trajectory the caller "
+                  "stopped, re-running it (sequential.py:2166)")),
     Row("SEQUENTIAL_DISCONTINUITY.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_MOMENT_HOLD.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_MOMENT_ONSET.suggestion", "suggestion", value=6),
-    Row("SEQUENTIAL_PATH_CHECK_INCOMPLETE.suggestion", "suggestion", value=3),
+    Row("SEQUENTIAL_PATH_CHECK_INCOMPLETE.suggestion", "suggestion", tier="caller", ambiguity=1,
+        value=3,
+        evidence=("opt-in, as its code: re-run direction='both' to completion, treat the named "
+                  "patterns as unchecked, or read both trajectories of an unjudged path "
+                  "(sequential.py:2187-2239); each restates what the requested check left "
+                  "undone")),
     Row("SEQUENTIAL_PATH_DEPENDENT.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_PERSISTENT_FINDING.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_RESEED.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_RWP_OUTLIER.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_UNRECOVERED.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_WIDTH_GROWTH.suggestion", "suggestion", value=1),
-    Row("SERIES_PATTERN_FAILED.suggestion", "suggestion", value=1),
+    Row("SERIES_PATTERN_FAILED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: names the one step that reads the exception, the pattern fitted "
+                  "on its own (sequential.py:2277)")),
     Row("SITE_DOFS_RENUMBERED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence=("arithmetic: points at parameters() for the site, where the renumbered "
                   "paths are listed; it states no value")),
@@ -3757,11 +3852,18 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: names the coordinate's source and the restatement (more than "
                   "TWIN_COORD_TOL from the position, read from the constant) that keeps a "
                   "real displacement")),
-    Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", value=1),
+    Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", tier=1, ambiguity=1,
+        value=1,
+        evidence=("arithmetic: names the conversion at a histogram's own wavelength "
+                  "(caglioti.apparent_size_from_size_coefficient) and the argument that "
+                  "declares a size per histogram instead (multi.py:2293-2298)")),
     Row("SIZE_UNUSUALLY_SMALL.suggestion", "suggestion", value=1),
     Row("SPACE_GROUP_SETTING_ASSUMED.suggestion", "suggestion", value=1),
     Row("SPECIES_FALLBACK_NEUTRAL.suggestion", "suggestion", value=1),
-    Row("STAGE_FREED_NOTHING.suggestion", "suggestion", value=1),
+    Row("STAGE_FREED_NOTHING.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence=("arithmetic: names how to list the histogram's rows and the two ways to "
+                  "change the plan, a glob that reaches them or a stage scoped to one "
+                  "histogram, and picks neither (multi.py:2579-2582)")),
     Row("STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT.suggestion", "suggestion", value=1),
     Row("STAGE_MAX_ITER.suggestion", "suggestion", value=1),
     Row("STAGE_PATH_NOT_FREE.suggestion", "suggestion", value=1),
@@ -4039,8 +4141,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "ORIGIN_NOT_FIXED.suggestion",
     "PARAMETRIC_FORM_REJECTED",
     "PARAMETRIC_FORM_REJECTED.suggestion",
-    "PARAMETRIC_OUT_OF_RANGE",
-    "PARAMETRIC_OUT_OF_RANGE.suggestion",
     "PARAMETRIC_TARGET_UNSEEN",
     "PARAMETRIC_TARGET_UNSEEN.suggestion",
     "PATTERN_DEAD_CHANNELS",
@@ -4142,16 +4242,12 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "ROUGHNESS_UNCONSTRAINED.suggestion",
     "SCALE_B_INSEPARABLE",
     "SCALE_B_INSEPARABLE.suggestion",
-    "SEQUENTIAL_CANCELLED",
-    "SEQUENTIAL_CANCELLED.suggestion",
     "SEQUENTIAL_DISCONTINUITY",
     "SEQUENTIAL_DISCONTINUITY.suggestion",
     "SEQUENTIAL_MOMENT_HOLD",
     "SEQUENTIAL_MOMENT_HOLD.suggestion",
     "SEQUENTIAL_MOMENT_ONSET",
     "SEQUENTIAL_MOMENT_ONSET.suggestion",
-    "SEQUENTIAL_PATH_CHECK_INCOMPLETE",
-    "SEQUENTIAL_PATH_CHECK_INCOMPLETE.suggestion",
     "SEQUENTIAL_PATH_DEPENDENT",
     "SEQUENTIAL_PATH_DEPENDENT.suggestion",
     "SEQUENTIAL_PERSISTENT_FINDING",
@@ -4164,20 +4260,14 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "SEQUENTIAL_UNRECOVERED.suggestion",
     "SEQUENTIAL_WIDTH_GROWTH",
     "SEQUENTIAL_WIDTH_GROWTH.suggestion",
-    "SERIES_PATTERN_FAILED",
-    "SERIES_PATTERN_FAILED.suggestion",
     "SITE_SNAPPED_TO_SPECIAL_POSITION",
     "SITE_SNAPPED_TO_SPECIAL_POSITION.suggestion",
-    "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
-    "SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion",
     "SIZE_UNUSUALLY_SMALL",
     "SIZE_UNUSUALLY_SMALL.suggestion",
     "SPACE_GROUP_SETTING_ASSUMED",
     "SPACE_GROUP_SETTING_ASSUMED.suggestion",
     "SPECIES_FALLBACK_NEUTRAL",
     "SPECIES_FALLBACK_NEUTRAL.suggestion",
-    "STAGE_FREED_NOTHING",
-    "STAGE_FREED_NOTHING.suggestion",
     "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
     "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT.suggestion",
     "STAGE_MAX_ITER",
@@ -4656,20 +4746,15 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.sequential.FIRST_RUNG_SAMPLES",
     "rietx.sequential.MIN_POINTS_FOR_DISCONTINUITY",
     "rietx.sequential.MIN_POINTS_FOR_PERSISTENCE",
-    "rietx.sequential.NOISE_FLOOR_REL",
     "rietx.sequential.PATH_DEPENDENCE_SIGMA",
     "rietx.sequential.RESEED_FACTOR",
-    "rietx.sequential.SequentialRefinement.fit:constrain",
     "rietx.sequential.SequentialRefinement.fit:first_rung_factor",
     "rietx.sequential.SequentialRefinement.fit:labels",
-    "rietx.sequential.SequentialRefinement.fit:mode",
     "rietx.sequential.SequentialRefinement.fit:on_error",
     "rietx.sequential.SequentialRefinement.fit:plan",
-    "rietx.sequential.SequentialRefinement.fit:prepare",
     "rietx.sequential.SequentialRefinement.fit:refit",
     "rietx.sequential.SequentialRefinement.fit:reseed",
     "rietx.sequential.SequentialRefinement.fit:reseed_factor",
-    "rietx.sequential.SequentialRefinement.fit:two_theta_limits",
     "rietx.sequential.SequentialRefinement.fit:x",
     "rietx.sequential.SequentialRefinement.fit:x_label",
     "rietx.sequential.WIDTH_GROWTH_FACTOR",
@@ -4843,7 +4928,6 @@ RESPONSE_BASELINE: tuple[str, ...] = (
     "ORIGIN_FIXED_ON_POLAR_AXIS",
     "ORIGIN_NOT_FIXED",
     "PARAMETRIC_FORM_REJECTED",
-    "PARAMETRIC_OUT_OF_RANGE",
     "PARAMETRIC_TARGET_UNSEEN",
     "PATTERN_DEAD_CHANNELS",
     "PATTERN_DUPLICATE_POINTS",
@@ -4900,7 +4984,6 @@ RESPONSE_BASELINE: tuple[str, ...] = (
     "ROUGHNESS_OUTSIDE_REGIME",
     "ROUGHNESS_UNCONSTRAINED",
     "SCALE_B_INSEPARABLE",
-    "SEQUENTIAL_CANCELLED",
     "SEQUENTIAL_DISCONTINUITY",
     "SEQUENTIAL_MOMENT_HOLD",
     "SEQUENTIAL_MOMENT_ONSET",
@@ -4911,13 +4994,10 @@ RESPONSE_BASELINE: tuple[str, ...] = (
     "SEQUENTIAL_RWP_OUTLIER",
     "SEQUENTIAL_UNRECOVERED",
     "SEQUENTIAL_WIDTH_GROWTH",
-    "SERIES_PATTERN_FAILED",
-    "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
     "SIZE_UNUSUALLY_SMALL",
     "SOLVE_B_TIED_PER_PARENT_SITE",
     "SPACE_GROUP_SETTING_ASSUMED",
     "SPECIES_FALLBACK_NEUTRAL",
-    "STAGE_FREED_NOTHING",
     "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
     "STAGE_MAX_ITER",
     "STAGE_PATH_NOT_FREE",

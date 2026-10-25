@@ -1,6 +1,6 @@
 # WP-1910 — the extinction screen at a small cell error, and the other centring
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the default decided: it flips, as PR #939 builds it (in review); point 2 is open
+Milestone: unscheduled · Status: 🔄 2026-10-25 — the default flip and the reference-fit gate merged (PR #939); open: the margin scan, point 2, the skill recipe, the PNGs
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — a silent wrong answer on a path few fits run: at +0.06 % the screen refutes certified corundum's class and returns one whose members exclude it, nothing names the cell, and the skill's own recipe screens the unrefined index cell
@@ -244,12 +244,12 @@ and is not proposed here. No code is ported.
       or a combination. *Decided 2026-10-06 on PR #747: document the
       contract and add `refine_cell=True` as an option, default unchanged;
       the caution is not decided.*
-- [ ] Land it. If the shared fit changes, the FAP, NAC and corundum rows of
+- [x] Land it. If the shared fit changes, the FAP, NAC and corundum rows of
       `tests/test_extinction_symbol.py` must keep their classes.
 - [ ] Maintainer decision on point 2: a new caveat or screen diagnostic for a
       centring twin in the list (not a wider `bravais_ambiguous`), screening
       both, or refusing to name a centring. Then land it.
-- [ ] Manual Part 1, § The extinction symbol: the contract, and the corundum
+- [x] Manual Part 1, § The extinction symbol: the contract, and the corundum
       numbers re-measured.
 - [ ] Skill: `references/diagnostics-indexing.md`'s recipe screens the
       Le Bail-refined cell (or states the contract), inside
@@ -354,3 +354,19 @@ are out of its reach.
   called without the caller's kind, and an empty screen drops
   `EXTINCTION_SCREEN_UNRELIABLE`. Point 2 and the caution stay undecided.
   *Next:* #939's round 2.
+- **2026-10-25** — PR #939 (by @mustachefeeling) merged at round 5 as
+  `fe4cbcc3`, carrying #941's and #993's synced heads. `determine_extinction_symbol`
+  refines the cell by default, in a cell-free `profile_only` Le Bail that runs
+  without the closing stage, as the screen's other fits do. It abstains with
+  `EXTINCTION_SCREEN_UNRELIABLE` when the reference fit's background-subtracted
+  Rwp passes `REFERENCE_NET_RWP_MAX` (1/√2, tier 3, ruled 2026-10-21). The
+  pinned classes held (synthetic P 2₁/c, FAP, NAC, certified corundum), with
+  their ΔBIC moved. The PbSO₄ X-ray histogram at a 0.1-0.2 % cell went from
+  an abstention to `P c - n`. The manual's `reference/extinction.md` states the
+  contract with the corundum numbers. The review's sync commit `9f8e8f21`
+  moved the notes to `docs/releases/1.11.0.md`, put the thresholds note under
+  C3's 1.12, and added schema 0.60's history line for `ExtinctionScreen.prefit_rwp`
+  and `.reference_rwp_net`. Gate: as WP-1956's 2026-10-25 entry. Open: the
+  margin scan (task 1), point 2, the skill recipe, and the PNGs. Round 4's
+  follow-ups stand: print √(N/(N+S)) beside `reference_rwp_net`, and show the
+  gate firing on a real family. *Next:* task 1's margin scan, then point 2.
