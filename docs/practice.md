@@ -195,6 +195,29 @@ only"). RIETAN-FP 3.12 manual, by full-text search (one hit, on secondary
 extinction). BGMN by the binary's keyword table, with no manual
 installed.
 
+## A sharp peak no phase accounts for
+
+Surveyed 2026-10-25 for WP-2036, on what `tests/test_acceptance_extra_peaks.py` should assert.
+
+- McCusker et al. (1999), *J. Appl. Cryst.* 32, 36, checked. §12.6: small unindexed peaks
+  found in other preparations too are probably not an impurity, though they may be the
+  sample holder's. Peaks that vary between preparations probably belong to a second phase,
+  which is identified and refined as a second phase where its structure is known. The paper
+  never recommends excluding the region, and quantifies no bias from leaving a peak
+  unmodelled. §10: e.s.d.'s assume counting statistics are the only error, and "reflect the
+  precision of the refined parameters and not their accuracy". An unmodelled peak is a
+  systematic error of the kind they say an e.s.d. cannot estimate.
+- GSAS-II 5.8.4, checked: background peaks, each with a refinable position, intensity and
+  Gaussian and Lorentzian width (`BkPkpos`, `BkPkint`, `BkPksig`, `BkPkgam`;
+  `GSASIIpwd.py:1093-1096`), are the same mechanism as a declared extra peak.
+- TOPAS, not read this session: `xo_Is` single peaks, recorded as prior art in WP-1103.
+
+So practice declares an intruder, or identifies its phase. What modelling it buys is claimed
+as a sound fit, not as a measured gain in accuracy. rietx's own measurement agrees: on the
+SRM 660c fixture, ignoring two holder lines moves the cell 0.4 ppm and reports an esd 9.9×
+the clean fit's. Rwp rises 4.4× in the same arm, and an esd scales with √χ², so the larger
+esd reports the worse fit; it does not measure the bias.
+
 ## The tier-2 rows resting on a program default
 
 | Row | Programs that agree | Dissent |
