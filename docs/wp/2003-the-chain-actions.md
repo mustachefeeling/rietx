@@ -1,6 +1,6 @@
 # WP-2003 — The chain actions: what a series decides between patterns
 
-Milestone: generality · Status: 🔄 2026-10-24 — claimed by @yue-here: the tiers, the clash table and the batch (the inventory, the reseed measurement and the first-rung tests landed in PR #1150)
+Milestone: generality · Status: 🔄 2026-10-25 — the batch drafted (practice survey, a proposal for all 111 entries, 17 tiered, the clash table, a fourth trigger arm); four picks to revise against DESIGN § Rules, then the rulings
 Track: The audits
 Depends on: 2002, 2037
 Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
@@ -184,7 +184,11 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       question answered in `2003-batch/README.md`.
 - [ ] Tier each row per part, with evidence. The `RESEED_FACTOR` question measured on
       three chain families with the fence on, off and status-only: patterns reseeded,
-      accepted values that differ, and the cost in evaluations.
+      accepted values that differ, and the cost in evaluations. Second session (2026-10-24/25):
+      a proposal for all 111 entries (`2003-batch/rows.json`, by class in `classes.md`); the 17
+      that need no approval are in the table (`7c37469`); the rest wait for the batch's rulings.
+      A fourth arm, `status_maxiter` (status-only that also escalates a warm rung ending
+      `max_iter`), measured on all eight families (`ded5c3f`, `dd13648`, `634bede`).
 - [ ] Quarantine's record: does the returned `SeriesResult` name the pattern that
       diverged, the rung it reached, and the successors seeded from an earlier pattern
       instead? Quarantine is one of Rule 1's protections and stays; a protection records
@@ -206,7 +210,11 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       thermal ramp (`tests/test_sequential.py`) and the CPD chain (slow,
       `tests/test_acceptance_sequential.py`), both asserting the margin too. The row stays
       `unaudited`: the closing stage now hides a bitten first rung (clash table, below).
-- [ ] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
+      Superseded in part 2026-10-25: the tests stand, but the invariance they assert does not
+      hold everywhere. At the default 3.0 the bound cut planted T087's winning rung in its
+      closing stage and moved its scale 39.3 esd (`2003-batch/clashes.md` X1); both tests
+      run chains where the bound never bites a winner.
+- [x] The clash table: reseed × rung × `_prefer` × width growth × the moment carry, both
       orderings where order matters; plus the carry policy × the width twin hold, the
       closing stage × path dependence, and 2002's B7 and B16 (Context). Found 2026-10-24:
       the first-rung bound × the closing stage (a truncated warm stage the closing stage
@@ -214,8 +222,12 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       `reseed=False` × the forced escalation (`sequential.py:1561`, `1569-1571`: a bitten
       first rung escalates against a switch the caller turned off, against `reseed`'s
       docstring); the closing stage × the fence (cpd-1b escalates with it, not without it).
+      Done 2026-10-25: `2003-batch/clashes.md` (`5212338`), fifteen clashes X1-X15, eleven
+      measured on synthetic chains or read off the reseed JSONs.
 - [ ] The batch to the maintainer, each brief opening with its stakes line (the record
-      § The rule, 2026-10-20); rulings dated into the table.
+      § The rule, 2026-10-20); rulings dated into the table. Drafted 2026-10-25
+      (`2003-batch/batch.md`, `86ffb9a`), not yet put to the maintainer: four picks are
+      revised against DESIGN.md § Rules first (the 2026-10-25 handover's *Next*).
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
       `SeriesResult.steps` field and its help entry (no diagnostic), if the batch agrees; the
       release notes staged.
@@ -250,6 +262,70 @@ summary).
 - Root CLAUDE.md § Series.
 
 ## Handover log
+
+### 2026-10-25 — the batch drafted (a practice survey, a proposal for every row, the clash table, a fourth trigger arm); its picks not yet checked against DESIGN § Rules, so not sent
+
+Every decision a series or a joint fit makes now has a proposed tier, and the 17 that needed no approval are in the table. A survey of the seven programs found that none restarts a pattern by itself, compares a chain with its reverse, or tests the step between neighbours, so nearly every chain action here is rietx's own. Two measurements change what the last session left. The Rwp fence's one real rescue, CPD 1b, is caught bit for bit by escalating a warm rung that ends unfinished, without the fence's 115 idle escalations elsewhere, though that rule has its own dissenter on disk (Cr₂WO₆ at 150 K, restarted twice for nothing). And the first-rung budget, filed as answer-invariant, moved an accepted value at its default (planted T087's scale, 39.3 esd), so it cannot be tiered invariant as built. The batch is drafted but was not put to the maintainer. Asked whether its picks were judged against DESIGN.md § Rules, the honest answer was not fully: four picks need revising first, listed under *Next*.
+
+*Done.*
+- Claimed (`b8ff437`): PR #1150 had merged, so the branch restarted from `origin/main`. The push was a fast-forward, the old tip being an ancestor of main; the classifier refuses a force-push. Draft PR #1156. The Context's tier line (`bb46ef3`): this WP adds no rule of its own; the fields it plans are records, and whatever picks `verify_discontinuities`' pairs is tiered before it lands. No offered family had landed (`tests/data` holds no CuCr₂O₄, Co₃O₄ or Ba₂FeSbSe₅; #1073 open).
+- `docs/practice.md` § Sequential refinement (`773a873`, a lane): GSAS-II 5.8.4, EasyDiffraction 0.21.1 and MAUD 3.07 read in source; FullProf, TOPAS and Profex inferred from search excerpts, their hosts refused (only GitHub and PyPI answered); RIETAN-FP and BGMN not reached. The lead checked two load-bearing claims in the fetched source: `Copy2Next` and `Reverse Seq` default `False` (`GSASIIobj.py:22`), and EasyDiffraction propagates only a successful fit (`sequential.py:1251-1262`).
+- Task 2's tiering half (`7c37469`, a lane): `2003-batch/rows.json` (111 proposals) and `classes.md` (eleven classes). Seventeen rows written into `_audit.py`: tier 1 `SERIES_PATTERN_FAILED`, `SIZE_NORMALISED_ACROSS_WAVELENGTHS`, `STAGE_FREED_NOTHING` (each with its suggestion) and `NOISE_FLOOR_REL`; tier 2 `fit:mode` and `fit:two_theta_limits`; caller `SEQUENTIAL_CANCELLED`, `SEQUENTIAL_PATH_CHECK_INCOMPLETE`, `PARAMETRIC_OUT_OF_RANGE` (each with its suggestion), `fit:prepare` and `fit:constrain`. Five codes got their response (off `RESPONSE_BASELINE`); `SEQUENTIAL_PATH_CHECK_INCOMPLETE` did not, raising at two levels.
+- `measure_reseed.py` gains the `status_maxiter` arm (`ded5c3f`): status-only, plus escalating a warm rung whose status is `max_iter`, by wrapping `_reseed_needed` for that run alone. Run on all eight families (`dd13648`, `634bede`).
+- The clash table (`5212338`, a lane): `2003-batch/clashes.md`, X1-X15.
+- The batch (`86ffb9a`, a lane): `2003-batch/batch.md`, 47 KB, eleven classes, each opening with its stakes line, plus seven fixes that need no ruling and an appendix.
+- Task 4 annotated as superseded in part (X1), task 5 ticked, tasks 2 and 6 annotated with what is left.
+
+*The design-principle check* (the maintainer's question, 2026-10-25, answered in the session against `docs/DESIGN.md` § Rules 1-4; the batch is unrevised).
+- Holds: C3 (the budget becomes the caller's), C4 (`SeriesResult.steps`, Rule 1's own third-kind example), C5, C6 and C7 (each threshold decides existence and has no source), C8 (the moment floor, no dissenter), C11, and C2's first two questions (the quarantine; a finite attempt over a diverged one).
+- **C1 fails Rule 1's unanimity gate on its own evidence.** "Escalate on `max_iter`" has a dissenter on disk: Cr₂WO₆ 150 K ran out of iterations at a good answer, where a refiner extends the fit rather than restarting it cold. The trigger that matches Rule 1 acts only on facts every refiner reads as failure: diverged, raised, or a guard already ruled first-kind firing (`CELL_RUNAWAY`, B8). That is the batch's option (iii), unmeasured; `max_iter` alone is then reported (`STAGE_MAX_ITER` already does) and not acted on. The brief also never cites Rule 4 against today's fence, which compares one pattern's Rwp with other patterns': "an Rwp comparison is never its evidence".
+- **C2's `_prefer` ranks by Rwp, which is the objective only up to the penalty and restraint rows Rwp leaves out.** The arithmetic criterion is the full cost.
+- **C2's `on_error="carry"` and C9's `carry` are each "tier 2 with the dissent named"**, against the record's "a dissent counts" for a default that switches on an action. `carry` reads better as Rule 1's first pick case: the caller asked for a warm-started chain by calling `refine_sequential` by name. The package's choice is then only *what* is carried, every entry against only the varied ones, which differ only where a fixed value moves and can be tested for invariance. `on_error` needs a real question to the maintainer, not a pick.
+- **C10 calls the joint absent-phase hold "covered by B1", and it is not.** It judges support by `phase_support` (`multi.py:413-417`), not B1's 3σ scale significance, so it needs its own row.
+- **Rule 2.** The stakes lines do not say which reference validates (a weighed composition) and which only verifies (the independent fit, the unbounded chain). C3's T087 move is not measured against the planted truth.
+- **A correction to C1's and C9's mechanism.** The batch says "the closing stage on a warm refit made CPD 1b's runaway" (X3). The JSONs record no per-stage Rwp, and WP-2045's macOS probe shows the declared warm stage already ending "converged" at Rwp 0.760. Here that stage stopped at 136 evaluations as an intermediate stage (`intermediate_ftol` 1e-6), against 410 to Rwp 0.1633 as the last stage. The likelier cause is the looser stop the closing-stage schedule gives the warm refit, which is X13's open arm, not the closing stage's own solve.
+
+*Measured* (Linux x86-64, 4-core cloud container, worktree venv `[dev]`, compiled tier on, `OPENBLAS_NUM_THREADS=1`).
+- The fourth trigger arm, by family (escalated patterns, summed evaluations), beside the earlier three:
+
+  | family | on (fence) | status | off | status_maxiter |
+  |---|---|---|---|---|
+  | trigger | 0, 269 | 0, 269 | 0, 269 | 0, 269 |
+  | tut05-jump | 0, 551 | 0, 551 | 0, 551 | 0, 551 |
+  | tut05-broken | 1, 157 | 0, 135 | 0, 135 | 0, 135 |
+  | planted null | 0, 2 080 | 0, 2 080 | 0, 2 080 | 0, 2 080 |
+  | Cr₂WO₆ | 0, 873 | 0, 873 | 0, 873 | 1, 2 582 (150 K differs by ≤ 0.087 esd) |
+  | planted | 115, 11 790 | 1, 2 716 | 1, 2 716 | 1, 2 716 |
+  | CPD, closing off | 0, 708 | 0, 708 | 0, 708 | 0, 708 |
+  | CPD, first 2, closing on | 1 (1b), 796 | 0, 703 | 0, 703 | 1 (1b), 796, `values_sha` equal to `on`'s |
+
+  `status_maxiter` matches `status` pattern by pattern (`values_sha`) except the two rows marked. cpd-1b under it: rungs `[warm, warm_staged]`, kept `warm_staged`, Rwp 0.13779, 629 evaluations, sha `bca5f63866`, as under the fence.
+- The clash lane's runs (synthetic chains, one BLAS thread): planted with the bound at 3.0 against `None` under `reseed=False`. T087's warm stage took 24 evaluations and its closing stage 43 against a per-stage cap of 32; the escalation kept `warm_staged` at Rwp 0.048071 against 0.047958, and T087's scale moved 39.3 esd. Nothing after T088 moved past 7.3e-6 esd, and T087's winning rung is 6.7× the running maximum. Path dependence, `direction="both"`, largest gap with the closing stage on and off: thermal 0.00105σ and 0.0177σ, jump 2.4e-4σ and 9.0e-3σ, trigger 0.351σ and 0.379σ, with no flag either way. B7 (`intermediate_ftol=None` against the default) at most 2.7e-4 esd on the three. The soak's fence arm climbed all three rungs on four patterns (254 evaluations against 71), values within 5.1e-5 esd.
+- Wall clock (context only): cpd-1b's closing-on warm rung took 2 310-2 617 s in every arm, all four at one BLAS thread, so the thread setting does not remove its cost. The rest of a family ran in seconds to a minute.
+- Lanes (`session_usage.py lanes 2e162871-…`): main 88 requests, peak 363K, $8.15; four lanes, $31.70.
+
+  | lane | est | requests | main at dispatch | re-read | lane $ | saved $ |
+  |---|---|---|---|---|---|---|
+  | practice-survey | 35 | 107 | 232K | 0K of 74K | 7.73 | +3.30 |
+  | tier-proposals | 80 | 101 | 262K | 27K of 94K | 9.67 | +4.35 |
+  | clash-table | 50 | 109 | 307K | 0K | 8.71 | +5.46 |
+  | batch-draft | 25 | 55 | 326K | 0K of 10K | 5.59 | +2.95 |
+
+  Trial row `| 2026-10-24 | 2e162871 | 4 | 0 | 0K | 5 | 17K | 2.19 | 0 / 0 | +16.05 | +29% |` appended to `process.md`. Baseline replay, the selective policy (main > 150K and item ≥ 20): 5 sessions, +3 %.
+- Tests: `tests/test_audit_table.py`, `test_help.py` and `test_answer_invariant_defaults.py`, 65 passed (61 s, serial), after the table edits. Fast and full selections: below.
+
+*Gotchas.*
+- `gh` is not available in this container, so `wp_claim.py`'s pull-request half and every `gh pr` step fail; the GitHub MCP tools do the same jobs.
+- A worker restart moved the session's working directory to the main checkout; `EnterWorktree` with the tree's `path` re-enters it.
+- The worktree guard refuses a shell line that runs `find` or `python` through a `$VAR` in a loop; split it into plain commands.
+- After the branch moved onto main's 1.11.0.dev0, the editable install's metadata still read 1.10.0.dev0; a reinstall fixed it.
+- `measure_reseed.py --family cpd` needs `--first 2` to match the earlier status and off arms; a full eight-pattern closing-on chain is about an hour an arm.
+
+*Next*, in order:
+1. Revise `2003-batch/batch.md` against DESIGN.md § Rules, per the check above. C1: (iii) as the pick, Rule 4 cited, and the mechanism corrected. C2: rank by the full cost. C9: `carry` under Rule 1's first pick case, with an invariance test proposed for "every entry against the varied ones". `on_error` as an open question. C10: the joint hold its own row. Every stakes line labelled validating or verifying.
+2. Measure before asking: T087 against the planted truth with the bound on and off (about a minute), and X13's open arm (CPD's first two patterns, closing on, `intermediate_ftol=None`, about 40 minutes), which decides the mechanism correction. Then option (iii), escalating on the warm rung's `CELL_RUNAWAY`, on CPD's first two patterns with the closing stage on and off (about 40 minutes each), then planted and Cr₂WO₆.
+3. Put the batch to the maintainer: one question each on C1, C2's `on_error`, C3 and C9, the rest by pick. Date the rulings into `rows.json` and the table.
+4. After the rulings: tasks 3 and 7 (`seeded_from`, `floored`, `SeriesResult.steps`, the demotions), the seven fixes that need no ruling, the width-growth hand-off to WP-2004 (task 9), then tasks 10-11.
 
 ### 2026-10-24 — the inventory, the reseed fence measured on eight chain families, the first-rung invariance tests; eleven clear defaults tiered and nothing contested
 
