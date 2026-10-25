@@ -494,9 +494,11 @@ def predicted_seen_fraction(q_obs: np.ndarray, q_esd: np.ndarray,
 #: at the resolution they read 0.56 and 0.34 against the truth's 0.73.  An
 #: allowance bounds a common offset and belongs to the forward match alone;
 #: the common shift the forward matches imply (:func:`common_shift`) is what
-#: places the reversed question.  A constant that will be tuned again on the
-#: acceptance corpus; floored by ``k_sigma`` × σ(2θ) of the component asked
-#: against, so a position-only list keeps a window.
+#: places the reversed question.  Swept from 0.5 to 1.0 on the acceptance
+#: corpus's real families (#941's follow-ups): no true cell's rank or grade
+#: moves at any value, so the synthetic split above sets it.  Floored by
+#: ``k_sigma`` × σ(2θ) of the component asked against, so a position-only
+#: list keeps a window.
 RESOLUTION_FWHM = 1.0
 
 
