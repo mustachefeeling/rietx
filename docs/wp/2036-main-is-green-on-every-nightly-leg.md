@@ -1,6 +1,6 @@
 # WP-2036 — main is green on every nightly leg: a full suite that finishes, two Windows tooling tests, and answers that move with the platform
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
 Track: The repo's own process
 Depends on: 2045 (the `full` job cannot finish before it); 2002 soft, the closing stage that moved most of these; 2012 soft, the LaB6 axial mirror
 Priority: P2 2026-10-25 — WP-2045's fix (PR #1161) unblocks the `full` job, to be confirmed on the first nightly after it merges; what remains is platform-dependent quotes, a Windows timeout that is a load sensor, and one unreproduced raise
