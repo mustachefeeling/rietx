@@ -54,10 +54,13 @@ the block a package default, "off" here is a declaration in the shared
 builder, never an inherited default.
 """
 
+import importlib
+
 import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.schemas.plan import CLOSING_WINDOW_TOL
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
     MAJOR_TOL,
@@ -153,15 +156,63 @@ def chained():
     return result
 
 
-@pytest.fixture(scope="module")
-def chained_all():
-    """The naive default: carry everything, scales included."""
+def _chained_all(**kw):
     _require_data()
     structure = rx.Structure(phases=_phases())
     ins = qarr_instrument()
     seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
     return rx.SequentialRefinement(structure, ins).fit(
-        _patterns(), labels=list(SAMPLE1), plan=qpa_plan())
+        _patterns(), labels=list(SAMPLE1), plan=qpa_plan(), **kw)
+
+
+@pytest.fixture(scope="module")
+def chained_all():
+    """The naive default: carry everything, scales included."""
+    return _chained_all()
+
+
+class _Runaway(BaseException):
+    """Raised from the closing compile, past every handler a series has."""
+
+
+@pytest.mark.slow
+def test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway(monkeypatch):
+    """WP-2045: cpd-1b's warm stage, carried from cpd-1a's answer, converges.
+
+    Under a 1e-6 tolerance the warm stage stopped "converged" at
+    ``axial_sl`` 555, on a plateau of its frozen windows, which then dropped
+    73 % of the Bragg intensity a fresh compile computes.  The closing compile
+    at that answer held 1 608× the warm stage's point-nodes and ran for tens
+    of minutes.  At the solver's 1e-9 the same stage reaches 0.0139.  A
+    closing compile at an axial ratio above 1 fails the test at once, where
+    the shipped 1.10.0 tree would otherwise run that stage to its budget.
+    """
+    _require_data()
+    refine_mod = importlib.import_module("rietx.refine")
+    real = refine_mod.compile_model
+
+    def guarded(structure, instrument, pattern, **kw):
+        if (kw.get("window_area_tol") == CLOSING_WINDOW_TOL
+                and instrument.geometry.axial_sl.value > 1.0):
+            raise _Runaway(f"a closing compile at axial_sl "
+                           f"{instrument.geometry.axial_sl.value:.4g}")
+        return real(structure, instrument, pattern, **kw)
+
+    monkeypatch.setattr(refine_mod, "compile_model", guarded)
+    structure = rx.Structure(phases=_phases())
+    ins = qarr_instrument()
+    patterns = [rx.read_pattern(DATA / f"{s}.prn") for s in SAMPLE1[:2]]
+    seed_scales(structure, ins, patterns[0])
+    series = rx.SequentialRefinement(structure, ins)
+    try:
+        result = series.fit(patterns, labels=list(SAMPLE1[:2]), plan=qpa_plan())
+    except _Runaway as exc:
+        pytest.fail(f"cpd-1b's warm stage ran away: {exc}")
+    entry = result.entries[1]
+    assert entry.rung == "warm", entry.rungs_tried
+    axial = next(p.value for p in series.results_[1].parameters
+                 if p.path == "instrument.geometry.axial_sl")
+    assert axial < 1.0
 
 
 # -- accuracy: a chained fit must be as good as an unchained one ----------
@@ -222,11 +273,6 @@ def test_cells_are_stable_across_the_series(chained):
 # -- the warm start: measured, not assumed --------------------------------
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=True, reason=(
-    "WP-2002's width twin hold keeps the X/Y split each pattern's instrument-only "
-    "stage lands on, and the two carry policies hand it different starts: "
-    "restricted-carry Rwp 0.1282 against carry=* 0.1256 and independent 0.1258 "
-    "(decision 1(a), 2026-10-23; forwarded to WP-2003)"))
 def test_warm_start_iteration_cost_is_reported(chained, chained_all,
                                                independent):
     """The headline warm-start number, reported rather than gated.
@@ -238,6 +284,12 @@ def test_warm_start_iteration_cost_is_reported(chained, chained_all,
     the difference is small in iterations and nil in Rwp — so what is
     *asserted* is only the part that would matter to a user: neither chain
     diverged, and restricting the carry did not make the fit worse.
+
+    It was a strict xfail from WP-2002's width twin hold (restricted-carry Rwp
+    0.1282 against carry=* 0.1256, 2026-10-23) until WP-2045 converged the
+    last declared stage.  Since then both chains read mean Rwp 0.1282 against
+    0.1258 independent, at 408 and 655 iterations against 1255 (macOS arm64,
+    ``[dev]``, 2026-10-25).
     """
     baseline = sum(sum(s.n_iterations for s in r.stages) for r in independent)
     print(f"\niterations over sample 1a-1h: independent={baseline} "
@@ -288,6 +340,32 @@ def test_the_hostile_series_exercises_the_reseed_fence(chained_all):
     assert codes.count("SEQUENTIAL_RWP_OUTLIER") == sum(
         e.above_fence for e in chained_all) == 0
     assert all(e.rwp_fence is not None for e in chained_all.entries[1:])
+
+
+@pytest.fixture(scope="module")
+def chained_all_unbounded():
+    """``chained_all`` with WP-1127's first-rung bound switched off."""
+    return _chained_all(first_rung_factor=None)
+
+
+@pytest.mark.slow
+def test_the_first_rung_bound_moves_no_accepted_value(chained_all,
+                                                      chained_all_unbounded):
+    """`FIRST_RUNG_FACTOR`'s invariance on a real chain (WP-2003).
+
+    The thermal ramp's twin in `test_sequential.py`, on the hostile series:
+    every accepted value, esd, rung and code is equal with the bound on and
+    off, and every first rung the unbounded chain kept cost less than the
+    budget the bound would have set there.
+    """
+    from rietx.sequential import FIRST_RUNG_FACTOR
+    from tests.test_sequential import chain_answer, first_rung_ratios
+
+    assert chain_answer(chained_all) == chain_answer(chained_all_unbounded)
+    ratios = first_rung_ratios(chained_all_unbounded)
+    print(f"\nfirst-rung ratios: {[round(r, 3) for r in ratios]}")
+    assert ratios, "the bound armed on no pattern, so nothing was tested"
+    assert max(ratios) < FIRST_RUNG_FACTOR
 
 
 @pytest.mark.slow

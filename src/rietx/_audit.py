@@ -998,15 +998,19 @@ ROWS: tuple[Row, ...] = (
                   "the same retry; MATLAB and Octave call gesvd by default"),
         approved="2026-10-22"),
     Row("rietx.schemas.results.StageResult.ftol", "action", tier=3, ambiguity=1,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
-                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21). The last declared stage "
+                 "converges when a closing stage follows it (WP-2045 option 5, ruled "
+                 "2026-10-24)."),
         approved="2026-10-21"),
     Row("rietx.schemas.results.StageResult.window_area_tol", "action", tier=2, ambiguity=1,
         evidence=("the record of the closing stage PlanSpec:closing_window_tol runs (that "
@@ -2086,8 +2090,11 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.lm.FTOL", "constant", tier=3, value=1e-09,
         evidence=("no stated source; one decade under SciPy's 1e-8 default (checked); GSAS-II "
                   "5.8.4's default 'min dM/M' is 1e-3, a relative chi2 change between cycles "
-                  "(GSASIIobj.py:20, checked); the closing stage solves at it, and so does every "
-                  "stage under intermediate_ftol=None; INTERMEDIATE_FTOL's test measures "
+                  "(GSASIIobj.py:20, checked); the closing stage and the last declared stage solve "
+                  "at it (WP-2045), and so does every stage under intermediate_ftol=None; at "
+                  "1e-6 instead the hostile series' cpd-1b warm stage stopped at axial_sl 555 "
+                  "on a frozen-window plateau and at 1e-9 reaches 0.0082, one family, "
+                  "test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway; INTERMEDIATE_FTOL's test measures "
                   "against it (tests/test_staged_start_invariance.py), and this value itself "
                   "was never varied; the signature default of run_least_squares, "
                   "run_multi_least_squares and lm.minimize until the B14 lift"),
@@ -2648,12 +2655,14 @@ ROWS: tuple[Row, ...] = (
                   "fit time (WP-2002, the sixth round's Q1 and Q2)")),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
     Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", tier=3, value=1e-06,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
                  "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
@@ -2978,12 +2987,14 @@ ROWS: tuple[Row, ...] = (
         evidence="arithmetic: the empty container; resolve_plan supplies every plan a fit runs"),
     Row("rietx.schemas.plan.PlanSpec:correlation_guard", "default", value=0.98),
     Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", tier=3, ambiguity=1, value=1e-06,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
                  "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
@@ -3032,12 +3043,14 @@ ROWS: tuple[Row, ...] = (
                  "once a test confirms its margin under both LM and TRF."),
         approved="2026-10-19"),
     Row("rietx.schemas.plan.StageSpec:ftol", "default", tier=3, ambiguity=1, value=None,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
                  "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
@@ -3278,9 +3291,19 @@ ROWS: tuple[Row, ...] = (
                   "; seven programs, 2026-10-21 (docs/practice.md): none of the seven seeds a background from the data by default")),
     Row("rietx.sequential.refine_sequential:carry", "default", value=("*",)),
     Row("rietx.sequential.refine_sequential:carry_hkl_intensities", "default", value=True),
-    Row("rietx.sequential.refine_sequential:backend", "default", value="numpy"),
-    Row("rietx.sequential.refine_sequential:solver", "default", value="lm"),
-    Row("rietx.sequential.refine_sequential:history", "default", value=False),
+    Row("rietx.sequential.refine_sequential:backend", "default", tier="caller", ambiguity=1,
+        value="numpy",
+        evidence=("opt-in, as rietx.refine.refine:backend: each pattern's Refinement gets it "
+                  "unchanged (sequential.py:1765); jax/torch/torch-mps need an extra no default "
+                  "install has, and agree with numpy only to fp tolerance")),
+    Row("rietx.sequential.refine_sequential:solver", "default", tier=2, ambiguity=1, value="lm",
+        evidence=("the single fit's default (rietx.refine.refine:solver), handed to each "
+                  "pattern's Refinement unchanged (sequential.py:1765-1766): GSAS-II 5.8.4 "
+                  "GSASIImath.HessianLSQ is Marquardt-damped (checked); seven programs, "
+                  "2026-10-21 (docs/practice.md): Marquardt-damped in six; FullProf dissents, "
+                  "Gauss-Newton with relaxation factors")),
+    Row("rietx.sequential.refine_sequential:history", "default", tier="invariant", ambiguity=1, value=False,
+        evidence=("answer-invariant: one history tree per pattern; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:x", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:x_label", "default", value="index"),
     Row("rietx.sequential.SequentialRefinement.fit:labels", "default", value=None),
@@ -3288,20 +3311,45 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.SequentialRefinement.fit:plan", "default", value="mccusker_default"),
     Row("rietx.sequential.SequentialRefinement.fit:refit", "default", value="single"),
     Row("rietx.sequential.SequentialRefinement.fit:two_theta_limits", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:direction", "default", value="forward"),
+    Row("rietx.sequential.SequentialRefinement.fit:direction", "default", tier="caller", ambiguity=1,
+        value="forward",
+        evidence=("opt-in: direction='both' is asked by name and its off default walks one chain, "
+                  "moving no reported value (the entries are the forward pass's either way); the "
+                  "GUI's series panel defaults to 'forward' (gui/series.py:80, its own copy in a "
+                  "dict) and passes the user's choice (gui/session.py:1710), and no other default "
+                  "path sets it (searched 2026-10-24). The case for acting is the package's own: "
+                  "the skill says to run 'both' for any trajectory to be published "
+                  "(references/series.md), and the default stays visible in SeriesResult.direction "
+                  "and the summary's 'ordering artefact: NOT measured' line. What 'both' turns on "
+                  "is tiered on its own: PATH_DEPENDENCE_SIGMA, NOISE_FLOOR_REL and "
+                  "SEQUENTIAL_PATH_DEPENDENT (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:reseed", "default", value=True),
     Row("rietx.sequential.SequentialRefinement.fit:reseed_factor", "default", value=1.25),
     Row("rietx.sequential.SequentialRefinement.fit:first_rung_factor", "default", value=3.0),
-    Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", value=False),
+    Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", tier="caller", ambiguity=1,
+        value=False,
+        evidence=("opt-in: verify_discontinuities=True is asked by name and off by default; no "
+                  "default path sets it, the GUI included (searched 2026-10-24). What it turns on, "
+                  "a cold refit of each flagged pair and the cold step as a signed ratio of the "
+                  "chain's with a reading and no threshold (sequential.py:1888-1900), moves no "
+                  "fitted value; which pairs it refits is set by DISCONTINUITY_FACTOR and "
+                  "DISCONTINUITY_SIGMA, so this row is re-read when WP-2003's demotion of "
+                  "SEQUENTIAL_DISCONTINUITY lands")),
     Row("rietx.sequential.SequentialRefinement.fit:prepare", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:constrain", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: a callback handed each kept fit; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:on_error", "default", value="carry"),
-    Row("rietx.sequential.SequentialRefinement.fit:events", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:cancel", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:progress", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:telemetry", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:label", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:events", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:cancel", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:progress", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:telemetry", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: the run recorder, one run a job; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:label", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.indexing.workflow.index_pattern:peaks", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:data", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:instrument", "default", value=None),
@@ -4424,35 +4472,24 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.sequential.NOISE_FLOOR_REL",
     "rietx.sequential.PATH_DEPENDENCE_SIGMA",
     "rietx.sequential.RESEED_FACTOR",
-    "rietx.sequential.SequentialRefinement.fit:cancel",
     "rietx.sequential.SequentialRefinement.fit:constrain",
-    "rietx.sequential.SequentialRefinement.fit:direction",
-    "rietx.sequential.SequentialRefinement.fit:events",
     "rietx.sequential.SequentialRefinement.fit:first_rung_factor",
-    "rietx.sequential.SequentialRefinement.fit:label",
     "rietx.sequential.SequentialRefinement.fit:labels",
     "rietx.sequential.SequentialRefinement.fit:mode",
     "rietx.sequential.SequentialRefinement.fit:on_error",
-    "rietx.sequential.SequentialRefinement.fit:on_result",
     "rietx.sequential.SequentialRefinement.fit:plan",
     "rietx.sequential.SequentialRefinement.fit:prepare",
-    "rietx.sequential.SequentialRefinement.fit:progress",
     "rietx.sequential.SequentialRefinement.fit:refit",
     "rietx.sequential.SequentialRefinement.fit:reseed",
     "rietx.sequential.SequentialRefinement.fit:reseed_factor",
-    "rietx.sequential.SequentialRefinement.fit:telemetry",
     "rietx.sequential.SequentialRefinement.fit:two_theta_limits",
-    "rietx.sequential.SequentialRefinement.fit:verify_discontinuities",
     "rietx.sequential.SequentialRefinement.fit:x",
     "rietx.sequential.SequentialRefinement.fit:x_label",
     "rietx.sequential.WIDTH_GROWTH_FACTOR",
     "rietx.sequential.WIDTH_GROWTH_GOF_FACTOR",
     "rietx.sequential.WIDTH_GROWTH_SIGMA",
-    "rietx.sequential.refine_sequential:backend",
     "rietx.sequential.refine_sequential:carry",
     "rietx.sequential.refine_sequential:carry_hkl_intensities",
-    "rietx.sequential.refine_sequential:history",
-    "rietx.sequential.refine_sequential:solver",
     "rietx.solve.cost.NAMED_REFLECTIONS",
     "rietx.solve.cost.NUISANCE_RCOND",
     "rietx.strategy.magnetic.SOLVE_D_MIN",

@@ -289,9 +289,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   (`is_variable_path`, third rule); left in, every tied column fails on its own name. And the
   record takes the **column** while its reach rides beside it (`StageResult.held_reach`), since
   `where` keyed on the reach made one finding about a phase into one per tied cell parameter.
-- **A staged plan does not converge its intermediate stages; the one that does is the last**,
-  and since WP-2002 the last is the closing stage `run_stages()` appends, recompiled at the answer
-  on windows dropping `closing_window_tol` (1e-3) of each peak. `intermediate_ftol` (1e-6 vs the
+- **A staged plan does not converge its intermediate stages; the last declared one does** (a stage
+  stopped short hands on a frozen-window plateau, WP-2045), and so does the closing stage
+  `run_stages()` appends (WP-2002), recompiled at the answer on windows dropping 1e-3 of each peak. `intermediate_ftol` (1e-6 vs the
   solver's 1e-9, WP-1123) is the schedule; `stage_ftols()` and `stage_window_tols()`, parallel to
   `run_stages()`, are the one authority, since the plan alone knows which stage is last — no runner
   reads `Stage.ftol` or `plan.stages`. **Cumulative staging bounds the cost**: every later stage

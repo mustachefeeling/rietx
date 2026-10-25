@@ -55,7 +55,7 @@ p001  warm
 p002  warm
 p003  warm
 p004  warm_staged
-p005  warm
+p005  cold
 p006  warm
 ```
 
@@ -70,13 +70,12 @@ Here `cell.b` and `cell.c` are flagged at the same step as `cell.a`, because the
 
 ## Read where each fit started
 
-The jump also broke a warm start, at the jumped pattern.
-The 700 K fit, started from the 600 K answer, reached an Rwp over 0.9, far above the rest of the series.
-The series fitted it again with the whole plan, still from the 600 K answer, and reached 0.04.
-The 800 K fit, started from that answer, needed no second attempt.
+The jump also broke two warm starts, one on each side of the step.
+The 700 K fit, started from the 600 K answer, was rejected and fitted again with the whole plan, still from the 600 K answer, and reached 0.04.
+The 800 K fit, started from the 700 K answer, met the step back down and reached an Rwp over 0.9 on both warm attempts.
 `entry.rwp_warm` keeps the Rwp the first attempt reached.
 
-A `cold` entry after the first pattern means no warm start could be rescued, and the pattern was fitted from your starting model.
+The 800 K entry is `cold`: no warm start could be rescued, so the pattern was fitted from your starting model, and it reached 0.04 too.
 Its values do not continue the chain, so read them as a separate measurement.
 
 The full script is `examples/guides/path.py`.
