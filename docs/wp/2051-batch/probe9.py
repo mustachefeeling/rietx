@@ -13,7 +13,10 @@ partial plane, so the residual is continuous where an edge crosses a point
 and the Jacobian leaves out ∂T/∂θ alone.  FCJ node counts still step.
 ``PROBE9_TAPER_SIDE=out`` widens each window to (1 + w) times its half-width
 and ramps over the added strip alone, so nothing inside the sized edge is
-dropped; the FCJ node counts stay the unwidened sizing's.
+dropped; the FCJ node counts stay the unwidened sizing's, so a peak whose
+window was empty there and reaches the range only through the added strip is
+drawn symmetric (a code review's finding, left as recorded: such a peak sits
+outside the range, and the out rows were measured with it).
 
     OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2051-batch/probe9.py . time cpd1a
 """

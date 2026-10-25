@@ -5,6 +5,10 @@ then times each part of ``forward.rewindow``'s loop (and the whole of
 ``forward.window_sizing``, its tabled k(η), with the layouts a sync rebuilds) on up to NS evenly spaced
 calls (min of REP repeats each).  Prints one JSON line.
 
+On a tree from WP-2051's task 2 on, ``rewindow_whole`` times the tabled k(η);
+the bisection's ``rewindow`` row in the WP's first table was measured at
+b70ba5972, and ``kmult`` still times the bisection alone on any tree.
+
     OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2051-batch/resize_profile.py . FAMILY
 """
 import json
@@ -29,7 +33,9 @@ real_sync = probe7.sync
 
 
 def rec_sync(model, values):
-    SAMPLES.append((model, dict(values)))
+    # the windows as this call finds them: probe 7's sync replaces phases in
+    # place, so reading them off the model later gives the fit's last ones
+    SAMPLES.append((model, dict(values), [(cp.win, cp.fcj_n) for cp in model.phases]))
     return real_sync(model, values)
 
 
@@ -46,7 +52,7 @@ def tmin(fn):
     return best, out
 
 
-def parts(model, values):
+def parts(model, values, seen):
     tol = model.window_area_tol
     sl = float(values.get("instrument.geometry.axial_sl", 0.0))
     hl = float(values.get("instrument.geometry.axial_hl", 0.0))
@@ -95,15 +101,16 @@ def parts(model, values):
                         "kmult_ms": round(b * 1e3, 3), "bounds_ms": round(d * 1e3, 3),
                         "nodes_ms": round(e * 1e3, 3)})
         f, _ = tmin(lambda: fw._batch_layout(win, fcj_n, tt))
-        g, _ = tmin(lambda: (np.array_equal(fcj_n, cp.fcj_n), np.array_equal(win, cp.win)))
+        g, _ = tmin(lambda: (np.array_equal(fcj_n, seen[ip][1]),
+                             np.array_equal(win, seen[ip][0])))
         t["layout"] += f
         t["equal"] += g
     tr, _ = tmin(lambda: fw.rewindow(model, values))
     t["rewindow_whole"] = tr
     t["window_sizing"], sized = tmin(lambda: fw.window_sizing(model, values))
     t["sync_layouts"] = tmin(lambda: [
-        fw._batch_layout(w, f, tt) for (w, f, _), cp in zip(sized, model.phases)
-        if not (np.array_equal(w, cp.win) and np.array_equal(f, cp.fcj_n))])[0]
+        fw._batch_layout(w, f, tt) for (w, f, _), (sw, sf) in zip(sized, seen)
+        if not (np.array_equal(w, sw) and np.array_equal(f, sf))])[0]
     return t, per
 
 
@@ -116,8 +123,8 @@ def main(family):
     tots = []
     per0 = None
     for i in idx:
-        model, values = SAMPLES[i]
-        t, per = parts(model, values)
+        model, values, seen = SAMPLES[i]
+        t, per = parts(model, values, seen)
         tots.append(t)
         per0 = per0 or per
     med = {k: round(float(np.median([t[k] for t in tots])) * 1e3, 3) for k in tots[0]}
