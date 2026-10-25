@@ -1,6 +1,6 @@
 # WP-2045 — A runaway fit ends without an expensive closing stage
 
-Milestone: unscheduled · Status: 🔄 2026-10-24 — ruled: the stage before the closing stage converges at the solver's tolerance; measuring its cost on the four standards next
+Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
 Track: A long run is not one fit
 Depends on: —
 Priority: P2 2026-10-24 — a defect that costs a user a workaround: a fit that runs away now seems to hang, where 1.9.0 ended it in seconds; 1.10.1 waits on it
