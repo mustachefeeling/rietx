@@ -1,6 +1,6 @@
 # WP-2003 — The chain actions: what a series decides between patterns
 
-Milestone: generality · Status: 🔄 2026-10-25 — the batch drafted (practice survey, a proposal for all 111 entries, 17 tiered, the clash table, a fourth trigger arm); re-measure on main after WP-2045, revise four picks against DESIGN § Rules, then the rulings
+Milestone: generality · Status: 🔄 2026-10-25 — claimed by @yue-here (third session: re-measure on main after WP-2045, revise the batch against DESIGN § Rules, then the rulings)
 Track: The audits
 Depends on: 2002, 2037
 Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
