@@ -724,7 +724,10 @@ ROWS: tuple[Row, ...] = (
         evidence=("a record of which column was read: the file states only "
                   "_pd_proc_intensity_net, and the code names it with the IUCr "
                   "pdCIF dictionary's definition (_pd_proc.intensity_net); y is "
-                  "not changed")),
+                  "not changed"),
+        response="info",
+        responds=("note which column was read as the intensity and hold the background "
+                  "at zero only if the column's minimum agrees with its label")),
     Row("PATTERN_INTENSITY_SCALED", "code"),
     Row("PATTERN_MULTISCAN_DEFAULTED", "code"),
     Row("PATTERN_NET_HAS_BACKGROUND", "code", tier=3, ambiguity=3,
@@ -746,7 +749,11 @@ ROWS: tuple[Row, ...] = (
                  "(test_readers.py), with real subtracted deposits pending. A subtracted "
                  "pattern windowed onto a peak cluster, with no empty baseline in range, "
                  "misfires."),
-        approved="2026-10-24"),
+        approved="2026-10-24",
+        response="warning",
+        responds=("hold a scale, ADP or fraction back as less certain until the column's "
+                  "background is settled: tell whether a background was left in or the "
+                  "range holds no empty baseline, then refine one or hold it at zero")),
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
@@ -761,7 +768,10 @@ ROWS: tuple[Row, ...] = (
         evidence=("info; a record of an act the file's own value asks for: the pdCIF "
                   "dictionary defines _pd_proc_ls_weight = 0 as 'a data point not used for "
                   "refinement', and a point of weight 0 adds nothing to sum(w r^2), so "
-                  "excluding it is arithmetic; fires exactly when points were excluded")),
+                  "excluding it is arithmetic; fires exactly when points were excluded"),
+        response="info",
+        responds=("nothing: the points of weight 0 are excluded, every other point keeps "
+                  "its sigma")),
     Row("PAWLEY_OFF_DATA_RIDGED", "code"),
     Row("PAWLEY_OVERLAP_UNRESOLVED", "code"),
     Row("PEAK_ASYMMETRY_UNMODELLED", "code"),
