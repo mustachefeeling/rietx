@@ -313,7 +313,9 @@ Every decision a series or a joint fit makes now has a proposed tier, and the 17
   | batch-draft | 25 | 55 | 326K | 0K of 10K | 5.59 | +2.95 |
 
   Trial row `| 2026-10-24 | 2e162871 | 4 | 0 | 0K | 5 | 17K | 2.19 | 0 / 0 | +16.05 | +29% |` appended to `process.md`. Baseline replay, the selective policy (main > 150K and item ≥ 20): 5 sessions, +3 %.
-- Tests: `tests/test_audit_table.py`, `test_help.py` and `test_answer_invariant_defaults.py`, 65 passed (61 s, serial), after the table edits. Fast and full selections: below.
+- Tests: `tests/test_audit_table.py`, `test_help.py` and `test_answer_invariant_defaults.py`, 65 passed (61 s, serial), after the table edits; with the review's fixes, `test_silence.py`, `test_audit_table.py` and `test_help.py` 63 passed (74 s).
+- Fast selection on the final tree (`b1dd41d`; no other suite running): 11 659 passed, 284 skipped, 27 xfailed, 1 failed, 33:08. The one failure is `test_examples.py::test_every_guide_script_prints_what_its_page_quotes[moment]`, red on Linux x86-64 before this branch (WP-2036's Inherited, from WP-2037), and this branch does not touch it. Added: three cases, `test_silence.py::test_a_warning_fires_on_its_fault_and_stays_silent_beside_it[…]` for `PARAMETRIC_OUT_OF_RANGE` (0.15 s), `SEQUENTIAL_CANCELLED` (0.73 s) and `SERIES_PATTERN_FAILED` (4.26 s), counted by name in the junit file. `tests.added_test_times` counts 0, the test function being older than its new ids. The 4.26 s case runs a three-pattern series with every rung of one pattern raising. It is not `slow` because `test_silence` must cover every warning code in the fast tier. Main's count was not measured (CI's job), so +3 is by name, not by subtraction.
+- Full selection: not run, since the branch moves no measured number (table data and responses, a silence pair, docs, measurement JSON, a script under `docs/`).
 
 *Gotchas.*
 - `gh` is not available in this container, so `wp_claim.py`'s pull-request half and every `gh pr` step fail; the GitHub MCP tools do the same jobs.
