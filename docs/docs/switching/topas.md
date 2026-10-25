@@ -11,7 +11,7 @@ The weights are the same too.
 rietx uses the esd column of the pattern file when it has one, as `weighting = 1 / SigmaYobs^2;` does, and counting statistics (√y) when it does not.
 
 The comparisons on [LaB6 and cBN](validation.md#lab6-and-cbn-against-topas) and on [two cathode phases](validation.md#two-phases-against-topas-and-gsas-ii) are against TOPAS.
-The cBN cell agrees to 16 ppm, and the cathode's cells to within 98 ppm.
+The cBN cell agrees to 17 ppm, and the cathode's cells to within 96 ppm.
 [Calculated patterns](validation.md#calculated-patterns-against-topas-6) compares rietx with the pattern TOPAS 6 calculated for seven inputs.
 
 ## Differences in concepts

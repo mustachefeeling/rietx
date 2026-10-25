@@ -250,6 +250,8 @@ PRIORITIES = wp_index.PRIORITIES
 #                                                          its kind (DESIGN.md Rule 1), and every
 #                                                          heuristic has a row in rietx._audit.
 #                                                          Landed 992, +1 headroom
+#   2026-10-24  CLAUDE.md                     993 -> 994  for #1103: the absent-phase clause rewrapped at
+#                                                          100 columns, one line longer (Yue's round 2)
 #   2026-09-27  docs/ROADMAP.md               880 -> 571  for WP-1507: the WP tables left for the
 #                                                          generated docs/wp/README.md; prose only now
 #   2026-09-28  docs/ROADMAP.md               571 -> 579  for the structure track (1510-1517): one new
@@ -462,7 +464,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # 978 -> 983 (WP-1966, 2026-10-14): the browser bullet, the three rules
     # that keep rietx running under wasm32 Pyodide, where no CI job looks.
     # Landed 982, +1 headroom.
-    "CLAUDE.md": 993,
+    "CLAUDE.md": 994,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

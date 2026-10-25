@@ -85,7 +85,8 @@ CORRELATION_GUARD = 0.98
 #: height, and a scale fitted to pure noise lifted that point past it.
 #:
 #: **A plan carries it since WP-2002 (B1, ruled 2026-10-19)**, so a caller can
-#: set another threshold or switch the absent-phase hold off.  It lives here,
+#: set another threshold or switch the significance test off (``None``; a
+#: phase with no line in range is held either way, WP-1958).  It lives here,
 #: beside the mirror, for :data:`INTERMEDIATE_FTOL`'s reason: the pydantic
 #: field needs it at class definition.  ``model.forward`` re-exports it, where
 #: the screen is.
@@ -109,7 +110,8 @@ def check_phase_support_sigma(value: Any) -> float | None:
         raise ValueError(
             f"phase_support_sigma is the number of esds a phase's scale must "
             f"sit from zero to count as seen, a positive finite number, or "
-            f"None to switch the absent-phase hold off; got {value!r}")
+            f"None to switch the significance test off (a phase with no "
+            f"line in range is still held); got {value!r}")
     return float(value)
 
 
@@ -274,7 +276,9 @@ class PlanSpec(Base):
             "more solve.  The default cell window follows the same number.  "
             "null = no hold, no release, no restore and no window "
             "(PHASE_UNCONSTRAINED still reports a phase under the default 3); "
-            "WP-1301/1523, a caller's option since WP-2002 B1"))
+            "WP-1301/1523, a caller's option since WP-2002 B1.  A phase with no "
+            "reflection in the fitted range is held whole, scale included, at "
+            "any value here, null too (WP-1958)"))
 
     closing_window_tol: float | None = Field(
         CLOSING_WINDOW_TOL, description=(

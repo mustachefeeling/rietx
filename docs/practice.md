@@ -43,6 +43,31 @@ The Lorentzian column is the area a pure Lorentzian loses to the default cut.
 | MAUD, EasyDiffraction (cryspy) | no FCJ; an empirical or Bérar-Baldinozzi asymmetry |
 | BGMN | ray-traced instrument function, computed once before the fit and held |
 
+## Axial divergence at zero, and whether a refine flag reaches the calculation
+
+Surveyed 2026-10-25 for WP-1421 (#774's zero case). rietx sizes the FCJ nodes and the peak
+window as if S/L = H/L = 0.02 when both sit at zero and either is free, so that a refinement
+starting from zero has a live finite-difference column. A model at zero therefore draws a
+curve that depends on its free set, by 4.8e-5 of the strongest peak on 2026-10-25 (1.66e-4 on
+2026-10-16), measured on #774's rutile reproducer.
+
+| Program | At zero | Does a refine flag reach the profile? |
+|---|---|---|
+| rietx | FCJ off when both are 0; sized at 0.02 when free (`forward.AXIAL_SIZING_FLOOR`) | yes, at exactly zero only |
+| GSAS-II | never computed: one parameter SH/L = (S+H)/L, floored at 0.002 by value for the profile and its window at every evaluation, refined or not; the Fortran's zero branch gives a stand-in derivative of 0.002·sign(Δ2θ) (checked) | no; windows come from values each evaluation |
+| RIETAN-FP | not described; Gauss-Legendre N between 10 and 100 "depending on τmin", which follows rs and rd (§3.10.3, checked) | no flag named; the count follows the values |
+| FullProf | not described; S_L and D_L act only below `AsymLim`, an angle (LINE 30 notes, checked) | no flag named |
+| TOPAS | not read this session | not read this session |
+
+No program read makes a calculation depend on whether a parameter is refined. GSAS-II avoids a
+zero state by flooring the physics itself, and its zero branch, never reached through the
+profile call, carries a stand-in slope.
+
+GSAS-II 5.8.4 sources: the floor at `GSASIIstrMath.py:3980` (profile) and `:4309`
+(derivatives), 0.0005 at `:3723` (`GetFobsSq`); the window `GSASIIpwd.getWidthsCW`
+(`GSASIIpwd.py:811-832`) widens its low-angle side by 50·SH/L·|cos 2θ|; the zero branch and its
+stand-in derivative in `sources/powsubs/psvfcjo.for:139` and `:288-299`.
+
 ## Reflections past the fitted range
 
 | Program | Margin |
@@ -129,6 +154,46 @@ off. Three readers checked every citation above in the source or manual on 2026-
 scratch copies were not kept. The claims they marked inferred are TOPAS's quadrature/linear
 combination rule (not stated in the reference), the scope of `force_positive_fwhm`, and
 FullProf's constant-wavelength combination rule with an IRF.
+
+## Extinction
+
+Surveyed 2026-10-24 for WP-2044, one agent across six programs, with each
+load-bearing line re-read by the lead. Sabine's powder model is
+E = E_L·cos²θ + E_B·sin²θ. Its Laue half E_L is printed as a series for x ≤ 1
+and an asymptote above (Sabine, Von Dreele & Jørgensen 1988, eqs 3-4; ITC C
+§6.4.5). Both truncate e^(−x)·[I₀(x) + I₁(x)], the integral ITC describes,
+checked by quadrature in WP-2044. The table gives each program's value of E_L
+on either side of x = 1.
+
+| Program | Powder extinction model | E_L at 1⁻ / 1⁺ | Derivative |
+|---|---|---|---|
+| rietx (to 1.9) | Sabine, GSAS-II's branches | 0.6742 / 0.6981, +3.6 % | forward difference (checked) |
+| Sabine's paper, ITC C | series and four-term asymptote | 0.6823 / 0.6678, −2.2 % | — |
+| exact (WP-2044) | e^(−x)·[I₀ + I₁] | 0.6737, continuous | dE_L/dx = −e^(−x)·I₁/x |
+| GSAS-II | Sabine: six-term series, two-term asymptote, switch at x = 1 | 0.6742 / 0.6981, +3.6 % | analytic per branch (checked) |
+| MAUD | Sabine: the paper's series, and its asymptote with the bracket inside the square root, switch at x = 1 | 0.6823 / 0.7299, +7.0 % | none in the class, so numerical (inferred) |
+| TOPAS | no keyword; §16.6 suggests an empirical `scale_pks = 1/Sqrt(1 + 1e-5·extinction·I)`, with no angle dependence | — | numerical for an expression (inferred) |
+| FullProf | one empirical powder parameter (`Extinc`, the SHELX-style form); `Ext-Model` is single-crystal only | — | not found |
+| EasyDiffraction (cryspy) | Becker-Coppens, single crystal only; no powder use found | — | analytic |
+| RIETAN-FP | none (the manual calls secondary extinction negligible for powders) | — | — |
+| BGMN | none found in the keyword table | — | — |
+
+No program evaluates E_L continuously. The two that carry Sabine's E_L both
+switch branches at x = 1, and neither gives a reason. TOPAS's expression
+language has no modified Bessel function (Table 3-1; "there is no Bessel
+function", near §16 on modulated structures). Its functions are Sqrt, Exp, Ln,
+the trigonometric and hyperbolic functions, the Erf, Erfc and Gamma
+approximations, Abs, Min, Max, Mod, Round and Sign, with If, For and Sum.
+
+Sources: GSAS-II `GSASIIstrMath.GetPwdrExt` and `GetPwdrExtDerv`. MAUD
+`src/it/unitn/ing/rista/diffr/sfm/ExtinctionSabineModel.java:140-146`, with the
+same constants in the 3.07 jar by `javap`. TOPAS Technical Reference v9 §16.6
+and Table 3-1. FullProf manual, the scale line's `Extinc` and the `Ext-Model`
+entry in the 2002 news. cryspy 0.13.0 `A_functions_base/extinction.py`, and
+EasyDiffraction `analysis/calculators/cryspy.py:1575-1576` ("single crystal
+only"). RIETAN-FP 3.12 manual, by full-text search (one hit, on secondary
+extinction). BGMN by the binary's keyword table, with no manual
+installed.
 
 ## The tier-2 rows resting on a program default
 

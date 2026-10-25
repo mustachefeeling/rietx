@@ -309,16 +309,17 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
 - **A phase the data cannot see is a flat direction, held for the stage rather than bounded**
   (WP-1301). It reaches the pattern only through `scale × |F|² × profile`, so at a floored scale
   nothing of it moves Rwp while its cell leaves the physical range; a bound narrows that walk, is
-  never free, and is suppressed by a caller's own (`params.vector.cell_window`). `_run_stage`
-  holds every free structural path of such a phase — never its `scale`, the one direction that is
-  not flat — and `StageResult.held` records it. **Support is a fact about the values and a stage
-  moves them** → re-measured at the answer: a phase that appeared is *released*; one that
-  **collapsed** while solving is restored to where the stage found it and held (one extra solve,
-  never a third). **A value that is not a measurement is the caller's**: held paths leave
-  `RefinementResult.parameters`, a trajectory starts at the onset. Which phases: a scale under 3σ
-  of its counting-noise esd (`refine._answer_significance`, WP-1523), never the fitted curve an
-  absent phase's cell fits to noise; zero limit `phase_line_counts`. Both feed `PHASE_UNCONSTRAINED`,
-  which says what was done; `SEQUENTIAL_PERSISTENT_FINDING` what no one pattern can: "42 of 68".
+  never free, and is suppressed by a caller's own (`params.vector.cell_window`). `_run_stage` holds
+  every free structural path of such a phase — never its `scale`, the one direction that is not
+  flat, bar a phase with no line in range (WP-1958: held, no QPA fraction) — and `StageResult.held`
+  records it. **Support is a fact about the values and a stage moves them** → re-measured at the
+  answer: a phase that appeared is *released*; one that **collapsed** while solving is restored to
+  where the stage found it and held (one extra solve, never a third). **A value that is not a
+  measurement is the caller's**: held paths leave `RefinementResult.parameters`, a trajectory starts
+  at the onset. Which phases: a scale under 3σ of its counting-noise esd
+  (`refine._answer_significance`, WP-1523), never the fitted curve an absent phase's cell fits to
+  noise; zero limit `phase_line_counts`. Both feed `PHASE_UNCONSTRAINED`, which says what was done;
+  `SEQUENTIAL_PERSISTENT_FINDING` what no one pattern can: "42 of 68".
 - **Pydantic knows no crystallography, so a whole-model swap is checked by building its table.**
   Every symmetry refusal is raised in `ParameterTable.__init__`, and the snapshot
   `Refinement.edit` commits performs none of it, so `edit` builds the **proposed** pair's table
@@ -589,7 +590,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   uPlot, WP-1461), redrawing in place so the zoom survives a stage. The page it replaced cost
   the fit's thread 4.51-6.03 MB a stage; `rietx html` writes one on demand, module inlined.
 - **A display reads fields and never computes; a designed view is a `__str__` override** (WP-1544;
-  the three rules and the figure rule are `_display.py`'s docstring and `viz.plots._pyplot`'s).
+  the four rules and the figure rule are `_display.py`'s docstring and `viz.plots._pyplot`'s).
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is
   near-constant, so `nac` at 0.354 s spends 50 ms on six snapshots against a 17.7 ms budget.
   **That one is paid** (WP-1438): a ratio is the wrong test where the absolute charge is 50 ms,

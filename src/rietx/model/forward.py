@@ -628,9 +628,10 @@ class CompiledPhase:
     # Primary extinction, frozen *out* of this stage: True when the phase's
     # ``extinction`` is exactly 0 — where Sabine's E is identically 1 — and no
     # path this stage can move reaches it.  Then E is a multiply by ones, and
-    # the six-term Laue series that builds it is pure cost: measured 1.2 s of
+    # the Laue factor that builds it is pure cost: measured 1.2 s of
     # ``sabine_extinction`` plus 0.79 s of ``_laue_and_deriv`` in a 17.5 s fit
-    # where extinction was never freed (WP-1109).
+    # where extinction was never freed (WP-1109, on GSAS-II's six-term series;
+    # the closed form of WP-2044 is 1.3x faster on 10^4 reflections).
     #
     # This is the frozen-per-stage invariant, not a branch on θ: the decision
     # is taken at compile from a value that provably cannot change before the
@@ -2365,10 +2366,23 @@ class CompiledModel:
         a margin) has an empty window and contributes exactly as much as one
         that does not exist.  Frozen at stage compile like everything else the
         windows carry, so this is a fact about the stage, not about θ.
+
+        A window is the reflection's profile reach, not its centre: a
+        reflection whose centre lies outside the fitted range while its tail
+        reaches into it **counts as a line**, since its column is not zero
+        there (stated on #1103's follow-up).
+
+        A phase drawing its magnetic component on its own, wider windows
+        (``win_mag``, WP-1343) counts a reflection either window brings into
+        range, since either one gives the scale a column; zero then means
+        what the hold and the QPA read it as (WP-1958).
         """
         out = np.zeros(len(self.phases), dtype=np.int64)
         for ip, cp in enumerate(self.phases):
-            out[ip] = int(np.count_nonzero(cp.win[:, :, 1] > cp.win[:, :, 0]))
+            inside = cp.win[:, :, 1] > cp.win[:, :, 0]
+            if cp.win_mag is not None:
+                inside = inside | (cp.win_mag[:, :, 1] > cp.win_mag[:, :, 0])
+            out[ip] = int(np.count_nonzero(inside))
         return out
 
     # ------------------------------------------------------------------

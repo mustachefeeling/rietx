@@ -153,7 +153,7 @@ A `RefinementPlan` holds its stages and five settings.
 | `RefinementPlan.correlation_guard` | 0.98 | the \|ρ\| above which a stage reports a correlated pair |
 | `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
 | `RefinementPlan.lebail_passes` | 1 | the cap on Le Bail passes ([Le Bail passes](#le-bail-passes)) |
-| `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` switches the hold off ([Held parameters](#held-parameters)) |
+| `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` skips the test ([Held parameters](#held-parameters)) |
 | `RefinementPlan.closing_window_tol` | 1e-3 | the fraction of each peak's area the closing stage's windows may drop; `None` runs no closing stage ([The closing stage](#the-closing-stage)) |
 
 ```python
@@ -298,7 +298,7 @@ Each window drops 2 % of its peak's area, and more once a peak widens during the
 Two errors reach the answer of a plan without a closing stage:
 
 - The missing tails move refined values. Computed out to 5e-5 of the area, lab answers moved by up to 0.97 esd (the zincite scale on CPD cpd-1a, the Lorentzian size on the GSAS-II fluorapatite), and the background coefficients by 2 to 5 esd.
-- The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put cpd-1a's sample displacement 0.75 esd apart, because each start stopped the early stages in a different place.
+- The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put the fluorapatite's Biso 0.12 esd apart, because each start stopped the early stages elsewhere.
 
 The closing stage takes the last declared stage's iteration budget, Le Bail cycles, restraint weight, window slack and `Stage.ftol`, and seeds nothing.
 It takes the solver's default tolerance, so the last declared stage becomes an intermediate one.
@@ -308,14 +308,14 @@ A declared stage records `None`, the declared stages' 2 %, so a fit run without 
 At any window fraction under the declared stages' 2 %, the axial-divergence asymmetry is sampled at a finer node rule as well.
 So a `closing_window_tol` loosened past 1e-3 for speed loosens the windows alone.
 
-Measured on SRM 660c LaB6, the fluorapatite, cpd-1a and 11-BM NAC, each under its acceptance protocol (macOS arm64, `[dev]`, 2026-10-21):
+Measured on SRM 660c LaB6, the fluorapatite, cpd-1a and 11-BM NAC, each under its acceptance protocol (macOS arm64, `[dev]`; times from 2026-10-21):
 
 | | Fluorapatite | cpd-1a | NAC | LaB6 |
 |---|---|---|---|---|
-| Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 0.751 → 0.070 | 0.008 → 0.000 | 9.0 → 9.1 |
+| Two Biso starts, largest difference in plain esd, without → with | 0.119 → 0.000 | 15.3 → 15.7 | 0.008 → 0.000 | 0.20 → 1.16 |
 | Fit time with the closing stage | 2.20-2.33× | 1.60-1.62× | 1.2× | 1.42-1.44× |
 
-LaB6's two starts reach two mirrored axial-divergence minima whatever the windows, so no window setting can make them agree.
+cpd-1a's starts differ on fluorite's Lorentzian strain, through the X and Y split its plan holds (`StageResult.width_twins_held`).
 `tests/test_window_domain.py` holds the closing answer within 0.1 plain esd of the answer with converged tails on the fluorapatite, cpd-1a and NAC (0.008 to 0.019 esd).
 LaB6 misses it by 0.9 esd on `instrument.profile.u`.
 Its highest-angle reflections end with a Gaussian variance under the floor the width is clamped to, and there a recompile moves `u` by an esd at any window.
@@ -503,7 +503,7 @@ A pattern scoped to one histogram, `hist.0.…`, is not reported, and neither is
 `StageResult.held` is the field to read when a parameter did nothing.
 A stage holds four kinds of parameter at the values it starts from.
 
-- The structural parameters of a phase the data cannot see. A phase reaches the pattern only through scale × \|F\|² × profile, so a phase whose scale is at its floor, or not significant against the counting noise, has no measurable structural parameter. The phase's own `scale` is never held, which is how the phase can still appear. [`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) names the phase and the stages that held it, and its parameters are absent from `RefinementResult.parameters`, because nothing measured them.
+- The structural parameters of a phase the data cannot see. A phase reaches the pattern only through scale × \|F\|² × profile, so one whose scale is at its floor or not significant has no measurable structural parameter. Its `scale` is not held on significance, so a phase can appear; with no reflection in range it is held whole. [`PHASE_UNCONSTRAINED`](diagnostics-refinement.md#phase_unconstrained) names the phase and the stages that held it, and its parameters, which nothing measured, are absent from `RefinementResult.parameters`.
 - A moment direction the powder average cannot determine ([Magnetic refinement](magnetic.md#directions-a-powder-cannot-see)).
 - A phase's displacement parameters when the fitted range cannot separate them from the phase's scale. `StageResult.scale_b_held` gives the measured separation, and [`SCALE_B_INSEPARABLE`](diagnostics-refinement.md#scale_b_inseparable) reports it.
 - An instrument width whose specimen twin is free: U with `gauss_strain`, Y with `lor_strain`, X with `lor_size`. The data see only each pair's sum.
@@ -524,10 +524,10 @@ A displacement hold is never lifted within a stage, because a phase with one d-s
 
 Both lists are empty on every fit whose phases are all visible.
 
-The line between seen and unseen is a plan setting, `RefinementPlan.phase_support_sigma`, mirrored by `PlanSpec.phase_support_sigma`.
+The line between seen and unseen is `RefinementPlan.phase_support_sigma`, mirrored by `PlanSpec.phase_support_sigma`.
 A phase counts as seen when its scale sits at least that many esds from zero, the esd taken against the counting noise.
 The default is {{ PHASE_SUPPORT_SIGMA }}.
-A higher number holds more phases, and `None` switches the hold off:
+A higher number holds more phases, and `None` skips the significance test:
 
 ```python
 import dataclasses
@@ -537,10 +537,10 @@ import rietx as rx
 plan = rx.RefinementPlan.mccusker_default()
 assert plan.phase_support_sigma == 3.0
 
-no_hold = dataclasses.replace(plan, phase_support_sigma=None)
+no_test = dataclasses.replace(plan, phase_support_sigma=None)
 ```
 
-With `None`, no stage holds, releases or restores a phase, and no cell takes the window an unseen phase's cell gets.
+With `None`, no stage holds, releases or restores a phase for weakness, and no cell takes the unseen window; a phase with no line in range is still held whole.
 `PHASE_UNCONSTRAINED` still reports a phase under {{ PHASE_SUPPORT_SIGMA }}σ, and names the parameters that refined without signal.
 Zero, a negative number, an infinity and a NaN are refused.
 
@@ -728,17 +728,17 @@ The exception carries no such field.
 print(result.provenance)
 ```
 
-A development build of 1.10 printed this on 2026-10-20, so the version strings are that build's:
+A 1.10 development build printed this:
 
 ```text
 Provenance
-  package_version: '1.10.0.dev0'
-  schema_version: '0.59'
-  backend: 'numpy'
-  dtype: 'float64'
-  solver: 'lm'
+  package_version:           '1.10.0.dev0'
+  schema_version:            '0.59'
+  backend:                   'numpy'
+  dtype:                     'float64'
+  solver:                    'lm'
   report_thresholds_version: '1.12'
-  created_utc: '2026-10-20T02:29:39Z'
+  created_utc:               '2026-10-20T02:29:39Z'
 ```
 
 | Field | Holds |
@@ -746,7 +746,7 @@ Provenance
 | `Provenance.package_version` | the rietx version that produced it |
 | `Provenance.schema_version` | the version of the data contract the objects follow |
 | `Provenance.backend` | the backend the arrays were computed on |
-| `Provenance.dtype` | the precision: `"float64"`, or `"float64/jacobian:float32"` on the Apple-GPU backend, whose Jacobian columns are single precision |
+| `Provenance.dtype` | the precision: `"float64"`, or `"float64/jacobian:float32"` on the Apple-GPU backend |
 | `Provenance.solver` | the least-squares driver |
 | `Provenance.report_thresholds_version` | the version of the thresholds a report is judged against |
 | `Provenance.created_utc` | when the result was assembled, in UTC |

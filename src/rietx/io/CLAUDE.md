@@ -476,8 +476,9 @@ axis over.
   default whatever its `PTYP`; `NCOF` exactly 12 / 15 / 21; a default PTYP
   2/4/5 refused, a non-default set declined; a non-zero anisotropic term or
   ITYP 1/2 fifth `ICOFF` pair refused. A LANSCE-shaped file (8-slot type-1
-  `PRCF`) is **refused** here and read only by `legacy/` below. A bank
-  with no `PRCF` reads with an all-zero `ProfileTOF`, which says so.
+  `PRCF`) is **refused** here and read only by `legacy/` below. A bank with no
+  `PRCF` reads with an all-zero `ProfileTOF`, which says so. `ICONS`' POLA,
+  IPOLA, KRATIO pass blank **or zero**, FORTRAN's one reading (F77 §13.5.9).
 - **`.instprm` is one public reader on `Type`**: `read_gsas2_instprm` hands
   a file stating `Type: PNT` *by path* to `read_tof_instprm`, before
   `projects/gsas2.read_instprm` (written from GSAS-II's modules) sees it, so

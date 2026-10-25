@@ -76,15 +76,19 @@ print(result)
 
 `print(result)`, which is `str(result)`, shows what a bare result can say
 without the model that produced it. It lists each stage's status, every
-diagnostic and the provenance, with the agreement indices last.
+diagnostic and the provenance, with the agreement indices last. An error prints
+in full and every other diagnostic on one line, naming the purposes it is a
+warning under, because `print` passes no deliverable.
+`result.summary(deliverable="qpa")` takes one.
 
 ```text
 RefinementResult: converged (rietveld)
   stage scale_bkg: converged (2 evals, ftol=1e-06)
   ...
   stage closing: converged (4 evals, ftol=solver default), max|Δθ|/esd=0.000
-  diagnostics: 1 unresolved
-    info[CAPILLARY_OFFSET_UNAVAILABLE]: ...
+  diagnostics: 1 row, 0 errors; no deliverable given, so none is printed in full
+    CAPILLARY_OFFSET_UNAVAILABLE at instrument.geometry.goniometer_radius_mm: info
+    pass deliverable= to summary() for the rows that decide your purpose; every row is in result.diagnostics
   provenance: rietx ..., backend=numpy, solver=lm
   Rwp 0.1337 / Rexp 0.0357 (GoF 3.75), Rp 0.0723, χ² 14.0, DW 0.11
 ```
@@ -105,7 +109,7 @@ One more line draws the fit:
 
 <!-- api-doc: no-exec — it needs a result from the reader's own data -->
 ```python
-result.plot(path="nac_fit.png", wavelength=0.4139090)
+result.plot(path="nac_fit.png")
 ```
 
 ```{image} ../figures/nac-fit-light.png
@@ -125,7 +129,7 @@ caused it, and nothing comes between them. Every series is named in the
 right-hand margin rather than in a legend the eye has to look up. The fit
 statistics sit in the corner, because a figure's title is its caption.
 
-`wavelength=` puts λ on the 2θ axis, which is meaningless without it. The other
+The result records the λ the fit used, and the 2θ axis states it. The other
 arguments window the pattern, change the axes and move the residual into a panel
 of its own. `RefinementResult.plot` passes them to `rietx.viz.plot_result`, whose
 arguments [API: everyday calls](../reference/api.md#export-and-plots) lists.

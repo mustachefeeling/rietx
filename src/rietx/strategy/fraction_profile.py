@@ -164,6 +164,10 @@ def profile_fraction(refinement, data, phase: int | str, *,
         raise ValueError("a fraction needs two phases: one phase is 100 % by "
                          "definition, and a result without QPA has none to profile")
     index = _phase_index(refinement.structure, phase)
+    if result.qpa.phases[index].weight_fraction is None:
+        raise ValueError(f"phase {index} ({result.qpa.phases[index].name}) has no "
+                         "reflection in the fitted range, so it has no weight "
+                         "fraction to profile")
     if axes is None:
         axes = _default_axes(refinement, index)
     else:

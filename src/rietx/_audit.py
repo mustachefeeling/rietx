@@ -39,6 +39,19 @@ its switch stays off the default paths (the record's § The rule, ruled
 Constant, default and suggestion rows store the live value, so a retune fails
 ``tests/test_audit_table.py`` and reopens the row's audit.
 
+**A code row also says what its reader does** (WP-2037, the record's
+§ The rule, "Attention is a cost").  ``response`` is the level the reader
+owes the code, and it equals the literal ``level=`` every raise site passes,
+held by test: two consequences are two codes, never a threshold between
+levels.  ``responds`` is the one sentence on what the reader does, and a
+``warning`` one names a result number or a plan outcome.  ``scope`` is for a
+code no raise site gives a ``where``: the purposes of
+:data:`rietx.purposes.PURPOSES` it bears on, or ``("all",)``.  A code's level
+under a purpose is computed from those two tables, never authored per code
+per purpose.  :data:`RESPONSE_BASELINE` lists the code rows still without a
+response, and shrinks the way :data:`UNAUDITED_BASELINE` does, so a new code
+enters with one.
+
 **The suite's growth guard reads no git.**  CI's test jobs have no
 ``origin/main``, so a comparison against the base table would skip exactly
 where it gates a merge.  A local ``origin/main`` can be stale.
@@ -82,9 +95,11 @@ from typing import Literal
 Kind = Literal["code", "action", "constant", "default", "suggestion"]
 Tier = Literal[1, 2, 3, "invariant", "caller", "unaudited"]
 Ambiguity = Literal[1, 2, 3]
+Response = Literal["error", "warning", "info"]
 
 KINDS: tuple[str, ...] = Kind.__args__
 TIERS: tuple[object, ...] = Tier.__args__
+RESPONSES: tuple[str, ...] = Response.__args__
 _VALUED = ("constant", "default", "suggestion")
 _STATES_AMBIGUITY = ("code", "action", "default")
 
@@ -95,7 +110,9 @@ class Row:
     row and on a tier-2 action row; ``ambiguity`` is DESIGN.md § Rules, 1's
     kind, required on an audited code, action or default row (DESIGN.md
     § Rules, 4 asks a new default or action for it) and allowed on a
-    suggestion row."""
+    suggestion row.  ``response``, ``responds`` and ``scope`` are a code
+    row's alone (the module docstring); ``responds`` is required beside a
+    ``response``, and ``scope`` where no raise site passes a ``where``."""
 
     name: str
     kind: Kind
@@ -105,6 +122,9 @@ class Row:
     grounds: str = ""
     approved: str | None = None
     value: object = None
+    response: Response | None = None
+    responds: str = ""
+    scope: tuple[str, ...] = ()
 
 
 _PACKAGE = pathlib.Path(__file__).resolve().parent
@@ -125,6 +145,7 @@ WALKED: dict[str, int] = {
     "sequential.py": 2003,
     "multi.py": 2003,
     "report": 2004,
+    "purposes.py": 2004,
     "io/readers.py": 2006,
     "io/formats/base.py": 2006,
     "crystallography": 2006,
@@ -192,6 +213,7 @@ DEFAULT_SEATS: dict[str, int] = {
     "rietx.refine.Refinement.fit": 2002,
     "rietx.refine.Refinement.run_stage": 2002,
     "rietx.refine.refine": 2002,
+    "rietx.refine.Refinement.summary": 2004,
     "rietx.background.auto.auto_background": 2002,
     "rietx.sequential.refine_sequential": 2003,
     "rietx.sequential.SequentialRefinement.fit": 2003,
@@ -398,17 +420,21 @@ def _literal(value: object) -> str:
     return repr(value)
 
 
-#: What a printed row holds where the author's answer goes.  Neither is a tier
-#: or a kind of ambiguity, so a row pasted unfilled fails the table's tests.
+#: What a printed row holds where the author's answer goes.  It is no tier,
+#: kind of ambiguity or response, so a row pasted unfilled fails the table's
+#: tests.
 PENDING = "?"
 
 
 def row_source(name: str, kind: str, value: object = None) -> str:
     """The line a failure prints for ``name``: its tier, its kind of
-    ambiguity where the row must state one, and its evidence left for the
-    author.  A name new to the table may not enter at ``unaudited``."""
+    ambiguity where the row must state one, a code's response, and its
+    evidence and a code's sentence left for the author.  A name new to the
+    table may not enter at ``unaudited``, nor a code without a response."""
     ambiguity = f", ambiguity={_literal(PENDING)}" if kind in _STATES_AMBIGUITY else ""
     tail = f", value={_literal(value)}" if kind in _VALUED else ""
+    if kind == "code":
+        tail += f', response={_literal(PENDING)}, responds=""'
     return (f"Row({_literal(name)}, {_literal(kind)}, tier={_literal(PENDING)}{ambiguity}, "
             f'evidence=""{tail}),')
 
@@ -434,7 +460,7 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
     "rietx.schemas.results.RefinementResult.parametric_form_joint",
     "rietx.schemas.results.RefinementResult.phase_agreement",
     "rietx.schemas.results.RefinementResult.provenance",
-    "rietx.schemas.results.RefinementResult.qpa",
+    "rietx.schemas.results.RefinementResult.radiation",
     "rietx.schemas.results.RefinementResult.restraints",
     "rietx.schemas.results.RefinementResult.sigma",
     "rietx.schemas.results.RefinementResult.stages",
@@ -541,7 +567,10 @@ ROWS: tuple[Row, ...] = (
     Row("EXTRA_PEAK_ON_REFLECTION", "code"),
     Row("FLAT_DIRECTION", "code"),
     Row("FLAT_DIRECTION_OMITTED", "code"),
-    Row("FLOOR_HIT", "code"),
+    Row("FLOOR_HIT", "code", response="warning",
+        responds=("quote an upper limit, not a value, for the parameter on its floor, and "
+                  "check whatever trades against it before quoting an ADP, an occupancy or "
+                  "a scale")),
     Row("FROZEN_COMPILE_STALE", "code"),
     Row("FULLPROF_MAGNETIC_PHASE_OMITTED", "code"),
     Row("FULLPROF_MAGNETIC_PHASE_READ", "code"),
@@ -721,7 +750,11 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
-    Row("PATTERN_UNDERSAMPLED", "code"),
+    Row("PATTERN_UNDERSAMPLED", "code", response="warning",
+        responds=("read an intensity- or width-derived number (a fraction, an ADP, a size, "
+                  "a strain, an instrument width) as less certain than its esd, and "
+                  "re-collect at a step near FWHM/5 where it must be quotable"),
+        scope=("qpa", "structure", "microstructure", "calibration", "magnetic")),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),
     Row("PATTERN_ZERO_WEIGHT_EXCLUDED", "code", tier=1, ambiguity=1,
@@ -772,7 +805,9 @@ ROWS: tuple[Row, ...] = (
     Row("RECIPE_SCHEMA_UNTESTED", "code"),
     Row("RECIPE_ZERO_WEIGHT_EXCLUDED", "code"),
     Row("RESOLUTION_NOT_POSITIVE", "code"),
-    Row("RESOLUTION_UNCONSTRAINED", "code"),
+    Row("RESOLUTION_UNCONSTRAINED", "code", response="warning",
+        responds=("do not quote a width, a crystallite size or a strain from this fit; "
+                  "calibrate the instrument on a standard first")),
     Row("RESTRAINT_TENSION", "code"),
     Row("RIGID_BODY_MISFIT", "code"),
     Row("RIGID_BODY_UNSUPPORTED", "code"),
@@ -792,7 +827,9 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_UNRECOVERED", "code"),
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code"),
-    Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code"),
+    Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code", response="warning",
+        responds=("check the site's multiplicity against the source before quoting a weight "
+                  "fraction, a density or a site's occupancy from this fit")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code"),
     Row("SIZE_UNUSUALLY_SMALL", "code"),
     Row("SOLVE_B_TIED_PER_PARENT_SITE", "code", tier="caller", ambiguity=2,
@@ -825,17 +862,22 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 22
+    # action: 23
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
                   "FullProf and TOPAS hold nothing by default, TOPAS's Remove_Phase is opt-in "
                   "(Tech Ref V9 § 20.19); the collapse restore also appends here, and "
-                  "StageResult.collapsed says which (B14)"),
+                  "StageResult.collapsed says which (B14); WP-1958 (#954, decided "
+                  "2026-10-16): with no line in range the scale is held too, its column "
+                  "zero at every value (tier 1), and TRF walked bcc Fe's to 164.7 on "
+                  "WP-1534's fixture"),
         grounds=("No competent refiner lets a phase the data cannot see refine its cell, and the "
                  "hold touches only what the data cannot determine; on by default, which no "
-                 "program does (B1, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                 "program does (B1, ruled 2026-10-19). The lineless branch, which holds the "
+                 "scale, is tier-1 arithmetic (a zero column) inside a row tiered on its "
+                 "contested part."),
+        approved="2026-10-23"),
     Row("rietx.schemas.results.StageResult.scale_b_held", "action", tier=1, ambiguity=1,
         evidence=("numerical floor: under 2*sqrt(PINV_RCOND) the covariance's pinv cut cannot see "
                   "scale and B as two directions (WP-1534 derivation); measured cases read 1e-12 or"
@@ -860,12 +902,12 @@ ROWS: tuple[Row, ...] = (
                   "direction, printing a singularity warning (GSASIImath.py:280-289, checked by "
                   "the judge); none holds a twin automatically. Real two-phase family, 11-BM LaB6 "
                   "+ cBN: once two exactly flat directions, now LaB6's widths on their floor and "
-                  "cBN lor_strain 0.0354(8), every esd finite; LaB6 16.779(194) wt % against "
+                  "cBN lor_strain 0.0354(35), every esd finite; LaB6 16.779(194) wt % against "
                   "16.850 before, TOPAS 17.907-17.950. The costs: the specimen width ends on its 0 "
                   "floor in three of four real fits (brucite, corundum, LaB6 + cBN), so the held "
                   "instrument value binds, Rwp 0.186391 -> 0.186423 on brucite and 0.179951 -> "
                   "0.181008 with a Stephens block; a plan fitting X and Y on the specimen first "
-                  "keeps that stage's start-dependent split, 15.68 plain esd on cpd-1a zincite's "
+                  "keeps that stage's start-dependent split, 15.68 plain esd on cpd-1a fluorite's "
                   "lor_strain between Biso starts (strict xfail in "
                   "tests/test_staged_start_invariance.py). Measured and not adopted: moving the "
                   "hold to a specimen width on its floor recovers the single-phase Rwp exactly "
@@ -995,6 +1037,20 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in: Geometry.mu_r/mu_t or capillary_radius_mm/thickness_mm, default None "
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "
                   "Acta Cryst. A26, 682 (docstring)")),
+    Row("rietx.schemas.results.RefinementResult.qpa", "action", tier=1, ambiguity=1,
+        evidence=("arithmetic: a phase's scale is not measured where its column is zero at the "
+                  "answer (no reflection in the fitted range), or where the last stage held it "
+                  "(zero when that stage compiled; a refined zero shift can bring a line in by "
+                  "the answer), so the value is the one handed in "
+                  "and a fraction read off it is that start (WP-1958, #954, decided 2026-10-16): "
+                  "such a phase has no fraction (weight_fraction None, unmeasured_phases names it) and "
+                  "the others are normalised over the phases seen, absent rather than zero "
+                  "(WP-1072, WP-1110 item 14); before, TRF read 99.99 wt% iron off a walked "
+                  "scale and LM 0.61 wt%, the start; Brindley is skipped, its mean mu needing "
+                  "every fraction; the set is what the last stage held plus the answer's own "
+                  "no-line count, so a line a zero shift moved into range cannot quote the "
+                  "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
+                  "histogram that has lines counts as measured in every histogram (item 2)")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "
@@ -1197,6 +1253,13 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.attenuation._HC_EV_ANGSTROM", "constant", value=12398.4198),
     Row("rietx.crystallography.attenuation._NA_BARN", "constant", value=0.602214076),
     Row("rietx.crystallography.cif.CIF_ANGLE_CORRECT_MAX_DEG", "constant", value=0.1),
+    Row("rietx.crystallography.cif.CIF_PRINTED_ROUNDING", "constant", tier=1,
+        evidence="arithmetic: a number printed to d decimals by rounding to the nearest "
+                 "digit stands for every value within half its last digit, ties included "
+                 "(computed exactly in decimal, cif._within_printed_rounding); a snap "
+                 "inside it is the file's rounding, one past it is still reported "
+                 "(tests/test_cif_stated_columns.py, WP-2037)",
+        value=0.5),
     Row("rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL", "constant", value=0.001),
     Row("rietx.crystallography.cif.DUPLICATE_U_TOLERANCE", "constant", value=0.0002),
     Row("rietx.crystallography.cif.OCCUPANCY_TOLERANCE", "constant", value=0.01),
@@ -1492,7 +1555,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.io.projects.registry.INP_SNIFF_BYTES", "constant", value=65536),
     Row("rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM", "constant", value=16),
     Row("rietx.io.projects.topas_input.DEFAULT_RADIUS_MM", "constant", value=217.5),
-    Row("rietx.io.projects.topas_input._SABINE_LAUE", "constant", value=(-0.5, 0.25, -0.10416667, 0.036458333, -0.0109375, 0.0028497409)),
+    Row("rietx.io.projects.topas_input._BESSEL_SWITCH", "constant", tier=1, value=3.75,
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I0_LARGE", "constant", tier=1, value=(0.39894228, 0.01328592, 0.00225319, -0.00157565, 0.00916281, -0.02057706, 0.02635537, -0.01647633, 0.00392377),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I0_SMALL", "constant", tier=1, value=(1.0, 3.5156229, 3.0899424, 1.2067492, 0.2659732, 0.0360768, 0.0045813),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I1_LARGE", "constant", tier=1, value=(0.39894228, -0.03988024, -0.00362018, 0.00163801, -0.01031555, 0.02282967, -0.02895312, 0.01787654, -0.00420059),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._I1_SMALL", "constant", tier=1, value=(0.5, 0.87890594, 0.51498869, 0.15084934, 0.02658733, 0.00301532, 0.00032411),
+        evidence=("published: Abramowitz & Stegun (1964) NBS AMS 55 eqs 9.8.1-9.8.4, the closest TOPAS spelling of e^(-x)(I0 + I1), which has no Bessel function; within 3.6e-8 of i0e + i1e (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
+    Row("rietx.io.projects.topas_input._LAUE_SPELLING_REL", "constant", tier="invariant", value=3.6e-08,
+        evidence=("a measured bound quoted in the file's head note; it decides nothing (tests/test_topas_whole_input.py::test_the_written_laue_factor_is_within_its_stated_bound)")),
     Row("rietx.io.projects.topas_input._SABINE_XPOL", "constant", value=0.079411),
     Row("rietx.io.projects.topas_input._TCH_ETA", "constant", value=(1.36603, -0.47719, 0.11116)),
     Row("rietx.io.projects.topas_input._TCH_GAMMA", "constant", value=(2.69269, 2.42843, 4.47163, 0.07842)),
@@ -1540,8 +1614,12 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.compiled._THREAD_MIN_NS", "constant", tier="invariant", value=100000.0,
         evidence=("answer-invariant: rows are disjoint and each computed whole in one chunk; "
                   "tests/test_compiled_kernels.py::test_a_split_call_lands_on_the_inline_bits")),
-    Row("rietx.model.extinction._PI2", "constant", tier=1, value=0.7978845608028654,
-        evidence="arithmetic: sqrt(2/pi)"),
+    Row("rietx.model.extinction._ARG_SHIFT", "constant", tier="invariant",
+        value=1.1754943508222875e-38,
+        evidence=("answer-invariant: x + 2^-126 == x in fp64 for x >= 2^-72, and below that E_L "
+                  "rounds to 1 either way, so no selected value moves; it only sets the slope "
+                  "at x = 0 to -1/2, where numpy would read 0/0 and jax and torch +1/2 (WP-2044); "
+                  "tests/test_extinction.py::test_laue_shift_never_moves_a_value_that_is_actually_selected")),
     Row("rietx.model.extinction._XPOL", "constant", tier=1, value=0.079411,
         evidence=("physics: (r_e x 1e4 A/um)^2 with r_e = 2.818 fm is 0.079411; GSAS-II 5.8.4 "
                   "GSASIIstrMath.GetPwdrExt uses the same value (checked)")),
@@ -2651,6 +2729,27 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
+    Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
+        evidence=("#1016 review round 4 (2026-10-23), the maintainer's suggestion: q <= 12 "
+                  "holds 1/2, 1/3, 1/4, 1/6, 1/8 and 1/12. No tool surveyed reads a printed "
+                  "occupancy as a fraction: checkCIF FORMU01 alerts past a fixed 0.01 atom per "
+                  "formula unit, pymatgen's CifParser.check warns at 0.01 in implied Z, "
+                  "cod-tools' EstimateZ.pm compares ratios exactly (the seven Rietveld programs not "
+                  "checked); fails where the true q > 12 (1/16 printed 0.06 is read as written); "
+                  "tests/test_solve_chemistry.py"
+                  "::test_the_inventory_tolerance_scales_with_the_part_occupied_multiplicity"),
+        grounds=("Judgement ground: Composition.require is a gate on a model the caller "
+                 "supplies (the S2 engine writes occupancy 1.0 on every site it places), and "
+                 "it reads 0.33, 0.333 and 0.3333 as 1/3 and 0.5 as 1/2 only, so a "
+                 "two-decimal 1/3 site holds 64 on a 192-fold site at any formula unit "
+                 "(checkCIF's fixed 0.01 refuses it written as Cu2 at Z = 32) and a half "
+                 "site holds 96 and nothing in 87-105. The as-written sum still counts, so a "
+                 "formula that says 0.17 is met by 0.17. Mechanical ground: pending; three "
+                 "published part-occupied structures from unrelated laboratories and "
+                 "materials, each accepted at its published composition and refused when "
+                 "mis-stated, before a default path calls require. Approved on the "
+                 "judgement ground while only tests call it (ruled 2026-10-24)."),
+        approved="2026-10-24"),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("magnetic.py docstring: the Ba2FeSbSe5 pair sits 0.081 deg apart, inside 0.5 deg "
@@ -2988,7 +3087,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.instrument.Source:dispersion", "default", tier=2, ambiguity=1, value={"table": "cromer_liberman", "overrides": {}},
         evidence=("GSAS-II 5.8.4 applies Cromer-Liberman f', f'' to every X-ray histogram with no "
                   "switch (GSASIIstrIO.py:251-273, on every refinement path; checked); WP-1001: "
-                  "round-robin QPA RMS 2.26 to 0.62 wt %; None declines it and "
+                  "round-robin QPA RMS 2.26 to 0.62 wt % (0.69 on 1.10.0); None declines it and "
                   "DISPERSION_NEGLECTED says so"
                   "; seven programs, 2026-10-21 (docs/practice.md): all seven apply f', f'' by default, BGMN through the .ano table its default LAMBDA names")),
     Row("rietx.schemas.instrument.Source:harmonics", "default", tier=1, ambiguity=1, value=(),
@@ -3123,6 +3222,33 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine.refine:label", "default", tier="invariant", ambiguity=1, value=None,
         evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts "
                   "the answer bit-identical with it on")),
+    Row("rietx.refine.Refinement.summary:deliverable", "default", tier="invariant", ambiguity=3,
+        value=None,
+        evidence=("answer-invariant: a view of a finished fit; None infers no purpose and prints "
+                  "no purpose's rows in full (WP-2037 clause 3), the maintainer's ruling of "
+                  "2026-10-23 (WP-2037 Decision 3) with its registered agent run the tripwire, "
+                  "still owed; tests/test_termination_view.py asserts the result unchanged")),
+    Row("rietx.refine.Refinement.summary:plot", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: None writes no picture and names the call instead; "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:plan", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: the plan the report's Layer-2 veto reads; None skips the "
+                  "plan-stage veto while the free-path veto stands, and ignores the plan the "
+                  "last fit() ran (_last_plan, which run_stage and a checkout leave stale); "
+                  "tests/test_termination_view.py asserts the result unchanged, not the "
+                  "printed suggestions (WP-2004 inherits the question)")),
+    Row("rietx.refine.Refinement.summary:report", "default", tier="invariant", ambiguity=1,
+        value=None,
+        evidence=("answer-invariant: None builds the report a caller would have passed in; "
+                  "tests/test_termination_view.py asserts the result unchanged by a summary")),
+    Row("rietx.refine.Refinement.summary:levels", "default", tier="caller", ambiguity=1,
+        value=None,
+        evidence=("opt-in: the caller's per-code override, {code: allow|warn|deny}, default None "
+                  "(the audited levels stand); never lowers an error, and a refused allow is to be "
+                  "reported, not dropped (the maintainer, 2026-10-24, generality.md clause 4; "
+                  "WP-2004 builds the report)")),
     Row("rietx.background.auto.auto_background:kind", "default", tier=3, ambiguity=2, value="pspline",
         evidence=("GSAS-II 5.8.4 defaults to a 3-term Chebyshev (GSASIIdataGUI.py:2207, "
                   "inventory check), TOPAS and FullProf to polynomials (recalled); WP-1454: the "
@@ -3157,9 +3283,19 @@ ROWS: tuple[Row, ...] = (
                   "; seven programs, 2026-10-21 (docs/practice.md): none of the seven seeds a background from the data by default")),
     Row("rietx.sequential.refine_sequential:carry", "default", value=("*",)),
     Row("rietx.sequential.refine_sequential:carry_hkl_intensities", "default", value=True),
-    Row("rietx.sequential.refine_sequential:backend", "default", value="numpy"),
-    Row("rietx.sequential.refine_sequential:solver", "default", value="lm"),
-    Row("rietx.sequential.refine_sequential:history", "default", value=False),
+    Row("rietx.sequential.refine_sequential:backend", "default", tier="caller", ambiguity=1,
+        value="numpy",
+        evidence=("opt-in, as rietx.refine.refine:backend: each pattern's Refinement gets it "
+                  "unchanged (sequential.py:1765); jax/torch/torch-mps need an extra no default "
+                  "install has, and agree with numpy only to fp tolerance")),
+    Row("rietx.sequential.refine_sequential:solver", "default", tier=2, ambiguity=1, value="lm",
+        evidence=("the single fit's default (rietx.refine.refine:solver), handed to each "
+                  "pattern's Refinement unchanged (sequential.py:1765-1766): GSAS-II 5.8.4 "
+                  "GSASIImath.HessianLSQ is Marquardt-damped (checked); seven programs, "
+                  "2026-10-21 (docs/practice.md): Marquardt-damped in six; FullProf dissents, "
+                  "Gauss-Newton with relaxation factors")),
+    Row("rietx.sequential.refine_sequential:history", "default", tier="invariant", ambiguity=1, value=False,
+        evidence=("answer-invariant: one history tree per pattern; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:x", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:x_label", "default", value="index"),
     Row("rietx.sequential.SequentialRefinement.fit:labels", "default", value=None),
@@ -3167,20 +3303,45 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.SequentialRefinement.fit:plan", "default", value="mccusker_default"),
     Row("rietx.sequential.SequentialRefinement.fit:refit", "default", value="single"),
     Row("rietx.sequential.SequentialRefinement.fit:two_theta_limits", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:direction", "default", value="forward"),
+    Row("rietx.sequential.SequentialRefinement.fit:direction", "default", tier="caller", ambiguity=1,
+        value="forward",
+        evidence=("opt-in: direction='both' is asked by name and its off default walks one chain, "
+                  "moving no reported value (the entries are the forward pass's either way); the "
+                  "GUI's series panel defaults to 'forward' (gui/series.py:80, its own copy in a "
+                  "dict) and passes the user's choice (gui/session.py:1710), and no other default "
+                  "path sets it (searched 2026-10-24). The case for acting is the package's own: "
+                  "the skill says to run 'both' for any trajectory to be published "
+                  "(references/series.md), and the default stays visible in SeriesResult.direction "
+                  "and the summary's 'ordering artefact: NOT measured' line. What 'both' turns on "
+                  "is tiered on its own: PATH_DEPENDENCE_SIGMA, NOISE_FLOOR_REL and "
+                  "SEQUENTIAL_PATH_DEPENDENT (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:reseed", "default", value=True),
     Row("rietx.sequential.SequentialRefinement.fit:reseed_factor", "default", value=1.25),
     Row("rietx.sequential.SequentialRefinement.fit:first_rung_factor", "default", value=3.0),
-    Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", value=False),
+    Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", tier="caller", ambiguity=1,
+        value=False,
+        evidence=("opt-in: verify_discontinuities=True is asked by name and off by default; no "
+                  "default path sets it, the GUI included (searched 2026-10-24). What it turns on, "
+                  "a cold refit of each flagged pair and the cold step as a signed ratio of the "
+                  "chain's with a reading and no threshold (sequential.py:1888-1900), moves no "
+                  "fitted value; which pairs it refits is set by DISCONTINUITY_FACTOR and "
+                  "DISCONTINUITY_SIGMA, so this row is re-read when WP-2003's demotion of "
+                  "SEQUENTIAL_DISCONTINUITY lands")),
     Row("rietx.sequential.SequentialRefinement.fit:prepare", "default", value=None),
     Row("rietx.sequential.SequentialRefinement.fit:constrain", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:on_result", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: a callback handed each kept fit; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.sequential.SequentialRefinement.fit:on_error", "default", value="carry"),
-    Row("rietx.sequential.SequentialRefinement.fit:events", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:cancel", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:progress", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:telemetry", "default", value=None),
-    Row("rietx.sequential.SequentialRefinement.fit:label", "default", value=None),
+    Row("rietx.sequential.SequentialRefinement.fit:events", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:cancel", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:progress", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: an observation channel; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:telemetry", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: the run recorder, one run a job; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
+    Row("rietx.sequential.SequentialRefinement.fit:label", "default", tier="invariant", ambiguity=1, value=None,
+        evidence=("answer-invariant: a run's name; tests/test_answer_invariant_defaults.py asserts a three-pattern chain's every kept value, esd, rung and code equal with it on (WP-2003)")),
     Row("rietx.indexing.workflow.index_pattern:peaks", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:data", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:instrument", "default", value=None),
@@ -4158,7 +4319,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.io.projects.registry.INP_SNIFF_BYTES",
     "rietx.io.projects.topas_input.CALC_POINTS_PER_FWHM",
     "rietx.io.projects.topas_input.DEFAULT_RADIUS_MM",
-    "rietx.io.projects.topas_input._SABINE_LAUE",
     "rietx.io.projects.topas_input._SABINE_XPOL",
     "rietx.io.projects.topas_input._TCH_ETA",
     "rietx.io.projects.topas_input._TCH_GAMMA",
@@ -4311,35 +4471,24 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.sequential.NOISE_FLOOR_REL",
     "rietx.sequential.PATH_DEPENDENCE_SIGMA",
     "rietx.sequential.RESEED_FACTOR",
-    "rietx.sequential.SequentialRefinement.fit:cancel",
     "rietx.sequential.SequentialRefinement.fit:constrain",
-    "rietx.sequential.SequentialRefinement.fit:direction",
-    "rietx.sequential.SequentialRefinement.fit:events",
     "rietx.sequential.SequentialRefinement.fit:first_rung_factor",
-    "rietx.sequential.SequentialRefinement.fit:label",
     "rietx.sequential.SequentialRefinement.fit:labels",
     "rietx.sequential.SequentialRefinement.fit:mode",
     "rietx.sequential.SequentialRefinement.fit:on_error",
-    "rietx.sequential.SequentialRefinement.fit:on_result",
     "rietx.sequential.SequentialRefinement.fit:plan",
     "rietx.sequential.SequentialRefinement.fit:prepare",
-    "rietx.sequential.SequentialRefinement.fit:progress",
     "rietx.sequential.SequentialRefinement.fit:refit",
     "rietx.sequential.SequentialRefinement.fit:reseed",
     "rietx.sequential.SequentialRefinement.fit:reseed_factor",
-    "rietx.sequential.SequentialRefinement.fit:telemetry",
     "rietx.sequential.SequentialRefinement.fit:two_theta_limits",
-    "rietx.sequential.SequentialRefinement.fit:verify_discontinuities",
     "rietx.sequential.SequentialRefinement.fit:x",
     "rietx.sequential.SequentialRefinement.fit:x_label",
     "rietx.sequential.WIDTH_GROWTH_FACTOR",
     "rietx.sequential.WIDTH_GROWTH_GOF_FACTOR",
     "rietx.sequential.WIDTH_GROWTH_SIGMA",
-    "rietx.sequential.refine_sequential:backend",
     "rietx.sequential.refine_sequential:carry",
     "rietx.sequential.refine_sequential:carry_hkl_intensities",
-    "rietx.sequential.refine_sequential:history",
-    "rietx.sequential.refine_sequential:solver",
     "rietx.solve.cost.NAMED_REFLECTIONS",
     "rietx.solve.cost.NUISANCE_RCOND",
     "rietx.strategy.magnetic.SOLVE_D_MIN",
@@ -4347,4 +4496,263 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.strategy.staged.HUMP_MIN_WIDTH_MULT",
     "rietx.strategy.staged.ROUGHNESS_ABSORPTION_GUARD",
     "rietx.strategy.suggest.SUGGEST_SEED_ROUGHNESS",
+)
+
+#: The code rows still without a response, sorted.  Written once when the
+#: column opened (WP-2037, 2026-10-24); it shrinks as WPs 2004-2007 give each
+#: code its response, so a code new to the table enters with one.
+RESPONSE_BASELINE: tuple[str, ...] = (
+    "ABSORPTION_ESTIMATE_UNAVAILABLE",
+    "ABSORPTION_MU_R_OUT_OF_RANGE",
+    "ABSORPTION_PLATE_THICKNESS",
+    "ABSORPTION_THICKNESS_MATTERS",
+    "ADP_NOT_POSITIVE_DEFINITE",
+    "AIR_SCATTER_UNDECLARED",
+    "BACKGROUND_ABSORPTION",
+    "BACKGROUND_ORDER_AT_CAP",
+    "BISO_NEGATIVE",
+    "BISO_UNUSUALLY_LARGE",
+    "BOUND_HIT",
+    "BRINDLEY_OUTSIDE_REGIME",
+    "BRML_ABSORBER_ENGAGED",
+    "CAPILLARY_OFFSET_UNAVAILABLE",
+    "CELL_DEGENERATE_PROBE",
+    "CELL_RUNAWAY",
+    "CHILD_GROUP_UNNAMED",
+    "CIF_CELL_ANGLE_CORRECTED",
+    "CIF_MAGNETIC_CENTERING_ASSUMED",
+    "CIF_MAGNETIC_ION_UNCHARGED",
+    "CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED",
+    "CIF_MAGNETIC_MOMENT_ON_ALLOWED",
+    "CIF_MAGNETIC_NUCLEAR_GROUP",
+    "CIF_MAGNETIC_NUCLEAR_SETTING",
+    "CIF_MAGNETIC_NUMBER_MISMATCH",
+    "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED",
+    "CIF_MAGNETIC_SYMMFORM",
+    "CIF_MAGNETIC_UNIDENTIFIED",
+    "CIF_SITE_LISTED_TWICE",
+    "CIF_SITE_MULTIPLICITY_DISAGREES",
+    "CIF_SITE_TWINS_MERGED",
+    "CIF_SPECIES_NORMALISED",
+    "CONSTRAINT_ACTIVE",
+    "COVARIANCE_DIRECTION_DISCARDED",
+    "COVARIANCE_UNAVAILABLE",
+    "DATA_SUPPORT_LOW",
+    "DECLARED_RANGE_NOT_RESTORED",
+    "DECLARED_RANGE_RESTORED",
+    "DISPERSION_NEGLECTED",
+    "EXTINCTION_CONDITIONS_PARTIAL",
+    "EXTINCTION_FORBIDDEN_INTENSITY",
+    "EXTINCTION_GROUPS_NOT_SEPARABLE",
+    "EXTINCTION_PRIOR_APPLIED",
+    "EXTINCTION_SCREEN_FAILED",
+    "EXTINCTION_SYMBOL_AMBIGUOUS",
+    "EXTRA_PEAK_NO_INTENSITY",
+    "EXTRA_PEAK_ON_REFLECTION",
+    "FLAT_DIRECTION",
+    "FLAT_DIRECTION_OMITTED",
+    "FROZEN_COMPILE_STALE",
+    "FULLPROF_MAGNETIC_PHASE_OMITTED",
+    "FULLPROF_MAGNETIC_PHASE_READ",
+    "FULLPROF_OCCUPANCY_UNCHECKED",
+    "FULLPROF_ORIGIN_CHOICE",
+    "FULLPROF_RHOMBOHEDRAL_RESTATED",
+    "FULLPROF_SPECIES_NORMALISED",
+    "FULLPROF_SPECIES_WRITTEN_NEUTRAL",
+    "FULLPROF_TIE_DROPPED",
+    "GSAS2_CIF_DEUTERIUM_AS_D",
+    "GSAS2_CIF_FIELD_NOT_WRITTEN",
+    "GSAS2_CIF_RHOMBOHEDRAL_RESTATED",
+    "GSAS2_CIF_SETTING_IN_OPERATORS",
+    "GSAS2_CIF_SPECIES_WRITTEN_NEUTRAL",
+    "GSAS2_GPX_BACKGROUND_NOT_CARRIED",
+    "GSAS2_GPX_CONSTRAINT_NOT_CARRIED",
+    "GSAS2_GPX_COORDINATES_SYMMETRY_FIXED",
+    "GSAS2_GPX_ITEM_NOT_READ",
+    "GSAS2_GPX_PHASE_MAGNETIC",
+    "GSAS2_GPX_SCALE_NOT_COMPARABLE",
+    "GSAS2_GPX_SETTING_FROM_OPERATORS",
+    "GSAS2_GPX_SPECIES_NORMALISED",
+    "GSAS2_GPX_TEXTURE_CONVERTED",
+    "GSAS2_GPX_TEXTURE_NOT_CARRIED",
+    "GSAS2_INSTPRM_CONVENTION_ASSUMED",
+    "GSAS2_INSTPRM_FIELD_DROPPED",
+    "GSAS2_INSTPRM_FIELD_NOT_READ",
+    "GSAS2_INSTPRM_FIELD_NOT_WRITTEN",
+    "GSAS2_INSTPRM_GEOMETRY_ASSUMED",
+    "GSAS2_INSTPRM_VALUE_DEFAULTED",
+    "GSAS2_INSTPRM_VALUE_FLOORED",
+    "GSAS2_INSTPRM_VALUE_MERGED",
+    "GSAS_BANK_COMMENTED",
+    "GSAS_EXP_BACKGROUND_NOT_CARRIED",
+    "GSAS_EXP_COORDINATES_SYMMETRY_FIXED",
+    "GSAS_EXP_HISTOGRAM_NOT_READ",
+    "GSAS_EXP_PHASE_MAGNETIC",
+    "GSAS_EXP_REFINE_FLAG_MERGED",
+    "GSAS_EXP_SCALE_NOT_COMPARABLE",
+    "GSAS_EXP_SPECIES_NORMALISED",
+    "GSAS_EXP_SPECIES_WRITTEN_NEUTRAL",
+    "GSAS_EXP_VALUE_NARROWED",
+    "GSAS_FIELD_OVERFLOW",
+    "GSAS_IPARM_FIELD_DROPPED",
+    "GSAS_IPARM_LEGACY_LAYOUT",
+    "GSAS_IPARM_PROFILE_DECLINED",
+    "GSAS_IPARM_PROFILE_READ",
+    "GSAS_PRM_FIELD_DROPPED",
+    "GSAS_PRM_FIELD_NOT_WRITTEN",
+    "GSAS_PRM_GEOMETRY_ASSUMED",
+    "GSAS_PRM_PROFILE_SET_DEFAULTED",
+    "GSAS_PRM_VALUE_NARROWED",
+    "HARMONIC_ABSENT",
+    "HARMONIC_FRACTION",
+    "HARMONIC_HELD",
+    "HIGH_CORRELATION",
+    "HIGH_CORRELATION_OMITTED",
+    "HOLD_BLOCKED_PLAN",
+    "HUMP_TOO_NARROW",
+    "INDEX_ABSTAINED",
+    "INDEX_BRAVAIS_AMBIGUOUS",
+    "INDEX_BUDGET_EXHAUSTED",
+    "INDEX_CANDIDATES_TRUNCATED",
+    "INDEX_CELL_SYSTEMATIC_UNQUANTIFIED",
+    "INDEX_DATA_INSUFFICIENT",
+    "INDEX_DOMINANT_ZONE",
+    "INDEX_GEOMETRIC_AMBIGUITY",
+    "INDEX_IMPURITY_LINES",
+    "INDEX_INLIER_RETRY",
+    "INDEX_MULTIPLE_SOLUTIONS",
+    "INDEX_NOT_VALIDATED",
+    "INDEX_PANEL_REDUCED",
+    "INDEX_PREDICTED_BUT_ABSENT",
+    "INDEX_PRIOR_USED",
+    "INDEX_SEARCH_INCOMPLETE",
+    "INDEX_SHIFT_ALLOWANCE",
+    "INDEX_SHIFT_DETECTED",
+    "INDEX_SHIFT_FROM_PAIRS",
+    "INDEX_SHIFT_MODEL_AMBIGUOUS",
+    "INDEX_SINGLE_ENGINE",
+    "INDEX_SUPERCELL_REFUTED",
+    "INDEX_SYSTEMS_NOT_COVERED",
+    "INDEX_VALIDATION_FAILED",
+    "INDEX_VOLUME_UNPHYSICAL",
+    "INDEX_Z_NOT_INTEGER",
+    "K_VECTOR_UNSEPARATED",
+    "LANDE_G_ASSUMED",
+    "LAUE_CLASS_NOT_SEPARABLE",
+    "LEBAIL_ALTERNATION_STOPPED",
+    "LOW_ANGLE_UNMODELLED",
+    "MAGNETIC_ION_ASSUMED",
+    "MAGNETIC_SUBGROUP_PREFERRED",
+    "MAGNETIC_WIDTH_MOVED_MOMENT",
+    "MAGNETIC_WIDTH_UNMEASURED",
+    "MAGNETIC_WIDTH_UNMODELLED",
+    "MICROABSORPTION_SKIPPED",
+    "MODEL_FAR_FROM_DATA",
+    "MOMENT_ANGLE_STATIONARY",
+    "MOMENT_PAIR_DEGENERATE",
+    "NEUTRON_RESONANT_ABSORBER",
+    "OCCUPANCY_ABOVE_ONE",
+    "ORIGIN_FIXED_ON_POLAR_AXIS",
+    "ORIGIN_NOT_FIXED",
+    "PARAMETRIC_FORM_REJECTED",
+    "PARAMETRIC_OUT_OF_RANGE",
+    "PARAMETRIC_TARGET_UNSEEN",
+    "PATTERN_DEAD_CHANNELS",
+    "PATTERN_DUPLICATE_POINTS",
+    "PATTERN_INTENSITY_SCALED",
+    "PATTERN_MULTISCAN_DEFAULTED",
+    "PATTERN_ROWS_DROPPED",
+    "PATTERN_SCAN_REVERSED",
+    "PATTERN_SIGMA_CONSTANT",
+    "PATTERN_X_AXIS_ASSUMED",
+    "PATTERN_X_AXIS_IMPLAUSIBLE",
+    "PAWLEY_OFF_DATA_RIDGED",
+    "PAWLEY_OVERLAP_UNRESOLVED",
+    "PEAK_ASYMMETRY_UNMODELLED",
+    "PEAK_AXIAL_TAIL",
+    "PEAK_CONTAMINATION_LINE",
+    "PEAK_EXPECTED_FALSE_LINES",
+    "PEAK_KALPHA2_ALIAS",
+    "PEAK_KALPHA2_RESIDUAL",
+    "PEAK_LIST_TOO_SHORT",
+    "PEAK_NOT_SEPARABLE",
+    "PEAK_POSITION_PRECISION",
+    "PEAK_SHOULDER_SEEDED",
+    "PEAK_SIGMA_ASSUMED",
+    "PEAK_UNRESOLVED_SHOULDER",
+    "PEAK_UNRESOLVED_SPLIT",
+    "PEAK_WIDTH_CAPPED",
+    "PEAK_WIDTH_LAW_MISMATCH",
+    "PHASE_UNCONSTRAINED",
+    "QPA_ESD_UNAVAILABLE",
+    "QPA_FRACTION_RANGE",
+    "QPA_UNAVAILABLE",
+    "RAS_ATTENUATOR_PRESENT",
+    "READER_OPTION_IGNORED",
+    "RECIPE_BACKGROUND_PEAK_DEGENERATE",
+    "RECIPE_BACKGROUND_RESEEDED",
+    "RECIPE_BOUND_HONOURED",
+    "RECIPE_CONVENTION_ASSUMED",
+    "RECIPE_DISPERSION_DECLINED",
+    "RECIPE_ENGINE_DEFAULT_DECLINED",
+    "RECIPE_FIELD_DROPPED",
+    "RECIPE_FIT_RANGE_CHANNELS",
+    "RECIPE_FLAG_DROPPED",
+    "RECIPE_FLAG_TRANSLATED",
+    "RECIPE_NOTHING_REFINED",
+    "RECIPE_PLAN_STAGED",
+    "RECIPE_SCALE_RESEEDED",
+    "RECIPE_SCHEMA_UNTESTED",
+    "RECIPE_ZERO_WEIGHT_EXCLUDED",
+    "RESOLUTION_NOT_POSITIVE",
+    "RESTRAINT_TENSION",
+    "RIGID_BODY_MISFIT",
+    "RIGID_BODY_UNSUPPORTED",
+    "ROUGHNESS_ABSORPTION",
+    "ROUGHNESS_OUTSIDE_REGIME",
+    "ROUGHNESS_UNCONSTRAINED",
+    "SCALE_B_INSEPARABLE",
+    "SEQUENTIAL_CANCELLED",
+    "SEQUENTIAL_DISCONTINUITY",
+    "SEQUENTIAL_MOMENT_HOLD",
+    "SEQUENTIAL_MOMENT_ONSET",
+    "SEQUENTIAL_PATH_CHECK_INCOMPLETE",
+    "SEQUENTIAL_PATH_DEPENDENT",
+    "SEQUENTIAL_PERSISTENT_FINDING",
+    "SEQUENTIAL_RESEED",
+    "SEQUENTIAL_RWP_OUTLIER",
+    "SEQUENTIAL_UNRECOVERED",
+    "SEQUENTIAL_WIDTH_GROWTH",
+    "SERIES_PATTERN_FAILED",
+    "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
+    "SIZE_UNUSUALLY_SMALL",
+    "SOLVE_B_TIED_PER_PARENT_SITE",
+    "SPACE_GROUP_SETTING_ASSUMED",
+    "SPECIES_FALLBACK_NEUTRAL",
+    "STAGE_FREED_NOTHING",
+    "STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
+    "STAGE_MAX_ITER",
+    "STAGE_PATH_NOT_FREE",
+    "STAGE_PATH_UNKNOWN",
+    "STEPHENS_STRAIN_NOT_POSITIVE",
+    "STRAIN_UNUSUALLY_LARGE",
+    "TEXTURE_NOT_POSITIVE",
+    "TOPAS_BLOCK_SKIPPED",
+    "TOPAS_CELL_COUPLING_DROPPED",
+    "TOPAS_FEATURES_NOT_IMPORTED",
+    "TOPAS_FEATURE_REFUSED",
+    "TOPAS_FIELD_NOT_WRITTEN",
+    "TOPAS_FIRST_RUN_READ",
+    "TOPAS_MAGNETIC_GROUP_READ",
+    "TOPAS_MAGNETIC_PART_MERGED",
+    "TOPAS_MOMENT_CONVENTION",
+    "TOPAS_MOMENT_G_HELD",
+    "TOPAS_MOMENT_ION_UNCHARGED",
+    "TOPAS_ORIGIN_TRANSLATED",
+    "TOPAS_PHASE_RESTATED_IN_P1",
+    "TOPAS_PHASE_TERM_READ",
+    "TOPAS_SPECIES_NORMALISED",
+    "TOPAS_SPECIES_WRITTEN_NEUTRAL",
+    "WAVELENGTH_CALIBRATION",
+    "XRDML_ATTENUATOR_APPLIED",
 )

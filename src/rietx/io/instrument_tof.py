@@ -19,8 +19,16 @@ bank number ``bb`` in columns 5-6.
   (manual p. 182, 222); anything else is refused by name.
 * ``INS bb ICONS`` (3F10.0,10X,F10.0,I5,F10.0) holds DIFC, DIFA, ZERO in µs
   units for a TOF bank and **nothing else**: POLA, IPOLA and KRATIO "are absent
-  for neutron data" (p. 222), so non-blank columns 53-77 are refused.  There is
-  no DIFB field in GSAS-I; ``difb`` is 0.
+  for neutron data" (p. 222).  Absent means blank or zero, which the record's
+  FORTRAN format reads identically: "A field of all blanks is considered to be
+  zero" (ANSI X3.9-1978, FORTRAN 77, §13.5.9 item (1)).  So each of the three
+  is read in its own columns (53-62, 63-67, 68-77) and refused only when it is
+  non-zero or not a number.  A field with blanks between its characters is
+  read as the standard reads it under the default ``BLANK='NULL'`` (blanks
+  ignored, §12.10.1); ``BLANK='ZERO'`` would make those blanks zero digits,
+  which changes a value but never whether it is zero, so the verdict does not
+  depend on a mode the file does not state.  There is no DIFB field in GSAS-I;
+  ``difb`` is 0.
 * ``INS bbBNKPAR`` (5F10.0,2I5) gives DIST and TTHETA; TTHETA is the bank's
   scattering angle 2Θ in degrees and is required (DIFC alone cannot give it
   back), DIST is carried as ``l2_m`` — the field's name is its only
@@ -138,6 +146,7 @@ Every refusal names the file.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -339,6 +348,46 @@ def _htype_refusal(path: Path, htype: str) -> ValueError:
     return ValueError(f"{path}: unrecognised GSAS HTYPE {htype!r}; a neutron "
                       f"time-of-flight powder bank is PNTR (GSAS Technical "
                       f"Manual p. 182, 222)")
+
+
+#: The ICONS fields a neutron bank leaves absent (manual p. 222): POLA and
+#: KRATIO are F10.0, IPOLA is I5.
+_ICONS_ABSENT = tuple(f[:3] for f in _ICONS_FIELDS if f[2] in ("POLA", "IPOLA", "KRATIO"))
+#: FORTRAN 77 input forms, blanks already removed: I editing an optionally
+#: signed integer constant (§13.5.9.1); F editing an optional sign, digits
+#: optionally containing a decimal point, then an optional exponent written
+#: as E or D and an optionally signed integer, or as a signed integer alone
+#: (§13.5.9.2.1).  ``mant`` is the part whose digits decide zero.
+_FORTRAN_I = re.compile(r"[+-]?(?P<mant>\d+)")
+_FORTRAN_F = re.compile(r"[+-]?(?P<mant>\d+\.?\d*|\.\d+)(?:[EeDd][+-]?\d+|[+-]\d+)?")
+
+
+def _require_absent(rec: _Record, a: int, b: int, field: str) -> None:
+    """Refuse an ICONS field a neutron bank must leave absent, unless it is
+    blank or zero (module docstring, ``ICONS``).
+
+    Zero is decided on the mantissa's digits, never on ``float()``, which
+    reads ``1.0E-999`` as 0.0.
+    """
+    raw = rec.cols(a, b)
+    if not raw.strip():
+        return
+    integer = field == "IPOLA"
+    m = (_FORTRAN_I if integer else _FORTRAN_F).fullmatch(raw.replace(" ", ""))
+    if m is None:
+        raise rec.fail(
+            f"{field} in columns {a}-{b} is {raw.strip()!r}, which is not "
+            f"{'an integer' if integer else 'a number'}; POLA, IPOLA and KRATIO "
+            f"are absent for neutron data (GSAS Technical Manual p. 222), and "
+            f"only a blank or zero field says so")
+    if m["mant"].strip("0."):
+        raise rec.fail(
+            f"{field} in columns {a}-{b} is {raw.strip()!r}, which is not zero. "
+            f"POLA, IPOLA and KRATIO are absent for neutron data (GSAS "
+            f"Technical Manual p. 222), so an ICONS record carrying a non-zero "
+            f"one is not the neutron time-of-flight record this reader was "
+            f"told it is. A blank or zero field, which the record's FORTRAN "
+            f"format reads identically, is accepted")
 
 
 def _sequence(path: Path, bank: int, name: str, recs: dict[int, _Record],
@@ -650,12 +699,8 @@ def _banks_from_records(path: Path, records: list[tuple[str, str]],
         difc = icons.number(13, 22, "DIFC")
         difa = icons.number(23, 32, "DIFA")
         zero = icons.number(33, 42, "ZERO")
-        if icons.cols(53, 77).strip():
-            raise icons.fail(
-                f"columns 53-77 hold {icons.cols(53, 77).strip()!r}; POLA, IPOLA "
-                f"and KRATIO are absent for neutron data (GSAS Technical Manual "
-                f"p. 222), so a neutron-TOF ICONS record carrying them is not "
-                f"the record this reader was told it is")
+        for a, b_, field in _ICONS_ABSENT:
+            _require_absent(icons, a, b_, field)
         if bank["bnkpar"] is None:
             raise ValueError(f"{path}: bank {b} has no BNKPAR record, so its "
                              f"scattering angle is unknown — DIFC alone is one "

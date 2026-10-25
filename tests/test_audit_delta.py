@@ -101,6 +101,20 @@ def test_a_row_returning_to_unaudited_is_listed_and_passes():
     assert "tier 3 → unaudited; ambiguity 1 → None; evidence changed" in text
 
 
+def test_a_response_given_to_a_code_is_listed_and_passes():
+    """WP-2037's three fields are a report like any other change, never a failure."""
+    before = _table('Row("PATTERN_UNDERSAMPLED", "code"),', baseline=["PATTERN_UNDERSAMPLED"])
+    after = _table('Row("PATTERN_UNDERSAMPLED", "code", response="warning", '
+                   'responds="do not quote a fraction", scope=("qpa",)),',
+                   baseline=["PATTERN_UNDERSAMPLED"])
+    found, bad, text = _run(before, after)
+    assert _whys(found) == [(ad.CHANGED, "PATTERN_UNDERSAMPLED")] and bad == []
+    assert ad.changed_fields(found[0].old, found[0].row) == ["response", "responds", "scope"]
+    assert "PATTERN_UNDERSAMPLED (code), tier unaudited, response warning" in text
+    assert ("response None → warning; responds changed: do not quote a fraction; "
+            "scope () → ('qpa',)") in text
+
+
 def test_a_deletion_and_a_retune_are_listed_and_pass():
     before = _table('Row("rietx.background.auto.HUMP_TRIGGER", "constant", value=0.05),',
                     'Row("GONE", "code", tier=1, ambiguity=1, evidence="physics"),')

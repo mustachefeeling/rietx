@@ -1028,7 +1028,9 @@ def snap_diagnostics(sg: gemmi.SpaceGroup, sites, *, source: str,
     weight fraction, so it cannot be decided in silence (issue #215).
 
     Empty when nothing moved, which is every structure whose sites sit on their
-    special positions exactly.
+    special positions exactly.  The CIF reader stores a site on its position
+    where the file's printed digits cannot tell the two apart
+    (``cif.CIF_PRINTED_ROUNDING``), so such a file reaches here exact.
     """
     moved: list[tuple[str, float, int, str]] = []
     for j, (label, xyz) in enumerate(sites):

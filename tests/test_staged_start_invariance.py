@@ -38,7 +38,7 @@ is the width twin hold's cost (the maintainer's decision 1(a), 2026-10-23): its
 round-robin plan fits X and Y on the three-phase specimen before freeing the
 specimen widths, and 1/cosθ and tanθ are nearly collinear over a lab range, so
 the instrument-only stage lands on a start-dependent split that the hold then
-keeps.  Zincite's ``lor_strain`` reads 0.0088 from one start and 0.0612 from the
+keeps.  Fluorite's ``lor_strain`` (phases.2) reads 0.0088 from one start and 0.0612 from the
 other, at Rwp 0.1631 and 0.1634.  Before the hold the closing stage re-refined
 the split, and the Y floor settled it.  No shipped plan frees an instrument width
 with its specimen twin, so only a plan written this way meets it.  LaB6's
@@ -129,7 +129,7 @@ def _assert_within_bar(a: dict, b: dict, what: str):
     "fap", "nac",
     pytest.param("cpd1a", marks=pytest.mark.xfail(strict=True, reason=(
         "the width twin hold keeps the X/Y split cpd-1a's instrument-only stage "
-        "lands on, which depends on the start: 15.68 esd on zincite's lor_strain "
+        "lands on, which depends on the start: 15.68 esd on fluorite's lor_strain "
         "(WP-2002, decision 1(a), 2026-10-23)"))),
     pytest.param("lab6", marks=pytest.mark.xfail(strict=True, reason=_MIRRORED))])
 def test_the_biso_start_does_not_change_the_answer(family):

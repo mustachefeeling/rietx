@@ -89,7 +89,7 @@ DEFERRED_PATH = TESTS_DIR / "api_surface_deferred.txt"
 #: on this line.  Each release cut lowers it to the bucket's size then
 #: (docs/RELEASING.md step 2), which is where the list is read.  Raising it is
 #: a reviewed edit with a reason in its commit (WP-1981, 2026-10-16).
-DEFERRED_CEILING = 39
+DEFERRED_CEILING = 36
 
 
 # --- what is off the surface, and why -------------------------------------

@@ -469,7 +469,7 @@ STANDARDS: tuple[Standard, ...] = (
         key="srm660c", title="NIST SRM 660c — LaB₆ (lab CuKα)",
         description=("Certified line-profile standard on the NIST divergent-beam "
                      "diffractometer. The package's **absolute** cell anchor "
-                     "(a = 4.156882(21) Å, +25 ppm). Zero held at 0, displacement "
+                     "(a = 4.156882(21) Å, +24 ppm). Zero held at 0, displacement "
                      "refined — the NIST protocol."),
         files=("nist_srm660c_100a.cif",), pattern="nist_srm660c_100a.cif",
         reader_options=(("block", "_meas"),), build=_build_srm660c,
@@ -818,7 +818,7 @@ VARIANTS: tuple[Variant, ...] = (
     Variant("dispersion", "+ anomalous f′, f″",
             "Cromer-Liberman dispersion on every species. Watch the displacement "
             "parameters and (multi-phase) the QPA fractions, not Rwp — measured "
-            "on the round robin this took QPA RMS error 2.26 → 0.62 wt %.",
+            "on the round robin this took QPA RMS error 2.26 → 0.69 wt %.",
             _with_dispersion),
     Variant("voigt", "+ true Voigt peak shape",
             "Exact Gaussian⊗Lorentzian instead of the TCHZ pseudo-Voigt "

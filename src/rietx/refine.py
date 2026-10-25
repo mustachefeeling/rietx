@@ -95,6 +95,7 @@ from .optimize.qpa import (
     estimate_capillary_mu_r,
     estimate_flat_plate_mu_t,
     microabsorption_diagnostics,
+    unmeasured_reason,
 )
 from .optimize.statistics import (
     OBS_PER_PARAMETER_MIN,
@@ -147,10 +148,13 @@ from .schemas.results import (
     Identifiability,
     PhaseAgreement,
     PhaseTexture,
+    Radiation,
     RefinedParameter,
     RefinementResult,
     StageResult,
     _agreement_line,
+    _check_deliverable,
+    _check_levels,
     _diagnostic_lines,
     _provenance_line,
     _stage_lines,
@@ -532,6 +536,17 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     of the noise.  Holding it would make the hold permanent, which is the one
     outcome this must never have.
 
+    **Except where no reflection of the phase lies in the fitted range**
+    (WP-1958, decided on #954).  Then the scale's column is identically zero
+    at every value, no climb is possible within the stage, and the step along
+    it is whatever the solver's damping makes of a zero column: LM left bcc
+    Fe's scale at its 1e-4 start on WP-1534's fixture over 25-33° Cu Kα, TRF
+    walked it to 164.7 and the QPA read 99.99 wt%.  Such a phase
+    (:func:`_lineless_phases`) is held whole, scale included, and is held
+    whatever ``sigma`` says, because "no line in range" is a count rather than
+    a significance call; :func:`_released_phases` never releases it, since
+    the count is frozen with the stage's windows.
+
     Every currently free structural path, not only the ones this stage turned
     on: staging is cumulative, so a cell freed two stages ago is still refining
     against nothing, and the ``refit="single"`` collapse — one stage carrying
@@ -541,19 +556,110 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     it at these values (the post-solve pass asks two questions of one
     measurement); ``None`` measures the screen here.  ``sigma`` is the plan's
     ``phase_support_sigma`` (WP-2002, B1), and ``None`` there calls no phase
-    unseen, so nothing is returned and nothing is measured.
+    unseen on its significance, so only a phase with no line in range is held
+    and no significance is measured.
     """
-    if sigma is None:
-        return []
-    if support is None:
-        support = model.phase_support(table.decode(table.x0()))
-    absent = {ip for ip, s in enumerate(support) if s < sigma}
+    lineless = _lineless_phases(model)
+    absent = set(lineless)
+    flat_scales = lineless - _restrained_scale_phases(model, table)
+    if sigma is not None:
+        if support is None:
+            support = model.phase_support(table.decode(table.x0()))
+        absent |= {ip for ip, s in enumerate(support) if s < sigma}
     if not absent:
         return []
     prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
+    scales = tuple(f"phases.{ip}.scale" for ip in sorted(flat_scales))
     reach = table.column_reach()
     return [p for p in table.free_paths
-            if _only_moves(reach.get(p, [p]), prefixes)]
+            if _only_moves(reach.get(p, [p]), prefixes, scales)]
+
+
+def _lineless_phases(model: CompiledModel) -> set[int]:
+    """The phases no (emission line, reflection) window of which covers a
+    point of the fitted range: :meth:`CompiledModel.phase_line_counts`' zero
+    limit (WP-1958).  Only a Rietveld phase has a refinable scale to hold, so
+    Le Bail and Pawley, which fix it, return the empty set."""
+    if model.mode != "rietveld":
+        return set()
+    return {ip for ip, n in enumerate(model.phase_line_counts()) if int(n) == 0}
+
+
+def _restrained_scale_phases(model: CompiledModel,
+                             table: ParameterTable) -> set[int]:
+    """The phases whose ``scale`` a caller's ``ValueRestraint`` pulls: its row
+    gives the scale a column even with no line in range, so the WP-1958 hold
+    leaves that scale to the restraint (its fraction stays absent all the
+    same, the value being the caller's target and not the data's).
+
+    Only a restraint **whose row has weight** counts: a weight of 0, or a
+    stage's ``restraint_weight_scale`` of 0, silences the row and gives the
+    column nothing (TRF walked such a scale from 1e-4 to 64.9).  And a
+    restraint **reaches** the scales a variable drives as well as the one it
+    names, so its path is read through ``ParameterTable.entry_reach``, never
+    literally: a restraint on ``vars.s`` with ``phases.1.scale`` tied to it
+    restrains phase 1's scale.
+    """
+    items = model.restraints.items if model.restraints is not None else []
+    if not items or not model.restraint_weight_scale > 0.0:
+        return set()
+    reach = table.entry_reach()
+    out: set[int] = set()
+    for it in items:
+        path = getattr(it, "path", None)
+        if not path or not getattr(it, "weight", 1.0) > 0.0:
+            continue
+        for name in (path, *reach.get(path, ())):
+            if (m := _SCALE_PATH.match(name)):
+                out.add(int(m.group(1)))
+    return out
+
+
+def _held_scale_phases(sr: StageResult, hist: int | None = None) -> set[int]:
+    """The phases whose own ``scale`` the stage held, off its record: a held
+    column named it, or moved it (``held_reach``, a ``vars.X`` driving it).  A
+    joint record's scoped path ``hist.h.…`` counts for histogram ``hist`` only,
+    a bare (shared) one for every histogram."""
+    out: set[int] = set()
+    for path in sr.held:
+        for name in (path, *sr.held_reach.get(path, ())):
+            if name.startswith("hist."):
+                h, _, name = name[len("hist."):].partition(".")
+                if hist is None or not h.isdigit() or int(h) != hist:
+                    continue
+            if (m := _SCALE_PATH.match(name)):
+                out.add(int(m.group(1)))
+    return out
+
+
+def _unmeasured_phases(model: CompiledModel,
+                       stage_results: list[StageResult] | None,
+                       hist: int | None = None,
+                       lineless: set[int] | None = None,
+                       held: set[int] | None = None) -> set[int]:
+    """The phases whose scale the answer did not measure, so the QPA quotes
+    them no fraction (WP-1958, #954).
+
+    **What the last stage held, and what the answer's own count finds.**  The
+    hold reads the line count at the stage's compile, and a refined zero shift
+    can move a line across the range edge before the final compile counts
+    again: iron held at its handed-in 1e-4 then came back at 0.607 ± 0.0035
+    wt%, the value handed in with an esd (#1103).  So a scale the last stage
+    held is unmeasured whatever the recount says.  The recount still counts,
+    the other way round and for a restrained scale (whose column is the
+    restraint's, not the data's): a phase with no line at the answer has no
+    data at the values quoted.  A line entering at a closing recompile makes
+    that stage free the scale, so neither reading fires and the scale is
+    measured.  ``hist`` scopes a joint record to one histogram; ``lineless``
+    replaces the recount where the caller owns a better one (a joint fit's
+    shared scale, :func:`rietx.multi._joint_unmeasured_phases`).  ``held``
+    replaces the stage record where there is none: ``replay`` reads it off the
+    node (``NodeMetrics.held_scale_phases``).
+    """
+    if held is None:
+        held = (_held_scale_phases(stage_results[-1], hist)
+                if stage_results else set())
+    return held | (_lineless_phases(model) if lineless is None else lineless)
 
 
 #: Below this separation of a phase's scale column from its displacement
@@ -1322,7 +1428,8 @@ def _hold_flat_moments(model: CompiledModel, table: ParameterTable
     return held, found, turned
 
 
-def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
+def _only_moves(reached: list[str], prefixes: tuple[str, ...],
+                scales: tuple[str, ...] = ()) -> bool:
     """Whether a column moves nothing but structural paths of these phases.
 
     **The rule is "all", never "any"**, and it is the flatness argument rather
@@ -1340,6 +1447,10 @@ def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
     ``phases.1.scale`` moves something the data can see, exactly as one moving
     a supported phase's cell does.
 
+    ``scales`` names the scales that *are* flat: those of a phase with no
+    reflection in the fitted range (WP-1958, :func:`_lineless_phases`), whose
+    column is identically zero at every value, so no climb is possible.
+
     **A variable is not a model parameter**, so it is dropped before the test
     rather than answered about.  A column's own entry is in its reach, and a
     caller's ``vars.X`` is an entry the forward model never reads — it reaches
@@ -1354,7 +1465,8 @@ def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
     """
     moved = [p for p in reached if not is_variable_path(p)]
     return bool(moved) and all(
-        p.startswith(prefixes) and not p.endswith(".scale") for p in moved)
+        p.startswith(prefixes) and (not p.endswith(".scale") or p in scales)
+        for p in moved)
 
 
 def _reach_beyond_self(table: ParameterTable, columns: list[str],
@@ -1418,17 +1530,22 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable,
 
     Measured on seed 107 of #481's blank frame under ``mccusker_structural``:
     18 solves for 11 stages with the screen alone, 11 with the prior read.
-    The scale stays free either way, so a phase that appears while this
+    A significance hold never takes the scale (only a phase with no
+    line in range has it held), so a phase that appears while this
     stage solves is released at its answer as before.  What it gives up is a
     second look with the phase's columns refining: a held phase is judged at
     its held values.  Over the WP's sweep that moved one weak real phase of
     64 fits from refined to held, at 2.46σ.
 
     ``sigma`` is the plan's ``phase_support_sigma`` (WP-2002, B1); ``None``
-    holds nothing and measures nothing.
+    measures nothing and holds only a phase with no line in range (WP-1958).
     """
     if sigma is None:
-        return [], {}, set()
+        held = _unsupported_phase_paths(model, table, sigma=None)
+        reach = _reach_beyond_self(table, held)
+        if held:
+            table.set_vary(held, False)
+        return held, reach, _lineless_phases(model)
     support = np.asarray(model.phase_support(table.decode(table.x0())),
                          dtype=np.float64)
     if prior is not None:
@@ -1802,14 +1919,18 @@ def _released_phases(model: CompiledModel, table: ParameterTable,
     not stay frozen.
 
     ``sigma`` is the threshold the hold was taken at, the plan's
-    ``phase_support_sigma`` (WP-2002, B1).  ``None`` took no hold, so there is
-    nothing to release.
+    ``phase_support_sigma`` (WP-2002, B1).  ``None`` took no significance
+    hold, so there is nothing to release.  A phase with no line in range is
+    never released (WP-1958): its count is frozen with the stage's windows,
+    so nothing the solve did can have given it one.
     """
     if sigma is None:
         return []
     if support is None:
         support = model.phase_support(table.decode(table.x0()))
-    seen = {ip for ip, s in enumerate(support) if s >= sigma}
+    lineless = _lineless_phases(model)
+    seen = {ip for ip, s in enumerate(support)
+            if s >= sigma and ip not in lineless}
     if not seen:
         return []
     prefixes = tuple(f"phases.{ip}." for ip in sorted(seen))
@@ -1934,8 +2055,9 @@ def _reported_support_sigma(phase_support_sigma: float | None) -> float:
 
     The plan's ``phase_support_sigma`` where it set one, so the report and the
     hold read one number; the default where the plan switched the hold off
-    (WP-2002, B1).  Switching the hold off lets an unseen phase's structure
-    refine against nothing, which is the case the diagnostic was written for
+    (WP-2002, B1).  Switching the significance test off lets a weak phase's
+    structure refine against nothing (a phase with no line in range is still
+    held, scale included), which is the case the diagnostic was written for
     before any hold existed (WP-1110), so it still speaks.
     """
     return PHASE_SUPPORT_SIGMA if phase_support_sigma is None else phase_support_sigma
@@ -2193,6 +2315,10 @@ class Refinement:
         #: the result it was handed.  ``None`` until a fit returns, and dropped
         #: with ``result_``.
         self._answer_covariance: tuple | None = None
+        #: what :meth:`report` and :meth:`reflection_table` read beside
+        #: ``_model``, frozen with ``result_`` (:meth:`_freeze_answer`), and
+        #: dropped with it.
+        self._answer: dict | None = None
         #: the last ``fit(stage_reports=True)`` run's trajectory, one
         #: :class:`~rietx.report.StageReport` per completed stage (WP-1058).
         #: Empty after a fit that was not asked for one — a report is *derived*
@@ -2355,7 +2481,26 @@ class Refinement:
         self._model = None
         self.result_ = None
         self._answer_covariance = None
+        self._answer = None
         self.stage_reports_ = []
+
+    def _freeze_answer(self) -> dict:
+        """What :meth:`report` and :meth:`reflection_table` read, beside ``_model``.
+
+        Taken when the result is built, because the models are the working
+        state and the result is not: a later fit that is cancelled keeps the
+        stages it completed and the previous result, and a view that read the
+        live models then would pair those values with this result's model
+        (WP-1421; the joint fit's ``MultiHistogramRefinement._freeze_answer``).
+        """
+        table = ParameterTable(self.structure, self.instrument)
+        # the model's moment frames are the last stage's, not this table's (#598)
+        table.pull_moment_frames(self._model)
+        return {"values": table.decode(table.x0()),
+                "structure": self.structure.model_copy(deep=True),
+                "instrument": self.instrument.model_copy(deep=True),
+                "held": list(self._held),
+                "free_paths": list(self._free_paths)}
 
     def _require_history(self) -> RefinementTree:
         if self.history is None:
@@ -2382,7 +2527,8 @@ class Refinement:
         )
 
     def _record(self, tree: RefinementTree, action: NodeAction, model: CompiledModel,
-                table: ParameterTable, outcome, diagnostics) -> str:
+                table: ParameterTable, outcome, diagnostics,
+                held_scales: set[int] | None = None) -> str:
         values = table.decode(outcome.theta)
         y_calc = model.evaluate(values)
         stats = compute_statistics(model.y_obs, y_calc, model.sigma,
@@ -2395,7 +2541,7 @@ class Refinement:
         metrics = NodeMetrics(
             statistics=stats, status=outcome.status, n_iterations=outcome.n_iterations,
             cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
-            stderr=stderr)
+            stderr=stderr, held_scale_phases=sorted(held_scales or ()))
         node = tree.add(
             parents=[self._head_id] if self._head_id else [],
             action=action, state=self.snapshot(model=model),
@@ -2660,17 +2806,13 @@ class Refinement:
         last fit's status and the parameters that vary (WP-1544).
 
         Never :meth:`summary`, which builds a report and can run fits: a
-        notebook calls this twice per displayed cell.
+        notebook calls this for every cell that displays the refinement.
         """
         from ._display import refinement_text
         return refinement_text(self)
 
     def _repr_pretty_(self, p, cycle) -> None:
         p.text(str(self))
-
-    def _repr_html_(self) -> str:
-        from ._display import refinement_html
-        return refinement_html(self)
 
     def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
         """Every parameter as data, with fixed, locked and tied rows included.
@@ -4815,7 +4957,8 @@ class Refinement:
                     break
                 gain = None if best is None else (best[0] - rwp) / best[0]
                 best = (rwp, result, self.snapshot(), self._head_id, len(rows),
-                        (self._model, self._answer_covariance, self.stage_reports_))
+                        (self._model, self._answer_covariance, self._answer,
+                         self.stage_reports_))
                 if gain is not None and gain <= LEBAIL_CONVERGED_REL:
                     reason = "converged"
                     break
@@ -4877,7 +5020,7 @@ class Refinement:
         # fitted, so ``result_``, ``report()``, ``predict()`` and the
         # plots read the answer this call returns, not nothing
         self.result_ = result
-        (self._model, self._answer_covariance,
+        (self._model, self._answer_covariance, self._answer,
          self.stage_reports_) = fit_view
         # A fit re-extracts the intensities at its first stage, so the
         # pass after a plain ``fit()`` starts from the parameters alone.
@@ -5076,6 +5219,7 @@ class Refinement:
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
                                        outcome.correlation)
+            self._answer = self._freeze_answer()
             self._stamp(self.result_, tree)
             if self._auto_intervals:
                 # WP-2002, B2: an angle the answer stage left out of its
@@ -5319,7 +5463,8 @@ class Refinement:
                     # (WP-2002, B1)
                     phase_support_sigma=phase_support_sigma,
                     correlation_guard=plan.correlation_guard,
-                ), model, table, outcome, stage_diagnostics)
+                ), model, table, outcome, stage_diagnostics,
+                    held_scales=_held_scale_phases(stage_results[-1]))
         diagnostics.extend(restated.values())
         # the converged vector's own findings, and nothing earlier: the same
         # ``guard`` object ``_build_result`` projects ``at_bound`` from
@@ -5350,8 +5495,11 @@ class Refinement:
         per-point residual are therefore measured here, on one more compile
         with the last stage's own discrete settings (moving set, c_w, window
         slack, and the closing stage's window area) and nothing else changed.  **What this does not move**: the
-        solve, which ran on the frozen compile and is not biased by it (the
-        issue measured the minimum moving ≤ 0.0014 esd); the covariance and
+        solve, which ran on the frozen compile (on #272's two fixtures the
+        minimum moved ≤ 0.0014 esd between the two, but a stage that carries
+        its peaks past their windows can stop at a minimum the windows moved:
+        9 % of χ² on the fluorapatite tutorial, WP-1986, recovered by one more
+        stage, which is why a plan ends on a closing stage); the covariance and
         every esd, which stay those of that solve's Jacobian; the weights,
         which stay the solve's σ, so ``result.sigma`` is still a lookup of the
         σ the model used (WP-1309: a measured background widens σ at the scale
@@ -5399,19 +5547,7 @@ class Refinement:
             ((model.y_obs - model.evaluate(values)) / model.sigma) ** 2))
         chi2_fresh = float(np.sum(
             ((fresh.y_obs - fresh.evaluate(values)) / fresh.sigma) ** 2))
-        rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
-               if chi2_frozen > 0 else 0.0)
-        if not rel > FROZEN_COMPILE_CHI2_REL:
-            return fresh, []
-        return fresh, [Diagnostic(
-            level="info", code="FROZEN_COMPILE_STALE",
-            message=(
-                f"A fresh compile at the returned parameters gives "
-                f"chi2 = {chi2_fresh:.6g}. The last stage's own compile gives "
-                f"{chi2_frozen:.6g} at the same parameters, "
-                f"{100 * rel:.2g} % apart. The result reports the fresh "
-                f"figure and the history node keeps the frozen one."),
-            value=rel)]
+        return fresh, _frozen_compile_diagnostics(chi2_frozen, chi2_fresh)
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
                       guard, stage_diagnostics, *, significance=None
@@ -5479,7 +5615,8 @@ class Refinement:
         ``correlation_guard`` and ``phase_support_sigma`` are the two plan
         settings a stage reads, taken here as keywords because there is no plan:
         ``RefinementPlan.phase_support_sigma`` says what the second does, and
-        ``None`` switches the absent-phase hold off for this stage (WP-2002, B1).
+        ``None`` switches the significance test off for this stage; a phase with no
+        line in range is still held, scale included (WP-2002, B1; WP-1958).
         A project's ``run_stage`` passes its stored plan's.
 
         ``window_area_tol`` is the fraction of each peak's area this stage's
@@ -5622,7 +5759,8 @@ class Refinement:
                     window_area_tol=window_area_tol,
                     phase_support_sigma=phase_support_sigma,
                     correlation_guard=correlation_guard,
-                ), model, table, outcome, diagnostics)
+                ), model, table, outcome, diagnostics,
+                    held_scales=_held_scale_phases(stage_result))
 
             # after the node, which keeps its as-optimised metrics: the result
             # is measured on a compile at the values it returns (#272)
@@ -5653,6 +5791,7 @@ class Refinement:
             self._answer_covariance = (self.result_, table, outcome.theta,
                                        outcome.stderr_internal,
                                        outcome.correlation)
+            self._answer = self._freeze_answer()
             self._stamp(self.result_, tree)
             if self._auto_intervals:
                 # ``fit``'s rule (WP-2002, B2), on this stage's own record
@@ -5691,7 +5830,9 @@ class Refinement:
         :class:`~rietx.PatternData` whose 2θ column is used — this compiles a
         fresh model on it and evaluates.  With no argument it evaluates on the
         grid the last fit ran on, which is the one form that needs a fit to
-        have happened: nothing else supplies a grid.
+        have happened: nothing else supplies a grid.  That form evaluates the
+        last result's answer on that result's model, so a later fit that is
+        cancelled, keeping its completed stages, does not move it (WP-1421).
 
         **It does not require a fit** (WP-1110 item 6).  Until then it did, and
         the refusal was ``RuntimeError: call fit() first`` on both forms, which
@@ -5706,16 +5847,21 @@ class Refinement:
         a fresh grid carries them over from the fitted model by hkl and there
         is nothing to carry before one exists.
 
-        **The two forms are not bit-identical on the same grid, and that is
-        the frozen-per-stage invariant rather than a defect.**  ``predict()``
-        reuses the model compiled for the last stage, whose per-reflection
-        window index ranges were frozen at the values the stage *started*
-        from; a grid argument compiles fresh, so the windows are sized at the
-        values it *ended* on.  Measured on the synthetic five-stage fit, before
-        the closing stage and so at one window fraction throughout: 36 of
-        4200 channels differ at all, by at most 8e-6 of the peak height, every
-        one of them in a peak tail at a window edge.  ``RefinementResult.y_calc``
-        is the first of the two — the curve the fit actually minimised.
+        **After a default fit the two forms agree bit for bit.**  ``predict()``
+        evaluates the model the result was measured on, a compile at the
+        answer (#272, WP-1421), so it returns ``RefinementResult.y_calc``; a
+        grid compiles at the same values and windows.  Measured on the
+        fluorapatite tutorial under ``mccusker_default``: 0 of 5751 channels
+        differ.
+
+        **The free set reaches the curve in one case** (#774).  With both
+        axial-divergence ratios at exactly zero and either refined, the
+        compile sizes the peak windows as if each were
+        ``forward.AXIAL_SIZING_FLOOR``, so that a stage starting from zero
+        has a derivative to follow; held at zero, the asymmetry is off and
+        the windows are not widened.  The two curves differ by up to 4.8e-5
+        of the strongest peak (the issue's rutile reproducer, 2026-10-25).
+        Every positive value is sized by value alone.
 
         A grid compiles at ``compile_model``'s default windows whatever this
         object has fitted, so a never-fitted twin carrying the same models
@@ -5736,6 +5882,11 @@ class Refinement:
                     "ran on, and this Refinement has not been fitted. Pass the "
                     "pattern (or a 2θ array) to evaluate the model as it "
                     "stands: ref.predict(data).")
+            if self._answer is not None:
+                # the answer frozen with the result, never the live models: a
+                # later cancelled fit keeps its completed stages and this
+                # result, as in report() (WP-1421)
+                return self._model.evaluate(self._answer["values"])
             # the fitted model reads the moment DOFs in the last stage's frames
             table.pull_moment_frames(self._model)
             return self._model.evaluate(table.decode(table.x0()))
@@ -5771,14 +5922,15 @@ class Refinement:
             raise RuntimeError("call fit() first")
         if isinstance(plan, str):
             plan = PLAN_PRESETS[plan]()
-        table = ParameterTable(self.structure, self.instrument)
-        # the model's moment frames are the last stage's, not this table's (#598)
-        table.pull_moment_frames(self._model)
+        # the answer frozen with the result, never the live models: a later
+        # cancelled fit keeps its completed stages and this result (WP-1421)
+        answer = self._answer
         return build_report(self.result_, model=self._model,
-                            values=table.decode(table.x0()), plan=plan,
-                            structure=self.structure, instrument=self.instrument,
-                            held=list(self._held),
-                            free_paths=list(self._free_paths), **kw)
+                            values=answer["values"], plan=plan,
+                            structure=answer["structure"],
+                            instrument=answer["instrument"],
+                            held=list(answer["held"]),
+                            free_paths=list(answer["free_paths"]), **kw)
 
     def check_rigid_bodies(self, data: PatternData, **kw):
         """Test each rigid body against the data (``RIGID_BODY_MISFIT``).
@@ -5797,7 +5949,8 @@ class Refinement:
 
     def summary(self, *, deliverable: str | None = None, plot: str | None = None,
                plan: RefinementPlan | str | None = None,
-               report: FitReport | None = None) -> str:
+               report: FitReport | None = None,
+               levels: dict[str, str] | None = None) -> str:
         """The termination view (WP-1302): "done, or not, and why" from one call.
 
         ``report`` takes the :class:`~rietx.report.schemas.FitReport` this
@@ -5816,13 +5969,28 @@ class Refinement:
         by looking harder at either.
 
         ``deliverable`` selects §4b's deciding rows for one purpose —
-        ``"phase_id"``, ``"qpa"`` or ``"structure"``.  The report will not
-        infer your purpose for you: ``None`` (the default) prints the three
+        ``"phase_id"``, ``"qpa"``, ``"structure"``, ``"cell"``,
+        ``"microstructure"``, ``"calibration"`` or ``"magnetic"``
+        (:data:`rietx.purposes.PURPOSES` is the vocabulary).  The report will
+        not infer your purpose for you: ``None`` (the default) prints the three
         stop conditions and nothing past them.  ``"series"`` is accepted and
         answers with where it is decided: a trajectory's deciding rows are
         the chain's, on
         :meth:`~rietx.schemas.sequential.SeriesResult.summary`, because no
-        single pattern carries a ``SEQUENTIAL_*`` row.
+        single pattern carries a ``SEQUENTIAL_*`` row.  It also decides which
+        diagnostics print in full (WP-2037,
+        :func:`~rietx.schemas.results.diagnostic_view`): under a deliverable
+        the errors and the warnings for that purpose, the rest one line each;
+        with none only the errors, every other row one line naming the
+        purposes it is a warning under.  An unknown one is refused before
+        anything is built.
+
+        ``levels`` is the caller's per-code override,
+        ``{code: "allow" | "warn" | "deny"}`` (WP-2037 clause 4,
+        :func:`~rietx.schemas.results.diagnostic_view`): the caller's word
+        replaces the audited level, and never lowers an error.  Its default,
+        ``None``, overrides nothing.  An unknown code or word is refused before
+        anything is built, as an unknown deliverable is.
 
         ``plot`` writes :func:`~rietx.viz.plots.plot_for_vlm` to that path and
         names it on the last line — the picture confirms the text, the text
@@ -5834,6 +6002,10 @@ class Refinement:
         """
         if self._model is None or self.result_ is None:
             raise RuntimeError("call fit() first")
+        if deliverable is not None:
+            # refused before the report is built, the expensive half of this call
+            _check_deliverable(deliverable)
+        _check_levels(levels)
         result = self.result_
         if report is not None and plan is not None:
             raise ValueError(
@@ -5844,7 +6016,7 @@ class Refinement:
 
         lines = [f"Refinement.summary: {result.status} ({result.mode})"]
         lines += _stage_lines(result.stages, result.statistics.max_shift_over_esd)
-        lines += _diagnostic_lines(result.diagnostics)
+        lines += _diagnostic_lines(result.diagnostics, deliverable, levels=levels)
         lines += self._report_stop_condition_lines(report)
         lines.append(self._next_parameter_line())
         if deliverable is not None:
@@ -5960,20 +6132,31 @@ class Refinement:
                 lines.append(f"    background.absorption: not measured ({why})")
             if result.qpa is not None:
                 for row in result.qpa.phases:
+                    if row.weight_fraction is None:
+                        lines.append(f"    {row.name}: not measured ("
+                                     f"{unmeasured_reason(result.qpa, row.name)})")
+                        continue
                     esd = (f" ± {row.weight_fraction_stderr:.3f}"
                           if row.weight_fraction_stderr is not None else "")
                     lines.append(f"    {row.name}: {row.weight_fraction:.3f}{esd}")
+                if result.qpa.unmeasured_phases:
+                    lines.append("    fractions are relative to the phases "
+                                 "seen in range; "
+                                 + ", ".join(result.qpa.unmeasured_phases)
+                                 + " not measured")
             else:
                 lines.append("    qpa: none (Le Bail scales are degenerate)")
         elif deliverable == "structure":
-            if result.identifiability is not None:
-                exch = result.identifiability.exchangeability
-                lines.append(f"    exchangeability: {len(exch)} row(s)")
-                for row in exch[:5]:
-                    lines.append(f"      {row.held} ~ {', '.join(row.partners)} "
-                                 f"(R²={row.r2:.2f})")
-            else:
-                lines.append("    identifiability: not measured on this result")
+            lines += _exchangeability_lines(result)
+        elif deliverable == "cell":
+            lines += _cell_lines(result)
+            lines += _exchangeability_lines(result, about=".cell.")
+        elif deliverable == "microstructure":
+            lines += _microstructure_lines(result)
+        elif deliverable == "calibration":
+            lines += _calibration_lines(result)
+        elif deliverable == "magnetic":
+            lines += _magnetic_lines(result)
         elif deliverable == "series":
             # A series deliverable is decided one rank up and this is the
             # honest thing one pattern can say about it: no single fit carries
@@ -6080,10 +6263,9 @@ class Refinement:
 
         if self._model is None or self.result_ is None:
             raise RuntimeError("call fit() first")
-        table = ParameterTable(self.structure, self.instrument)
-        table.pull_moment_frames(self._model)          # #598, as in report()
-        values = table.decode(table.x0())
-        return reflection_table(self._model, values, self.structure)
+        # the answer frozen with the result, as in report() (WP-1421)
+        answer = self._answer
+        return reflection_table(self._model, answer["values"], answer["structure"])
 
     def write_reflection_table(self, path, **kw) -> None:
         """Write the reflection table to CSV/TSV (delimiter from the suffix)."""
@@ -6103,8 +6285,13 @@ class Refinement:
 
         if self.result_ is None:
             raise RuntimeError("call fit() first")
-        write_document(refinement_cif_doc(self.result_, self.structure,
-                                          self.instrument, pattern=self._fit_pattern,
+        # the models frozen with the result, as the reflection loop below reads
+        # them: a later cancelled fit moves the live ones and keeps this result
+        answer = self._answer
+        structure = self.structure if answer is None else answer["structure"]
+        instrument = self.instrument if answer is None else answer["instrument"]
+        write_document(refinement_cif_doc(self.result_, structure,
+                                          instrument, pattern=self._fit_pattern,
                                           reflections=self.reflection_table()), path)
 
     def write_qpa_table(self, path, **kw) -> None:
@@ -6127,6 +6314,145 @@ class Refinement:
 # ----------------------------------------------------------------------
 # module-level helpers
 # ----------------------------------------------------------------------
+# The deciding rows of ``Refinement.summary(deliverable=…)`` (WP-2037): each a
+# projection of fields the result already carries, never a computation, and a
+# row nothing on this result measured says so rather than printing clean.
+
+_CELL_UNITS = {"a": "Å", "b": "Å", "c": "Å", "alpha": "°", "beta": "°", "gamma": "°"}
+
+
+def _moved(p: RefinedParameter) -> bool:
+    """Whether a result row moved in the fit: a free row, or a tied one carrying
+    an esd, which only a free source gives it.  A tied row whose sources were
+    all held is listed too (the membership filter is "varied or tied") and
+    carries none."""
+    return p.vary or p.stderr is not None
+
+
+def _cell_rows(result: RefinementResult) -> dict[int, list[RefinedParameter]]:
+    """The cell rows that moved, by phase index."""
+    by_phase: dict[int, list[RefinedParameter]] = {}
+    for p in result.parameters:
+        parts = p.path.split(".")
+        if (len(parts) == 4 and parts[0] == "phases" and parts[2] == "cell"
+                and parts[3] in _CELL_UNITS and _moved(p)):
+            by_phase.setdefault(int(parts[1]), []).append(p)
+    return by_phase
+
+
+def _cell_lines(result: RefinementResult) -> list[str]:
+    """``cell``: each phase's refined cell with esds, tied axes named, and the
+    volume the whole covariance gives it (WP-1933)."""
+    from ._display import _number
+
+    rows = _cell_rows(result)
+    if not rows:
+        return ["    cell: no cell parameter refined on this fit; the cell is "
+                "the model's as given"]
+    volumes = {v.phase_index: v for v in result.cell_volumes or []}
+    lines = []
+    for i, ps in sorted(rows.items()):
+        name = {p.path: p.path.rsplit(".", 1)[1] for p in ps}
+        # a cell whose every row is tied (to a named variable) has no free row
+        # to quote, so its tied rows carry the values instead
+        quoted = [p for p in ps if p.vary] or ps
+        text = ", ".join(f"{name[p.path]} = {_number(p.value, p.stderr)} "
+                         f"{_CELL_UNITS[name[p.path]]}" for p in quoted)
+        tied = [name[p.path] for p in ps if not p.vary]
+        if tied:
+            text += f" ({', '.join(tied)} tied)"
+        if i in volumes:
+            v = volumes[i]
+            text += f"; V = {_number(v.volume, v.stderr)} Å³"
+        lines.append(f"    phases.{i}.cell: {text.lstrip()}")
+    return lines
+
+
+def _exchangeability_lines(result: RefinementResult, about: str | None = None) -> list[str]:
+    """The exchange rows, worst five: what ``structure`` and ``cell`` both
+    decide on, since a held parameter the free ones imitate moves either.
+    ``about`` keeps the rows naming a path containing it (``".cell."``), so a
+    cell is not read against five rows of Biso exchanges."""
+    if result.identifiability is None:
+        return ["    identifiability: not measured on this result"]
+    exch = result.identifiability.exchangeability
+    if about is not None:
+        exch = [row for row in exch
+                if about in row.held or any(about in p for p in row.partners)]
+    noun = "row(s)" if about is None else f"row(s) naming a {about.strip('.')} path"
+    lines = [f"    exchangeability: {len(exch)} {noun}"]
+    for row in exch[:5]:
+        lines.append(f"      {row.held} ~ {', '.join(row.partners)} "
+                     f"(R²={row.r2:.2f})")
+    return lines
+
+
+def _microstructure_lines(result: RefinementResult) -> list[str]:
+    """``microstructure``: each phase's size and strain readings, under the
+    code that says they are not quotable where it fired.  The readings stay
+    printed beneath it, because a withheld verdict leaves its statistic
+    (DESIGN.md § Rules, 1)."""
+    if not result.microstructure:
+        return ["    microstructure: not measured on this result"]
+    lines = []
+    if any(d.code == "RESOLUTION_UNCONSTRAINED" for d in result.diagnostics):
+        # the code's own suggestion: "do not quote the widths, or any size or
+        # strain read from them"
+        lines.append("    size and strain: not quotable (RESOLUTION_UNCONSTRAINED); "
+                     "the readings below are the fit's, not answers")
+    return lines + ["    " + line for block in result.microstructure
+                    for line in str(block).splitlines()]
+
+
+def _calibration_lines(result: RefinementResult) -> list[str]:
+    """``calibration``: the instrument terms the fit refined, and whether the
+    standard's cell was held, which is what decorrelates the zero, the
+    specimen position and the cell (``lab_calibrate``)."""
+    rows = [p for p in result.parameters
+            if p.path.startswith("instrument.") and _moved(p)
+            and not p.path.startswith(("instrument.background.",
+                                       "instrument.extra_components."))]
+    lines = ([f"    {p}" for p in rows]
+             or ["    instrument: no instrument parameter refined on this fit"])
+    refined = sorted(_cell_rows(result))
+    if refined:
+        # which phase is the standard is the caller's to know: an internal
+        # standard's sample refines its cell while the standard's is held
+        names = ", ".join(f"phases.{i}" for i in refined)
+        lines.append(f"    cell refined on {names}: a calibration holds the standard's "
+                     "certified cell fixed (Refinement.hold); a sample's may refine")
+    else:
+        lines.append("    cell: held on every phase")
+    return lines
+
+
+def _magnetic_lines(result: RefinementResult) -> list[str]:
+    """``magnetic``: each site's moment rows (the modulus carries the esd) and
+    what the stages held or turned because a powder average cannot see it."""
+    rows = [p for p in result.parameters
+            if fnmatch.fnmatchcase(p.path, "phases.*.atoms.*.moment.*")
+            or fnmatch.fnmatchcase(p.path, "phases.*.magnetic_lor_*")]
+    if not any(".moment." in p.path for p in rows):
+        return ["    moment: none refined on this fit "
+                "(no phases.*.atoms.*.moment.* row)"]
+    lines = [f"    {p}" for p in rows]
+    held = ([p for p in result.stages[-1].held if ".moment." in p]
+            if result.stages else [])
+    if held:
+        lines.append(f"    held, not measured: {', '.join(held)}")
+    flat: dict[str, list[float]] = {}
+    turned: set[str] = set()
+    for stage in result.stages:
+        flat.update(stage.moment_flat_axes)
+        turned.update(stage.moment_turned)
+    for site, axis in flat.items():
+        how = (", turned onto the meridian first (the reported direction moved)"
+               if site in turned else ", where it was")
+        lines.append(f"    {site}: azimuth held about "
+                     f"[{', '.join(f'{x:.3f}' for x in axis)}]{how}")
+    return lines
+
+
 #: Guard codes that are **discarded per stage and re-taken on the converged
 #: vector** rather than accumulated (WP-1310 for the first, WP-1311 for the
 #: other three).  Each reads a number straight off the values a stage landed
@@ -7255,7 +7581,7 @@ def _capillary_offset_diagnostics(model: CompiledModel,
     Info rather than warning, and it deliberately does **not** ask for the
     offsets to be freed.  WP-1073 measured what that costs on 11-BM: the pair is
     a degeneracy the fit walks along while Rwp *improves*, and the cell moves
-    5109 ppm with no bound to stop it (1117 ppm while a ±1 mm default bound
+    5111 ppm with no bound to stop it (1097 ppm while a ±1 mm default bound
     did, until WP-2002).  So they stay report-driven, and this says only that
     the door is shut and which field opens it.
 
@@ -7379,6 +7705,15 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
     return rows
 
 
+def _radiation(model: CompiledModel, values: dict[str, float]) -> Radiation:
+    """The source a result's curves were fitted with (WP-2042): the compiled
+    kind and each line's λ at ``values``, so a refined wavelength is recorded
+    as refined.  One builder for both result writers, the single fit's and
+    the joint fit's per histogram."""
+    return Radiation(kind=model.source_kind,
+                     wavelengths=[float(lam) for lam in model.line_lambdas(values)])
+
+
 
 def _phase_texture(model: CompiledModel, values: dict[str, float],
                    structure: Structure) -> list[PhaseTexture]:
@@ -7456,6 +7791,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   cell_runaway: Sequence[Diagnostic] | None = None,
                   significance: np.ndarray | None = None,
                   phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA,
+                  held_scales: set[int] | None = None,
                   ) -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
@@ -7608,9 +7944,14 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # comes from the correlated scale block of the covariance (physical_covariance
     # reuses the same Cov_free as stderr_physical → consistent conditioning).
     qpa = None
+    unmeasured_now: set[int] | None = None
     if mode == "rietveld":
+        held_now = (_held_scale_phases(stage_results[-1]) if stage_results
+                    else set(held_scales or ()))
+        unmeasured_now = _unmeasured_phases(model, stage_results, held=held_now)
         qpa, qpa_diagnostics = _quantify_phases(
-            table, theta, stderr_internal, correlation, structure, values, model)
+            table, theta, stderr_internal, correlation, structure, values, model,
+            unmeasured=unmeasured_now, held=held_now)
         diagnostics = diagnostics + qpa_diagnostics
 
     # Soft-restraint summary (bond/angle/value deviations).  Rietveld-only, so
@@ -7718,7 +8059,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     diagnostics = diagnostics + _phase_support_diagnostics(
         significance, model.phase_line_counts(),
         (model.tt_min, model.tt_max), list(table.free_paths), structure,
-        stage_results, decided=decided, sigma=support_sigma)
+        stage_results, decided=decided, sigma=support_sigma,
+        quantified=model.mode == "rietveld", unmeasured=unmeasured_now)
 
     # A phase whose scale and B the range cannot separate (WP-1534), and what
     # its fraction is conditional on.  Read off the stage records, which carry
@@ -7816,7 +8158,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
-        ticks=ticks, tick_hkl=tick_hkl,
+        ticks=ticks, tick_hkl=tick_hkl, radiation=_radiation(model, values),
         qpa=qpa, restraints=restraints_report, geometry=geometry,
         cell_volumes=volumes,
         microstructure=microstructure,
@@ -7996,6 +8338,35 @@ def _restore_lebail(states: list[ReflectionState], model: CompiledModel) -> None
 #: issue's 1.38 % on Si is the compile that claims nothing moves
 #: (``moving_paths=None``), not the frozen one, and would still fire.
 FROZEN_COMPILE_CHI2_REL = 1e-2
+
+
+def _frozen_compile_diagnostics(chi2_frozen: float, chi2_fresh: float, *,
+                                histogram: int | None = None) -> list[Diagnostic]:
+    """``FROZEN_COMPILE_STALE`` when the two χ² differ past :data:`FROZEN_COMPILE_CHI2_REL`.
+
+    One comparison for both runners: the single fit's
+    :meth:`Refinement._final_compile` and the joint fit's
+    ``MultiHistogramRefinement._final_compiles``, which passes its worst
+    histogram's pair and index (``histogram``) and keeps no history node to
+    hold the frozen figure.
+    """
+    rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
+           if chi2_frozen > 0 else 0.0)
+    if not rel > FROZEN_COMPILE_CHI2_REL:
+        return []
+    joint = histogram is not None
+    whose = f" for histogram {histogram}" if joint else ""
+    kept = ("the last stage's record keeps the frozen one" if joint
+            else "the history node keeps the frozen one")
+    return [Diagnostic(
+        level="info", code="FROZEN_COMPILE_STALE",
+        message=(
+            f"A fresh compile at the returned parameters gives "
+            f"chi2{whose} = {chi2_fresh:.6g}. The last stage's own compile gives "
+            f"{chi2_frozen:.6g} at the same parameters, "
+            f"{100 * rel:.2g} % apart. The result reports the fresh "
+            f"figure and {kept}."),
+        value=rel)]
 
 
 #: a Pawley overlap group is reported unresolved when *any* member carries a
@@ -9135,6 +9506,8 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
                      correlation: np.ndarray | None, structure: Structure,
                      values: dict[str, float], model: CompiledModel, *,
                      where_of: Callable[[str], str] | None = None,
+                     unmeasured: set[int] | None = None,
+                     held: set[int] | None = None,
                      ) -> tuple[QuantitativePhaseAnalysis | None, list[Diagnostic]]:
     """Weight fractions from the refined scales, and the findings they carry.
 
@@ -9160,11 +9533,27 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
     phase's pattern at any value, and an absent phase's scale at 0.0 keeps
     its esd.  The zero column that remains is a phase with no gradient at any
     scale, such as one whose sites are all empty.
+
+    **A phase with no reflection in the fitted range has no fraction at all**
+    (WP-1958, decided on #954): the absent-rather-than-zero rule carried from
+    its esd to the number.  Its scale is the value handed in (the support hold
+    takes it), so a fraction read off it is the caller's start, not a
+    measurement.  It leaves the sum, so the others are fractions of the phases
+    seen in range, ``QuantitativePhaseAnalysis.unmeasured_phases`` names it,
+    and its zero column no longer withholds their esds.  ``unmeasured`` is the
+    caller's answer to which (:func:`_unmeasured_phases`, read off what the
+    last stage held); ``None`` recounts the lines at this model.  ``held`` is
+    the part of it a stage held, which the record names apart from the phases
+    with no line at the answer (``unmeasured_held``).
     """
-    scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))]
+    lineless = _lineless_phases(model)
+    unmeasured = sorted(lineless if unmeasured is None else unmeasured)
+    held_only = sorted((set(held or ()) & set(unmeasured)) - lineless)
+    scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))
+                   if ip not in unmeasured]
     scale_cov = None
     blind_paths: list[str] = []
-    if stderr_internal is not None:
+    if stderr_internal is not None and scale_paths:
         blind = table.unmeasured_rows(theta, stderr_internal,
                                       [table._paths[q] for q in scale_paths])
         blind_paths = [q for q, b in zip(scale_paths, blind, strict=True) if b]
@@ -9180,7 +9569,8 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
     multiplicities = [[len(op[0]) for op in cp.sites.ops] for cp in model.phases]
     wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
     qpa = compute_qpa(structure, values, scale_cov, multiplicities,
-                      wavelength=wavelength, source_kind=model.source_kind)
+                      wavelength=wavelength, source_kind=model.source_kind,
+                      unmeasured=unmeasured, held=held_only)
     if qpa is None:
         return None, _qpa_unavailable_diagnostics(structure, values)
     diagnostics = microabsorption_diagnostics(qpa)
@@ -9352,6 +9742,8 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                                *, basis: str = "against the counting noise",
                                decided: bool = True,
                                sigma: float = PHASE_SUPPORT_SIGMA,
+                               quantified: bool = False,
+                               unmeasured: set[int] | None = None,
                                ) -> list[Diagnostic]:
     """``PHASE_UNCONSTRAINED`` — a phase the data cannot see, and what was done.
 
@@ -9405,7 +9797,16 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
     ``sigma`` is the threshold a phase must reach to count as seen: the plan's
     ``phase_support_sigma``, so the report and the hold read one number, or
     the default where the plan switched the hold off (WP-2002, B1).  With the
-    hold off nothing is held, so the message names only what refined.
+    hold off nothing is held on significance, so the message names only what
+    refined, and a phase with no line in range, which is held either way.
+
+    ``quantified`` says the fit forms weight fractions (a Rietveld fit), so
+    the message for a phase with no line in range says it has none and what
+    the others are relative to (WP-1958, ``QuantitativePhaseAnalysis.
+    unmeasured_phases``).  ``unmeasured`` is the set that QPA quotes no fraction
+    for (:func:`_unmeasured_phases`): a phase in it with a line at the answer
+    had its scale **held**, and the message says that rather than "no
+    reflection" (#1103); ``None`` reads the line count alone.
     """
     n_phases = len(support_by_phase)
     held_paths, held_stages = _held_by_phase(stage_results or [], n_phases)
@@ -9419,17 +9820,23 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                                if p.startswith(prefix) and p != f"{prefix}scale")
         held = held_paths[ip]
         no_lines = int(line_counts[ip]) == 0
-        if not unconstrained and not held and not no_lines:
+        lacks = no_lines if unmeasured is None else (ip in unmeasured or no_lines)
+        scale_only = lacks and not no_lines
+        if not unconstrained and not held and not lacks:
             continue
         support = float(support_by_phase[ip])
-        if support >= sigma:
+        if support >= sigma and not lacks:
             continue
-        if n_phases < 2 and not held and not no_lines:
+        if n_phases < 2 and not held and not lacks:
             continue
         name = structure.phases[ip].name
         if no_lines:
             cause = (f"No reflection of phase {ip} ({name}) lies in the fitted "
                      f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°.")
+        elif scale_only:
+            cause = (f"Phase {ip} ({name})'s scale was held at the value handed "
+                     "in, so it is not a measurement, though a reflection of "
+                     "it lies in the fitted range at the answer.")
         elif held and decided:
             # a held phase quotes the reading the last stage's answer kept or
             # took its hold on, which a second solve at the restored values
@@ -9444,13 +9851,61 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                      f"from zero {basis}, under the {sigma:g}σ "
                      f"a phase needs to count as seen.")
         clauses = []
+        # a phase with no line in range has its scale held too (WP-1958), and
+        # the scale is not a structural parameter, so it is named on its own
+        # (a joint fit's per-histogram scale is scoped ``hist.h.``)
+        structural = [p for p in held if _unscoped(p) != f"{prefix}scale"]
+        scale_held = len(structural) < len(held)
         if held:
             stages = held_stages[ip]
-            clauses.append(f"Its {len(held)} structural parameter"
-                           f"{'' if len(held) == 1 else 's'} "
-                           f"{'was' if len(held) == 1 else 'were'} held for "
-                           f"stage{'' if len(stages) == 1 else 's'} "
-                           f"{', '.join(stages)}.")
+            during = (f"stage{'' if len(stages) == 1 else 's'} "
+                      f"{', '.join(stages)}")
+            if structural:
+                clauses.append(f"Its {len(structural)} structural parameter"
+                               f"{'' if len(structural) == 1 else 's'} "
+                               f"{'was' if len(structural) == 1 else 'were'} "
+                               f"held for {during}.")
+            if scale_held:
+                scale_stages = []
+                scale_hists: set[int] = set()
+                for sr in stage_results or []:
+                    hit = False
+                    for q in sr.held:
+                        for n in (q, *sr.held_reach.get(q, ())):
+                            if _unscoped(n) != f"{prefix}scale":
+                                continue
+                            hit = True
+                            if n.startswith("hist."):
+                                h = n[len("hist."):].partition(".")[0]
+                                if h.isdigit():
+                                    scale_hists.add(int(h))
+                    if hit:
+                        scale_stages.append(sr.name)
+                where = (f" in histogram{'' if len(scale_hists) == 1 else 's'} "
+                         f"{', '.join(map(str, sorted(scale_hists)))}"
+                         if scale_hists else "")
+                last = stage_results[-1] if stage_results else None
+                refined_last = last is not None and last.name not in scale_stages
+                if refined_last and no_lines:
+                    # nothing reached the range: only a weighted restraint
+                    # keeps the column alive, and its value is the target's
+                    tail = (f", and left free in the last stage ({last.name}) "
+                            "by a weighted restraint on it, so its value is "
+                            "the restraint's, not the data's.")
+                elif refined_last:
+                    tail = (f", and refined in the last stage ({last.name}), "
+                            "where a reflection reached the range, so the "
+                            "answer's scale is a measurement.")
+                else:
+                    tail = "."
+                clauses.append(
+                    f"Its scale was held at the value handed in for stage"
+                    f"{'' if len(scale_stages) == 1 else 's'} "
+                    f"{', '.join(scale_stages)}{where}{tail}")
+        if lacks and quantified:
+            clauses.append("It has no weight fraction"
+                           + (", and the other fractions are relative to the "
+                              "phases seen in range." if n_phases > 1 else "."))
         if unconstrained:
             clauses.append(f"{len(unconstrained)} of its parameters "
                            f"{'was' if len(unconstrained) == 1 else 'were'} "
@@ -9468,6 +9923,10 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                 "Take the phase out of the model, or widen the fitted range "
                 "to cover one of its reflections."
                 if no_lines else
+                "Take the phase out of the model, or start the run where a "
+                "reflection of it is already in range (or free the zero shift "
+                "first), so its scale refines from the first stage."
+                if scale_only else
                 "Treat those values as unmeasured. Take the phase out of the "
                 "model, or seed its scale off the floor before you free "
                 "anything else of it."),
@@ -10178,7 +10637,8 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         diagnostics=list(node.diagnostics), structure=structure,
         # ``PHASE_UNCONSTRAINED`` read against the threshold the stage ran
         # at, or the default where the node is not a stage (WP-2002, B1)
-        phase_support_sigma=node.action.phase_support_sigma)
+        phase_support_sigma=node.action.phase_support_sigma,
+        held_scales=set(node.metrics.held_scale_phases))
     result.node_id = node.id
     result.tree_id = tree.header.tree_id
     return result
