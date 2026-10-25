@@ -1,6 +1,6 @@
 # WP-1329 — the moment in a series: the onset, the hold, the trajectory
 
-Milestone: magnetic · Status: 🔄 2026-10-21 — tasks 1–4 and both review follow-ups landed (PRs #522, #589), the two codes' skill rows moved to `references/magnetic.md` (PR #1062); task 5, a real ramp longer than the Cr₂WO₆ pair, remains
+Milestone: magnetic · Status: 🔄 2026-10-25 — all five tasks landed; task 5, the real Ba₂FeSbSe₅ ramp on LLB G4.1, by PR #1073; ready to close
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
 Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 
@@ -162,7 +162,7 @@ chain on the same data is reported as a range, never gated.
       declared m(T), noise from the pattern's own σ): the onset lands within
       one pattern of the declared T_N in both directions; obs/calc/diff PNGs
       and the trajectory plot to `tests/output/`.
-- [ ] A real ramp, if one is public: search the corpus, then ask.
+- [x] A real ramp, if one is public: search the corpus, then ask.
 
 ## Acceptance
 
@@ -190,6 +190,41 @@ chain on the same data is reported as a range, never gated.
   [1325](1325-parametric-series.md) the parametric question.
 
 ## Handover log
+
+### 2026-10-25 — task 5 landed: the Ba₂FeSbSe₅ ramp on LLB G4.1, by `/pr-review`
+
+Task 5's real ramp is in the tree. PR #1073 (outside contributor) merged as
+`4cfd4598`. It vendors twelve of the 23 corrected G4.1 neutron patterns of
+Ba₂FeSbSe₅ (λ = 2.426 Å, 1.5-200 K). The co-author M. W. Gaultois released
+them under CC BY 4.0 in a comment on the PR, and the README and
+`ATTRIBUTION.md` rows link it. It adds
+`test_ba2fesbse5_ramp_the_moment_grows_below_the_onset_both_ways`: a slow
+test, characterisation tier, and the first k ≠ 0 series in the tree. The model
+is the class a blind `solve_magnetic` ranked first (k = (½, 0, ½), BNS 11.55).
+The plan is the one `solve_magnetic` ships, run with `direction="both"`. Both
+chains bracket the onset at 50 → 55 K, 3 K under the bulk T_N of 58 K. The
+moment at 55 K is only 1.9 times its esd, so a verdict-based onset sits below
+T_N. The 1.5 K moment is 3.875 ± 0.131 μ_B forward and 3.882 ± 0.124 μ_B
+backward, against the paper's 4.13(4) under another code. All 24 fits
+converge.
+
+*Done:* the protocol fits from 5.2° (above the direct-beam tail), with the
+data-sized P-spline background, and ties the 28 child Biso to their 7 parent
+sites through `site_map`. Untied, the Fe Biso ran from −8.8 to +23.6 Å². The
+tie costs Rwp 5.21 → 6.13 % at 1.5 K, and that misfit is unidentified; a
+displacive distortion is one candidate. The fixture runs on the numpy path,
+declared. Gated in a stack with #1111 on tree `1923c693` (main `f9a983d7` +
+both PRs; macOS arm64, Python 3.12.10, `[dev,jax]`, nothing else running): the
+whole suite, slow tests included, 12 255 passed, 206 skipped, 43 xfailed in
+35 min; the ramp test took 120 s. Main after the last merge is that tree.
+*What it does not do:* free the magnetic widths, which cost BIC at every
+temperature measured (WP-1343's business). It does not identify the misfit the
+Biso tie exposes. It vendors only twelve of 23 patterns; the other eleven stay
+out.
+*Gotcha:* `BISO_NEGATIVE` stays on Ba at 1.5-100 K, within its esd. These
+patterns do not determine the parent Biso (esds 2.6-5.8 Å² in the nuclear fit),
+so one overall B moves the moment by under 0.3 esd.
+*Next:* every task is done, so the WP is ready to close.
 
 ### 2026-10-21 — the two codes' skill rows moved to the magnetic file, by `/pr-review`
 
