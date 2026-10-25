@@ -306,9 +306,10 @@ climb to the 512 cap, and each new count misses the `leggauss` cache
       chain (`test_the_first_rung_bound_moves_no_accepted_value`) included;
       VALIDATION.md's three `chained_all` rows (marked unmeasured on 1.10.0)
       re-measured
-- [ ] Notes for 1.10.1 (`docs/releases/`), and the 1.10.0 stated limit
-      withdrawn from the skill
-- [ ] Skill: the stated limit's bullet in `references/series.md` (beside
+- [x] Notes for 1.10.1 (`docs/releases/`), and the 1.10.0 stated limit
+      withdrawn from the skill. Staged in `1.11.0.md`, the one staging file;
+      the cut names the release (ROADMAP rule 6)
+- [x] Skill: the stated limit's bullet in `references/series.md` (beside
       the quarantine rule) removed or rewritten to what the fix does
 
 ## Acceptance
