@@ -105,16 +105,34 @@ The full Linux job failed once before in this window, on 2026-10-17:
 `test_lebail_alternation.py::test_the_state_the_loop_keeps_is_the_state_a_hand_loop_would_continue_from`.
 It passed on every later night, so it is out of scope unless it recurs.
 
-### Inherited
-
-- **From WP-2003 (2026-10-24, PR #1150): a measured lead for item 1, the closing stage on a warm chain, and the BLAS threads under it.** On a `[dev]` venv in a 4-core Linux x86-64 cloud container, the CPD sample-1 chain under `tests/test_acceptance_sequential.py`'s `chained_all` protocol took about an hour an arm, against the 33.7 s `examples/bench_refinement.py` quotes for `cpd-series`. The evaluation counts are ordinary (987 for the chain), so the time goes into each evaluation. At cpd-1b the warm rung's closing stage ran to its 400-evaluation cap in 2 300-2 600 s, and every later warm pattern started from there. The path the measurement lane traced is `refine.py:1548` → `model/forward.py:2212` → `model/profiles/fcj.py:241` → `fcj.py:88-92`: FCJ node counts climb to the 512 cap, each new count misses the `leggauss` cache, and with default BLAS threading one `numpy.polynomial.legendre.leggauss(444)` took 5.4-6.0 s against 0.014 s with one thread. *Hypothesis, not measured on CI*: the 2-core Linux runner pays the same, and macOS's Accelerate does not, which would fit the 18-19 min Mac slow selection. The same chain with `closing_window_tol=None` ran all its arms in minutes. Evidence and per-pattern tables: `docs/wp/2003-batch/reseed.md` (the `cpd` and `cpd-noclose` families). Two costs from this branch land in your group: `test_the_first_rung_bound_moves_no_accepted_value` adds one `chained_all`-shaped chain (first-rung bound off) to `xdist_group("qpa-sample1")`, about 35 s on a fixed tree and about an hour on this one. Also seen there, not traced: a `RuntimeWarning` from `model/profiles/pseudovoigt.py:45` (NaN from `gamma5 ** 0.2`) at cpd-1b's runaway fit and at the planted series' blank frame.
-- **From WP-2037 (2026-10-24): `moment` fails on Linux x86-64 too, and `hold` sat on a rounding edge.** On a `[dev]` venv in a cloud container (Linux x86-64, branch `claude/focused-maxwell-app5wv` at `1174cbf`), `examples/guides/moment.py:117` fails with `steps[0][0]` = 0.1034 against its `< 0.10` (round 1's move in |m|; round 2's is 1.5e-6), identical with and without 2037's CIF change, so not 2037's. The same container's `hold.py` printed 348.5 ppm against the guide's `< 350` before 2037 read FAP's Ca1 on 1/3 and 351.9 after; 2037 changed the guide to print the floor every platform clears ("more than 250 ppm", asserting 250-400, `79bb977`), which is item 3's rule applied to one more page.
-- **From WP-2043 (2026-10-24): an extra-peaks assertion now holds by 0.3 ppm against an esd of ~51.** `tests/test_acceptance_extra_peaks.py:230` asserts that declaring the intruder recovers the clean cell more closely than ignoring it. On the 1.10.0 tree that ordering is −0.1 against −0.4 ppm, while the ignore arm's cell esd is about 51 ppm (1.9.0: −0.2 against +6.3). WP-2002's width twin hold (#1113) moved the ignore arm. A rounding change or another platform can reverse it with no physics change. The claim the data still supports is that ignoring costs the cell its precision (esd ×9.9). Which to assert is the maintainer's call, so the review did not change the test; the docstring's "ignored must not recover" is now stale too.
-- **From WP-2043 (2026-10-24): the `full` job times out because of one test, and WP-2045 owns it.** The `full` job took about 95 minutes on 2026-10-21 and 2026-10-22, and hit its 150-minute limit on 2026-10-23 and 2026-10-24, the first two nightlies after #1085. `tests/test_acceptance_sequential.py`'s `chained_all` (the hostile series) spends over 50 CPU-minutes in one closing stage, compiled at a runaway warm answer (`axial_sl` 557.8, every window the whole pattern, 1 024 FCJ nodes). [WP-2045](2045-a-runaway-fit-ends-without-an-expensive-closing-stage.md) owns the fix; this WP's `full` leg cannot go green before it lands.
-- **From WP-2043 (2026-10-24, the release day): the `full` job finished once on Linux, with three slow rows red; two are new here.** On `c9dde14` (run 40116626316, `[dev,jax]`, Linux 3.13) the job completed in 1:55:14, the hostile series' fixture setup taking 6252 s (`test_acceptance_sequential.py::test_warm_start_iteration_cost_is_reported`, the top `--durations` row), so on that runner the series ends rather than hangs. Result 3 failed / 12126 passed / 218 skipped / 42 xfailed: (a) `test_cell_runaway_safety.py::test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error` raises `ValueError: array must not contain infs or NaNs`, new to this WP, read off the log and not reproduced (a Le Bail fit from a wrong triclinic cell, which the test expects to end without an error); (b) `test_staged_start_invariance.py::test_the_intermediate_tolerance_does_not_change_the_answer[lab6]` is XPASS(strict), whose reason cites WP-2012's mirror at 8.82 esd on `axial_sl`, new to this WP; (c) `…::test_the_axial_sizing_floor_does_not_change_the_answer[lab6]` at 8.820 plain esd on `axial_hl`, item 4's row, now confirmed on Linux. The run on `ac1ee1e` (40125117479) was still in its `full` job at this entry. Item 2's two Windows tasks were done by WP-2043 (#1146: the hooks decode UTF-8, the long-page case has short ids) and are moot here.
-- **From WP-2043 (2026-10-24): the Windows job's 45-minute limit is a load sensor.** On `ac1ee1e` the Windows fast suite passed every test (11627 / 295 / 27, total 11949) in 44:29, where the same suite on `c9dde14` two hours earlier took 24:23, and the job was cancelled six seconds into post-job cleanup by `timeout-minutes: 45`. A runaway guard less than twice the measured runtime fires on runner speed (`tests/CLAUDE.md` § Budgets in tests). The maintainer took the suite's result as the 1.10.0 gate, but the job reads cancelled, which this WP's acceptance (all six jobs `success`) does not admit. The same release day also had main's CI die on runner provisioning (`changes` and `lint` with no step started) and a Windows red on a test-side path separator (`tests/eval_report_agent`'s `_CELL_RE`, fixed by #1151).
-- **From WP-2043 (2026-10-24): an indexing answer's axis labelling moves with the platform.** Rebuilding the tutorial notebooks on Linux x86-64 (`[dev]`, Python 3.12) printed notebook 03's orthorhombic P cell as 7.97039 4.96157 5.73930 Å, where the darwin build committed at 1.10.0 printed 5.73930 4.96157 7.97039: the same cell, a and c swapped, with no space group to fix the setting. No prose quotes the order, so nothing failed. Two `fit_failed` peaks of one unresolved split at 48.4659° also swapped their values.
-- **From WP-2045 (2026-10-25, PR #1161): the hostile series' runaway is cut, and the `full` leg can be judged again once it merges.** The last declared stage now converges at 1e-9 when a closing stage follows it, so cpd-1b's warm stage reaches `axial_sl` 0.0082 (Rwp 0.1398) instead of stopping at 557.8. `tests/test_acceptance_sequential.py` ran whole, 15 passed in 92 s with `-n 4`, on macOS arm64 (`[dev]`, another session idle beside it); WP-2043 measured about 2.5 minutes for the module on 1.9.0. Its fixtures took 16-22 s of setup each. It is not yet measured on the Linux runner, so the first nightly `full` job after #1161 merges is that measurement; the 6252 s fixture setup in the 2043 entry above is the before. The same change made `test_warm_start_iteration_cost_is_reported`'s strict xfail pass (both chains now read mean Rwp 0.1282), so #1161 removes the mark.
+**Since 2026-10-24** (folded from the Inherited notes of WP-2003, 2037, 2043
+and 2045 on 2026-10-25):
+- **The `full` job's hang was one closing stage, and #1161 cut it.** The
+  hostile series' (`test_acceptance_sequential.py`, `chained_all`) cpd-1b warm
+  fit stopped at `axial_sl` 557.8 and its closing stage ran to its cap, over
+  50 CPU-minutes (WP-2043). WP-2045 made the last declared stage converge, and
+  the module now runs whole in 92 s on an arm64 Mac. The Linux before is the
+  `c9dde14` run (40116626316), which completed in 1:55:14 with 6252 s of that
+  series' fixture setup. A lead WP-2003 measured on a 4-core Linux container
+  may still cost Linux time: FCJ node counts that climb to the 512 cap miss
+  the `leggauss` cache, and with default BLAS threading one
+  `leggauss(444)` took 5.4-6.0 s against 0.014 s on one thread
+  (`model/profiles/fcj.py:88-92`; `docs/wp/2003-batch/reseed.md`).
+- **The same `c9dde14` run was red on three slow rows**: the Le Bail NaN raise
+  (task below, now WP-2048), `test_the_intermediate_tolerance_does_not_change_the_answer[lab6]`
+  as XPASS(strict), and the lab6 axial-floor row at 8.820 plain esd.
+- **`moment` failed on Linux x86-64 at `1174cbf`** (WP-2037's container,
+  `[dev]`): round 1's move in |m| was 0.1034 against the script's `< 0.10`.
+- **An extra-peaks assertion holds by 0.3 ppm against an esd of about 51**
+  (WP-2043): `tests/test_acceptance_extra_peaks.py:230` asserts that declaring
+  the intruder recovers the clean cell more closely than ignoring it, −0.1
+  against −0.4 ppm on 1.10.0. A rounding change can reverse it with no physics
+  change. What the data supports is that ignoring costs the cell its
+  precision (esd ×9.9). Which to assert is the maintainer's call, and the
+  docstring's "ignored must not recover" is stale.
+- **An indexing answer's axis order moves with the platform** (WP-2043):
+  notebook 03's orthorhombic P cell printed a and c swapped on Linux. No prose
+  quotes the order, so nothing fails.
 
 ## Non-goals
 
@@ -156,16 +174,26 @@ It passed on every later night, so it is out of scope unless it recurs.
       `tests/CLAUDE.md` § Budgets in tests says a budget that is not several times
       the cost is a load sensor. *Done 2026-10-25: 120 min, from the last 30
       nightlies' job times (handover entry).*
-- [ ] The Le Bail NaN raise: reproduce `test_cell_runaway_safety.py::
+- [x] The Le Bail NaN raise: reproduce `test_cell_runaway_safety.py::
       test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error` (red on
       `c9dde14`'s `full` job, read off the log). If it reproduces it is a raise in a
       shipped path, and it goes to a WP of its own rather than staying here.
-- [ ] `moment` guide: make the page and the script's own asserts hold at both stopping
-      points, or make the rounds land on one point.
+      *Reproduced 2026-10-25 at four of six 1e-14 starts on an arm64 Mac; filed
+      as [WP-2048](2048-a-non-finite-step-ends-a-stage-rather-than-the-fit.md).
+      The row stays red on whichever platform rounds into it until 2048 lands.*
+- [x] `moment` guide: make the page and the script's own asserts hold at both stopping
+      points, or make the rounds land on one point. *No longer reproduces
+      (2026-10-25): every assert held at ten 1e-14 starts on an arm64 Mac (round
+      1's move 0.0859-0.0873 μB, scale shift 0.47 esd), the Linux fast legs pass
+      it on #1161's CI, and Windows passed every test on `ac1ee1e`. Confirmed or
+      reopened by the next green nightly.*
 - [ ] The four slow tests: re-run on Linux once task 1 lands. Mark the lab6 and cpd1a
       start rows that fail through WP-2012's degeneracies as strict xfails citing it.
       Resolve the cpd1a XPASS. Find whether the closing stage moved the 150 K null's Rwp
-      ratio, and fix the fit or the bar on that evidence.
+      ratio, and fix the fit or the bar on that evidence. *On an arm64 Mac all
+      four now hold (2026-10-25, `deff4c301`, `[dev]`): the 150 K null and both
+      axial-floor rows pass, and the three start rows that fail carry strict
+      xfails citing WP-2002 or WP-2012. What remains is the Linux reading.*
 - [ ] Tests: each fix has a test that fails before it, and the 1e-14 nudge is the
       local check for every platform split.
 - [ ] Skill: none expected, since these fix tests, CI and one esd. If the `qpa` esd
