@@ -7357,8 +7357,12 @@ def _window_loss_diagnostics(stage_results: list[StageResult]) -> list[Diagnosti
     the result, and misses half of the runaway, where frozen and fresh fit
     equally badly.
     """
+    # the closing stage is the one a plan appended: its name, and a recorded
+    # fraction, which no declared stage of a plan carries (``None``); the name
+    # alone would take a user's own last stage called "closing" for it
     reach = stage_results[-1:]
-    if len(stage_results) > 1 and stage_results[-1].name == CLOSING_STAGE_NAME:
+    if (len(stage_results) > 1 and stage_results[-1].name == CLOSING_STAGE_NAME
+            and stage_results[-1].window_area_tol is not None):
         reach = stage_results[-2:]
     out = []
     for sr in reach:

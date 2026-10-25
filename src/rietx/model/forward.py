@@ -474,6 +474,22 @@ def accumulate_planes(n_points: int, parts) -> np.ndarray:
     return np.bincount(idx, weights=w, minlength=n_points)
 
 
+def _window_bounds(tt: np.ndarray, pos: np.ndarray, half: np.ndarray,
+                   valid: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Each peak's window ``[i0, i1)`` on the grid ``tt``, empty where not ``valid``.
+
+    The one rule ``compile_model`` and :func:`rewindow` both size by, so the
+    two cannot drift apart.
+    """
+    pos_v = np.where(valid, pos, 0.0)
+    half_v = np.where(valid, half, 0.0)
+    i0 = np.searchsorted(tt, pos_v - half_v, side="left")
+    i1 = np.searchsorted(tt, pos_v + half_v, side="right")
+    i0[~valid] = 0
+    i1[~valid] = 0
+    return i0, i1
+
+
 def _batch_layout(win: np.ndarray, fcj_n: np.ndarray, tt: np.ndarray
                   ) -> BatchLayout:
     """Build the frozen planes off the just-computed windows (compile time)."""
@@ -1664,11 +1680,23 @@ class CompiledModel:
         Evaluate-only, and never in the hot loop — nothing in the residual
         needs a combined width.
         """
+        return self.peak_gamma_eta(w1, w2)[0]
+
+    def peak_gamma_eta(self, w1: np.ndarray, w2: np.ndarray
+                       ) -> tuple[np.ndarray, np.ndarray]:
+        """TCHZ (Γ, η) from a :meth:`phase_peaks` width pair, under either shape.
+
+        :meth:`peak_fwhm`'s reading with the mixing parameter beside it, for a
+        consumer that sizes a window by ``compile_model``'s rule
+        (:func:`rewindow`).  Evaluate-only, like :meth:`peak_fwhm`.
+        """
         if self.shape == "voigt":
             gam_g = np.asarray(w1, dtype=np.float64) * GAUSS_FWHM_TO_SIGMA
             gam_l = 2.0 * np.asarray(w2, dtype=np.float64)
-            return np.asarray(tch_gamma_eta(gam_g, gam_l)[0], dtype=np.float64)
-        return np.asarray(w1, dtype=np.float64)
+            gamma, eta = tch_gamma_eta(gam_g, gam_l)
+            return (np.asarray(gamma, dtype=np.float64),
+                    np.asarray(eta, dtype=np.float64))
+        return np.asarray(w1, dtype=np.float64), np.asarray(w2, dtype=np.float64)
 
     def _profile(self, x: np.ndarray, w1: np.ndarray, w2: np.ndarray) -> np.ndarray:
         """Unit-area profile of the active shape at offsets ``x``."""
@@ -3986,12 +4014,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                 if fcj_on:
                     half = half + fcj_extent_deg(pos, sl_eff, hl_eff)
                 valid = np.isfinite(pos)
-                pos_v = np.where(valid, pos, 0.0)
-                half_v = np.where(valid, half, 0.0)
-                i0 = np.searchsorted(tt, pos_v - half_v, side="left")
-                i1 = np.searchsorted(tt, pos_v + half_v, side="right")
-                i0[~valid] = 0
-                i1[~valid] = 0
+                i0, i1 = _window_bounds(tt, pos, half, valid)
                 win[il, :, 0], win[il, :, 1] = i0, i1
                 if fcj_on:
                     for k in range(n):
@@ -4258,23 +4281,12 @@ def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
         fcj_n = np.zeros_like(cp.fcj_n)
         for il, (pos, w1, w2, _) in enumerate(model.phase_peaks(ip, values)):
             pos = np.asarray(pos, dtype=np.float64)
-            if model.shape == "voigt":
-                gamma, eta = tch_gamma_eta(
-                    np.asarray(w1, dtype=np.float64) * GAUSS_FWHM_TO_SIGMA,
-                    2.0 * np.asarray(w2, dtype=np.float64))
-            else:
-                gamma = np.asarray(w1, dtype=np.float64)
-                eta = np.asarray(w2, dtype=np.float64)
+            gamma, eta = model.peak_gamma_eta(w1, w2)
             half = window_fwhm_mult(eta, tol) * gamma + model.window_slack_deg
             if fcj_on:
                 half = half + fcj_extent_deg(pos, sl, hl)
             valid = np.isfinite(pos) & np.isfinite(half)
-            pos_v = np.where(valid, pos, 0.0)
-            half_v = np.where(valid, half, 0.0)
-            i0 = np.searchsorted(tt, pos_v - half_v, side="left")
-            i1 = np.searchsorted(tt, pos_v + half_v, side="right")
-            i0[~valid] = 0
-            i1[~valid] = 0
+            i0, i1 = _window_bounds(tt, pos, half, valid)
             win[il, :, 0], win[il, :, 1] = i0, i1
             if fcj_on:
                 live = valid & (i1 > i0)
