@@ -195,7 +195,11 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       a proposal for all 111 entries (`2003-batch/rows.json`, by class in `classes.md`); the 17
       that need no approval are in the table (`7c37469`); the rest wait for the batch's rulings.
       A fourth arm, `status_maxiter` (status-only that also escalates while the best attempt so far ends
-      `max_iter`), measured on all eight families (`ded5c3f`, `dd13648`, `634bede`).
+      `max_iter`), measured on all eight families (`ded5c3f`, `dd13648`, `634bede`). Third
+      session (2026-10-25): every family and arm re-measured on main after WP-2045, CPD on all
+      eight patterns (`3c45728`-`891a6f9`, the JSONs written over), plus option (iii) as the
+      arm `status_runaway`, the first-rung bound off (`on_nobound`, `off_nobound`) and X13's
+      `cpd-ftolnone` (`7e03411`, a lane).
 - [ ] Quarantine's record: does the returned `SeriesResult` name the pattern that
       diverged, the rung it reached, and the successors seeded from an earlier pattern
       instead? Quarantine is one of Rule 1's protections and stays; a protection records
