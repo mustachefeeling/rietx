@@ -2052,7 +2052,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "1/√2 (at most half of the net weighted power unexplained), was measured on "
             "synthetic Si and P 2₁/c, 11-BM NAC, the GSAS-II fluorapatite and PbSO₄ "
             "patterns and SRM 676a corundum: every right or nearly right cell reads ≤ 0.36, "
-            "and cells outside the refinable basin read 1.0-2.8 (corundum at ×1.02, "
+            "and cells outside the refinable basin read 1.0-2.3 (corundum at ×1.02, "
             "fluorapatite at ×0.99, NAC at ×0.99 and ×1.02, PbSO₄ at ×1.02, Si at ×1.01) "
             "but one: PbSO₄ X-ray at ×0.99 reads 0.45, passes, and returns a wrong class. "
             "Untested beyond them, and a second phase carrying half the net weighted power "

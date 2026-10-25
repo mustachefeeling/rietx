@@ -229,7 +229,7 @@ def test_the_message_says_weak_data_when_no_fit_could_pass(si):
 
 def test_the_message_says_misfit_when_the_data_could_pass(si):
     """S ≫ N: the 1 % cell the prefit cannot bring back.  A noise-only fit would
-    read about 0.03, so the gate's 1.6 is misfit, and the message says by how much."""
+    read 0.024, so the gate's 1.17 is misfit, and the message says by how much."""
     screen = _screen(si, 1.01)
     assert screen.status == "unreliable"
     assert screen.perfect_fit_rwp_net < 0.1 * REFERENCE_NET_RWP_MAX
