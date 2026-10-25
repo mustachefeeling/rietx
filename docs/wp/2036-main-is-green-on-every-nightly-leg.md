@@ -229,6 +229,12 @@ and 2045 on 2026-10-25):
 - [x] Skill: none expected, since these fix tests, CI and one esd. If the `qpa` esd
       changes, check `references/` for a quoted QPA esd. *None: no package
       behaviour changed here. WP-2049 and WP-2050 each carry their skill row.*
+- [x] The `moment` guide's round-2 bar, red on CI's py3.14 shard 2 in 10 of 19 runs
+      on main and branches after #1161 (found stewarding #1165). *The page and the
+      script quote the loop's own rule, round 2 under its esd, in place of "under
+      0.002 μB": that bar sat between two converged fits with no measured
+      cross-platform spread (`tests/CLAUDE.md` § Budgets in tests). The crawl
+      behind it went to WP-1334's Inherited.*
 
 ## Acceptance
 
@@ -321,6 +327,19 @@ gh run list --workflow nightly.yml --branch main --limit 1
   re-written once; then WP-2048. After all three, the next green nightly
   closes this WP. If `full` times out first, read its durations table before
   touching the limit.
+
+  *CI on #1165 (same day).* `tests/test_examples.py::…[moment]` failed on the
+  py3.14 shard 2, and on main at `4cfd45984` and seven branches, 10 of 19 runs
+  since #1161 merged, 0 of 8 before, on numpy 2.5.4 / scipy 1.18.1 throughout.
+  The guide's round 1 now starts with m_y = −1.0191e-6 μB (−0.074 before), and
+  from that exact start its one stage crawls 800 evaluations to `STAGE_MAX_ITER`
+  at cost 1990.3. From −1.0e-6, 0, ±1e-6, −1e-4 or −1e-3 it converges in 21-45
+  to 1983.6 (arm64 Mac, `[dev]`). Every route ends at Rwp 0.104747 and |m|
+  2.12546 μB after the closing stage, so round 2's step is where round 1
+  stopped: under 1e-5 μB here at 28 nudged starts, under Accelerate and
+  OpenBLAS SciPy alike, and 0.002 or more on some Linux runners. The page now
+  says round 2 moves less than its esd. Main merged in, `process.md` and
+  `practice.md` kept from both sides.
 
 - **2026-10-24** — re-rated P1 → P2 by the maintainer's session after the 1.10.0 cut,
   with no code changed. The P1 reason was the `qpa` esd split, and WP-2044 fixed it
