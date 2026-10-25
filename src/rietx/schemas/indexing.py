@@ -978,7 +978,7 @@ class PeakList(Base):
     #: from :func:`~rietx.indexing.diagnostics.picked_undeclared` (WP-2030).
     #: Empty when the source is a lab tube and nothing was left at default;
     #: ``None`` when nothing was checked: the source is not a lab tube, no picker
-    #: recorded it (a position list), or the list was picked before 0.59.  It is how ``index_pattern(peaks)`` with no instrument
+    #: recorded it (a position list), or the list was picked before 0.60.  It is how ``index_pattern(peaks)`` with no instrument
     #: can still name the instrument first in ``INDEX_DATA_INSUFFICIENT``.
     instrument_undeclared: dict[str, str] | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
@@ -2025,7 +2025,7 @@ class IndexingResult(Base):
     #: the chemical formula each candidate's ``INDEX_Z_NOT_INTEGER`` check read
     #: (WP-2030), written verbatim by :func:`rietx.index_pattern` from its
     #: ``formula=``.  ``None`` means no formula was given, so no candidate was
-    #: checked against one; a result recorded before 0.59 also reads ``None``.
+    #: checked against one; a result recorded before 0.60 also reads ``None``.
     #: It checked the answer and never narrowed the search.
     formula: str | None = None
     #: the temperature in K that check read Hofmann's (2002) volumes at,
