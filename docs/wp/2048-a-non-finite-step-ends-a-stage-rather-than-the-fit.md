@@ -31,6 +31,9 @@ raised out of `fit` at four of six:
 | −1, 2, −2 | `ValueError: array must not contain infs or NaNs` |
 | 1 | `ValueError: Residuals are not finite in the initial point.` |
 
+The row passed on the next Linux nightly (run 40184228951, `deff4c301`), which
+is the same rounding lottery read from the other side.
+
 The two raise sites are different solves of one stage:
 
 - `fit` → `_fit_pass` → `_run_plan` (`refine.py:5363`) → `_run_stage`'s first
