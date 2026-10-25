@@ -105,7 +105,9 @@ where a staleness measure would be computed), `strategy/staged.py`
 PR #1161). `RefinementPlan.stage_ftols` gives the last declared stage 1e-9 when a closing stage follows. On the hostile pair cpd-1b's warm stage reaches `axial_sl` 0.0082 at Rwp 0.1398 (macOS arm64), against 0.142 for your recompile-every-10-iterations probe and 0.137 for the independent fit, so a recompiling scheme still has about 0.003 in Rwp to find on this case. The frozen-window sink itself is untouched: a stage that converges into it at 1e-9 would still hand the closing stage a runaway, and no second case is known. The new slow test `test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway` fails at once on any closing compile above `axial_sl` 1, so it guards your change too. Option 5's cost table (1.04-1.07× evaluations, no answer moved on the four protocols) is in WP-2045's Context.
 
 **The axial zero case, #774** (folded from WP-1421's `### Inherited` entry
-2026-10-25; re-check it by the maintainer's instruction, last task). The case was ruled (c), documented: with both axial ratios at exactly zero and either free, the compile sizes the windows and the FCJ nodes as if each were `forward.AXIAL_SIZING_FLOOR` (0.02), so `predict()` differs from the same model held at zero by 4.8e-5 of the strongest peak (the issue's rutile reproducer). Sizing every zero model at the floor (option a) made the gap exactly 0 and a default fluorapatite `mccusker_default` fit 2.0× slower (0.64-0.71 s → 1.32-1.35 s, `[dev]`, darwin/arm64). The floor does two jobs: a live derivative column at zero (the nodes) and room for the tail the stage grows (the windows). The 4.8e-5 is the windows' job. Once windows follow the parameters between solves, that job is this WP's, so a model at zero could size its nodes from the free set and its windows from its value, which may close the gap at no cost. Unmeasured: check that free and held curves at zero then agree, and that the derivative column at zero stays correct (`test_cross_backend.py`'s axial rows). `forward.MAGNETIC_SIZING_FLOOR` has the same zero-case shape (`forward.py:4008-4013`), unmeasured; check it in the same pass. The sentence to update if the gap closes is in `help.py`'s `axial_sl`/`axial_hl` entries and `Refinement.predict`'s docstring; `docs/practice.md` § Axial divergence at zero has the survey. A second point for your acceptance: WP-1421 re-measured the closing stage against one more empty stage on the fluorapatite tutorial (0.00 % under `mccusker_default`, 9.26 % with `closing_window_tol=None`), and a hand-run `run_stage` has no closing stage, so it keeps that gap. That is your sink at the size of one stage.
+2026-10-25; moved to WP-2051 the same day, since windows here did not come to
+follow the parameters and the re-check applies only if 2051's are adopted;
+kept below as the record). The case was ruled (c), documented: with both axial ratios at exactly zero and either free, the compile sizes the windows and the FCJ nodes as if each were `forward.AXIAL_SIZING_FLOOR` (0.02), so `predict()` differs from the same model held at zero by 4.8e-5 of the strongest peak (the issue's rutile reproducer). Sizing every zero model at the floor (option a) made the gap exactly 0 and a default fluorapatite `mccusker_default` fit 2.0× slower (0.64-0.71 s → 1.32-1.35 s, `[dev]`, darwin/arm64). The floor does two jobs: a live derivative column at zero (the nodes) and room for the tail the stage grows (the windows). The 4.8e-5 is the windows' job. Once windows follow the parameters between solves, that job is this WP's, so a model at zero could size its nodes from the free set and its windows from its value, which may close the gap at no cost. Unmeasured: check that free and held curves at zero then agree, and that the derivative column at zero stays correct (`test_cross_backend.py`'s axial rows). `forward.MAGNETIC_SIZING_FLOOR` has the same zero-case shape (`forward.py:4008-4013`), unmeasured; check it in the same pass. The sentence to update if the gap closes is in `help.py`'s `axial_sl`/`axial_hl` entries and `Refinement.predict`'s docstring; `docs/practice.md` § Axial divergence at zero has the survey. A second point for your acceptance: WP-1421 re-measured the closing stage against one more empty stage on the fluorapatite tutorial (0.00 % under `mccusker_default`, 9.26 % with `closing_window_tol=None`), and a hand-run `run_stage` has no closing stage, so it keeps that gap. That is your sink at the size of one stage.
 
 **The staleness test, measured** (2026-10-25, macOS arm64, `[dev]`, Python
 3.12, `OPENBLAS_NUM_THREADS=1`, on `main` at `28c88711d`; probes in
@@ -323,16 +325,15 @@ from the start's windows.
       `tests/test_window_loss.py`
 - [x] Skill and manual: the diagnostic's reference row; the manual's generated pages carry the code and the field from `help.py`, and
       `reference/refinement.md` stays as it was, being at its 50 000-character cap
-- [ ] The prototype: windows recomputed at every evaluation on the numpy
+- [x] The prototype: windows recomputed at every evaluation on the numpy
       path, on the hostile pair under the pre-2045 schedule and the four
       protocols: answer shift in esd, evaluations, time, and whether LM
       still meets `ftol` 1e-9. Then a brief to the maintainer: adopt, and
-      at what cost, or not
-- [ ] #774's zero case (Context, The axial zero case): with windows sized
-      from the value and nodes from the free set, measure whether free and
-      held curves at zero agree and the axial derivative rows still pass;
-      the same pass for `MAGNETIC_SIZING_FLOOR`; update `help.py` and
-      `Refinement.predict`'s sentence if the gap closes
+      at what cost, or not (Context § The prototype, measured). Ruled
+      2026-10-25: file it here, and test a fast resizing with a tapered
+      edge in WP-2051 (PR #1174)
+- [x] #774's zero case: moved to WP-2051 with its Context paragraph, since
+      it changes only if windows follow the parameters
 
 ## Acceptance
 
