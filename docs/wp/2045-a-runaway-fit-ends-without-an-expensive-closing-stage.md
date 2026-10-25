@@ -395,7 +395,21 @@ on about three of ten cores during the probes, idle during the module run).
   the 700 K first attempt's Rwp ranged 0.04-0.95 (Accelerate). So converging
   the last declared stage can cost a series an extra cold fit after a real
   discontinuity. The guide and its page now say so.
-- FULL_SUITE_PLACEHOLDER
+- The full selection (`-n auto`, `[dev]`, macOS arm64, main at `ab5922dd3`
+  merged, nothing else running): 2 failed, 12 075 passed, 283 skipped,
+  42 xfailed in 29:53. Both failures were this change's, fixed and re-run
+  green (6 passed). (1) `test_nac_termination_view_golden_shape`: the golden
+  pinned the last declared stage at `ftol=#e#`, which now reads `ftol=solver
+  default`; that one line changed. (2) `test_the_standards_fire_what_the_pin_says`:
+  every purpose's warnings per result rose by exactly 1/8. One standard,
+  brucite, gained one warning of a code it already fired:
+  `HIGH_CORRELATION` on `lor_size` against `lor_strain`, ρ = −0.995, at the
+  answer only. Size and strain widths are nearly collinear over a lab range
+  (1/cos θ against tan θ), and converging the last declared stage moved
+  brucite to where that pair crosses the 0.98 guard; its other four pairs
+  moved by 0.001 in ρ. Re-pinned with `python -m tests.suite_alarms --write`.
+  Against the fast count this session added one slow test and turned one
+  strict xfail into a pass; CI's nightly holds the baseline.
 
 *Gotchas.*
 - A probe's emulation (a stage's own `ftol`) is inert on this tree, since
