@@ -311,9 +311,9 @@ probes 9 and 10 on three arms (task 4). The brief offered default, opt-in or
 file and recommended filing, which was ruled (task 5). #774's zero case and
 the skill row do not apply, since nothing was adopted. Arrival: no
 `### Inherited`, and the findings were today's, so nothing was stale. The
-branch is cut from WP-2047's tip, since 2051 needs `rewindow`. It merges
-#1174's filing commit, so PR #1175 shows #1171's and #1174's commits until
-those merge. `Track:` was missing from the filed header, so the index put
+branch is cut from WP-2047's tip, since 2051 needs `rewindow`. It merges the
+filing commit of PR #1174, so PR #1175 shows the commits of #1171 and #1174
+until those merge. `Track:` was missing from the filed header, so the index put
 2051 in a group ROADMAP does not link; it now has 2047's track.
 
 *Measured.* The tables are in Context ("Where the resizing time goes", "The
