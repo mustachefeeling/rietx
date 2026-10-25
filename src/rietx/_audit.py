@@ -718,13 +718,14 @@ ROWS: tuple[Row, ...] = (
     Row("PARAMETRIC_OUT_OF_RANGE", "code", tier="caller", ambiguity=1,
         response="warning",
         responds=("quote no value of the dependent (a cell, a width, a scale) at the named "
-                  "patterns, where the equation put it outside the bounds you declared; "
+                  "patterns, where the equation put it outside the target's own min/max; "
                   "narrow the subset or lower the order and refit"),
         evidence=("opt-in twice: parametric=None by default, inside refine_multi / "
                   "MultiHistogramRefinement, which no default path calls (searched 2026-10-24: "
                   "no call in src/rietx outside multi.py, the GUI included); it reads the "
-                  "caller's own declaration against each target's own bounds "
-                  "(multi.py:2316-2322) and applies no package threshold (WP-1325)")),
+                  "caller's own declaration against each target entry's min/max, the schema's "
+                  "default where the caller set none (multi.py:2316-2322), and applies no "
+                  "threshold of its own (WP-1325)")),
     Row("PARAMETRIC_TARGET_UNSEEN", "code"),
     Row("PATTERN_DEAD_CHANNELS", "code"),
     Row("PATTERN_DUPLICATE_POINTS", "code"),
@@ -795,14 +796,17 @@ ROWS: tuple[Row, ...] = (
     Row("SCALE_B_INSEPARABLE", "code"),
     Row("SEQUENTIAL_CANCELLED", "code", tier="caller", ambiguity=1,
         response="warning",
-        responds=("the trajectory ends at the last pattern the chain reached: quote no cell, "
-                  "fraction or width past it, and re-run the series to extend it"),
-        scope=("series",),
-        evidence=("opt-in: fires only on a cancel the caller asked for, cancel=None by default "
-                  "(sequential.py:2153-2167); the token a recorded run or the GUI series route "
-                  "carries (gui/session.py:1711) is set only by the person's stop, and no default "
-                  "path sets one (searched 2026-10-24). It reports the requested act, n of N "
-                  "patterns, and moves no value (WP-1016)")),
+        responds=("the chain the message names stopped early: past the last pattern a "
+                  "cancelled forward chain reached, quote no cell, fraction or width; a "
+                  "cancelled backward chain leaves the forward trajectory whole but unchecked "
+                  "for path dependence; re-run the series to complete it"),
+        scope=("all",),
+        evidence=("opt-in: fires only on a cancel the caller asked for, cancel=None by default; "
+                  "the token runs.attach_cancel gives a recorded series (sequential.py:1275) or "
+                  "the GUI series route carries (gui/session.py:1711) is set only by the "
+                  "person's stop, and no default path sets one (searched 2026-10-24). It "
+                  "reports the requested act, n of N patterns, and moves no value "
+                  "(sequential.py:2153-2167, WP-1016)")),
     Row("SEQUENTIAL_DISCONTINUITY", "code"),
     Row("SEQUENTIAL_MOMENT_HOLD", "code"),
     Row("SEQUENTIAL_MOMENT_ONSET", "code"),
@@ -821,12 +825,14 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_WIDTH_GROWTH", "code"),
     Row("SERIES_PATTERN_FAILED", "code", tier=1, ambiguity=1,
         response="warning",
-        responds=("the named pattern has no fitted values: read its place in every trajectory "
-                  "(a cell, a fraction, a width) as a gap rather than a measurement, and fit "
-                  "it alone to read the exception"),
+        responds=("the named pattern has no fitted values in the chain the message names: in "
+                  "the forward chain read its place in every trajectory (a cell, a fraction, "
+                  "a width) as a gap rather than a measurement, in the backward chain its "
+                  "forward entry stands unchecked for path dependence; fit it alone to read "
+                  "the exception"),
         evidence=("arithmetic: fires exactly when every rung the chain tried on a pattern raised, "
                   "one per SeriesFailure (sequential.py:2244-2278); the policy that carries on "
-                  "past it is SequentialRefinement.fit:on_error's row, tiered on its own")),
+                  "past it is SequentialRefinement.fit:on_error's own row, still unaudited")),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code", response="warning",
         responds=("check the site's multiplicity against the source before quoting a weight "
                   "fraction, a density or a site's occupancy from this fit")),
@@ -2728,11 +2734,11 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.MIN_POINTS_FOR_PERSISTENCE", "constant", value=5),
     Row("rietx.sequential.NOISE_FLOOR_REL", "constant", tier=1, value=1e-09,
         evidence=("numerical floor: a step or a between-chain gap under 1e-9 of the parameter's "
-                  "magnitude (never under 1e-9 absolute, sequential.py:2288) is about 4.5e6 "
+                  "magnitude (never under 1e-9 absolute, sequential.py:2290) is about 4.5e6 "
                   "eps_fp64 and five decades under a refined cell's relative esd (CPD corundum "
                   "a 4.75804(38), 8e-5; 2003-batch/reseed.md), so only a constant trajectory "
                   "falls under it; before it an unrefinable profile.y read as a 29 000x step and "
-                  "1e16 sigma of path dependence (docstring, sequential.py:231-242). The fences "
+                  "1e16 sigma of path dependence (its comment, sequential.py:231-242). The fences "
                   "it guards are tiered on DISCONTINUITY_* and PATH_DEPENDENCE_SIGMA")),
     Row("rietx.sequential.PATH_DEPENDENCE_SIGMA", "constant", value=3.0),
     Row("rietx.sequential.RESEED_FACTOR", "constant", value=1.25),

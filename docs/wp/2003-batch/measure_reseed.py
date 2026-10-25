@@ -21,10 +21,13 @@ other setting at the family's own protocol:
     fence is still *recorded* (the field is written whatever ``reseed``
     says), so its codes still fire.
 ``status_maxiter``
-    as ``status``, and a warm rung whose ``status`` is ``max_iter`` escalates
-    too (added the second session, 2026-10-24: cpd-1b's bad warm rung ended
-    ``max_iter``, which ``status`` keeps).  ``fit`` has no such switch, so the
-    arm wraps :func:`rietx.sequential._reseed_needed` for its own run alone.
+    as ``status``, and the ladder also escalates while its best attempt so
+    far ended ``max_iter`` (added the second session, 2026-10-24: cpd-1b's bad
+    warm rung ended ``max_iter``, which ``status`` keeps).  The fence is asked
+    about the best attempt, not the last rung, so a warm ``max_iter`` that a
+    worse later rung does not displace keeps escalating to the last rung.
+    ``fit`` has no such switch, so the arm wraps
+    :func:`rietx.sequential._reseed_needed` for its own run alone.
 
 and one reference arm, ``ref``: every pattern fitted cold and alone, as
 ``SequentialRefinement(...).fit([pattern])`` from the chain's own initial
@@ -137,8 +140,8 @@ REFERENCE_ARMS = ("ref", "ref_seeded")
 
 @contextmanager
 def _escalating(statuses):
-    """Make ``_reseed_needed`` also reject a rung whose status is in
-    *statuses*, for the ``with`` block alone."""
+    """Make ``_reseed_needed`` also reject a best-so-far attempt whose status
+    is in *statuses*, for the ``with`` block alone."""
     if not statuses:
         yield
         return
