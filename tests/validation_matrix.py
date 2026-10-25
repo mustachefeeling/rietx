@@ -1181,10 +1181,12 @@ CLAIMS: tuple[Claim, ...] = (
                   "collapsed; the carry-glob hypothesis was refuted at 838. "
                   "Gating a speed number would turn machine noise into a "
                   "test failure",
-        measured="388 vs 1218 iterations, at mean Rwp 0.1282 against 0.1258; "
-                 "1.9.0 read 403 vs 1214 at identical mean Rwp (365 carrying "
-                 "everything).  The carry-everything count is unmeasured on "
-                 "1.10.0, whose hostile series does not finish (next row)",
+        measured="408 restricted and 655 carrying everything vs 1255 "
+                 "iterations, at mean Rwp 0.1282 for both chains against "
+                 "0.1258 (2026-10-25, macOS arm64, after WP-2045 converged the "
+                 "last declared stage); 1.9.0 read 403 vs 1214 at identical "
+                 "mean Rwp (365 carrying everything).  1.10.0's hostile series "
+                 "did not finish (next row)",
     ),
     Claim(
         "test_acceptance_sequential",
@@ -1200,13 +1202,45 @@ CLAIMS: tuple[Claim, ...] = (
                   "on the hostile series — the collapsed refit recovers a bad "
                   "warm start within the fit — so it is insurance, pinned by "
                   "unit tests rather than by this suite",
-        measured="exact accounting; zero reseeds on the hostile series, and "
-                 "no kept rung above the Rwp fence (1.9.0).  Unmeasured on "
-                 "1.10.0: the hostile series did not finish there, spending "
-                 "over 50 CPU minutes in the closing stage that follows "
-                 "cpd-1b's warm rung (Rwp 0.760), from WP-2002's #1085 on",
+        measured="exact accounting; zero reseeds on the hostile series, "
+                 "every pattern after the first kept on its warm rung, and no "
+                 "kept rung above the Rwp fence (2026-10-25, macOS arm64, "
+                 "after WP-2045; 1.9.0 the same).  1.10.0's hostile series did "
+                 "not finish, spending over 50 CPU minutes in the closing "
+                 "stage that follows cpd-1b's warm rung (Rwp 0.760)",
         diagnostics=("SEQUENTIAL_RESEED", "SEQUENTIAL_UNRECOVERED",
                      "SEQUENTIAL_RWP_OUTLIER"),
+    ),
+    Claim(
+        "test_acceptance_sequential",
+        "test_the_first_rung_bound_moves_no_accepted_value", "qarr",
+        ("identity",),
+        "FIRST_RUNG_FACTOR is answer-invariant on the hostile series: the "
+        "chain with WP-1127's first-rung bound and the chain without it "
+        "report the same values, esds, rungs, fences and codes, and no kept "
+        "first rung reaches the budget the bound would set",
+        reference="the same chain with first_rung_factor=None, to the bit; "
+                  "the margin against FIRST_RUNG_FACTOR itself (WP-2003). "
+                  "It verifies the bound and validates nothing, the "
+                  "reference being rietx's own unbounded chain",
+        measured="bit-identical; kept first rungs past the armed point "
+                 "0.064-0.080x the running maximum against a factor of 3.0 "
+                 "(2026-10-25, macOS arm64, after WP-2045; 0.34-0.39x on "
+                 "2026-10-24, Linux x86-64, with cpd-1b's runaway in the chain)",
+    ),
+    Claim(
+        "test_acceptance_sequential",
+        "test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway", "qarr",
+        ("ceiling",),
+        "a regression bar, no accuracy claim: cpd-1b's warm stage, carried "
+        "from cpd-1a's answer, ends with axial_sl under 1 and is kept on its "
+        "warm rung, and no closing compile sees a ratio above 1",
+        reference="real instruments sit near 0.01-0.05; the runaway it guards "
+                  "against reached 557.8 on 1.10.0 (WP-2045), so the bar of 1 "
+                  "is loose on purpose",
+        measured="axial_sl 0.0082 at Rwp 0.1398, against 0.1373 for the "
+                 "independent fit (2026-10-25, macOS arm64); the parent tree "
+                 "fails it at 557.8",
     ),
     Claim(
         "test_acceptance_sequential", "test_series_exports", "qarr",

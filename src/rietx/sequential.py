@@ -199,14 +199,6 @@ FIRST_RUNG_SAMPLES = 3
 #: so 3.0 carries 2.3× margin over the worst case seen anywhere.  It reached
 #: 1.89 at a single sample, which is what the minimum is for.
 #:
-#: Being wrong is cheap and **cannot reach the answer**: a bound that bites
-#: costs one escalation, the rung it escalates to is the full staged plan from
-#: the same warm state, and :func:`_prefer` refuses to keep the truncated
-#: attempt over the completed one.  Measured on both harness cases, every
-#: accepted value is bit-identical to the unbounded chain's, because the bound
-#: only truncates a rung whose result is discarded and its replacement starts
-#: from the warm state rather than from the truncation.
-#:
 #: What licenses a modest factor is that being wrong is cheap **and cannot reach
 #: the answer**: a bound that bites costs one escalation, and the rung it
 #: escalates to is the full staged plan from the same warm state, with
@@ -214,7 +206,17 @@ FIRST_RUNG_SAMPLES = 3
 #: Measured on both harness cases, every accepted value is bit-identical to the
 #: unbounded chain's — 0 of 1030 and 0 of 392 — because the bound only truncates
 #: a rung whose result is discarded, and its replacement starts from the warm
-#: state rather than from the truncation.
+#: state rather than from the truncation.  ``test_the_first_rung_bound_moves_no_
+#: accepted_value`` asserts it on the thermal ramp and the CPD chain, with the
+#: margin: every kept first rung under its budget (WP-2003).
+#:
+#: **Since the closing stage (WP-2002) that escalation is not forced.** A
+#: truncated warm stage is followed by the closing stage, whose verdict is the
+#: result's ``status``, so a bitten first rung that the closing stage then
+#: converges reads ``"converged"`` and is kept: at a factor of 0.5 on the thermal
+#: ramp, three patterns kept a closed truncated rung, within 8e-4 esd of the
+#: unbounded chain (WP-2003's clash table).  The tests above hold only where the
+#: bound bites no winner.
 FIRST_RUNG_FACTOR = 3.0
 
 #: A step is called a discontinuity when it exceeds this multiple of the median
@@ -505,10 +507,11 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
                       strain_seed=max((s.strain_seed for s in plan.stages),
                                       default=0.0))],
         correlation_guard=plan.correlation_guard,
-        # the warm stage's own tolerance when the plan has a closing stage,
-        # which then takes the solver's; inert without one, a lone stage being
-        # the last, and carried anyway, because this is the compressed plan
-        # rather than a different protocol (WP-1123)
+        # inert, the lone warm stage being the last declared one, which
+        # converges whether or not a closing stage follows (WP-2045: at 1e-6
+        # the hostile series' cpd-1b warm stage stopped on its frozen windows'
+        # plateau at axial_sl 555); carried anyway, because this is the
+        # compressed plan rather than a different protocol (WP-1123)
         intermediate_ftol=plan.intermediate_ftol,
         # and the closing stage itself, the protocol's like the two below
         # (WP-2002, the sixth round's Q1 and Q2)

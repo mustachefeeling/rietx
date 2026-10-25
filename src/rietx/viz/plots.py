@@ -817,12 +817,14 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     It is in 2θ whatever ``x_axis`` is, because it selects channels rather than
     describing the drawing.
 
-    ``wavelength`` puts λ on the 2θ axis, which is meaningless without it.  It
-    is a parameter rather than a lookup because a :class:`RefinementResult`
-    does not carry the emission line — pass
-    ``instrument.source.lines[0].wavelength.value`` (a ``Parameter`` since
-    WP-1134, so ``.value`` is required here), or leave it off and say the
-    source in the caption.
+    The 2θ axis names the radiation the fit used, which
+    :attr:`RefinementResult.radiation` records (WP-2042):
+    ``2θ (degrees), Cu Kα, λ = 1.54059 Å``.  The anode is named by
+    :meth:`PatternData.plot`'s rule (:func:`_stated_radiation`), so a refined
+    wavelength, a synchrotron or a neutron source shows λ alone, and a result
+    written before the field existed shows ``2θ (degrees)``.  An explicit
+    ``wavelength`` replaces both, and Q and d need it, because the label
+    converts nothing.
 
     ``figsize``/``font_size`` are the exposure surface: build the figure at the
     width it will be read at rather than scaling it afterwards.  The defaults
@@ -860,7 +862,9 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     hue = PALETTES[style]
     has_bkg = bool(show_background and y_bkg.size == tt.size and np.any(y_bkg))
 
-    x, x_label = _x_values(tt, x_axis, wavelength)
+    lam, radiation = ((wavelength, None) if wavelength is not None
+                      else _stated_radiation(None, None, result.radiation))
+    x, x_label = _x_values(tt, x_axis, lam, radiation)
     if x.size > 1 and x[0] > x[-1]:
         # d ascends as 2θ descends.  Mirror the pattern rather than reversing
         # the axis: an axis that counts down is read wrong at a glance, and
@@ -1105,19 +1109,21 @@ def _starting_model(ref, data):
             np.asarray(compiled.background(values), dtype=float))
 
 
-def _stated_radiation(model, data) -> tuple[float | None, str | None]:
-    """The primary λ and the anode a pattern's figure can name, read and never
-    inferred: from ``model``'s source when there is a model, else from what the
-    file stated (``data.metadata``), else nothing.
+def _stated_radiation(model, data, recorded=None) -> tuple[float | None, str | None]:
+    """The primary λ and the anode a figure can name, read and never inferred:
+    from ``model``'s source when there is a model, else from a result's
+    ``recorded`` :class:`~rietx.schemas.results.Radiation` (WP-2042), else from
+    what the file stated (``data.metadata``), else nothing.
 
     A source carries no anode name, so an X-ray source is named only where its
     lines are one entry of the radiation table to the last digit, which is
     what a preset such as ``bragg_brentano(radiation="CuKa")`` builds.  A
     wavelength near a Kα1 names nothing, because a synchrotron beam can sit
     within any tolerance of one, and a neutron source is never named.  A
-    file's own ``anode`` is named when it is an element the table carries, as
-    Kα1 where the file records a Kα2 wavelength of zero (the doublet was not
-    used) and as Kα otherwise.
+    recorded radiation is the source's kind and lines, so it is named by the
+    same test.  A file's own ``anode`` is named when it is an element the
+    table carries, as Kα1 where the file records a Kα2 wavelength of zero (the
+    doublet was not used) and as Kα otherwise.
     """
     from ..schemas.instrument import _KA_DOUBLETS, _RADIATIONS
 
@@ -1125,13 +1131,19 @@ def _stated_radiation(model, data) -> tuple[float | None, str | None]:
         element, line = key.split("Ka")
         return f"{element} Kα{line}"
 
-    if model is not None:
-        source = model.instrument.source
-        lines = tuple(line.wavelength.value for line in getattr(source, "lines", ()))
+    if model is not None or recorded is not None:
+        if model is not None:
+            source = model.instrument.source
+            kind, lam = source.kind, getattr(source, "primary_wavelength", None)
+            lines = tuple(line.wavelength.value for line in getattr(source, "lines", ()))
+        else:
+            kind, lines = recorded.kind, tuple(recorded.wavelengths)
+            lam = lines[0] if lines else None
         name = next((key for key, table in _RADIATIONS.items()
-                     if source.kind == "xray_cw" and lines == table), None)
-        return (getattr(source, "primary_wavelength", None),
-                spelt(name) if name is not None else None)
+                     if kind == "xray_cw" and lines == table), None)
+        return lam, spelt(name) if name is not None else None
+    if data is None:
+        return None, None
 
     def stated(key: str) -> float | None:
         try:

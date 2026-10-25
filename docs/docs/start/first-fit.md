@@ -109,7 +109,7 @@ One more line draws the fit:
 
 <!-- api-doc: no-exec — it needs a result from the reader's own data -->
 ```python
-result.plot(path="nac_fit.png", wavelength=0.4139090)
+result.plot(path="nac_fit.png")
 ```
 
 ```{image} ../figures/nac-fit-light.png
@@ -129,7 +129,7 @@ caused it, and nothing comes between them. Every series is named in the
 right-hand margin rather than in a legend the eye has to look up. The fit
 statistics sit in the corner, because a figure's title is its caption.
 
-`wavelength=` puts λ on the 2θ axis, which is meaningless without it. The other
+The result records the λ the fit used, and the 2θ axis states it. The other
 arguments window the pattern, change the axes and move the residual into a panel
 of its own. `RefinementResult.plot` passes them to `rietx.viz.plot_result`, whose
 arguments [API: everyday calls](../reference/api.md#export-and-plots) lists.
