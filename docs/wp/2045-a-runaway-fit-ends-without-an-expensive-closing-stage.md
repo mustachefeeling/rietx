@@ -299,7 +299,7 @@ climb to the 512 cap, and each new count misses the `leggauss` cache
       stage from cpd-1a's closing answer ends with `axial_sl` under 1 (on
       the 1.10.0 tree it reaches 555 within seconds on Linux), and a fast
       `stage_ftols` test on a plan with and without a closing stage
-- [ ] The `intermediate_ftol` rows in `src/rietx/_audit.py`, and the
+- [x] The `intermediate_ftol` rows in `src/rietx/_audit.py`, and the
       `INTERMEDIATE_FTOL` and `CLOSING_WINDOW_TOL` docstrings, re-read
       against the new schedule
 - [ ] `tests/test_acceptance_sequential.py` finishes, WP-2003's second

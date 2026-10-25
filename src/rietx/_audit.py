@@ -979,12 +979,14 @@ ROWS: tuple[Row, ...] = (
                   "the same retry; MATLAB and Octave call gesvd by default"),
         approved="2026-10-22"),
     Row("rietx.schemas.results.StageResult.ftol", "action", tier=3, ambiguity=1,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
                  "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
@@ -2048,8 +2050,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.lm.FTOL", "constant", tier=3, value=1e-09,
         evidence=("no stated source; one decade under SciPy's 1e-8 default (checked); GSAS-II "
                   "5.8.4's default 'min dM/M' is 1e-3, a relative chi2 change between cycles "
-                  "(GSASIIobj.py:20, checked); the closing stage solves at it, and so does every "
-                  "stage under intermediate_ftol=None; INTERMEDIATE_FTOL's test measures "
+                  "(GSASIIobj.py:20, checked); the closing stage and the last declared stage solve "
+                  "at it (WP-2045), and so does every stage under intermediate_ftol=None; INTERMEDIATE_FTOL's test measures "
                   "against it (tests/test_staged_start_invariance.py), and this value itself "
                   "was never varied; the signature default of run_least_squares, "
                   "run_multi_least_squares and lm.minimize until the B14 lift"),
@@ -2610,12 +2612,14 @@ ROWS: tuple[Row, ...] = (
                   "fit time (WP-2002, the sixth round's Q1 and Q2)")),
     Row("rietx.schemas.plan.CORRELATION_GUARD", "constant", value=0.98),
     Row("rietx.schemas.plan.INTERMEDIATE_FTOL", "constant", tier=3, value=1e-06,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
                  "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
@@ -2940,12 +2944,14 @@ ROWS: tuple[Row, ...] = (
         evidence="arithmetic: the empty container; resolve_plan supplies every plan a fit runs"),
     Row("rietx.schemas.plan.PlanSpec:correlation_guard", "default", value=0.98),
     Row("rietx.schemas.plan.PlanSpec:intermediate_ftol", "default", tier=3, ambiguity=1, value=1e-06,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
                  "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
@@ -2994,12 +3000,14 @@ ROWS: tuple[Row, ...] = (
                  "once a test confirms its margin under both LM and TRF."),
         approved="2026-10-19"),
     Row("rietx.schemas.plan.StageSpec:ftol", "default", tier=3, ambiguity=1, value=None,
-        evidence=("behind the closing stage, 1e-6 against every stage at 1e-9 within 0.1 plain "
-                  "esd on SRM 660c, FAP, cpd-1a and 11-BM NAC (0.000, 0.000, 0.042, 0.000; "
-                  "tests/test_staged_start_invariance.py); fails on cpd-1a with an absent zircon "
-                  "declared, 0.185 esd on fluorite a, where at 1e-9 the unseen zircon's cell "
-                  "walks to the stage budget (STAGE_MAX_ITER) before the closing stage holds it, "
-                  "a strict xfail; 1.00-2.15x fewer evaluations (WP-1113/1123)"),
+        evidence=("behind the closing stage, with the last declared stage converged (WP-2045), "
+                  "1e-6 against every stage at 1e-9 within 0.1 plain esd on FAP, cpd-1a and "
+                  "11-BM NAC (0.000, 0.000, 0.000) and on cpd-1a with an absent zircon declared "
+                  "(0.009, from 0.185 before WP-2002's width twin hold and 0.035 before "
+                  "WP-2045); fails on SRM 660c, 8.82 esd on axial_sl, its mirrored S/L and H/L "
+                  "minima (WP-2012), a strict xfail (tests/test_staged_start_invariance.py, "
+                  "2026-10-25); 1.00-2.15x fewer evaluations (WP-1113/1123), of which "
+                  "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
                  "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
