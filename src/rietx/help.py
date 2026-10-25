@@ -342,7 +342,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "specimen length divided by the goniometer radius. It sets how strongly "
             "low-angle peaks lean toward low 2θ. Fit it on a standard together with "
             "`axial_hl`. The two are strongly correlated and are usually reported as a "
-            "pair."
+            "pair. With both at zero and either refined, the peaks are computed with "
+            "windows and integration points sized for a ratio of 0.02 (see `axial_hl`)."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -355,7 +356,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "receiving-slit height divided by the goniometer radius. It is the second "
             "half of the axial asymmetry. It is so strongly correlated with `axial_sl` "
             "that refining one and holding the other is a common protocol. One ratio "
-            "alone still smears the peaks. Only both at zero switch the asymmetry off."
+            "alone still smears the peaks. Only both at zero switch the asymmetry off. "
+            "With both at zero and either refined, the peaks are computed with windows "
+            "and integration points sized for a ratio of 0.02, so the curve differs from the same model with "
+            "both held by up to about 5e-5 of the strongest peak."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -2061,9 +2065,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "The final stage fixes its peak windows at the values it started from. At "
             "the returned values, those windows give a chi-squared that differs "
             "noticeably from a fresh calculation. The reported statistics and curves use "
-            "the fresh one. The fit is not biased, and the esds are those of the last "
-            "solve. The history node keeps the earlier figure. If the gap matters, split "
-            "that stage in two."
+            "the fresh one, and the esds are those of the last solve. The last stage's "
+            "record keeps the earlier figure, and so does the history node of a single "
+            "fit. A joint fit tests each pattern and names the worst. A large gap means the last stage carried its peaks "
+            "past the windows it was solved on, so the solve may have stopped short of the "
+            "minimum that windows sized at the answer give. Run one more stage with nothing "
+            "new freed and compare. A plan's closing stage does this already."
         ),
     ),
     "FULLPROF_MAGNETIC_PHASE_OMITTED": HelpEntry(
