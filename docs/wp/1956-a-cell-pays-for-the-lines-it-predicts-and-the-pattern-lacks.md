@@ -1,6 +1,6 @@
 # WP-1956 — a cell pays for the lines it predicts and the pattern lacks
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-25 — C3 merged (PR #941); open: the `fom_panel_disagrees` revisit, and tutorial 03's absence count (WP-2041)
 Track: What fires, and what stays silent
 Depends on: 1449 soft (the index 2–4 refutation it widens); 1511 soft (one Le Bail protocol per cell)
 Priority: P2 2026-10-13 — the absent-line detector fires on the truth and is blind on every wrong cell, and a distorted cell ranks first; no grade is confident today only because the run-level `fom_panel_disagrees` fires, which the reporter measured quiet on arms where a wrong cell reached `medium`
@@ -161,17 +161,17 @@ engine or the ranking. Indexing is provisional by declaration
       part, recorded as `Decided YYYY-MM-DD:` here and answered on #916.
       *Decided 2026-10-14: (a)-(c) whole, as PR #941 builds them; answered
       in PR #941's review.*
-- [ ] Rebuild the issue's synthetic Si arms as a test fixture: the truth, cI
+- [x] Rebuild the issue's synthetic Si arms as a test fixture: the truth, cI
       √2·a₀, cF +0.6 %, cP a₀, cP 2a₀, the steeper-background arm, and a
       tetragonal descent of the true lattice; exact and picked lines.
-- [ ] Candidate-independent inputs for `absent_reflections`: the shared or
+- [x] Candidate-independent inputs for `absent_reflections`: the shared or
       pattern-owned background and the measured width (WP-1043's design).
-- [ ] Charge absences at the grade beyond index 2–4, with the glide and
+- [x] Charge absences at the grade beyond index 2–4, with the glide and
       unresolved-split guards; re-measure every `predicted_but_absent` count in
       the tree and record the moves.
 - [ ] Revisit `fom_panel_disagrees` only on the same arms, after the repair.
-- [ ] Tests, and `tests/test_acceptance_indexing.py` green.
-- [ ] Skill: the indexing reference row for any changed caveat or grade rule.
+- [x] Tests, and `tests/test_acceptance_indexing.py` green.
+- [x] Skill: the indexing reference row for any changed caveat or grade rule.
 
 ## Acceptance
 
@@ -213,3 +213,22 @@ absences; Si, corundum and magnetite keep their correct cells.
   containment at equal volume, `to_cell_candidate` scoring on the old seen
   fraction, and a direct `validate_by_lebail` screening on the peak list's
   range and per-line σ. *Next:* #941's round 2.
+- **2026-10-25** — PR #941 (C3, by @mustachefeeling) merged at round 6, landing
+  in `fe4cbcc3` through #939's head, which carried #941's and #993's synced
+  heads. The indexer now asks its reversed questions of inputs a candidate
+  cannot buy: a line screen over the peak list and the picker's background
+  envelope, at the measured resolution (`RESOLUTION_FWHM`, 1 FWHM). A wrong
+  cell can no longer read zero absences by refitting its own background.
+  `predicted_but_absent` caps rather than refutes, and fires on the
+  uncancellable absences inside de Wolff's first twenty lines (true cells 0–2,
+  wrong cells 7–79). The generalised containment check refutes the
+  oversized cell. Indexing thresholds go to 1.12, the 1.11 cycle's one bump,
+  which #993's and #939's notes share. The review's sync commit `ed62646d`
+  parked the release bullets in `docs/releases/1.11.0.md`. Gate: the five
+  PRs of the 2026-10-25 batch stacked on `deff4c30` (tree `8273948f`), whole
+  suite 12 243 passed, 206 skipped, 42 xfailed, 0 failed in 35 min (macOS
+  arm64, `[dev,jax]`, Python 3.12.10). #941's own CI head failed only
+  `guides/moment.py` on Linux 3.14, twice; #939's head, which contains it,
+  passed (WP-2036's guide-precision cause). Task 5 stays open: nothing
+  revisited `fom_panel_disagrees` on the #916 arms. *Next:* task 5, and
+  WP-2041 re-measures tutorial 03's absence count on this tree.

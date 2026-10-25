@@ -20,6 +20,14 @@ other setting at the family's own protocol:
     (``forced`` in ``SequentialRefinement._chain`` bypasses ``reseed``).  The
     fence is still *recorded* (the field is written whatever ``reseed``
     says), so its codes still fire.
+``status_maxiter``
+    as ``status``, and the ladder also escalates while its best attempt so
+    far ended ``max_iter`` (added the second session, 2026-10-24: cpd-1b's bad
+    warm rung ended ``max_iter``, which ``status`` keeps).  The fence is asked
+    about the best attempt, not the last rung, so a warm ``max_iter`` that a
+    worse later rung does not displace keeps escalating to the last rung.
+    ``fit`` has no such switch, so the arm wraps
+    :func:`rietx.sequential._reseed_needed` for its own run alone.
 
 and one reference arm, ``ref``: every pattern fitted cold and alone, as
 ``SequentialRefinement(...).fit([pattern])`` from the chain's own initial
@@ -123,8 +131,31 @@ ARMS = {
     "on": {"reseed": True, "reseed_factor": RESEED_FACTOR},
     "status": {"reseed": True, "reseed_factor": float("inf")},
     "off": {"reseed": False},
+    "status_maxiter": {"reseed": True, "reseed_factor": float("inf")},
 }
+#: arms whose rule ``fit`` cannot express, so ``_reseed_needed`` is wrapped
+ESCALATE_STATUSES = {"status_maxiter": ("max_iter",)}
 REFERENCE_ARMS = ("ref", "ref_seeded")
+
+
+@contextmanager
+def _escalating(statuses):
+    """Make ``_reseed_needed`` also reject a best-so-far attempt whose status
+    is in *statuses*, for the ``with`` block alone."""
+    if not statuses:
+        yield
+        return
+    import rietx.sequential as seq
+    original = seq._reseed_needed
+
+    def wrapped(result, accepted_rwp, factor):
+        return result.status in statuses or original(result, accepted_rwp, factor)
+
+    seq._reseed_needed = wrapped
+    try:
+        yield
+    finally:
+        seq._reseed_needed = original
 #: a between-arm difference counted as "the accepted values differ"
 DIFFER_ESD = 0.1
 
@@ -654,8 +685,11 @@ def run(family: str, arm: str, out: Path, first: int | None) -> Path:
         kw = {**base_kw, **ARMS[arm]}
         record["settings"] = {k: _num(v) if isinstance(v, float) else v
                               for k, v in ARMS[arm].items()}
-        series, result, marks, wall, tail = _chain(fam, patterns, fam.start,
-                                                   kw, labels, xs)
+        with _escalating(ESCALATE_STATUSES.get(arm, ())):
+            series, result, marks, wall, tail = _chain(fam, patterns, fam.start,
+                                                       kw, labels, xs)
+        if arm in ESCALATE_STATUSES:
+            record["settings"]["escalates_on_status"] = list(ESCALATE_STATUSES[arm])
         record["patterns"] = [
             _entry_record(e, r, *marks[e.index])
             for e, r in zip(result.entries, series.results_, strict=True)]

@@ -1,6 +1,6 @@
 # WP-1806 — first public case: acridine form IX
 
-Milestone: rigid-bodies · Status: ⬜
+Milestone: rigid-bodies · Status: 🔄 2026-10-25 — the pdCIF reader merged (PR #1006); open: the data file, the authors' profile, the acceptance test
 Depends on: 1805
 Priority: P3 2026-10-23 — the first real-data proof of the body; 1810 closed without it (PR #955), and 1989 waits on it soft for its public case and pdCIF reader
 
@@ -76,7 +76,7 @@ of issue #561, sized M.
 
 ## Tasks
 
-- [ ] pdCIF reader: accept the net-intensity and weight columns, with a diagnostic where it repairs
+- [x] pdCIF reader: accept the net-intensity and weight columns, with a diagnostic where it repairs
 - [ ] The data file and a provenance row in `tests/data/README.md`
 - [ ] The authors' profile; the template-superposition floor, measured and recorded
 - [ ] The acceptance test + obs/calc/diff PNGs to `tests/output/`
@@ -100,3 +100,19 @@ of issue #561, sized M.
 - **2026-10-06** — created by WP-1803's re-cut. The maintainer kept the
   published-esd bar, so the reader fix and the authors' profile are tasks here and the
   size grows from S to M.
+- **2026-10-25** — PR #1006 (by @mustachefeeling) merged at round 4 as
+  `f9a983d7`. `read_pattern` reads a pdCIF whose only intensity column is
+  `_pd_proc_intensity_net`, as the acridine deposit (COD 2242872) has, and
+  says so (`PATTERN_INTENSITY_NET`, `metadata["intensity_item"]`). A net
+  column that never comes within 5σ of zero fires `PATTERN_NET_HAS_BACKGROUND`
+  (warning, tier 3, ruled 2026-10-24), 14.1σ on this deposit; the message
+  names both readings, a background left in or no empty baseline in range,
+  and the suggestion prescribes neither. A `_pd_proc_ls_weight` of zero now
+  excludes its point only (`PATTERN_ZERO_WEIGHT_EXCLUDED`), where 1.10.0
+  dropped the whole weight column. The review's sync commit `4072cedb` moved
+  the notes to `docs/releases/1.11.0.md`. Gate: the stacked full suite of
+  WP-1956's 2026-10-25 entry. Merged by the maintainer over a red `fast py3.14
+  2/2`, whose one failure is `examples/guides/moment.py` (WP-2036): that
+  guide's code path is identical to #939's head, which passed it. Skill: the
+  three codes have rows in `references/diagnostics-reading.md`. *Next:* the
+  data file and its provenance row, then the authors' profile.
