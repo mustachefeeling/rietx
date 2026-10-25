@@ -203,6 +203,9 @@ from .structure import Cell
 #: Also 1.12 (WP-2011): the whole-pattern validation fits by Pawley, so every
 #: candidate's ``lebail.rwp`` and ``unmatched_observed`` move, and a cell that
 #: predicts every reflection of another now reads that cell's Rwp or lower.
+#: Also 1.12 (#939's follow-ups): ``EXTINCTION_SCREEN_UNRELIABLE``'s message
+#: says whether weak data or misfit failed the gate, from
+#: ``ExtinctionScreen.perfect_fit_rwp_net``; no threshold or verdict moved.
 INDEXING_THRESHOLDS_VERSION = "1.12"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
@@ -2358,6 +2361,12 @@ class ExtinctionScreen(Base):
     #: :data:`~rietx.indexing.extinction.REFERENCE_NET_RWP_MAX` the screen is
     #: ``"unreliable"``; ``None`` until the reference fit ran
     reference_rwp_net: float | None = None
+    #: what ``reference_rwp_net`` would read for a fit that left only the
+    #: counting noise: √(N/(N + S)), N the fitted channels and S the weighted
+    #: net Bragg power.  Past the bound too, the data are too weak for the gate
+    #: (S < N); below it, the gap to ``reference_rwp_net`` is misfit.  ``None``
+    #: until the reference fit ran
+    perfect_fit_rwp_net: float | None = None
     #: ``"converged"``; ``"failed"`` (no reference fit, nothing ranked);
     #: ``"unreliable"`` (ranked, but the reference fit left more of the net
     #: signal unexplained than any absence test can be read against, so

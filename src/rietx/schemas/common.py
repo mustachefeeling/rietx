@@ -591,6 +591,9 @@ from .._nearmiss import did_you_mean
 #: ``displacive_statement``.  An older build refuses a phase carrying it.
 #: Also in 0.60 (WP-2011): ``LeBailValidation.mode``, additive, its default
 #: ``"lebail"`` being what every record written before it ran.
+#: Also in 0.60 (#939's follow-ups): ``ExtinctionScreen.perfect_fit_rwp_net``,
+#: what that Rwp would read for a fit leaving only the noise, √(N/(N+S)).
+#: Additive and defaulted to ``None``, the same rule.
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
