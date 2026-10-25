@@ -87,6 +87,10 @@ where a staleness measure would be computed), `strategy/staged.py`
 (`stage_ftols`, the closing stage), `schemas/results.py` (`StageResult`),
 `schemas/history.py` (`NodeAction`).
 
+### Inherited
+
+- **From WP-2045 (2026-10-25, PR #1161): option 5 landed, and what it leaves is yours.** `RefinementPlan.stage_ftols` gives the last declared stage 1e-9 when a closing stage follows. On the hostile pair cpd-1b's warm stage reaches `axial_sl` 0.0082 at Rwp 0.1398 (macOS arm64), against 0.142 for your recompile-every-10-iterations probe and 0.137 for the independent fit, so a recompiling scheme still has about 0.003 in Rwp to find on this case. The frozen-window sink itself is untouched: a stage that converges into it at 1e-9 would still hand the closing stage a runaway, and no second case is known. The new slow test `test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway` fails at once on any closing compile above `axial_sl` 1, so it guards your change too. Option 5's cost table (1.04-1.07× evaluations, no answer moved on the four protocols) is in WP-2045's Context.
+
 ## Non-goals
 
 - Windows that move at every evaluation (WP-2045's option 7). That drops
