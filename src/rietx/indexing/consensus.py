@@ -247,9 +247,11 @@ def absence_excess(candidates: Sequence[CellCandidate]) -> None:
     to the twentieth observed one; Smith & Snyder 1979's F_N by N_poss; EXPO's
     WRIP20, Altomare *et al.* 2009, against the best candidate), and the raw
     count is not: magnetite's and PbSO₄'s true cells read 2, as LaB₆'s wrong
-    a√2 I cell does on synthetic data.  Measured on the acceptance corpus at
-    ``RESOLUTION_FWHM`` 1.0 (PR description), every true cell reads an excess
-    of 0 and every oversized cell at least 1.  **Reported, not gated**: the
+    a√2 I cell does on synthetic data.  Measured at ``RESOLUTION_FWHM`` 1.0
+    on the acceptance corpus's real families and both PbSO₄ histograms (PR
+    description), every true cell reads an excess of 0 to 0.06 and every
+    oversized cell at least 1; two cells within 0.5 % of PbSO₄'s metric, with
+    the truth's line set, read what it reads.  **Reported, not gated**: the
     cleanest candidate of a list that missed the truth, and a lone candidate,
     read 0 whatever their count, so it cannot replace the cap.
     """
