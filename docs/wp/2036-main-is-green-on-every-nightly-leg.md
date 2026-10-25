@@ -149,12 +149,13 @@ It passed on every later night, so it is out of scope unless it recurs.
       the Sabine Laue factor at x = 1, which a forward-difference column straddled on
       one platform. E_L is now continuous and the page quotes CaF₂ 3.58 ± 3.53 wt %
       on both.*
-- [ ] Windows fast job's `timeout-minutes: 45`, before the next cut: `RELEASING.md`
+- [x] Windows fast job's `timeout-minutes: 45`, before the next cut: `RELEASING.md`
       step 4 reads this job as a gate, and on 1.10.0's release commit it read
       cancelled after the suite had passed (44:29 against 24:23 two hours earlier).
       Rebudget it from the measured range so that it stays a runaway guard.
       `tests/CLAUDE.md` § Budgets in tests says a budget that is not several times
-      the cost is a load sensor.
+      the cost is a load sensor. *Done 2026-10-25: 120 min, from the last 30
+      nightlies' job times (handover entry).*
 - [ ] The Le Bail NaN raise: reproduce `test_cell_runaway_safety.py::
       test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error` (red on
       `c9dde14`'s `full` job, read off the log). If it reproduces it is a raise in a
