@@ -23,6 +23,9 @@ OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2047-batch/pro
 | `probe5.py` | `forward.window_loss` against probe 1's fresh-compile `lost` at every stage answer, with the milliseconds of each | 10-60 s a family |
 | `probe6.py` | The shipped report in real fits: each stage's `window_loss`, which fits raise `STAGE_WINDOWS_STALE`, and the fit time with the measurement and with it stubbed out, interleaved. Takes `FAMILY [N]`; `hostile` runs into the closing compile at `axial_sl` 558 and takes tens of minutes, so stop it there | 10-30 s a family |
 
+| `probe7.py` | Windows and FCJ node counts resized at every residual and Jacobian evaluation, emulated by wrapping the solver's closures: answer shift in esd, evaluations, LM terminations, residual calls that changed a window, resizing seconds, and fit seconds against shipped (interleaved, median of 5). Takes `fit hostile\|hostile5 ARM`, `time FAMILY [N]` or `step FAMILY`; `step` measures the jump in cost where a window edge crosses a point. `PROBE7_GUARD` sets the size abort. Written by a subagent lane, its headline numbers re-run by the session | 5 s a hostile run; `time` 5-30 s a family; `step` ~10 s |
+| `probe8.py` | Which arm's answer is right: each arm's protocol answer polished at 5e-5 windows to a fixed point, the distance between the two polished points, and χ² at each. Imports probe 7 | 30-90 s a family |
+
 Time probe 6 alone: a pytest run beside it put 389 ms on a 51 ms charge.
 
 All six ran on macOS arm64 (`[dev]`, Python 3.12) at `28c88711d`. The

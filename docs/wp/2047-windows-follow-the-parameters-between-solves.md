@@ -248,6 +248,44 @@ it. The alternative is to report every stage, which warns on the calibrate
 guide's correct fit. The rule is read off the record (`CLOSING_STAGE_NAME`),
 so the joint runner, which has no plan at that point, applies it too.
 
+**The prototype, measured** (2026-10-25, same machine, `[dev]`, numpy path,
+compiled tier on; probes 7 and 8, probe 7 by a lane whose hostile result the
+session re-ran). Windows and FCJ node counts are resized at every residual
+and Jacobian evaluation by wrapping the solver's two closures
+(`least_squares._make_residual`, `_make_jacobian`) with `rewindow`'s rule.
+
+| | NAC | LaB6 | Fluorapatite | cpd-1a |
+|---|---|---|---|---|
+| Evaluations, shipped → per evaluation | 46 → 49 | 90 → 110 | 49 → 83 | 175 → 216 |
+| Fit time ratio (median of 5, interleaved) | 1.24 | 1.63 | 1.66 | 2.08 |
+| Resizing seconds a fit | 0.12 | 0.21 | 0.35 | 1.25 |
+| Residual calls that moved a window | 17/56 | 56/124 | 67/108 | 186/243 |
+| Largest answer shift, plain esd | 0.0002 | 0.025 | 0.042 | 0.99 (`profile.v`) |
+| Polished at 5e-5: points apart, χ² shipped / per evaluation | — | 5.1 esd, 3.518 / 3.549 | 0.0 esd, 2.747 / 2.747 | 0.95 esd, 1.847 / 1.845 |
+
+(NAC polished 0.0 esd apart at 12.406 both.) Every stage converges in both
+arms, no stage reaches its budget, and the count of each LM termination is
+unchanged per family. Near the answers a window edge crossing a point steps
+the cost by 1e-10 to 1.6e-5 of itself, 10² to 10⁴ times what `ftol` 1e-9
+resolves, and the extra evaluations sit in the late stages, where LM rejects
+more trials. The hostile pair does not run away under per-evaluation
+windows under either schedule: cpd-1b Rwp 0.13944, `axial_sl` 0.00758, in
+41 evaluations under the pre-2045 schedule and 70 under the shipped one,
+against shipped's 312 and 0.13984. The warm stage never collapses a phase.
+
+Accuracy is a wash on these families. Fluorapatite and NAC polish to one
+point. cpd-1a reaches a second minimum 0.95 esd away with χ² 0.1 % lower; the
+manual already records start-dependence there (two Biso starts 15 esd apart
+on fluorite's strain). LaB6's polished points sit 5 esd apart on `profile.u`
+with shipped's χ² 0.9 % lower, inside the known defect where U sits under
+the Γ_G² floor (`test_the_closing_stage_meets_the_bar`'s docstring). One LM
+trial on cpd-1a's `lines_axial` stage sat at `axial_sl` 1096, where the
+resized model held 17.8× the compile's window points; LM rejected it, but an
+implementation needs a policy for trial points far from the start. Not
+covered: the traced backends (jax needs static shapes), the magnetic
+family, the extra peaks, and LM's width inequalities, built once per solve
+from the start's windows.
+
 ## Non-goals
 
 - Recompiling between solves within a stage (options 2 and 3 of the
