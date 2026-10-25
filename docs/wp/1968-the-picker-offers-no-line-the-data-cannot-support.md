@@ -1,6 +1,6 @@
 # WP-1968 — the picker offers no line the data cannot support
 
-Milestone: unscheduled · Status: 🔄 2026-10-21 — both PRs merged (#947 part b, #948 part a), and the driven-set follow-up (#1048); open: the PNG and skill tasks
+Milestone: unscheduled · Status: 🔄 2026-10-25 — #947, #948, #1048 and #993 merged; open: the PNG task
 Track: What fires, and what stays silent
 Depends on: 1909 soft (the 1σ floor this bar succeeds, and its census)
 Priority: P2 2026-10-14 — a defect that fires wrongly: off-lattice components reach every engine as usable lines, and every benchmark harness filters them by hand
@@ -128,7 +128,7 @@ close, since the peak list feeds every engine.
       `position_at_bound` stays driven is in the 2026-10-21 entry.*
 - [ ] Tests, with obs/calc/diff PNGs to `tests/output/`, and
       `tests/test_acceptance_indexing.py` green.
-- [ ] Skill: the new flags' and code's `help.py` entries (both PRs add
+- [x] Skill: the new flags' and code's `help.py` entries (both PRs add
       them), which is where an agent reads a flag; a `references/` row only
       where a flag needs a judgement the entry cannot carry.
 
@@ -156,6 +156,17 @@ name.
   a survey (Sparrow's criterion).
 
 ## Handover log
+
+- **2026-10-25** — PR #993 (#934 (c), by @mustachefeeling) merged at round 6,
+  landing in `fe4cbcc3` through #939's head. `pick_peaks` names every bound
+  its group fit ends on: `PEAK_POSITION_AT_BOUND` and `PEAK_NO_INTENSITY`
+  are new (info, tier 1), and the `where` entries of those two,
+  `PEAK_WIDTH_CAPPED` and `PEAK_EXPECTED_FALSE_LINES` carry each line's bound
+  and value. No flag, threshold or `usable()` moves. Both codes have help
+  entries and their `response` rows. The review's sync commit `72d9884c` put
+  the picker's thresholds note under C3's 1.12 (#941) and moved the release
+  bullet to `docs/releases/1.11.0.md`. Gate: as WP-1956's 2026-10-25 entry.
+  *Next:* the PNG task.
 
 - **2026-10-21** — PR #1048 (outside contributor, #934 part (c)) merged as
   `7c177d01`. A line flagged `weak_line` stays in `usable()` and is still
