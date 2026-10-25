@@ -322,6 +322,199 @@ Every decision a series or a joint fit makes now has a proposed tier, and the 17
 - After the branch moved onto main's 1.11.0.dev0, the editable install's metadata still read 1.10.0.dev0; a reinstall fixed it.
 - `measure_reseed.py --family cpd` needs `--first 2` to match the earlier status and off arms; a full eight-pattern closing-on chain is about an hour an arm.
 
+*Generality* (the `generality-review` judge on the 17 rows and the three silence pairs; its sections pasted unedited, item headings as bold lines).
+
+**`SERIES_PATTERN_FAILED` (+ `.suggestion`): tier 1, response `warning`**
+
+**Verdict: weak.** The case for the tier is stronger: the code reports a fact, and no refiner would want a failed pattern hidden. The `warning` response is the weak part. On its backward-chain branch it duplicates another code that reports the same fact at `info`.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "fires exactly when every rung the chain tried on a pattern raised, one per SeriesFailure (sequential.py:2244-2278); the policy that carries on past it is SequentialRefinement.fit:on_error's own row, still unaudited" (row `evidence`). A rung is one attempt in the chain's restart ladder. | Confirmed at `sequential.py:1328` (forward) and `:1410` (backward). It reports a fact and gates nothing. The choice to carry on past the failure belongs to `on_error="carry"`, which is the default (`_audit.py`, `fit:on_error` value `"carry"`), so this fires on the default path. | agrees |
+| 2. Ambiguity kind | `ambiguity=1` | Kind 1: whether every rung raised is a fact. | agrees |
+| 3. Case against | dissenter "none found" (`rows.json`) | Against the tier: none found. Against the response: on the backward branch (`pass_name="backward"`, the reverse chain that `direction="both"` runs only to check path dependence) the message itself says "The reported forward entry stands" (`:2264-2267`). The same failure also raises `SEQUENTIAL_PATH_CHECK_INCOMPLETE` at `info` (`_path_check_coverage`'s `missing` list, `:2215-2226`). So one fact is a `warning` under one code and `info` under the other. generality.md § Attention is a cost, clause 2, says "where two consequences genuinely differ there are two codes". The row's `responds` names both consequences in one sentence. | response weak on the backward branch |
+| 4. Case for | `responds`: on the forward chain, read the pattern's place in every trajectory "as a gap rather than a measurement" | On the forward chain the pattern has no entry at all (`:2269-2270`), and a trajectory read as a curve would bridge the gap silently. A warning before quoting a trajectory is earned there. | strong (forward) |
+| 5. Tier and source | tier 1, "arithmetic" | Right: it counts raised rungs. The suggestion ("Fit this pattern on its own and read the exception", `:2277`) is the one next step anyone would take. | holds |
+| 6. Dataset families | n/a | No threshold. | n/a |
+| 7. Record that it fired | the code itself | The code, plus `SeriesResult` failures (`failures=`, `n_failed`). `where` is a pattern label, not a parameter path, so `level_under` (`schemas/results.py:1527-1531`) falls back to the empty `scope` and reads `warning` under every purpose, the same as `SEQUENTIAL_CANCELLED`'s `("all",)`. | adequate |
+
+Would change the verdict: either a separate code (or `info`) for the backward branch, or a reason why a backward-only failure owes the same response as a forward gap.
+
+**`SIZE_NORMALISED_ACROSS_WAVELENGTHS` (+ `.suggestion`): tier 1, response `info`**
+
+**Verdict: holds.** The case for is stronger. The scaling it reports is Scherrer physics, and the code states an action without adding a verdict.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "states that conversion and is silent while no scaled term is off zero (multi.py:2249-2300; WP-1131, WP-1343)" | Confirmed (`multi.py:2268-2278`). The diagnostic decides nothing. The action it reports, sharing one size column across wavelengths through `SIZE_LAMBDA_POWER`, sits in `params/multi.py` and is not this item. | agrees |
+| 2. Ambiguity kind | `ambiguity=1` | Kind 1: the λ and λ² powers are fixed by the definitions of the size coefficients. | agrees |
+| 3. Case against | "none found" | Against the statement: none found. A point for the maintainer: § Attention is a cost, clause 1, says a diagnostic earns its place when "a careful refiner does something different when it fires", and the row's `responds` opens "nothing to correct". It does fire only on multi-wavelength joint fits with a freed size term, so it separates fits. From memory and unchecked here: GSAS-II keeps size per histogram-phase pair by default. That bears on the sharing default, not on this code. | channel question, not a tier question |
+| 4. Case for | the docstring's WP-1076 history: before WP-1131 "the fit reported converged… and nothing named the cause" (`multi.py:2252-2261`) | Without it, a reader takes `phases.0.lor_size` (the Lorentzian size coefficient) as the number for histogram 2. The message carries every histogram's factor and value, so the reader can convert without a rerun. | supports |
+| 5. Tier and source | tier 1, "physics: … (180/pi)K lambda/L and the Gaussian one its square (Scherrer…)" | Matches root CLAUDE.md § Invariants (WP-1131/1343). | holds |
+| 6. Dataset families | n/a | No threshold. The zero test is exact. | n/a |
+| 7. Record that it fired | the code | The code, with `value` = largest factor over smallest. | adequate |
+
+Would change the verdict: a ruling that a statement with "nothing to correct" belongs in a record field plus help text rather than a code.
+
+**`STAGE_FREED_NOTHING` (+ `.suggestion`): tier 1, ambiguity 3, response `info`**
+
+**Verdict: weak.** The tier and kind are right: the code computes a fact and leaves the intent to the caller. The `info` response, though, rests on a case (the stage was meant for one histogram) whose frequency is not given. The one measured case is the other one, where the plan missed what it meant to free.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "names the histograms a stage's globs matched no row of while matching another's… states and gates nothing, since one histogram can be the intent (issue #265, WP-1414)" | Confirmed (`multi.py:2539-2584`). `where` is the globs. Joint fit only. | agrees |
+| 2. Ambiguity kind | `ambiguity=3` | Kind 3 fits: intent is outside the pattern. Tier 1 statistic with a kind-3 reading has the same shape as `QPA_FRACTION_RANGE`. | agrees |
+| 3. Case against a warning | `responds`: "nothing, where the stage was meant for the other histograms" | The docstring's example is "a hump declared on one histogram is reached on one side only" (`:2552-2553`). How often that is the intent: **none given**. A one-histogram stage scoped as `hist.<k>.…` is already excluded upstream, which narrows the intended case. | thin |
+| 4. Case for a warning | none given | Issue #265, quoted in the docstring (`:2543-2548`): a plan written with `instrument.profile.*` freed no width on any bank, and the joint fit "said converged at Rwp 0.115 where globs naming the banks' own rows gave 0.066". This is clause 2's own wording for a warning: "the plan did not reach what it asked". At `info` the default view prints it as one line. That Rwp figure is a cost, not threshold evidence. | real, uncited in the row |
+| 5. Tier and source | tier 1, "arithmetic" | Right for the statistic. | holds |
+| 6. Dataset families | n/a | No threshold. | n/a |
+| 7. Record that it fired | `StageResult.unreached_histograms` | Confirmed as the source it reads. | adequate |
+
+Would change the verdict: a count, over the joint-fit examples or suites, of unscoped one-histogram misses that were intended against ones like #265 that were not.
+
+**`rietx.sequential.NOISE_FLOOR_REL` = 1e-9: tier 1**
+
+**Verdict: holds.** The case for is stronger. It is a numerical floor several decades below any measured step, and no case where it would hide a real step was found.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "a step or a between-chain gap under 1e-9 of the parameter's magnitude (never under 1e-9 absolute, sequential.py:2290)" | Used at `sequential.py:2410` (the discontinuity scan's median step), `:3041` and `:3046` (path dependence), and `gui/series.py:403`. Below the floor a ratio test is skipped. | agrees |
+| 2. Ambiguity kind | not required on a constant row | Kind 1. | — |
+| 3. Case against | none given | I looked for a parameter whose real steps fall under 1e-9 × max(1, magnitude): a synchrotron cell (relative esd about 1e-6), λ, TOF `difc` (a time-of-flight calibration constant), background coefficients. None found. The row's "five decades" is a lab figure (CPD corundum, 8e-5). At synchrotron precision the margin is nearer 2.5-3 decades, still ample. | none found |
+| 4. Case for | the comment (`sequential.py:231-242`): an unrefinable `profile.y` "read as a 29 000x step and 1e16 sigma of path dependence" | Quoted correctly. The comment dates that failure to before WP-1938. | supports |
+| 5. Tier and source | tier 1 "numerical floor" | generality.md tier 1: "A numerical floor such as `rcond` belongs here." No test pins it: no file under `tests/` names `NOISE_FLOOR_REL` or `_noise_floor`. | holds; no test |
+| 6. Dataset families | one esd quoted (CPD) | Not a tuned threshold, so families do not apply. | n/a |
+| 7. Record that it fired | none given | Silent by design: a skipped ratio leaves no record. | acceptable for a floor |
+
+Would change the verdict: a refined parameter in any family whose real step or chain gap is below 1e-9 × max(1, |value|).
+
+**`rietx.sequential.SequentialRefinement.fit:mode` = `"rietveld"`: tier 2**
+
+**Verdict: holds.** The case for is stronger. It copies the single fit's tier-2 row and passes the value through unchanged.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "handed to each pattern's fit unchanged (sequential.py:1799)" | Confirmed. The GUI passes `p.doc.mode` (`gui/session.py:1709`). | agrees |
+| 2. Ambiguity kind | 1 | Kind 1. | agrees |
+| 3. Case against | none given | none found. `docs/practice.md:278` lists no dissent. | none found |
+| 4. Case for | "none defaults to Le Bail; FullProf, RIETAN-FP and TOPAS make the user state it" | Matches `practice.md:278`. Making the user state it is not a dissent. | supports |
+| 5. Tier and source | tier 2; "GSAS-II fits each histogram of a series by RefineCore, the single fit's solver (… checked)" | `practice.md:238` says "checked". That shows a series uses the single fit's solver, not its mode default. The mode default is the single-fit row's GSAS-II citation (`_audit.py:3115-3118`, "LeBail defaults False… checked"). I checked practice.md only, not program source. | holds |
+| 6–7 | n/a; `RefinementResult` mode per pattern | — | n/a |
+
+Would change the verdict: a program whose series mode defaults to Le Bail. It would stay a dissenter at tier 2.
+
+**`rietx.sequential.SequentialRefinement.fit:two_theta_limits` = `None`: tier 2**
+
+**Verdict: holds.** The case for is stronger, for the same reasons as `mode`.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "handed to each pattern's fit unchanged (sequential.py:1799-1800)" | Confirmed. `None` fits each pattern's full range. The GUI passes the document's limits (`session.py:1693-1711`). | agrees |
+| 2. Ambiguity kind | 1 | Kind 1. | agrees |
+| 3. Case against | none given | One situation exists: a series whose patterns cover different 2θ ranges gets a trajectory over changing reflection sets, and a refiner might want one common range. No program default for that was found (`practice.md:279`). | weak, no program behind it |
+| 4. Case for | "the full range in GSAS-II, FullProf, RIETAN-FP, MAUD and EasyDiffraction, BGMN the instrument function's range, TOPAS's default not stated" | Matches `practice.md:279`. GSAS-II's per-histogram Limits default is "checked" in the single-fit row. | supports |
+| 5. Tier and source | tier 2 | Checked in practice.md only. | holds |
+| 6–7 | n/a | — | n/a |
+
+Would change the verdict: a program whose series mode defaults to a common range across patterns. It would be a dissenter and keep tier 2.
+
+**`SEQUENTIAL_CANCELLED` (+ `.suggestion`): caller, response `warning`, scope `("all",)`**
+
+**Verdict: weak.** On condition 1, the case for `caller` is stronger. Every recorded series carries a token, but only a person's stop or the caller's own code sets it. The response is weak on the backward branch, for the same reason as `SERIES_PATTERN_FAILED`.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What the caller decides | "fires only on a cancel the caller asked for… reports the requested act, n of N patterns, and moves no value (sequential.py:2153-2167)" | Confirmed. It fires on `bool(cancel)` (`:1329`, `:1413`), not on the token existing. | agrees |
+| 2. Ambiguity kind | 1 | Kind 1. | agrees |
+| 3. Case against `caller` | dispatch: "every recorded series carries a cancel token (`sequential.py:1275`)" | The token `runs.attach_cancel` makes is set only by `_WatchedToken.stop()`. Its only callers are `poll_cancel` (`runs.py:1459-1493`), on a `CANCEL_FILE` request from `rietx watch`'s Stop, and `.cancel()`. The only package-side `.cancel()` is the GUI's `/api/cancel` route (`gui/session.py:1794`), the stop button. I found no wall-clock or automatic cancel. One wording tension: generality.md counts "the GUI routes" as default paths, and `/api/cancel` is one. But that route is itself the stop asked for by name. | condition 1 holds in substance |
+| 4. Case for (a cost the caller bears) | `responds`: past the last completed forward pattern "quote no cell, fraction or width" | Condition 2 holds: the in-flight pattern is abandoned and nothing moves (`:2161-2166`). On the response: a backward cancel also raises `SEQUENTIAL_PATH_CHECK_INCOMPLETE` at `warning` (`:1413-1422`). Under `("all",)` a result whose forward trajectory is whole then carries two warnings under every purpose, one of them about a forward gap that does not exist. That is two consequences in one code. | response weak on the backward branch |
+| 5. Tier and source | `caller` | Both conditions hold. The row's dated grep is the only guard, as the record requires. | holds |
+| 6. Dataset families | n/a | — | n/a |
+| 7. Record that it fired | the code | Plus `RunStatus.cancelled_by` for a recorded run. | adequate |
+
+Would change the verdict: a package path that sets the token without a person's or caller's request (a budget or timeout), or a separate code or `info` for the backward branch.
+
+**`SEQUENTIAL_PATH_CHECK_INCOMPLETE` (+ `.suggestion`): caller, no response**
+
+**Verdict: holds.** The case for is stronger. It reports what the opt-in check left undone, and the author correctly leaves it on `RESPONSE_BASELINE`.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "reports that the requested comparison did not run or ran on less than the series (sequential.py:2170-2241) and moves no value" | Confirmed: the `warning` sites are at `:2183`, the `info` sites at `:2219`/`:2228`. | agrees |
+| 2. Ambiguity kind | 1 | Kind 1. | agrees |
+| 3. Case against | none given | Inside the switch, the package chooses which unjudged paths to name: only those "some chain measured", gap above `_noise_floor` (`:3041`). That rests on `NOISE_FLOOR_REL`'s own row, so it is not a new number. | none found |
+| 4. Case for | none given | The default `"forward"` is visible (`SeriesResult.direction`). See the 2026-10-24 judge's item 4. | n/a |
+| 5. Tier and source | `caller`; "the GUI series panel defaults to 'forward', gui/series.py:80" | Accepted from the earlier review of `fit:direction`. Not re-grepped beyond `session.py:1710`, which passes the user's choice. | holds |
+| 6–7 | n/a; the code | `rows.json` proposes splitting it into a warning code and an info code. That is not applied, and it is not in this diff. | — |
+
+Would change the verdict: a default path that sets `direction="both"`.
+
+**`PARAMETRIC_OUT_OF_RANGE` (+ `.suggestion`): caller, response `warning`**
+
+**Verdict: holds, with a caveat.** The case for `caller` is stronger, but condition 2 rests on a fact the row does not state: that the schema's default bounds are physical ranges.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "reads the caller's own declaration against each target entry's min/max, the schema's default where the caller set none (multi.py:2316-2322), and applies no threshold of its own" | Confirmed. A parametric equation is a caller-declared formula that sets a parameter across patterns. | agrees |
+| 2. Ambiguity kind | 1 | Kind 1: a value outside its declared box is a fact. | agrees |
+| 3. Case against `caller` | none given | Condition 2: "a number with a default used once the switch is on… is tiered on its own." Where the caller set no bound, the test reads a package default. `schemas/common.py:838-839` says a field "declares its physical range" (occupancy min 0, `lor_size` min 0), and W's floor is `caglioti._MIN_GAMMA_G2`, a numerical floor. The silence fixture fires on exactly that branch (W driven under its floor). I did not check that every default bound is physical. Schema defaults sit outside `DEFAULT_SEATS` by declaration, so no row tiers them. | rests on an unstated premise |
+| 4. Case for | "opt-in twice: parametric=None by default, inside refine_multi / MultiHistogramRefinement, which no default path calls" | Confirmed by grep: nothing outside `multi.py`, the params and schemas modules and the re-exports, and no GUI caller. A value outside its physical range is not quotable to anyone. | supports |
+| 5. Tier and source | `caller` | Holds if the bounds are the caller's own or physical. Otherwise tier 1 would read more honestly. | holds |
+| 6–7 | n/a; the code with `where=hist.k.target` | `level_under` maps `hist.` paths to purposes (`results.py:1475-1476`). | adequate |
+
+Would change the verdict: a schema default bound that is a package choice rather than a physical limit.
+
+**`rietx.sequential.SequentialRefinement.fit:prepare` = `None`: caller**
+
+**Verdict: holds.** The case for is stronger: the hook is the caller's code. One package rule inside the switch goes unnamed.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "a caller's callable run on each pattern's warmed models (sequential.py:1765)" | Confirmed. No caller passes it in `src/rietx` (grep `prepare=`). | agrees |
+| 2. Ambiguity kind | 1 | Kind 1. | agrees |
+| 3. Case against | none given | `sequential.py:1779-1783`: after the hook, the wavelength-calibration reference is reset to the series root's λ unless the hook changed the *number* of emission lines. A hook that re-declares λ per pattern on the same line count (a single-line synchrotron series across energies) gets `WAVELENGTH_CALIBRATION` (the code that compares a refined λ with the declared one) measured from the root's λ, not its own. That moves a diagnostic, not a fitted value. | minor, unnamed |
+| 4. Case for | "No default path passes one, the GUI series route included (gui/session.py:1706-1716)" | Confirmed. | supports |
+| 5–7 | `caller` | Holds. | holds |
+
+Would change the verdict: a ruling that a diagnostic's reference counts as "the answer" under condition 2. The line-count rule would then need a row.
+
+**`rietx.sequential.SequentialRefinement.fit:constrain` = `None`: caller**
+
+**Verdict: holds.** The case for is stronger. What the package does inside the switch is either a correctness rule or already has its own row.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "re-declares ties, variables and holds on each fit (sequential.py:1794), ladder rungs included" | Confirmed. The GUI passes none. Internally only `_verify_discontinuities` forwards it (`:1154`). | agrees |
+| 2. Ambiguity kind | 1 | Kind 1. | agrees |
+| 3. Case against | none given | Inside the switch the package runs `_reanchor_carried` (`:1795-1796`) and then warms the variables (`_carry_variables`). The first is WP-1432's rule that a rebuild reproduces the coordinate, which is arithmetic rather than a choice. The second is governed by `refine_sequential:carry`, which has its own row (still unaudited). The row names neither. | none found |
+| 4–5 | "No default path passes one" | Confirmed. | holds |
+
+Would change the verdict: a default path that passes a hook.
+
+**The 17 names off `UNAUDITED_BASELINE` and 5 off `RESPONSE_BASELINE`**
+
+**Verdict: holds.** The removals match the rows tiered, and nothing was added to any list.
+
+`UNAUDITED_BASELINE` loses exactly the 17 rows above: the six codes with their suggestion rows (12), plus `NOISE_FLOOR_REL`, `fit:mode`, `fit:two_theta_limits`, `fit:prepare` and `fit:constrain`. `RESPONSE_BASELINE` loses the five codes given a response. `SEQUENTIAL_PATH_CHECK_INCOMPLETE` correctly stays on it, so it keeps its literal level under every purpose (`results.py:1522-1526`). No name was added to `UNAUDITED_BASELINE`, `OTHER_RECORD_FIELDS`, `NOT_WALKED`, `WALKED` or `DEFAULT_SEATS`. I did not run `tests/test_audit_table.py`.
+
+Would change the verdict: a removed name whose row is still `unaudited`.
+
+**`tests/silence.py`: three fire/silent pairs**
+
+**Verdict: holds.** Each pair exercises its code's fault and a near miss. None covers the backward branch the response findings above turn on.
+
+| Pair | Fires on | Silent on | Gap |
+|---|---|---|---|
+| `PARAMETRIC_OUT_OF_RANGE` | slope -2e-3 drives W under its floor | slope 0 and -2e-4 | Only the schema-default bound branch is tested, not a caller-set bound. |
+| `SEQUENTIAL_CANCELLED` | stop after pattern 0 of 2 | the same chain with an unset `CancelToken` | Forward only. The suite runs with telemetry off (`RIETX_TELEMETRY=0`), so the recorder's watched token and the `CANCEL_FILE` path are not exercised. |
+| `SERIES_PATTERN_FAILED` | every rung of the middle pattern raises (mocked `Refinement.fit`) | warm rungs raise and the cold rung rescues it | Forward only. |
+
+The pairs run real two- and three-pattern series fits. Their added fast-suite time is **none given**: the handover's 65-passed figure predates them.
+
+Would change the verdict: a backward-branch pair showing which level the backward cancel and backward failure should carry.
+
+Author's answers: none fails. The two backward-branch findings (`SERIES_PATTERN_FAILED`, `SEQUENTIAL_CANCELLED`) are accepted: a backward-only failure or cancel leaves the forward answer standing, so it is a second consequence and gets its own `info` code. That split joins C5's split of `SEQUENTIAL_PATH_CHECK_INCOMPLETE` in the batch, with a backward-branch silence pair for each. `STAGE_FREED_NOTHING`'s level is its raise site's literal `info`, and making it a `warning` on #265's evidence is a ruling, so it goes to the batch under C10. The `prepare` hook's line-count rule for the wavelength reference and `PARAMETRIC_OUT_OF_RANGE`'s premise that schema default bounds are physical are noted for the batch's revision.
+
 *Next*, in order:
 1. Revise `2003-batch/batch.md` against DESIGN.md § Rules, per the check above. C1: (iii) as the pick, Rule 4 cited, the mechanism corrected, and (ii) described as what was measured (escalate while the best attempt so far ends `max_iter`). C2: rank by the full cost. C9: `carry` under Rule 1's first pick case, with an invariance test proposed for "every entry against the varied ones". `on_error` as an open question. C10: the joint hold its own row. Every stakes line labelled validating or verifying.
 2. Measure before asking: T087 against the planted truth with the bound on and off (about a minute), and X13's open arm (CPD's first two patterns, closing on, `intermediate_ftol=None`, about 40 minutes), which decides the mechanism correction. Then option (iii), escalating on the warm rung's `CELL_RUNAWAY`, on CPD's first two patterns with the closing stage on and off (about 40 minutes each), then planted and Cr₂WO₆.
