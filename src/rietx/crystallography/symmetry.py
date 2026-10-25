@@ -1043,9 +1043,10 @@ TWIN_DISTANCE = 0.02
 #: *on* it, per coordinate, fractional (#1014, rounds 4-5).  Under the gate in
 #: :func:`.twins.applied_twin_merges` the reach decides one thing: whether
 #: atoms that would overfill one place are the same place.  It is a distance
-#: bar: 5e-4 of a cell edge is 0.002 Å in a 4 Å axis and
-#: 0.02 Å in a 40 Å one, small against the ~1 Å at which two different atoms
-#: can share a cell, and being fractional it follows the cell.
+#: bar on a site's *offset* from the position: 5e-4 of a cell edge is 0.002 Å
+#: in a 4 Å axis and 0.02 Å in a 40 Å one, and the pair of images on a mirror
+#: is twice that apart (0.004 Å, 0.04 Å), small against the ~1 Å at which two
+#: different atoms can share a cell; being fractional it follows the cell.
 TWIN_COORD_TOL = 5e-4
 
 #: A rotation of the site group turns an offset δ into a displacement R·x+t−x of

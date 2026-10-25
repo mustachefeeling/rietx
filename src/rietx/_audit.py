@@ -1547,11 +1547,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry.TWIN_COORD_TOL", "constant", tier=1, value=0.0005,
         evidence=("arithmetic on the gate's role: under the one gate the reach decides only "
                   "whether atoms that would overfill one place are the same place, so the "
-                  "bar is a distance. 5e-4 of a cell edge is 0.002 A on a 4 A axis and 0.02 "
-                  "A on a 40 A one (fractional, so it follows the cell), against the ~1 A "
-                  "at which two different atoms can share a cell. A fit's coordinate carries no "
+                  "bar is a distance. The reach bounds a site's offset from the position, so "
+                  "5e-4 of a cell edge is an offset of 0.002 A on a 4 A axis and 0.02 A on a "
+                  "40 A one (fractional, so it follows the cell), and the pair of images on "
+                  "a mirror, twice the offset, is up to 0.004 A and 0.04 A apart; two "
+                  "different atoms share a cell at ~1 A. A fit's coordinate carries no "
                   "precision, so none is assumed. The cell edge at which a real split pair "
-                  "0.2 A apart enters the reach is 400 A (0.2 / 5e-4)")),
+                  "0.2 A apart enters the reach is 200 A (0.2 / (2 x 5e-4); P m m m, "
+                  "c = 200 A, a site at z = 5e-4 gives a pair 0.200 A apart and merges "
+                  "8 -> 4)")),
     Row("rietx.crystallography.symmetry.TWIN_DISTANCE", "constant", value=0.02,
         evidence=("unaudited, for the maintainer's tier and approval. After #1014's round 4 it "
                   "no longer decides a site's own twin (TWIN_COORD_TOL does); it remains the "

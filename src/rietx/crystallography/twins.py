@@ -258,7 +258,7 @@ def carry_constraints(moves: dict[str, tuple[str | None, float]], *,
                       ) -> tuple[list[str], dict[str, TieSpec], list[str], list[str]]:
     """``holds``, user ``ties`` and ``free_paths`` carried through a DOF renumbering.
 
-    ``moves`` is what :func:`merge_site_twins` reports.  A hold or a free path
+    ``moves`` is what :func:`numbering_moves` returns.  A hold or a free path
     on a DOF follows it to its new number; one on a DOF the position now fixes
     is dropped.  A tie is carried only if its target and every source survive,
     its coefficients rescaled; otherwise it is dropped (a source that moved
