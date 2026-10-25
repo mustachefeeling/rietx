@@ -2684,11 +2684,73 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_FACTOR", "constant", value=3.0),
     Row("rietx.sequential.WIDTH_GROWTH_GOF_FACTOR", "constant", value=2.0),
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
-    Row("rietx.solve.cluster.CLUSTER_RMSD_ANG", "constant", value=0.35),
-    Row("rietx.solve.cluster.CONTROL_BETTER", "constant", value=0.1),
-    Row("rietx.solve.cluster.MIN_SEEDS", "constant", value=2),
-    Row("rietx.solve.cluster.RIVAL_MARGIN", "constant", value=0.05),
-    Row("rietx.solve.cluster._ISOMETRY_RTOL", "constant", value=1e-06),
+    Row("rietx.solve.cluster.CLUSTER_RMSD_ANG", "constant", tier=3, value=0.35,
+        evidence=("cluster(): a solution joins the first cluster whose leader is "
+                  "within this RMSD (A) after alignment over the Euclidean "
+                  "normaliser, and rank() reads it again to decide whether the prior-"
+                  "off control leader is a different structure (#562, #1153). "
+                  "Declared, not measured: half the 0.7 A single-site bar of #677's "
+                  "archive run and three times the 0.10 A recovery bar. Tested at the"
+                  " edges it separates: the 2_1 image at each of 8 origins and NAC's "
+                  "enantiomer -x align at 0 A (one cluster), the molecule turned 30 "
+                  "deg and NAC with Na and Al exchanged are two "
+                  "(test_equivalent_solutions_are_one_cluster_and_different_ones_two)"),
+        grounds=("rietx's own threshold, provisional under THRESHOLDS_VERSION "
+                 "s2a-provisional-1; no recovery count was measured against another "
+                 "value. Its edge: two distinct minima closer than 0.35 A RMSD (a "
+                 "small torsion or a shared-site shift) merge into one cluster and "
+                 "the second is not listed; the ranked list still reports each "
+                 "cluster's spread. Measured on the two S2a cases only, untested "
+                 "beyond them.")),
+    Row("rietx.solve.cluster.CONTROL_BETTER", "constant", tier=3, value=0.1,
+        evidence=("rank(): when the prior-off control leader is a different structure"
+                  " (RMSD over CLUSTER_RMSD_ANG) and its chi2_data is at least 10 % "
+                  "below the prior-on leader's, that leader is graded low with the "
+                  "caveat prior_excludes_better_fit (#562 amendment (c), #1153). "
+                  "Declared, not measured; its positive arm is a mutant that never "
+                  "caps, which the tests fail"),
+        grounds=("rietx's own fraction, provisional under THRESHOLDS_VERSION "
+                 "s2a-provisional-1. Its edge: a control leader 5-10 % better in "
+                 "chi2_data leaves the prior-on leader's grade alone, and one more "
+                 "than 10 % better caps it even where the prior is right and the "
+                 "control has overfitted noise. The grade is a report, and both "
+                 "chi2_data values are in the ranked list. No data case measured; "
+                 "S2b's orchestration is what first runs it.")),
+    Row("rietx.solve.cluster.MIN_SEEDS", "constant", tier=3, value=2,
+        evidence=("rank(): a cluster found by fewer than this many seeds is graded "
+                  "low with the caveat single_seed (#562, #1153). Declared, not "
+                  "measured: two is the smallest count that means a second "
+                  "independent seed reached the same structure. The acceptance bars "
+                  "found the truth with 4/4 seeds on both S2a cases"),
+        grounds=("rietx's own count, provisional under THRESHOLDS_VERSION "
+                 "s2a-provisional-1; requiring a reproduction at all is the choice, "
+                 "and a refiner might ask for three. Its edge: a true solution only "
+                 "one seed reached is graded low, and the list still ranks it with "
+                 "its chi2_data and seeds. No data case measured beyond the two S2a "
+                 "cases.")),
+    Row("rietx.solve.cluster.RIVAL_MARGIN", "constant", tier=3, value=0.05,
+        evidence=("rank(): a second cluster within 5 % of a cluster's chi2_data is a "
+                  "rival and caps that cluster at medium; a later cluster more than 5"
+                  " % worse than the leader is worse_than_leader, graded low (#562 "
+                  "amendment (d)1, #1153). Declared, not measured"),
+        grounds=("rietx's own margin, provisional under THRESHOLDS_VERSION "
+                 "s2a-provisional-1. Its edge: two clusters 5-6 % apart in chi2_data "
+                 "read as distinct, where the data may not separate them; the ranked "
+                 "list reports each cluster's margin_to_next, so a reader sees the "
+                 "gap. No data case measured.")),
+    Row("rietx.solve.cluster._ISOMETRY_RTOL", "constant", tier=1, value=1e-06,
+        evidence=("equivalences(): an integer {-1, 0, 1} matrix P is an isometry of "
+                  "the cell when |P^T g P - g| <= 1e-6 x max|g|, element by element. "
+                  "A true isometry holds the relation exactly, and g from the cell "
+                  "parameters carries rounding near 1e-16 relative (cos 90 deg, cos "
+                  "120 deg), so the tolerance sits ten orders above it. "
+                  "test_the_normaliser_index_is_international_tables holds [N(G):G] "
+                  "to International Tables A Part 15 on a general metric of each "
+                  "system (P2_1/c 8, P2_12_12_1 16, I2_13 4, P2_1 8, P-1 8, P1 2, "
+                  "P6_3/mmc 2), with and without enantiomers, so no true isometry is "
+                  "lost and none spurious admitted there. Its edge: a cell metrically"
+                  " special within 1e-6 relative to max|g| is treated as special, and the extra element still has to map G onto "
+                  "G to count")),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
     Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
@@ -2714,12 +2776,86 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-24"),
     Row("rietx.solve.moves._TAU", "constant", tier=1, value=6.283185307179586,
         evidence="arithmetic: 2π, the phase of exp(2πi h·x)"),
-    Row("rietx.solve.tempering.EXCHANGE", "constant", value=0.1),
-    Row("rietx.solve.tempering.LADDER_SPAN", "constant", value=30.0),
-    Row("rietx.solve.tempering.N_RANDOM", "constant", value=64),
-    Row("rietx.solve.tempering.REFRESH_EVERY", "constant", value=1000),
-    Row("rietx.solve.tempering.STEP_ANG", "constant", value=(0.05, 1.0)),
-    Row("rietx.solve.tempering.SWAP_EVERY", "constant", value=10),
+    Row("rietx.solve.tempering.EXCHANGE", "constant", tier=3, value=0.1,
+        evidence=("temper(): the probability that a free site's move is a site "
+                  "exchange with a same-class partner of another species (#1153; a "
+                  "move the #562 cut did not have). Measured on NAC, span 30, 16 "
+                  "seeds a row, recovered within 0.10 A: 0 -> 6/16 at 5 000 sweeps "
+                  "and 11/16 at 20 000; 0.05 -> 15 and 16; 0.1 -> 14 and 16; 0.25 -> "
+                  "15 and 16 (PR #1153 body). With no exchange every failing seed "
+                  "held the structure with Na+ and Al3+ (both ten electrons) permuted"
+                  " on 8a, 0.03 A species-blind from the truth, and no budget up to "
+                  "40 000 sweeps moved them out. The acridine case has no partner, so"
+                  " it is not read there"),
+        grounds=("rietx's own probability, measured on one family (NAC) and untested "
+                 "beyond it; the plateau 0.05-0.25 is flat there and 0.1 sits inside "
+                 "it. Its stated failure is the value 0, not a neighbour of 0.1: the "
+                 "search stalls on an isoelectronic permutation.")),
+    Row("rietx.solve.tempering.LADDER_SPAN", "constant", tier=3, value=30.0,
+        evidence=("Ladder.planned(): T_top/T_bottom of the frozen geometric ladder "
+                  "(#562's 2026-09-30 correction (f), #1153). Measured, 16 seeds a "
+                  "row, 6 replicas, recovered within 0.10 A: NAC at 5 000 sweeps with"
+                  " the exchange on, spans 10, 30, 100 -> 14/16 and 300 -> 13/16; "
+                  "acridine-shaped case at 600 sweeps, 10 -> 14, 30 -> 16, 100 -> 15,"
+                  " and at 300 sweeps 30 -> 15 against 300 -> 12 (PR #1153 body). "
+                  "Earl & Deem (2005) eq. 3 is reported beside the measured swap "
+                  "rates, never gated on"),
+        grounds=("rietx's own span, measured on a synthetic 14-atom acridine-shaped "
+                 "rigid fragment (P2_1/n, simulated Cu Ka1,2, 4-70 deg) and NAC from "
+                 "its own 11-BM Pawley intensities (2-24 deg, 129 reflections): two "
+                 "cases, one synthetic, untested beyond them. 10-100 is flat on both;"
+                 " the stated failure is span 300 on the rigid fragment at a short "
+                 "budget (12/16 at 300 sweeps).")),
+    Row("rietx.solve.tempering.N_RANDOM", "constant", tier=3, value=64,
+        evidence=("random_spread(): the number of uniform random structures whose "
+                  "standard deviation of J sets the ladder's top temperature, "
+                  "measured per run (#1153). Declared, not measured against another "
+                  "count. Arithmetic on the estimate: the standard deviation of 64 "
+                  "draws carries a relative standard error near 1/sqrt(2 x 63), about"
+                  " 9 %."),
+        grounds=("rietx's own sample size. It moves t_top, which moves every rung, so"
+                 " it can change a search's outcome; no recovery count was measured "
+                 "at another value, and the span table (flat over a factor of 10 in "
+                 "T_bottom) is a different change. Run on the two S2a cases only.")),
+    Row("rietx.solve.tempering.REFRESH_EVERY", "constant", tier=1, value=1000,
+        evidence=("temper(): sweeps between full rebuilds of the running orbit sums, "
+                  "amplitudes and clash energy; SeedRun.drift records the largest "
+                  "|J_running - J_rebuilt| a rebuild found on every run. A numerical "
+                  "setting: it controls how accurately J is kept, not what the search"
+                  " decides. test_running_sums_stay_on_a_rebuild asserts drift <= "
+                  "1e-10 J with no refresh at all over 400 sweeps, on the acridine-"
+                  "shaped case and NAC, compiled and numpy. With no refresh over 1 "
+                  "000 and 2 000 sweeps (seed 5, the test's ladder, both paths) the "
+                  "drift was 4.0e-14 and 2.9e-14 J on the acridine case and 2.5e-14 "
+                  "and 2.7e-14 J on NAC (#1153 audit, 2026-10-25): rounding, not "
+                  "growing with sweeps, so the cadence never lets J drift past the "
+                  "test's bar")),
+    Row("rietx.solve.tempering.STEP_ANG", "constant", tier=3, value=(0.05, 1.0),
+        evidence=("Ladder.planned(): the Gaussian move size sigma (A) at the bottom "
+                  "and top rung, geometric in between (#1153). Measured at span 300, "
+                  "16 seeds a row, recovered within 0.10 A: on the acridine-shaped "
+                  "case at 600 sweeps, bottoms 0.02, 0.05, 0.1, 0.2 against tops 0.5,"
+                  " 1, 2 gave 13-16/16, (0.05, 1.0) and (0.2, 2.0) 16/16; on NAC at 2"
+                  " 000 sweeps with no exchange no setting rose above 5/16. Per-rung "
+                  "move acceptance at the chosen setting, span 30: acridine 0.27 to "
+                  "0.50, NAC 0.53 to 0.77 (PR #1153 body)"),
+        grounds=("rietx's own pair, measured on a synthetic 14-atom acridine-shaped "
+                 "rigid fragment (P2_1/n, simulated Cu Ka1,2, 4-70 deg) and NAC from "
+                 "its own 11-BM Pawley intensities (2-24 deg, 129 reflections): two "
+                 "cases, one synthetic, untested beyond them. Only the fragment case "
+                 "separates settings (13-16/16); on NAC the table is flat and low, "
+                 "and the site exchange, not the step, lifted it.")),
+    Row("rietx.solve.tempering.SWAP_EVERY", "constant", tier=3, value=10,
+        evidence=("temper(): sweeps between neighbour-exchange attempts, alternating "
+                  "even and odd pairs; attempts and acceptances are recorded per "
+                  "neighbour pair (#1153). Declared, not measured against another "
+                  "cadence: every measurement in the PR ran at 10. Swap acceptance "
+                  "per pair at it, seed 0: acridine 0.28/0.24/0.41/0.33/0.07, NAC "
+                  "0.24/0.25/0.05/0.22/0.51 (PR #1153 body)"),
+        grounds=("rietx's own cadence. It changes how often hot states reach the "
+                 "bottom rung, so it can change a search's outcome; no other value "
+                 "was tried. Run on the two S2a cases only, untested beyond them; the"
+                 " per-pair record shows a pair that rarely swaps (0.05 on NAC).")),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("magnetic.py docstring: the Ba2FeSbSe5 pair sits 0.081 deg apart, inside 0.5 deg "
@@ -4454,19 +4590,8 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.sequential.WIDTH_GROWTH_SIGMA",
     "rietx.sequential.refine_sequential:carry",
     "rietx.sequential.refine_sequential:carry_hkl_intensities",
-    "rietx.solve.cluster.CLUSTER_RMSD_ANG",
-    "rietx.solve.cluster.CONTROL_BETTER",
-    "rietx.solve.cluster.MIN_SEEDS",
-    "rietx.solve.cluster.RIVAL_MARGIN",
-    "rietx.solve.cluster._ISOMETRY_RTOL",
     "rietx.solve.cost.NAMED_REFLECTIONS",
     "rietx.solve.cost.NUISANCE_RCOND",
-    "rietx.solve.tempering.EXCHANGE",
-    "rietx.solve.tempering.LADDER_SPAN",
-    "rietx.solve.tempering.N_RANDOM",
-    "rietx.solve.tempering.REFRESH_EVERY",
-    "rietx.solve.tempering.STEP_ANG",
-    "rietx.solve.tempering.SWAP_EVERY",
     "rietx.strategy.magnetic.SOLVE_D_MIN",
     "rietx.strategy.staged.BACKGROUND_ABSORPTION_GUARD",
     "rietx.strategy.staged.HUMP_MIN_WIDTH_MULT",
