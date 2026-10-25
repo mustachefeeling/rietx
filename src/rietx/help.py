@@ -4209,9 +4209,9 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         title="Stage stopping tolerance",
         description=(
             "This stage's own relative tolerance on the decrease in cost. It overrides "
-            "the plan's schedule. Empty takes the value from the plan: every stage but "
-            "the last stops at the plan's `intermediate_ftol`, and the last stops at "
-            "the solver's 1e-9. The history records the tolerance a stage ran at and "
+            "the plan's schedule. Empty takes the value from the plan: every declared "
+            "stage but the last stops at the plan's `intermediate_ftol`, and the last "
+            "declared stage and the closing stage stop at the solver's 1e-9. The history records the tolerance a stage ran at and "
             "not the one it declared, so a cherry-pick replays what happened."
         ),
         default="null",
@@ -5095,8 +5095,9 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
         title="Tolerance the stage ran at",
         description=(
             "The relative cost-decrease tolerance this stage stopped at. `None` means "
-            "the solver's own default, which the last stage of a plan takes; an earlier "
-            "stage takes the plan's `intermediate_ftol` unless it declares its own."
+            "the solver's own default, which a plan's last declared stage and its "
+            "closing stage take; an earlier stage takes the plan's `intermediate_ftol` "
+            "unless it declares its own."
         ),
         anchor="theory/estimation.html#convergence",
     ),

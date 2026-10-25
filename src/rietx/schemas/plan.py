@@ -138,7 +138,8 @@ def check_phase_support_sigma(value: Any) -> float | None:
 #: 11-BM NAC, and two Biso starts within 0.000, 0.070 and 0.000 esd.  Through the shipped code
 #: the whole fit takes 1.05-1.19× (LaB6), 2.03-2.05× (FAP), 1.37-1.38×
 #: (cpd-1a) and 1.12-1.26× (NAC) its time without the closing stage, the last
-#: declared stage now stopping at ``intermediate_ftol``.  SRM 660c LaB6 lands
+#: declared stage then stopping at ``intermediate_ftol``; converging that stage
+#: again costs 1.04-1.07× the evaluations (WP-2045).  SRM 660c LaB6 lands
 #: in its mirrored axial minimum from either start under every setting
 #: (WP-2012).
 #:
@@ -193,8 +194,9 @@ class StageSpec(Base):
     ftol: float | None = Field(None, gt=0.0, description=(
         "this stage's own relative cost-decrease termination tolerance, "
         "overriding the plan's schedule; null = take it from the plan "
-        "(intermediate_ftol for every stage but the last, the solver's 1e-9 "
-        "for the last, which is the closing stage when the plan has one)"))
+        "(intermediate_ftol for every declared stage but the last, the "
+        "solver's 1e-9 for the last declared stage and for the closing stage "
+        "when the plan has one)"))
     lebail_cycles: int = 3
     seed: float = Field(0.0, description=(
         "start at this value every parameter this stage frees that sits "
@@ -255,7 +257,7 @@ class PlanSpec(Base):
     correlation_guard: float = CORRELATION_GUARD
     intermediate_ftol: float | None = Field(
         INTERMEDIATE_FTOL, gt=0.0, description=(
-            "the tolerance every stage but the last stops at, unless it "
+            "the tolerance every declared stage but the last stops at, unless it "
             "declares its own ftol; null = the solver default (1e-9) "
             "everywhere, i.e. the fully-converged schedule.  1e-6 is "
             "1.2-1.6x fewer whole-plan evaluations for answers within "

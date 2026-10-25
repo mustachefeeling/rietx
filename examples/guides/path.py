@@ -44,12 +44,13 @@ assert [d.where for d in steps] == [
 assert all(round(d.value, 2) == 1.00 for d in steps)
 assert [s.indices for s in series.discontinuities] == [(3, 4)] * 3
 assert [e.rung for e in series] == [
-    "cold", "warm", "warm", "warm", "warm_staged", "warm", "warm"]
-# a 1.5 % jump, because 2 % and 3 % left which warm start broke to rounding: under start
-# nudges of 1e-14 the 800 K one held in 3 of 8 starts at 2 %, and the 700 K one in 3 of
-# 10 at 3 % on OpenBLAS, while 1.5 % broke the 700 K one at Rwp 0.946 in all 20 on both
-# BLAS builds (WP-2002, 2026-10-23); the page still quotes a bound
-assert series.entries[4].rwp_warm > 0.9 and series.entries[5].rwp_warm is None
+    "cold", "warm", "warm", "warm", "warm_staged", "cold", "warm"]
+# a 1.5 % jump, because 2 % and 3 % left which warm start broke to rounding (WP-2002,
+# 2026-10-23).  Since the last declared stage converges (WP-2045) the 800 K warm start,
+# the step back down, fails at Rwp 0.941 in all of ten starts nudged by 1e-14, while the
+# 700 K one's first attempt read anywhere from 0.04 to 0.95 (Accelerate, 2026-10-25), so
+# the page quotes a bound for the 800 K attempt alone
+assert series.entries[4].rwp_warm is not None and series.entries[5].rwp_warm > 0.9
 # the rescued 700 K fit ends at 0.039494, 6e-6 from where a third decimal flips, so the
 # page quotes two
 assert all(abs(r - 0.040) < 0.001 for r in series.rwp[4:6]), series.rwp[4:6]
