@@ -22,7 +22,9 @@ axial sizing floor 0.02/0.05     0.003        0.138 → 0.010  n/a    0.007
 ===============================  ===========  =============  =====  ============
 
 cpd-1a with zircon declared, a phase the sample lacks, reads 0.185 → 0.035 for the
-intermediate tolerance.  NAC is a synchrotron pattern and refines no axial ratio.
+intermediate tolerance.  Since WP-2045 the last declared stage converges as the
+closing stage does, and the tolerance row reads 0.000, 0.000, 0.000 and 8.82, zircon
+0.009 (2026-10-25, same machine and venv).  NAC is a synchrotron pattern and refines no axial ratio.
 
 The axial sizing floor (``forward.AXIAL_SIZING_FLOOR``) sizes the windows and
 FCJ nodes of a stage that frees S/L or H/L from zero.  At 0.02 a stage reaching

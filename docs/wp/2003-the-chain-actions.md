@@ -155,6 +155,10 @@ lands with a `tests/data/README.md` row giving its source, its licence and its r
 values (root CLAUDE.md § Licensing, the per-file data fence). Measure on whichever have
 landed when tiering starts.
 
+### Inherited
+
+- **From WP-2045 (2026-10-25, PR #1161): the carry-policy xfail forwarded here is gone, and the first-rung ratios moved.** With the last declared stage converged behind the closing stage, `test_warm_start_iteration_cost_is_reported` passes: both chains read mean Rwp 0.1282 against 0.1258 independent, at 408 (restricted carry) and 655 (carry=*) iterations against 1255 (macOS arm64, `[dev]`). The strict xfail citing "carry=* 0.1256 … forwarded to WP-2003" was removed there. `test_the_first_rung_bound_moves_no_accepted_value` printed kept first-rung ratios 0.064-0.080 of the running maximum, against your 0.34-0.39 on Linux with cpd-1b's runaway in the chain, so the margin against `FIRST_RUNG_FACTOR` 3.0 is now about 40×. Every pattern after cpd-1a is kept on its warm rung, so the reseed fence's families here no longer include a runaway on this chain.
+
 ## Non-goals
 
 - The holds inside one stage: 2002, already landed when this starts.

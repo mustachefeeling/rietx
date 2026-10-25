@@ -550,6 +550,17 @@ from .._nearmiss import did_you_mean
 #: fit used, which ``result.plot()`` names on its 2θ axis.  Additive and
 #: defaulted to ``None``, "not recorded", the 0.25 → 0.26 rule; both fit
 #: builders write it on every result and every histogram.
+#: 0.60, C3 (issue #916), same cycle as the 0.60 above: ``LeBailValidation.predicted_but_absent_uncancellable``,
+#: ``.predicted_but_absent_uncancellable_in_window``, ``.absent_source`` and
+#: ``.n_lines_screened``,
+#: the line screen's counts beside the one it replaces; ``SupercellCheck.relation``,
+#: whether the parent is a sublattice or only indexes a subset of the lines.
+#: Additive, every new field defaulted to the reading an earlier document had
+#: (``None`` = not counted, ``"fitted_background"``, ``"sublattice"``).
+#: Also in 0.60 (#939): ``ExtinctionScreen.prefit_rwp`` and
+#: ``ExtinctionScreen.reference_rwp_net``, the cell-free Le Bail's Rwp and the
+#: reference fit's background-subtracted Rwp, and ``"unreliable"`` as a
+#: ``status`` value.  Additive and defaulted to ``None``, the 0.25 → 0.26 rule.
 #: Also in 0.60 (WP-1969, #933): ``PeakFlag`` gains ``residue_misfit``, written
 #: only by ``index_residue`` on a pick standing on the subtracted phase's
 #: profile.  Additive: no existing list carries it, and an older build refuses

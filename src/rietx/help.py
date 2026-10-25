@@ -342,7 +342,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "specimen length divided by the goniometer radius. It sets how strongly "
             "low-angle peaks lean toward low 2θ. Fit it on a standard together with "
             "`axial_hl`. The two are strongly correlated and are usually reported as a "
-            "pair."
+            "pair. With both at zero and either refined, the peaks are computed with "
+            "windows and integration points sized for a ratio of 0.02 (see `axial_hl`)."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -355,7 +356,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "receiving-slit height divided by the goniometer radius. It is the second "
             "half of the axial asymmetry. It is so strongly correlated with `axial_sl` "
             "that refining one and holding the other is a common protocol. One ratio "
-            "alone still smears the peaks. Only both at zero switch the asymmetry off."
+            "alone still smears the peaks. Only both at zero switch the asymmetry off. "
+            "With both at zero and either refined, the peaks are computed with windows "
+            "and integration points sized for a ratio of 0.02, so the curve differs from the same model with "
+            "both held by up to about 5e-5 of the strongest peak."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -2004,6 +2008,31 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "wavelength and the 2θ range."
         ),
     ),
+    "EXTINCTION_SCREEN_UNRELIABLE": HelpEntry(
+        title="The extinction screen's reference fit is too poor to read absences against",
+        description=(
+            "The absence-free reference fit leaves more than half of the pattern's net "
+            "signal, taken against its own background, unexplained. It has not modelled "
+            "the allowed lines, so every refutation and ΔBIC below it may measure that "
+            "misfit. The classes are ranked, but `best_or_none()` abstains. Any of these "
+            "can cause it, in no order: the cell (a few tenths of a per cent off at "
+            "synchrotron resolution is outside the basin a Le Bail fit can refine it "
+            "from; re-index it from a better start), a phase the reference does not "
+            "model, weak data (for a perfect fit the quantity is about √(N/(N+S)), N the "
+            "channels and S the weighted net Bragg power, so it passes the bound whenever "
+            "S < N; counting longer helps and re-indexing does not), the range, the "
+            "wavelength and the width law. The bound, 1/√2 (at most half "
+            "of the net weighted power unexplained), sits between every right or nearly "
+            "right cell (≤ 0.36) and every cell outside the refinable basin (≥ 1.6) on "
+            "synthetic Si and P 2₁/c, 11-BM NAC, the GSAS-II fluorapatite and PbSO₄ "
+            "patterns and SRM 676a corundum; untested beyond them, and a second phase "
+            "carrying half the net weighted power trips it at a right cell. The gate does "
+            "not reach a local misfit: on certified SRM 676a corundum "
+            "(`R -3 c`) the shared profile fit's `profile_rwp` is 0.149 over 20–90°, where "
+            "`R - c -` wins, and 0.227 over 5–150° with declared widths, where `R - - -` "
+            "wins, with this code silent in both (measured on that one pattern)."
+        ),
+    ),
     "EXTINCTION_SYMBOL_AMBIGUOUS": HelpEntry(
         title="The extinction symbol is not settled",
         description=(
@@ -2072,9 +2101,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "The final stage fixes its peak windows at the values it started from. At "
             "the returned values, those windows give a chi-squared that differs "
             "noticeably from a fresh calculation. The reported statistics and curves use "
-            "the fresh one. The fit is not biased, and the esds are those of the last "
-            "solve. The history node keeps the earlier figure. If the gap matters, split "
-            "that stage in two."
+            "the fresh one, and the esds are those of the last solve. The last stage's "
+            "record keeps the earlier figure, and so does the history node of a single "
+            "fit. A joint fit tests each pattern and names the worst. A large gap means the last stage carried its peaks "
+            "past the windows it was solved on, so the solve may have stopped short of the "
+            "minimum that windows sized at the answer give. Run one more stage with nothing "
+            "new freed and compare. A plan's closing stage does this already."
         ),
     ),
     "FULLPROF_MAGNETIC_PHASE_OMITTED": HelpEntry(
@@ -2807,12 +2839,21 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "INDEX_PREDICTED_BUT_ABSENT": HelpEntry(
         title="The cell predicts lines the pattern lacks",
         description=(
-            "After a Le Bail fit, some reflections this lattice predicts carry no "
-            "intensity above the background. An oversized cell does this, because it has "
-            "a translation it is not using. A correct cell does it too when a "
-            "space-group extinction removes those reflections. Compare the smaller cell "
-            "that indexes the same lines, and run the extinction screen before you "
-            "reject this one."
+            "Inside de Wolff's window (up to the 20th usable line), this lattice "
+            "predicts lines that no extinction could remove where the picker's envelope "
+            "shows nothing. An oversized cell does this, because it has a translation it "
+            "is not using, and M₂₀ cannot see it. The code caps the grade and never "
+            "refutes: a correct cell's weak general reflections below detection count "
+            "too. Glides and screws are left out of the count, so a correct cell reads "
+            "near 0: 0 on synthetic Si, a synthetic tetragonal set and SRM 676a "
+            "corundum, 2 on the round-robin magnetite and PbSO₄, against 7 to 79 for "
+            "the wrong cells tested (Si's cubic I √2·a₀ 11–12, cubic P 2a₀ 76–79); "
+            "measured on those patterns, untested beyond them. Do not check it with "
+            "Rwp: an oversized cell scored 0.379 against a correct 0.216, a "
+            "gap smaller than the spread between specimens. Without a peak list the "
+            "count is the fitted background's, over the whole range. Compare the "
+            "smaller cell that indexes the same lines, and run the extinction screen "
+            "before you reject this one."
         ),
     ),
     "INDEX_PRIOR_USED": HelpEntry(
@@ -2891,7 +2932,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "lines it predicts, which no extinction could remove, are seen no more often "
             "than chance would place them. So it ranks below the smaller cell. A real "
             "superstructure with extra lines too weak to pick escapes this test. Check "
-            "the pattern at the listed positions if the chemistry suggests one."
+            "the pattern at the listed positions if the chemistry suggests one. "
+            "Measured: it refutes Si's cubic I √2·a₀ (0 of 12 extra lines seen) and "
+            "kept every truth tested as a child, the lowest at p = 0.0072; on the "
+            "finished acceptance searches it put brucite's and 11-BM NAC's truths "
+            "first. Untested beyond those patterns."
         ),
     ),
     "INDEX_SYSTEMS_NOT_COVERED": HelpEntry(
@@ -3187,6 +3232,16 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "file. A repeat with a different intensity stops the read instead."
         ),
     ),
+    "PATTERN_INTENSITY_NET": HelpEntry(
+        title="The intensities are the file's net column",
+        description=(
+            "The pdCIF held no gross intensity column, so the reader took "
+            "`_pd_proc_intensity_net`, which the pdCIF dictionary defines as the values "
+            "after background subtraction. The numbers are used as the file states them. "
+            "Whether a background still needs refining is your call, and the next "
+            "diagnostic says when the column contradicts its label."
+        ),
+    ),
     "PATTERN_INTENSITY_SCALED": HelpEntry(
         title="The intensity scale could not be established",
         description=(
@@ -3204,6 +3259,27 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "the first. The others are not in the pattern, and a fit to it describes one "
             "measurement of several. Pass `scan=` to choose, or list the scans first to "
             "see what each one is."
+        ),
+    ),
+    "PATTERN_NET_HAS_BACKGROUND": HelpEntry(
+        title="A net intensity column still carries background",
+        description=(
+            "The file's `_pd_proc_intensity_net` column is labelled background-subtracted "
+            "but never comes within 5σ of zero. Either a background was left in, or the "
+            "fitted range holds no empty baseline; the data cannot say which. The reader "
+            "leaves the numbers as they are, and the code's value is the "
+            "column's smallest y/σ. Tell the readings apart first: compare y with "
+            "y − `_pd_proc_intensity_bkg_calc` where the file states one, and look for an "
+            "empty stretch of baseline. If a background was left in, hold that curve "
+            "additively (`BackgroundFixedPlusChebyshev`) when y − it reaches zero, "
+            "otherwise refine a Chebyshev background, with a hump component for a broad "
+            "amorphous or capillary hump. The 5σ "
+            "threshold was measured on four unrelated deposits labelled net (a "
+            "synchrotron capillary, a laboratory Stoe Stadi-P, a laboratory "
+            "PANalytical MPD Pro and a neutron powder pattern), whose smallest y/σ run "
+            "from 14 to about 6 000, against a synthetic zero baseline. It misfires "
+            "on a subtracted pattern windowed onto a peak cluster with no empty "
+            "baseline in range."
         ),
     ),
     "PATTERN_ROWS_DROPPED": HelpEntry(
@@ -3263,6 +3339,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "and exclude the interval before you fit."
         ),
     ),
+    "PATTERN_ZERO_WEIGHT_EXCLUDED": HelpEntry(
+        title="Zero-weight points became excluded regions",
+        description=(
+            "The pdCIF dictionary defines a `_pd_proc_ls_weight` of zero as a data point "
+            "not used for refinement. The reader turned each run of such points into an "
+            "excluded region, so the fit leaves out exactly the points the file's author "
+            "left out, and every other point keeps σ = 1/√w. The code's value is the "
+            "number of points excluded. Their σ is the Poisson value, a placeholder the "
+            "fit never reads; remove a region from `excluded_regions` only if you mean "
+            "to fit those points."
+        ),
+    ),
     "PAWLEY_OFF_DATA_RIDGED": HelpEntry(
         title="Pawley intensities taken from the restraint",
         description=(
@@ -3281,6 +3369,31 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "intensity has a large relative esd. The split shown comes from the "
             "equal-split restraint. Use the summed intensity of the group as the datum. "
             "Individual values from the group are not measurements."
+        ),
+    ),
+    "PEAK_POSITION_AT_BOUND": HelpEntry(
+        title="Positions pressed against their bound",
+        description=(
+            "Components whose fitted position ran into its bound, half the "
+            "group's seed FWHM from where detection or a re-seed put it. "
+            "The reported position is the bound's: the fit stopped on its "
+            "bound, and its uncertainty is the curvature there, which leaves "
+            "out how far past the bound the fit would have moved. Each "
+            "entry gives the bound in degrees and the component's intensity "
+            "over its esd. The value counts those still usable above the "
+            "false-discovery bar."
+        ),
+    ),
+    "PEAK_NO_INTENSITY": HelpEntry(
+        title="Components with no intensity",
+        description=(
+            "Components excluded from usable() and kept in the peak list so a "
+            "report can say why. Three causes, and each entry says which: the "
+            "fit's intensity is on its zero bound, it is under one esd, or "
+            "the caller marked it by hand whatever its intensity. On the "
+            "zero bound the position and its esd are not measurements; "
+            "whether a position under one esd is worth indexing on is a "
+            "reading of PEAK_NO_INTENSITY_SIGMA."
         ),
     ),
     "PEAK_ASYMMETRY_UNMODELLED": HelpEntry(
@@ -4231,9 +4344,9 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         title="Stage stopping tolerance",
         description=(
             "This stage's own relative tolerance on the decrease in cost. It overrides "
-            "the plan's schedule. Empty takes the value from the plan: every stage but "
-            "the last stops at the plan's `intermediate_ftol`, and the last stops at "
-            "the solver's 1e-9. The history records the tolerance a stage ran at and "
+            "the plan's schedule. Empty takes the value from the plan: every declared "
+            "stage but the last stops at the plan's `intermediate_ftol`, and the last "
+            "declared stage and the closing stage stop at the solver's 1e-9. The history records the tolerance a stage ran at and "
             "not the one it declared, so a cherry-pick replays what happened."
         ),
         default="null",
@@ -5117,8 +5230,9 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
         title="Tolerance the stage ran at",
         description=(
             "The relative cost-decrease tolerance this stage stopped at. `None` means "
-            "the solver's own default, which the last stage of a plan takes; an earlier "
-            "stage takes the plan's `intermediate_ftol` unless it declares its own."
+            "the solver's own default, which a plan's last declared stage and its "
+            "closing stage take; an earlier stage takes the plan's `intermediate_ftol` "
+            "unless it declares its own."
         ),
         anchor="theory/estimation.html#convergence",
     ),

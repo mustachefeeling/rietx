@@ -507,10 +507,11 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
                       strain_seed=max((s.strain_seed for s in plan.stages),
                                       default=0.0))],
         correlation_guard=plan.correlation_guard,
-        # the warm stage's own tolerance when the plan has a closing stage,
-        # which then takes the solver's; inert without one, a lone stage being
-        # the last, and carried anyway, because this is the compressed plan
-        # rather than a different protocol (WP-1123)
+        # inert, the lone warm stage being the last declared one, which
+        # converges whether or not a closing stage follows (WP-2045: at 1e-6
+        # the hostile series' cpd-1b warm stage stopped on its frozen windows'
+        # plateau at axial_sl 555); carried anyway, because this is the
+        # compressed plan rather than a different protocol (WP-1123)
         intermediate_ftol=plan.intermediate_ftol,
         # and the closing stage itself, the protocol's like the two below
         # (WP-2002, the sixth round's Q1 and Q2)
