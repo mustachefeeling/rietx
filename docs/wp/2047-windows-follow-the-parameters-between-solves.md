@@ -143,6 +143,45 @@ A fresh compile costs 4-17 ms against whole fits of 0.6-3.4 s here, with
 5-15 % to these short fits unless it reuses the next stage's compile, which
 is at the same values; one per iteration would add about 50 %.
 
+**Two rules, emulated** (probe 4, same machine and tree; 2026-10-25). Each
+wraps the solver so a stage's solve becomes several solves, with a fresh
+compile between two of them when `lost` exceeds the compile's own window
+tolerance. `end` checks when a solve ends and re-solves, at most five times.
+`chunkN` solves N iterations at a time and checks between chunks. The
+emulation sits inside the solver call, so the stage's phase-collapse check
+still runs after it, on the last model.
+
+| Rule | cpd-1b, pre-2045 schedule | cpd-1b, shipped schedule | Four protocols: evaluations against shipped |
+|---|---|---|---|
+| shipped | runs away, `axial_sl` 558 | Rwp 0.1398, `axial_sl` 0.0082, 312 evaluations, 6 s | — |
+| `end` | Rwp 0.1398, `axial_sl` 0.0082, 170 evaluations, 207 s | over 300 s, aborted | 1.00× on all four; no recompile |
+| `chunk10` | runs away, `axial_sl` 4.8 | runs away, `axial_sl` 7.9 | 1.00-1.02×; no recompile |
+| `chunk3` | Rwp 0.1398, `axial_sl` 0.0082, 118 evaluations, 5.6 s | Rwp 0.1398, `axial_sl` 0.0082, 145 evaluations, 7.1 s | 1.00-1.10× (cpd-1a 193 against 175); no recompile |
+
+No rule recompiled any stage of the four protocols. Every answer stayed
+within 0.001 esd of shipped. Wall time on them rose 2-47 %, mostly the
+probe's own fresh compile per check; the first three families ran while the
+machine was swapping, so those seconds are rough.
+
+- **`end` rebuilds at the runaway, and that model is enormous.** Under the
+  shipped schedule the warm stage's first solve converges after 230
+  iterations with corundum's *a* at 41.04 Å (from 4.76). `lost` there is
+  99.93 %, and the fresh compile has 354 million window points against
+  68 thousand, which paged the machine. The shipped stage survives that
+  answer because the collapse check restores the phase and solves again; the
+  `end` rule compiled before the collapse check could act. A real
+  implementation would check after the support step, but the old schedule's
+  second solve also ends at `axial_sl` 558, where `end` paid 207 s.
+- **`chunk3` works by catching the first step.** Its one recompile is at
+  iteration 3, after the cell jump of 4.76 → 5.15 Å, while the model is
+  still near where it started. The stage then never collapses, so the
+  second solve's axial jump never happens. `chunk10` checks too late.
+  The chunk size is therefore a tuned number whose margin is unknown: 3
+  works and 10 fails, on one case.
+- **The emulated check is wrong on a Le Bail stage unless it carries the
+  extracted intensities** (`refine._carry_lebail`); without them NAC's
+  first stages read 41-47 % lost and recompiled at the cap.
+
 ## Non-goals
 
 - Windows that move at every evaluation (WP-2045's option 7). That drops
