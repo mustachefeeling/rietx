@@ -30,14 +30,15 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 2026-10-12 | P3 | [rigid-bodies](#rigid-bodies) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 2026-10-12 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 2026-10-14 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 2026-10-25 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-12 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | 2026-10-08 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | 2026-10-13 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | 2026-10-25 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1958](1958-a-phase-with-no-reflection-walks-its-scale-under-trf.md) | A phase with no reflection in range walks its scale under TRF | 2026-10-24 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-21 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 2026-10-25 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 2026-10-24 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 2026-10-22 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-23 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
@@ -59,7 +60,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) | [Unscheduled](#unscheduled-coming-from-another-code) |
-| [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1964](1964-a-nonlinear-law-through-the-derived-block.md) | A nonlinear law over the pattern coordinates, through the derived block | P2 | [1325](1325-parametric-series.md), [1804](1804-the-derived-block.md) | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -550,7 +550,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 🔄 2026-10-08 | P2 | — |
 | [1908](1908-a-tick-misses-the-displacement-shift.md) | A tick misses the displacement shift | ✅ 2026-10-15 | — | — |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 🔄 2026-10-12 | P2 | — |
-| [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 🔄 2026-10-14 | P2 | — |
+| [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 🔄 2026-10-25 | P2 | — |
 | [1912](1912-a-polar-axis-has-no-origin.md) | A polar axis has no origin, and the fit walks along it | ✅ 2026-10-23 | — | — |
 | [1914](1914-a-size-read-off-a-coefficient-at-its-floor.md) | A size read off a coefficient at its floor | ⬜ | P3 | — |
 | [1915](1915-an-unmeasured-direction-poisons-a-candidates-esds.md) | An unmeasured direction poisons every esd of an indexing candidate | ⬜ | P3 | — |
@@ -569,9 +569,9 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1952](1952-the-xy-reader-says-what-it-skipped.md) | The xy reader says what it skipped | ⬜ | P3 | — |
 | [1953](1953-a-large-pawley-stage-converges-under-the-default-driver.md) | A large Pawley stage converges under the default driver | ✅ 2026-10-13 | — | — |
 | [1955](1955-a-column-at-a-zero-aperture-and-a-column-the-matrix-cannot-see.md) | A column at a zero aperture, and a column the agreement matrix cannot see | ⬜ | P3 | — |
-| [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | ⬜ | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) |
+| [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) | A cell pays for the lines it predicts and the pattern lacks | 🔄 2026-10-25 | P2 | — ([1449](1449-rank-on-what-the-screen-determined.md), [1511](1511-which-cell-does-this-powder-support.md) soft) |
 | [1958](1958-a-phase-with-no-reflection-walks-its-scale-under-trf.md) | A phase with no reflection in range walks its scale under TRF | 🔄 2026-10-24 | P3 | — |
-| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 🔄 2026-10-21 | P2 | — ([1909](1909-a-line-on-a-falling-flank.md) soft) |
+| [1968](1968-the-picker-offers-no-line-the-data-cannot-support.md) | The picker offers no line the data cannot support | 🔄 2026-10-25 | P2 | — ([1909](1909-a-line-on-a-falling-flank.md) soft) |
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 🔄 2026-10-24 | P2 | — ([1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) soft) |
 | [1976](1976-a-correction-summary-judged-at-the-drawn-angle.md) | A correction summary judged at the drawn angle | ✅ 2026-10-15 | — | — |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | ⬜ | P2 | — |
