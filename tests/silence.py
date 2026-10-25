@@ -300,6 +300,31 @@ def _resolution_silent() -> list:
         + _resolution_findings(x=0.001, w=1e-3, free=True)))
 
 
+def _screen_diagnostics(status: str, net: float | None) -> list:
+    """extinction_diagnostics for a screen that ranked no class, at the
+    given status and background-subtracted reference Rwp.  A stub carries only
+    what the builder reads, so no fit runs."""
+    from types import SimpleNamespace
+
+    from rietx.indexing.diagnostics import extinction_diagnostics
+
+    return extinction_diagnostics(SimpleNamespace(
+        status=status, reference_rwp_net=net, prefit_rwp=None, candidates=[],
+        lattice_group="F m -3 m", system="cubic", centring="F",
+        cell=(5.4311, 5.4311, 5.4311, 90.0, 90.0, 90.0), two_theta_range=(12.1, 60.0)))
+
+
+def _screen_unreliable_fires() -> list:
+    """The gate's own status, with the net Rwp past REFERENCE_NET_RWP_MAX."""
+    return _screen_diagnostics("unreliable", 0.9)
+
+
+def _screen_unreliable_silent() -> list:
+    """A converged screen at a reference fit the gate passes, and a cancelled one."""
+    return (_screen_diagnostics("converged", 0.02)
+            + _screen_diagnostics("cancelled", None))
+
+
 # ------------------------------------------------------------ the series and joint fit
 
 
@@ -412,6 +437,9 @@ SILENCE: dict[str, Pair] = {
         _multiplicity_fires, _multiplicity_silent, "tests/test_cif_stated_columns.py"),
     "CIF_SITE_TWINS_MERGED": Pair(
         _twins_fires, _twins_silent, "tests/test_cif_sites_coincide.py"),
+    "EXTINCTION_SCREEN_UNRELIABLE": Pair(
+        _screen_unreliable_fires, _screen_unreliable_silent,
+        "tests/test_extinction_gate.py (stub screens: the gate's fits are 20 s each)"),
     "FLOOR_HIT": Pair(
         _floor_fires, _floor_silent, "tests/test_bound_hit_at_convergence.py"),
     "GSAS2_INSTPRM_GEOMETRY_ASSUMED": Pair(

@@ -1997,6 +1997,31 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "wavelength and the 2θ range."
         ),
     ),
+    "EXTINCTION_SCREEN_UNRELIABLE": HelpEntry(
+        title="The extinction screen's reference fit is too poor to read absences against",
+        description=(
+            "The absence-free reference fit leaves more than half of the pattern's net "
+            "signal, taken against its own background, unexplained. It has not modelled "
+            "the allowed lines, so every refutation and ΔBIC below it may measure that "
+            "misfit. The classes are ranked, but `best_or_none()` abstains. Any of these "
+            "can cause it, in no order: the cell (a few tenths of a per cent off at "
+            "synchrotron resolution is outside the basin a Le Bail fit can refine it "
+            "from; re-index it from a better start), a phase the reference does not "
+            "model, weak data (for a perfect fit the quantity is about √(N/(N+S)), N the "
+            "channels and S the weighted net Bragg power, so it passes the bound whenever "
+            "S < N; counting longer helps and re-indexing does not), the range, the "
+            "wavelength and the width law. The bound, 1/√2 (at most half "
+            "of the net weighted power unexplained), sits between every right or nearly "
+            "right cell (≤ 0.36) and every cell outside the refinable basin (≥ 1.6) on "
+            "synthetic Si and P 2₁/c, 11-BM NAC, the GSAS-II fluorapatite and PbSO₄ "
+            "patterns and SRM 676a corundum; untested beyond them, and a second phase "
+            "carrying half the net weighted power trips it at a right cell. The gate does "
+            "not reach a local misfit: on certified SRM 676a corundum "
+            "(`R -3 c`) the shared profile fit's `profile_rwp` is 0.149 over 20–90°, where "
+            "`R - c -` wins, and 0.227 over 5–150° with declared widths, where `R - - -` "
+            "wins, with this code silent in both (measured on that one pattern)."
+        ),
+    ),
     "EXTINCTION_SYMBOL_AMBIGUOUS": HelpEntry(
         title="The extinction symbol is not settled",
         description=(
@@ -2785,12 +2810,21 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "INDEX_PREDICTED_BUT_ABSENT": HelpEntry(
         title="The cell predicts lines the pattern lacks",
         description=(
-            "After a Le Bail fit, some reflections this lattice predicts carry no "
-            "intensity above the background. An oversized cell does this, because it has "
-            "a translation it is not using. A correct cell does it too when a "
-            "space-group extinction removes those reflections. Compare the smaller cell "
-            "that indexes the same lines, and run the extinction screen before you "
-            "reject this one."
+            "Inside de Wolff's window (up to the 20th usable line), this lattice "
+            "predicts lines that no extinction could remove where the picker's envelope "
+            "shows nothing. An oversized cell does this, because it has a translation it "
+            "is not using, and M₂₀ cannot see it. The code caps the grade and never "
+            "refutes: a correct cell's weak general reflections below detection count "
+            "too. Glides and screws are left out of the count, so a correct cell reads "
+            "near 0: 0 on synthetic Si, a synthetic tetragonal set and SRM 676a "
+            "corundum, 2 on the round-robin magnetite and PbSO₄, against 7 to 79 for "
+            "the wrong cells tested (Si's cubic I √2·a₀ 11–12, cubic P 2a₀ 76–79); "
+            "measured on those patterns, untested beyond them. Do not check it with "
+            "Rwp: an oversized cell scored 0.379 against a correct 0.216, a "
+            "gap smaller than the spread between specimens. Without a peak list the "
+            "count is the fitted background's, over the whole range. Compare the "
+            "smaller cell that indexes the same lines, and run the extinction screen "
+            "before you reject this one."
         ),
     ),
     "INDEX_PRIOR_USED": HelpEntry(
@@ -2869,7 +2903,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "lines it predicts, which no extinction could remove, are seen no more often "
             "than chance would place them. So it ranks below the smaller cell. A real "
             "superstructure with extra lines too weak to pick escapes this test. Check "
-            "the pattern at the listed positions if the chemistry suggests one."
+            "the pattern at the listed positions if the chemistry suggests one. "
+            "Measured: it refutes Si's cubic I √2·a₀ (0 of 12 extra lines seen) and "
+            "kept every truth tested as a child, the lowest at p = 0.0072; on the "
+            "finished acceptance searches it put brucite's and 11-BM NAC's truths "
+            "first. Untested beyond those patterns."
         ),
     ),
     "INDEX_SYSTEMS_NOT_COVERED": HelpEntry(
@@ -3259,6 +3297,31 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "intensity has a large relative esd. The split shown comes from the "
             "equal-split restraint. Use the summed intensity of the group as the datum. "
             "Individual values from the group are not measurements."
+        ),
+    ),
+    "PEAK_POSITION_AT_BOUND": HelpEntry(
+        title="Positions pressed against their bound",
+        description=(
+            "Components whose fitted position ran into its bound, half the "
+            "group's seed FWHM from where detection or a re-seed put it. "
+            "The reported position is the bound's: the fit stopped on its "
+            "bound, and its uncertainty is the curvature there, which leaves "
+            "out how far past the bound the fit would have moved. Each "
+            "entry gives the bound in degrees and the component's intensity "
+            "over its esd. The value counts those still usable above the "
+            "false-discovery bar."
+        ),
+    ),
+    "PEAK_NO_INTENSITY": HelpEntry(
+        title="Components with no intensity",
+        description=(
+            "Components excluded from usable() and kept in the peak list so a "
+            "report can say why. Three causes, and each entry says which: the "
+            "fit's intensity is on its zero bound, it is under one esd, or "
+            "the caller marked it by hand whatever its intensity. On the "
+            "zero bound the position and its esd are not measurements; "
+            "whether a position under one esd is worth indexing on is a "
+            "reading of PEAK_NO_INTENSITY_SIGMA."
         ),
     ),
     "PEAK_ASYMMETRY_UNMODELLED": HelpEntry(
