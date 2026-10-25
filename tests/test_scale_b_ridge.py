@@ -934,8 +934,35 @@ def test_a_joint_message_names_the_histograms_that_held_the_scale():
 
 
 # ----------------------------------------------------------------------
-# #1103's follow-ups (round 2's read-only observations)
+# #1103's follow-ups: the trajectory flag (round 1, answer 5) and round 2's
+# read-only observations
 # ----------------------------------------------------------------------
+def test_a_qpa_trajectory_marks_the_points_whose_basis_left_a_phase_out(
+        pattern, four_phase_narrow_pattern):
+    """Iron's lines leave the range in the middle two patterns, so corundum's
+    fraction there is of the three phases seen and steps by 1.4 points with no
+    change in the specimen.  Each point names the phases its basis left out."""
+    from rietx.sequential import SequentialRefinement
+
+    series = SequentialRefinement(*_models(START_SCALES)).fit(
+        [pattern, four_phase_narrow_pattern, four_phase_narrow_pattern, pattern],
+        plan=RefinementPlan(stages=SCALES_ONLY), labels=["w0", "n1", "n2", "w3"])
+    corundum = series.qpa_trajectory("corundum")
+    assert corundum.positions == [0, 1, 2, 3]
+    assert corundum.unmeasured == [[], ["iron"], ["iron"], []]
+    assert corundum.basis_changes
+    assert "n1: relative to the phases seen; iron not measured" in str(corundum)
+    assert series.resolve_trajectory("qpa.corundum").unmeasured == corundum.unmeasured
+    iron = series.qpa_trajectory("iron")
+    assert iron.positions == [0, 3] and not iron.basis_changes
+    # the positive arm: every phase in range at every point, one basis
+    whole = SequentialRefinement(*_models(START_SCALES)).fit(
+        [pattern, pattern], plan=RefinementPlan(stages=SCALES_ONLY))
+    corundum = whole.qpa_trajectory("corundum")
+    assert corundum.unmeasured == [[], []] and not corundum.basis_changes
+    assert "not measured" not in str(corundum)
+
+
 def test_a_scale_held_through_a_variable_is_named_as_the_scale(
         four_phase_narrow_pattern):
     """The message sorted held columns by name, so a held ``vars.S_fe``
