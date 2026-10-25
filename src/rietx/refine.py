@@ -7379,10 +7379,9 @@ def _window_loss_diagnostics(stage_results: list[StageResult]) -> list[Diagnosti
                      "was solved on, so its answer may fit that loss rather "
                      "than the data."),
             value=sr.window_loss,
-            suggestion=("Start this stage closer: refine scales and the cell "
-                        "before the widths or the axial terms, or seed the "
-                        "scales. On the case measured, a further stage from "
-                        "this answer ran further away."),
+            suggestion=("Refit from starting values nearer the data, and do "
+                        "not polish this answer: on the case measured, a "
+                        "further stage from it ran further away."),
         ))
     return out
 

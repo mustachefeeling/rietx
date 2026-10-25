@@ -134,3 +134,17 @@ def test_a_fit_records_each_stages_loss_and_its_node_carries_it(pattern):
     out = ref.run_stage(pattern, rx.Stage("again", ["phases.*.scale"]))
     assert out.stages[-1].window_loss is not None
     assert ref.history[out.node_id].metrics.window_loss == out.stages[-1].window_loss
+
+
+@pytest.mark.parametrize("closing", [False, True])
+@pytest.mark.parametrize(("sl", "hl"), [(0.02, 0.02), (0.05, 0.0), (0.3, 0.1), (0.0, 0.0)])
+def test_the_vectorised_node_count_is_the_compiles(sl, hl, closing):
+    """``fcj_node_counts`` (rewindow's) gives the integers ``fcj_node_count``
+    (the compile's) gives, over 2θ from 5 to 160° and FWHM from 0.005 to 2°,
+    the ceiling and the skip test included."""
+    from rietx.model.profiles.fcj import fcj_node_count, fcj_node_counts
+    tt, fw = np.meshgrid(np.linspace(5.0, 160.0, 97), np.geomspace(0.005, 2.0, 41))
+    got = fcj_node_counts(tt.ravel(), fw.ravel(), sl, hl, closing=closing)
+    want = [fcj_node_count(float(a), float(b), sl, hl, closing=closing)
+            for a, b in zip(tt.ravel(), fw.ravel(), strict=True)]
+    assert got.tolist() == want

@@ -4068,9 +4068,8 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "stages whose answer reaches the result: the last one, and the one before "
             "a plan's closing stage. An earlier stage records its loss too, and every "
             "stage after it refits its answer on fresh windows. Treat the result as "
-            "unconfirmed. Start that stage closer, with scales and cell refined before "
-            "widths and the axial terms. On the case measured, a further stage from "
-            "the stage's answer ran further away."
+            "unconfirmed, and refit from starting values nearer the data. On the case "
+            "measured, a further stage from the stage's answer ran further away."
         ),
     ),
     "STEPHENS_STRAIN_NOT_POSITIVE": HelpEntry(
@@ -5241,8 +5240,11 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "its answer, against windows sized there. The windows are sized where the "
             "stage starts, so a peak that moved or broadened spills past them. "
             "Negative where the peaks narrowed. Above the stage's window fraction it "
-            "feeds `STAGE_WINDOWS_STALE`. `None` means nobody looked. A joint fit "
-            "records its worst histogram."
+            "feeds `STAGE_WINDOWS_STALE` on the last stage and the one before a closing "
+            "stage; an earlier stage records it without a warning, since the stages "
+            "after it refit its answer. Magnetic windows and extra peaks are not "
+            "measured. `None` means nobody looked. A joint fit records its worst "
+            "histogram."
         ),
     ),
     "StageResult.n_constraint_truncations": HelpEntry(
