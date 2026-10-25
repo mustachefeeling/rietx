@@ -1,11 +1,14 @@
 # WP-2003 batch: the chain actions
 
-The collated material for WP-2003's audit, **no tiers yet**. Nothing here rules on, moves or removes anything. The
-rule it is collated for is `../../milestones/generality.md` § The rule.
+The collated material for WP-2003's audit: the inventory, the reseed measurement, and the proposed tiers.
+Nothing here rules on, moves or removes anything; the 17 rows that needed no approval are in
+`src/rietx/_audit.py` (2026-10-24). The rule it is collated for is `../../milestones/generality.md` § The rule.
 
 | File | What it is |
 |---|---|
 | `inventory.json` | One object per action and constant (task 1). It holds the 77 `_audit.ROWS` names 2003 owns, `"row": true`: 17 codes and their 17 suggestion rows, 5 `SeriesEntry` actions, 12 constants, 26 defaults at the two sequential seats. It also holds 34 row-less entries, `"row": false`, under proposed names: 18 in `sequential.py`, 16 in the joint fit across `multi.py`, `params/multi.py` and two `optimize/least_squares.py` freezes. |
+| `rows.json` | One proposal per inventory entry (task 2): tier, kind of ambiguity, evidence as it would enter the table, grounds, class, demotion, dissenter, response, and the decision owed; `"applied": true` on the 17 written into the table, `"status": "tiered 2026-10-24"` on the 11 before them. Built by hand from the inventory, `reseed.md` and `docs/practice.md`. |
+| `classes.md` | The 111 entries in eleven classes, each with its stakes line, decision, evidence, case against and pick: the batch's draft. |
 | `README.md` | This page, and task 3's question answered below. |
 
 The keys: `decides` and `without` say what an entry decides for the caller and what the caller gets without it.
