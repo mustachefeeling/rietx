@@ -58,7 +58,8 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
     ``_pd_proc_ls_weight`` is interpreted as the least-squares weight
     w = 1/σ² (its pdCIF definition), so σ = 1/√w.  With none of these, a
     negative weight, or no positive weight at all, ``sigma`` is left unset and
-    the Poisson fallback applies downstream.
+    the Poisson fallback applies downstream; ``PATTERN_WEIGHT_UNUSABLE`` (info)
+    says so when a weight column was there and could not be used.
 
     A weight of **0** is the dictionary's mark of "a data point not used for
     refinement" (``_pd_proc.ls_weight``), so it excludes that point and only
@@ -111,14 +112,24 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
         sigma = stated
     else:
         wt = _first_loop(chosen, ("_pd_proc_ls_weight",))
-        # a column with no positive weight would exclude every point; it is
-        # read as no weight column, as before
-        if (wt is not None and len(wt) == len(y) and np.all(wt >= 0)
-                and np.any(wt > 0)):
-            # σ = ∞ marks a zero weight through ``ascending``, which may
-            # reverse or thin the columns; it never reaches the pattern
-            with np.errstate(divide="ignore"):
-                sigma = 1.0 / np.sqrt(wt)
+        if wt is not None and len(wt) == len(y):
+            if np.all(wt >= 0) and np.any(wt > 0):
+                # σ = ∞ marks a zero weight through ``ascending``, which may
+                # reverse or thin the columns; it never reaches the pattern
+                with np.errstate(divide="ignore"):
+                    sigma = 1.0 / np.sqrt(wt)
+            elif diagnostics is not None:
+                # a column with no positive weight would exclude every point,
+                # and a negative one has no σ: both read as no weight column
+                n_neg = int((wt < 0).sum())
+                found = (f"{n_neg} negative weight(s)" if n_neg
+                         else "no positive weight")
+                diagnostics.append(Diagnostic(
+                    level="info", code="PATTERN_WEIGHT_UNUSABLE",
+                    message=(f"{p.name}: _pd_proc_ls_weight holds {found} "
+                             f"in {wt.size} points, so it gives no σ = 1/√w. "
+                             f"The Poisson σ = √max(y, 1) is used instead."),
+                    value=float(n_neg), where=["_pd_proc_ls_weight"]))
 
     tt, y, sigma = ascending(tt, y, sigma, path=p, fmt=PDCIF,
                              diagnostics=diagnostics)

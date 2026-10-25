@@ -359,6 +359,34 @@ def _net_background_silent() -> list:
     return _net_read(0.0)
 
 
+def _weight_read(weights: list[float]) -> list:
+    """A pdCIF with a total column and ``weights`` through ``rx.read_pattern``."""
+    import rietx as rx
+    from tests.test_readers import _TT, _Y, _write_pdcif
+
+    found: list = []
+    with tempfile.TemporaryDirectory() as tmp:
+        p = _write_pdcif(pathlib.Path(tmp) / "w.cif", {
+            "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": weights,
+            "_pd_proc_intensity_total": _Y})
+        rx.read_pattern(p, diagnostics=found)
+    return found
+
+
+def _weight_unusable_fires() -> list:
+    """A weight column holding one negative entry."""
+    from tests.test_readers import _W
+
+    return _weight_read([-w if i == 2 else w for i, w in enumerate(_W)])
+
+
+def _weight_unusable_silent() -> list:
+    """The same column, all positive: read as 1/σ²."""
+    from tests.test_readers import _W
+
+    return _weight_read(list(_W))
+
+
 # ------------------------------------------------------------ the series and joint fit
 
 
@@ -509,6 +537,8 @@ SILENCE: dict[str, Pair] = {
         _net_background_fires, _net_background_silent, "tests/test_readers.py"),
     "PATTERN_UNDERSAMPLED": Pair(
         _undersampled_fires, _undersampled_silent, "tests/test_data_support.py"),
+    "PATTERN_WEIGHT_UNUSABLE": Pair(
+        _weight_unusable_fires, _weight_unusable_silent, "tests/test_readers.py"),
     "RESOLUTION_UNCONSTRAINED": Pair(
         _resolution_fires, _resolution_silent,
         "strategy.staged.check_resolution_supported (no test pinned it before)"),

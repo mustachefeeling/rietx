@@ -3319,10 +3319,42 @@ def test_zero_weight_runs_at_the_ends_and_a_descending_scan(tmp_path):
 
 def test_a_weight_column_with_no_positive_weight_is_not_read(tmp_path):
     """T10: all zeros would exclude every point; the column is read as no
-    weights, the Poisson fallback, as before."""
+    weights, the Poisson fallback, and ``PATTERN_WEIGHT_UNUSABLE`` says so."""
     p = _write_pdcif(tmp_path / "zeros.cif", {
         "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": [0.0] * len(_TT),
         "_pd_proc_intensity_total": _Y})
     found: list = []
     pat = rx.read_pattern(p, diagnostics=found)
-    assert pat.sigma is None and pat.excluded_regions == [] and found == []
+    assert pat.sigma is None and pat.excluded_regions == []
+    assert [d.code for d in found] == ["PATTERN_WEIGHT_UNUSABLE"]
+    assert found[0].value == 0.0
+    assert "no positive weight" in found[0].message
+    assert "Poisson" in found[0].message
+
+
+def test_a_negative_weight_falls_back_to_poisson_and_says_so(tmp_path):
+    """T10b: a negative weight has no σ; the column is not read, and the
+    diagnostic counts the negative entries."""
+    w = list(_W)
+    w[1], w[4] = -w[1], -w[4]
+    p = _write_pdcif(tmp_path / "neg.cif", {
+        "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": w,
+        "_pd_proc_intensity_total": _Y})
+    found: list = []
+    pat = rx.read_pattern(p, diagnostics=found)
+    assert pat.sigma is None and pat.excluded_regions == []
+    assert [d.code for d in found] == ["PATTERN_WEIGHT_UNUSABLE"]
+    assert found[0].value == 2.0
+    assert "2 negative weight(s)" in found[0].message
+
+
+def test_a_usable_weight_column_does_not_fire_the_fallback_code(tmp_path):
+    """T10c: positive weights, and weights with zeros among positives, read."""
+    for name, w in (("pos", list(_W)), ("zero", [0.0] + list(_W[1:]))):
+        p = _write_pdcif(tmp_path / f"{name}.cif", {
+            "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": w,
+            "_pd_proc_intensity_total": _Y})
+        found: list = []
+        pat = rx.read_pattern(p, diagnostics=found)
+        assert pat.sigma is not None
+        assert "PATTERN_WEIGHT_UNUSABLE" not in [d.code for d in found]
