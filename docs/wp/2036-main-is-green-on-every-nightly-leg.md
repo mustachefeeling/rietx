@@ -145,12 +145,18 @@ and 2045 on 2026-10-25):
 
 ## Tasks
 
-- [ ] Linux full suite: start `nightly.yml` by hand on `main` with `--durations=50`
+- [x] Linux full suite: start `nightly.yml` by hand on `main` with `--durations=50`
       reachable (a temporary branch workflow if needed), find what slowed after #1085,
       and fix the cause. Rebudget only if the cost is the closing stage's own and the
       durations table says so. *Cause found by WP-2043: the hostile series' closing
       stage at a runaway answer, which WP-2045 owns. What remains here is the re-run
-      and its durations table once 2045 lands.*
+      and its durations table once 2045 lands.* *Done 2026-10-25 by the
+      scheduled nightly on `deff4c301` (run 40184228951): the job completed in
+      2:05:47, 4 failed / 12 157 passed / 218 skipped / 41 xfailed. The hostile
+      series left the 25 slowest rows. Against 2026-10-22 (1:36:13, 11 586 tests)
+      the suite gained 830 tests and 30 min spread across it, with no row the
+      closing stage's own, so the limit was not rebudgeted. Its margin is now
+      1.19×; the next session reading a timeout reads this table first.*
 - [x] Windows `test_manual`: give the page-contract cases `ids=`, and confirm on the
       Windows leg. *Done by WP-2043 (#1146): the long page is `id="over-the-cap"`;
       the Windows suite passed every test on `ac1ee1e`.*
