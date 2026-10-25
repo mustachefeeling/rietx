@@ -171,6 +171,22 @@ Shipped's own answer sits 0.008-0.019 esd from its polished point, LaB6
   7-9 stages swap `ftol_runs` for `exhausted_fp64` or back, both converged
   endings; no stage ends on a limit.
 
+**The ruling, 2026-10-25: filed for now, kept as a possibility for the
+future.** The brief offered default, opt-in or file and recommended filing. Per-evaluation
+windows gain no accuracy on the four protocols. The one failure they fix,
+the hostile chain's runaway, is already stopped by WP-2045's schedule and
+reported by `STAGE_WINDOWS_STALE`. Building them rewrites the first invariant
+(frozen-per-stage discreteness) across every backend. The case against,
+recorded with it: four of the five programs surveyed recompute windows at
+every evaluation, and with a taper built in the runtime cost is inferred at
+0.94-1.10× shipped. What ships is the fast sizing alone
+(`forward.window_sizing`, `window_fwhm_mult_interp`), which `window_loss`
+uses. **To reopen**: a `STAGE_WINDOWS_STALE` firing on a user's fit, or a
+chain the schedule does not stop. Start from probes 9 and 10, the outward
+taper at w = 0.1 (it drops no area inside the sized edge, where the inward
+one drops up to 0.82 × the closing tolerance from a Gaussian), the list under
+"What a real implementation must settle" below, and #774's zero case.
+
 **What a real implementation must settle** (from probe 7, all unmeasured):
 - a policy for LM trial points far from the start, since each now builds
   its own windows (one cpd-1a trial at `axial_sl` 1096 built 17.8× the
@@ -242,9 +258,14 @@ needed, `optimize/least_squares.py` (the closures), `docs/wp/2047-batch/`
 - [x] Probes 7 and 8 re-run with the fast resizing, with and without the
       taper: fit time, evaluations, LM terminations, answer shift and the
       polished fixed points, on the four protocols and the hostile pair
-- [ ] The brief to the maintainer: default, opt-in or file, with the table
-- [ ] #774's zero case (Context), only if the brief is ruled to adopt
-- [ ] Skill: none until the ruling; an opt-in or a default adds its row
+- [x] The brief to the maintainer: default, opt-in or file, with the table.
+      *Ruled 2026-10-25: file it for now, kept as a possibility for the
+      future* (the ruling below)
+- [x] #774's zero case (Context), only if the brief is ruled to adopt.
+      *Not applicable: filed, not adopted.* The re-check stays with this
+      file's Context for whoever reopens per-evaluation windows
+- [x] Skill: none until the ruling; an opt-in or a default adds its row.
+      *None: filed, nothing a user can turn on*
 
 ## Acceptance
 
