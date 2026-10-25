@@ -3156,16 +3156,53 @@ def _offset_net(tmp_path, name, extra=None):
     return [d for d in found if d.code == "PATTERN_NET_HAS_BACKGROUND"]
 
 
-def test_the_suggestion_follows_what_the_file_holds_as_its_background(tmp_path):
-    """T6c: a file stating ``_pd_proc_intensity_bkg_calc`` has a curve of its own,
-    and a competent refiner holds it rather than refining a new one, so the
-    suggestion names it; without the item, a Chebyshev background."""
+def test_the_suggestion_tells_the_two_readings_apart_and_prescribes_neither(tmp_path):
+    """T6c: whether a column still carries a background is a fact about the
+    file's history.  The warning gives the minimum and its 2θ and names both
+    readings; the suggestion says how to tell them apart (y against
+    y - bkg_calc where the file states one, an empty baseline otherwise) and
+    names each reading's fix, so it never says to hold the curve outright."""
     plain, = _offset_net(tmp_path, "plain.cif")
-    assert plain.suggestion.startswith("refine a Chebyshev background")
+    assert "so the background was not subtracted" not in plain.message
+    assert "a background was left in" in plain.message
+    assert "no empty baseline" in plain.message
+    assert "2θ = " in plain.message
+    assert plain.suggestion.startswith("tell the two readings apart")
+    assert "look for an empty stretch of baseline" in plain.suggestion
+    assert "y - _pd_proc_intensity_bkg_calc" not in plain.suggestion
     held, = _offset_net(tmp_path, "held.cif", {
         "_pd_proc_intensity_bkg_calc": [300.0] * len(_TT)})
-    assert "_pd_proc_intensity_bkg_calc" in held.suggestion
+    assert held.suggestion.startswith("tell the two readings apart")
+    assert "compare y with y - _pd_proc_intensity_bkg_calc" in held.suggestion
     assert "BackgroundFixedPlusChebyshev" in held.suggestion
+    assert "already be subtracted" in held.suggestion
+
+
+def test_a_column_already_subtracted_by_the_files_curve_is_not_told_to_hold_it(
+        tmp_path):
+    """T6e: the depositor subtracted ``_pd_proc_intensity_bkg_calc`` and the
+    pattern is windowed onto a peak cluster, so the warning fires on a column
+    that is already net.  Holding the curve would count the background twice,
+    so the suggestion must not prescribe that, and must say how to see it."""
+    import numpy as np
+
+    rng = np.random.default_rng(1806)
+    tt = np.round(np.arange(10.95, 11.05, 0.01), 4)
+    peak = 2000.0 * np.exp(-0.5 * ((tt - 11.0) / 0.03) ** 2)
+    sig = np.sqrt(peak + 100.0)
+    y = peak + rng.normal(0.0, 1.0, tt.size) * sig      # already net
+    p = _write_pdcif(tmp_path / "sub.cif", {
+        "_pd_proc_2theta_corrected": tt.tolist(),
+        "_pd_proc_ls_weight": (1.0 / sig ** 2).tolist(),
+        "_pd_proc_intensity_net": y.tolist(),
+        "_pd_proc_intensity_bkg_calc": [100.0] * tt.size})
+    found: list = []
+    rx.read_pattern(p, diagnostics=found)
+    warn, = [d for d in found if d.code == "PATTERN_NET_HAS_BACKGROUND"]
+    assert not warn.suggestion.startswith("hold")
+    assert "compare y with y - _pd_proc_intensity_bkg_calc" in warn.suggestion
+    assert "when y - it reaches zero" in warn.suggestion
+    assert "may already be subtracted" in warn.suggestion
 
 
 def test_a_subtracted_pattern_windowed_onto_a_peak_cluster_misfires(tmp_path):

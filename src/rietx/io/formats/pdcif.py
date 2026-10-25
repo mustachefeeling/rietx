@@ -177,7 +177,7 @@ def _net_findings(p: Path, tt: np.ndarray, y: np.ndarray,
     The σ is the one the pattern will be fitted with: the file's, else the
     Poisson fallback √max(y, 1) that ``PatternData.sig()`` applies.  A file that
     also states ``_pd_proc_intensity_bkg_calc`` has a background curve of its
-    own, which the suggestion names in place of a new one.
+    own, which the suggestion names as one of the two fixes.
     """
     out = [Diagnostic(
         level="info", code="PATTERN_INTENSITY_NET",
@@ -196,17 +196,26 @@ def _net_findings(p: Path, tt: np.ndarray, y: np.ndarray,
             message=(f"{p.name}: the {_PDCIF_NET} column is labelled "
                      f"background-subtracted but never comes within "
                      f"{NET_BACKGROUND_MIN_SIGMA:g}σ of zero (minimum "
-                     f"y = {y[i]:.6g} at 2θ = {tt[i]:.6g}°, {z[i]:.3g}σ), so "
-                     f"the background was not subtracted. The intensities are "
-                     f"read as the file states them; refine a background."),
+                     f"y = {y[i]:.6g} at 2θ = {tt[i]:.6g}°, {z[i]:.3g}σ). "
+                     f"Either a background was left in, or the fitted range "
+                     f"holds no empty baseline. The intensities are read as "
+                     f"the file states them."),
             value=float(z[i]), where=[_PDCIF_NET],
             suggestion=(
-                f"the file states {_PDCIF_BKG_CALC}: hold that curve additively "
-                "(BackgroundFixedPlusChebyshev, with a refinable Chebyshev on "
-                "top) rather than holding the background at zero"
-                if has_bkg_calc else
-                "refine a Chebyshev background (with a HumpComponent for a broad "
-                "amorphous or capillary hump) rather than holding it at zero")))
+                "tell the two readings apart before choosing a background: "
+                + (f"compare y with y - {_PDCIF_BKG_CALC}, which the file "
+                   "states, and look for an empty stretch of baseline. "
+                   if has_bkg_calc else
+                   "look for an empty stretch of baseline in the range. ")
+                + "If a background was left in, "
+                + (f"hold {_PDCIF_BKG_CALC} additively "
+                   "(BackgroundFixedPlusChebyshev, with a refinable Chebyshev "
+                   "on top) when y - it reaches zero, otherwise "
+                   if has_bkg_calc else "")
+                + "refine a Chebyshev background (with a HumpComponent for a "
+                "broad amorphous or capillary hump); if the range holds no "
+                "empty baseline, the column may already be subtracted and "
+                "holding the background at zero is right")))
     return out
 
 

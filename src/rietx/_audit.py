@@ -712,8 +712,12 @@ ROWS: tuple[Row, ...] = (
                  "zero baseline (order 1) and four unrelated deposits (four laboratories, "
                  "four instruments, four materials; 14 to 6000), with a stated "
                  "misfire; the 5 is rietx's own, so the row stays tier 3 (ruled "
-                 "2026-10-23, #1006 round 2)."),
-        approved="2026-10-23"),
+                 "2026-10-24, #1006 round 3). The evidence is that the warning fires on four "
+                 "unrelated deposits; silence is shown only on a synthetic zero baseline "
+                 "(test_readers.py), with real subtracted deposits pending. A subtracted "
+                 "pattern windowed onto a peak cluster, with no empty baseline in range, "
+                 "misfires."),
+        approved="2026-10-24"),
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
@@ -1454,8 +1458,12 @@ ROWS: tuple[Row, ...] = (
                   "net, order 1 on a synthetic zero baseline; one case it misfires: a "
                   "subtracted pattern windowed onto a peak cluster"),
         grounds=("The decision threshold of PATTERN_NET_HAS_BACKGROUND, which only reports "
-                 "(ruled 2026-10-23, #1006 round 2)."),
-        approved="2026-10-23"),
+                 "(ruled 2026-10-24, #1006 round 3). The evidence is that the warning fires "
+                 "on four unrelated deposits (four laboratories, instruments and materials); "
+                 "silence is shown only on a synthetic zero baseline (test_readers.py), with "
+                 "real subtracted deposits pending. A subtracted pattern windowed onto a peak "
+                 "cluster, with no empty baseline in range, misfires."),
+        approved="2026-10-24"),
     Row("rietx.io.formats.base.HEAD_BYTES", "constant", value=4096),
     Row("rietx.io.formats.base.INTEGRAL_TOL", "constant", value=0.001),
     Row("rietx.io.formats.dif._MIN_ROWS", "constant", value=3),
@@ -3338,10 +3346,10 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_INTENSITY_SCALED.suggestion", "suggestion", value=6),
     Row("PATTERN_MULTISCAN_DEFAULTED.suggestion", "suggestion", value=1),
     Row("PATTERN_NET_HAS_BACKGROUND.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
-        evidence=("names the background by what the file holds: its own "
-                  "_pd_proc_intensity_bkg_calc, held additively, where it states one, "
-                  "else a Chebyshev to refine; the competent refiner who holds the file's "
-                  "curve is the first branch, so no dissenter is left; takes no action itself")),
+        evidence=("says how to tell the two readings apart (y against y - "
+                  "_pd_proc_intensity_bkg_calc where the file states one, an empty stretch "
+                  "of baseline otherwise) and names each reading's fix; it prescribes "
+                  "neither branch, so no dissenter is left; takes no action itself")),
     Row("PATTERN_ROWS_DROPPED.suggestion", "suggestion", value=1),
     Row("PATTERN_SIGMA_CONSTANT.suggestion", "suggestion", value=1),
     Row("PATTERN_UNDERSAMPLED.suggestion", "suggestion", value=1),
