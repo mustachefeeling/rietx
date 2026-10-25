@@ -67,9 +67,10 @@ def test_a_plan_runs_its_stages_then_one_freeing_every_glob_at_tight_windows():
             closing.ftol) == (last.max_iter, last.restraint_weight_scale,
                               last.window_slack_deg, last.ftol)
     assert closing.seed == 0.0 and closing.strain_seed == 0.0
-    # the declared last stage becomes an intermediate one; the closing stage
-    # converges to the solver's own tolerance at its own windows
-    assert plan.stage_ftols() == [1e-6, 1e-6, None]
+    # the last declared stage still converges, so the closing stage is handed
+    # an answer rather than a frozen-window plateau (WP-2045); the closing
+    # stage converges to the solver's own tolerance at its own windows
+    assert plan.stage_ftols() == [1e-6, None, None]
     assert plan.stage_window_tols() == [None, None, 1e-3]
     # the declared list is untouched
     assert [s.name for s in plan.stages] == ["scale_bkg", "cell"]
@@ -106,7 +107,7 @@ def test_the_setting_round_trips_through_the_mirror_and_the_series_collapse():
 def test_a_fit_records_the_closing_stage_and_its_windows(closed, unclosed):
     ref, result = closed
     assert [s.name for s in result.stages] == ["scale_bkg", "cell", CLOSING_STAGE_NAME]
-    assert result.stages[-1].ftol is None and result.stages[-2].ftol == 1e-6
+    assert [s.ftol for s in result.stages] == [1e-6, None, None]
     nodes = [n for n in ref.history.nodes.values() if n.action.kind == "stage"]
     assert [n.action.window_area_tol for n in nodes] == [None, None, 1e-3]
     # each line replays what ran: run_stage's own default is the closing

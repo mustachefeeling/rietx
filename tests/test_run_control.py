@@ -244,6 +244,38 @@ def test_cancelled_stage_does_not_leave_its_seed_behind(ref, pattern):
     assert ref.structure.phases[0].extinction.value == 0.0
 
 
+def test_a_cancelled_second_fit_leaves_the_first_report_alone(ref, pattern):
+    """``report()`` and the reflection table read what their own fit left.
+
+    A cancelled fit keeps the stages it completed and the previous result, so
+    a view reading the live models paired the second fit's values with the
+    first fit's result and model (WP-1421; the joint fit's twin is
+    ``test_joint_report``'s).  The second fit is cut short of the first's
+    range, so its completed stage lands on values of its own.
+    """
+    ref.fit(pattern, plan=PLAN)
+    before = ref.report().model_dump()
+    rows = ref.reflection_table()
+    curve = ref.predict()
+    token = CancelToken()
+    state = {"stage": None}
+
+    def watch(event: dict) -> None:
+        if event["kind"] == "stage_start":
+            state["stage"] = event["data"]["stage"]
+        if event["kind"] == "eval" and state["stage"] == "zero":
+            token.cancel()
+
+    scale = ref.structure.phases[0].scale.value
+    with pytest.raises(RefinementCancelled):
+        ref.fit(pattern, plan=PLAN, two_theta_limits=(20.0, 60.0),
+                events=watch, cancel=token)
+    assert ref.structure.phases[0].scale.value != scale, "the second fit moved nothing"
+    assert ref.report().model_dump() == before
+    assert ref.reflection_table() == rows
+    assert (ref.predict() == curve).all(), "predict() read the cancelled fit's values"
+
+
 def test_cancel_emits_stage_end_and_fit_end(ref, pattern):
     token = CancelToken()
     seen: list[dict] = []
