@@ -455,7 +455,7 @@ def _render_plan(doc: ProjectDoc) -> list[str]:
     # taken, and a default nobody can see is a default nobody can decline
     tol = "none" if spec.intermediate_ftol is None else _fmt(spec.intermediate_ftol)
     lines.append(f"tolerance {tol}".ljust(34)
-                 + "# intermediate_ftol: every stage but the last stops here "
+                 + "# intermediate_ftol: every declared stage but the last "
                    "('none' = converge them all)")
     # shown only above its default, like ``guard``: a Le Bail job's cap, which
     # an edit through the document would otherwise reset to one pass
