@@ -52,10 +52,28 @@ where rietx's reach about 16 FWHM of a Lorentzian at the 2 % tolerance. Wider
 windows cost points; a taper costs a little area, which the area tolerance
 already budgets.
 
-**Where the resizing time goes**, unmeasured in detail: 2-5 ms a call, in
-`phase_peaks`, `np.searchsorted`, `fcj.fcj_node_counts` and
-`forward._batch_layout`, per phase and emission line, in Python. Profile
-first. A compiled kernel is the expensive route: a new function in the
+**Where the resizing time goes, measured 2026-10-25** (task 1,
+[`2051-batch/resize_profile.py`](2051-batch/resize_profile.py); macOS arm64,
+`[dev]`, compiled tier on; median over 40 sizing calls spread through each
+perEval fit, each part the minimum of 5 repeats). A whole `rewindow` costs
+0.86-2.49 ms. Most of it is `window_fwhm_mult`, the 60-step bisection for the
+FWHM multiple k(η). It costs a fixed ~0.36 ms per phase and emission line,
+whatever the reflection count, because each step is a handful of numpy calls:
+
+| ms a call | NAC | LaB6 | Fluorapatite | cpd-1a |
+|---|---|---|---|---|
+| Phases × lines, points | 2 × 1, 22 003 | 1 × 2, 5332 | 1 × 2, 5750 | 3 × 2, 7251 |
+| `rewindow`, whole | 1.09 | 0.86 | 1.55 | 2.49 |
+| k(η) bisection | 0.80 | 0.72 | 1.11 | 2.18 |
+| `_batch_layout` | 0.19 | 0.05 | 0.30 | 0.16 |
+| `phase_peaks`, memo warm (cold) | 0.04 (0.45) | 0.02 (0.14) | 0.03 (0.49) | 0.07 (0.45) |
+| bounds, FCJ extent and node counts | 0.01 | 0.04 | 0.07 | 0.02 |
+| Sizing calls a fit | 118 | 241 | 184 | 442 |
+
+The memo-warm `phase_peaks` is the marginal cost, since the residual that
+follows reads the same memo. So a resize without the bisection and without
+rebuilding unmoved layouts is ~0.1-0.4 ms, and the WP's ~0.5 ms bar for a
+compiled kernel is not reached by any part. A compiled kernel is the expensive route: a new function in the
 `rietx-kernels` crate (`kernels/`), a minor wheel release raising rietx's
 floor, and the numpy fallback kept exercised (root CLAUDE.md § the compiled
 tier, its four rules). Only the part numpy cannot vectorise goes there.
@@ -116,7 +134,7 @@ needed, `optimize/least_squares.py` (the closures), `docs/wp/2047-batch/`
 
 ## Tasks
 
-- [ ] Profile one resize on the four protocols: milliseconds by part
+- [x] Profile one resize on the four protocols: milliseconds by part
       (`phase_peaks`, sizing, node counts, layout), per phase and line
 - [ ] Vectorise what numpy can (across phases and lines, the layout build);
       re-measure; a compiled kernel only for what remains above ~0.5 ms a
