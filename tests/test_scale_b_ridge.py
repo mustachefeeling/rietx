@@ -931,3 +931,40 @@ def test_a_joint_message_names_the_histograms_that_held_the_scale():
         np.full(4, 0.5), np.array([5, 5, 5, 0]), (25.0, 44.0), [FE_SCALE],
         structure, [held, held])
     assert "in histogram 0" in finding.message
+
+
+# ----------------------------------------------------------------------
+# #1103's follow-ups (round 2's read-only observations)
+# ----------------------------------------------------------------------
+def test_a_scale_held_through_a_variable_is_named_as_the_scale(
+        four_phase_narrow_pattern):
+    """The message sorted held columns by name, so a held ``vars.S_fe``
+    driving iron's scale read "Its 1 structural parameter was held" and the
+    scale clause never fired.  It is the scale, by what the column moves."""
+    ref = rx.Refinement(*_models(START_SCALES), solver="trf")
+    ref.add_variable("S_fe", START_SCALES[FE])
+    ref.tie(FE_SCALE, "vars.S_fe")
+    stages = [Stage(s.name, [*s.turn_on, "vars.*"]) for s in SCALES_ONLY]
+    res = ref.fit(four_phase_narrow_pattern, plan=RefinementPlan(stages=stages),
+                  telemetry=False)
+    assert all(sr.held == ["vars.S_fe"] for sr in res.stages)
+    (finding,) = _findings(res, "PHASE_UNCONSTRAINED")
+    assert finding.where == ["vars.S_fe"]
+    assert "Its scale was held at the value handed in" in finding.message
+    assert "structural" not in finding.message
+
+
+def test_a_held_variable_driving_a_cell_is_still_structural():
+    """The positive arm: a held ``vars.a`` driving iron's cell edge is a
+    structural parameter, and the scale clause stays silent."""
+    from rietx.refine import _phase_support_diagnostics
+
+    structure, _ = _models(START_SCALES)
+    held = StageResult(name="s", status="converged", n_iterations=1,
+                       cost_initial=1.0, cost_final=1.0, held=["vars.a"],
+                       held_reach={"vars.a": [f"phases.{FE}.cell.a"]})
+    (finding,) = _phase_support_diagnostics(
+        np.full(4, 0.5), np.array([5, 5, 5, 0]), (25.0, 33.0), [],
+        structure, [held])
+    assert "Its 1 structural parameter was held for stage s." in finding.message
+    assert "Its scale was held" not in finding.message
