@@ -133,7 +133,7 @@ def _kept_message(atom, phase_name: str | None, source: str | None, xyz, merge: 
 
 def _dof_moves(sg, before: np.ndarray, after: np.ndarray, prefix: str,
                new_prefix: str | None = None) -> dict[str, tuple[str | None, float]]:
-    """Where each coordinate DOF of a site goes when the site gains symmetry.
+    """Where each coordinate DOF of a site goes when the site's symmetry changes.
 
     ``phases.i.atoms.j.dof.k`` is the k-th direction the site symmetry allows,
     so a site that moves onto a special position renumbers them: PbSO₄'s O5 has
@@ -390,8 +390,8 @@ def merge_site_twins(structure: Structure, *,
     A moved site is also made fit for its new position: coordinates the
     position fixes lose ``vary``, and an anisotropic tensor is projected onto
     the allowed patterns, each said in the message (otherwise the parameter
-    table refuses the merged model, #1014).  The coordinate DOFs of a site that
-    gains symmetry renumber; :func:`numbering_moves` reads that off two
+    table refuses the merged model, #1014).  The coordinate DOFs of a site whose
+    symmetry changes renumber; :func:`numbering_moves` reads that off two
     structures, for :func:`carry_constraints`.
 
     Which sites merge is :func:`applied_twin_merges`'s one gate: a site whose

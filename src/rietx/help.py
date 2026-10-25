@@ -3957,14 +3957,15 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "SITE_DOFS_RENUMBERED": HelpEntry(
         title="Coordinate directions of a site renumbered",
         description=(
-            "A site's coordinates moved close enough to a special position that its "
-            "coordinate degrees of freedom changed (`dof.1` was y on the general position "
-            "and is z on a mirror at y = 1/4), and a hold, tie or free path sat on one of "
-            "them. Each follows its direction to the new number; one on a direction the "
-            "position now fixes or couples is dropped. The message names every one that "
-            "followed and every one that was dropped. Nothing was moved: this is the "
-            "bookkeeping of a site that gained symmetry without a merge, for instance "
-            "within 5e-5 of a mirror or after a fit wrote the coordinate back."
+            "A site's coordinates moved onto or off a special position so that its "
+            "coordinate degrees of freedom changed (`dof.1` is y on the general position "
+            "and z on a mirror at y = 1/4, in either direction), and a hold, tie or free "
+            "path sat on one of them. Each follows its direction to the new number; one on "
+            "a direction the position now fixes or couples is dropped. The message names "
+            "every one that followed and every one that was dropped. Nothing was moved: "
+            "this is the bookkeeping of a site whose symmetry changed without a merge, "
+            "for instance onto a mirror within 5e-5, after a fit wrote the coordinate "
+            "back, or off one by an edit."
         ),
     ),
     "SITE_TWINS_KEPT": HelpEntry(

@@ -1124,3 +1124,17 @@ def test_a_site_further_than_the_reach_from_every_hexagonal_special_position_is_
     sg = resolve_group("P 63/m m c", None)
     assert site_twin_merge(sg, (5.0, 5.0, 8.0, 90, 90, 120),
                            np.array([1 / 3 + 2.0e-3, 2 / 3 + 1.0e-3, 0.0705])) is None
+
+
+def test_a_site_that_loses_its_symmetry_says_so_in_its_own_words(pbso4):
+    """O5 on the mirror (DOFs x, z), z held; an edit moves it off to y = 0.30: the
+    hold follows z to ``dof.2`` and the message does not say the site gained anything."""
+    ref, j, site = _o5_state(pbso4)
+    ref.set_values({f"{site}.dof.1": 0.25 - pbso4.atoms[j].y.value})
+    ref.hold([f"{site}.dof.1"])
+    candidate = ref.structure.model_copy(deep=True)
+    candidate.phases[0].atoms[j].y.value = 0.30
+    ref.edit(structure=candidate)
+    assert ref._user_holds == {f"{site}.dof.2"}
+    (d,) = [d for d in ref._twin_findings if d.code == "SITE_DOFS_RENUMBERED"]
+    assert "gained" not in d.message and f"{site}.dof.2" in d.message

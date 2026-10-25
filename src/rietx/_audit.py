@@ -936,12 +936,12 @@ ROWS: tuple[Row, ...] = (
         responds=("check the fit's held and tied coordinates against the names the message gives "
                   "before reading a refined coordinate or its esd"),
         evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
-                  "between two structures (a coordinate a fit or set_values left within "
-                  "reach of a special position, with no merge) and a hold, user tie or free "
-                  "path sat on one of them; it names what followed its direction and what "
+                  "between two structures, in either direction (a coordinate a fit or "
+                  "set_values left within reach of a special position, with no merge, or an "
+                  "edit moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction and what "
                   "was dropped because the position fixes or couples it. The direction of a "
                   "DOF is the nullspace of the site group, so the map is derived, never "
-                  "chosen (#1014, round 5)")),
+                  "chosen (#1014, rounds 5-6)")),
     Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,
         response="warning",
         responds=("decide which reading of the site the file meant before quoting a weight "

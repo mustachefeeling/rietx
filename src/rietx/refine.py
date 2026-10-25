@@ -2595,9 +2595,10 @@ class Refinement:
     def _carry_twin_moves(self, moves: dict, found: list[Diagnostic]) -> None:
         """Carry holds, user ties and free paths through the DOF renumbering of a merge.
 
-        A site that gains symmetry renumbers its coordinate DOFs, so a hold on
-        ``dof.1`` (y on the general position) would read z on the mirror and
-        keep the wrong coordinate fixed with nothing saying so.  Each register
+        A site whose symmetry changes (onto or off a special position) renumbers
+        its coordinate DOFs, so a hold on ``dof.1`` (y on the general position)
+        would read z on the mirror and keep the wrong coordinate fixed with
+        nothing saying so.  Each register
         follows its DOFs (:func:`~.crystallography.twins.carry_constraints`),
         and what cannot follow is dropped and named in the site's
         ``SITE_TWINS_MERGED`` message.
@@ -2627,7 +2628,7 @@ class Refinement:
             else:
                 found.append(Diagnostic(
                     level="warning", code="SITE_DOFS_RENUMBERED", where=[site],
-                    message=(f"site {site} gained symmetry, so its coordinate "
+                    message=(f"site {site} changed its site symmetry, so its coordinate "
                              f"directions were renumbered: " + "; ".join(notes)
                              + "."),
                     suggestion="check the holds and ties on this site's "
