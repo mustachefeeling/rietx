@@ -1,6 +1,6 @@
 # WP-2036 — main is green on every nightly leg: a full suite that finishes, two Windows tooling tests, and answers that move with the platform
 
-Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-25 — every task done (PR #1165); a green nightly waits on WP-2048, 2049 and 2050
 Track: The repo's own process
 Depends on: 2045 (the `full` job cannot finish before it); 2048, 2049 and 2050 (three slow rows red by rounding until each lands); 2002 soft, the closing stage that moved most of these; 2012 soft, the LaB6 axial mirror
 Priority: P3 2026-10-25 — was P2: the `full` job completes again (#1161) and every task here is done; what remains is a green nightly, waiting on WP-2048, 2049 and 2050
@@ -249,6 +249,78 @@ gh run list --workflow nightly.yml --branch main --limit 1
   (the two degeneracies); WP-1930 (the 1e-14 nudge).
 
 ## Handover log
+
+- **2026-10-25** — The Linux full suite finishes again: the first nightly after
+  #1161 ran it in about two hours, and none of the hostile series' old hang is
+  left in its slowest tests. It is still red on four slow rows, each a fit with
+  two nearby stopping points that rounding picks between. Two of the four were
+  the tests' own fault and are fixed here. The other two, and the Le Bail raise
+  the WP was asked to reproduce, are defects in the package. Each is now its own
+  WP, so this one closes only when those land and a nightly comes back green.
+  The Windows job's limit was raising false alarms on slow runners and is raised.
+
+  *Done.* Windows `timeout-minutes` 45 → 120. The extra-peaks test asserts the
+  ignored arm's inflated esd instead of an ordering 0.3 ppm wide (the
+  maintainer's ruling, after a survey of McCusker 1999 §10 and §12.6 and
+  GSAS-II's background peaks, saved to `docs/practice.md`). The 150 K null is
+  fitted with no closing stage, like its reference. lab6's
+  intermediate-tolerance xfail is not strict. Filed: WP-2048 (a non-finite
+  residual raises out of `fit`), WP-2049 (a frame with no seen phase refines
+  the instrument's peak terms against noise), WP-2050 (`HIGH_CORRELATION`
+  against a flat triple). `moment` no longer reproduces anywhere. Inherited
+  folded into Context; forward references to WP-2045 and WP-2012.
+
+  *Measured.*
+  - Windows fast job, last 30 nightlies: 11-28 min through 2026-10-15, then
+    17-45 min, with two runs on 2026-10-24 two hours apart at 24.9 and 45.1. The 2026-10-22 run was
+    2.2× the 2026-10-21 one at every 5 % mark of its progress, so runner speed,
+    not one test. 120 is 2.7× the slowest complete pass. On 2026-10-25 it took
+    34.6 min.
+  - Nightly run 40184228951 (`deff4c301`, Linux 3.13, `[dev,jax]`): five jobs
+    green; `full` 4 failed / 12 157 passed / 218 skipped / 41 xfailed in
+    2:05:47. On 2026-10-22: 11 443 / 140 / 3 in 1:36:13. The 30 minutes are
+    spread across 830 more tests; the Le Bail fit (86 → 331 s) and two guide
+    scripts moved most. `full`'s margin under its 150 min is 1.19×.
+  - The four rows, reproduced on an arm64 Mac (`[dev]`) by 1e-14 nudges, numbers
+    in the task notes and in WP-2049 and WP-2050. The null fix: 1.1e-5 relative
+    at 12 nudged starts, against 1.2e-3 at some starts before.
+  - Le Bail: 4 of 6 nudged starts raise (WP-2048); `moment` round 1 moves
+    0.0859-0.0873 μB at 10 starts against its `< 0.10`.
+  - Extra peaks, `deff4c301`: declare −0.131 ppm, ignore −0.422 ppm, exclude
+    +0.329 ppm; esds 5.15 (clean), 5.05, 50.80, 4.88 ppm.
+  - Fast selection on main `4cfd45984` merged (`[dev]`, macOS arm64):
+    11 758 passed, 272 skipped, 28 xfailed in 6:58, nothing else running.
+    This WP added no test, so the total is main's; main moved under the branch
+    (#1006, #1073, #1111), so no delta against an earlier count is claimed. The
+    full selection was not run: every change here is to a test, CI or a doc.
+  - One lane (`linux-rows`, estimated 30 requests, ran 61): lane $3.51, saved
+    $3.29 against keeping it, +10 % of the session. Session trial row:
+    `| 2026-10-24 | de49de8e | 1 | 2 | 0K | 2 | 6K | 0.80 | 1 / 0 | +3.29 | +10% |`
+    (the session started on 10-24 with WP-2045; its two kept items are that
+    WP's). Selective policy over the replay: −23 %.
+
+  *Review.* `/code-review high` found nine issues. Fixed: the extra-peaks
+  module docstring still saying ignoring does not recover, a missing-esd guard,
+  a probe's usage text, the null row's history sentence, a stale task note.
+  Declined, each with its reason: the two unmarked lab6 siblings (not
+  re-measured; to WP-2012's Inherited); the 4 K moment comparison's protocol
+  mismatch (bar 35 %, a mismatch of 0.1 %); the `full` limit at 1.19× (the
+  WP's non-goal: no raise without a durations table that says why, and this
+  one does not); the trial row's date (the tool's, the session's start).
+
+  *Generality.* Not dispatched: `_audit.py` untouched, and the only new numbers
+  are test bars and a CI limit, none a package heuristic.
+
+  *Gotchas.* A strict xfail on a row that rounding decides fails on the
+  platform that rounds the other way, so it must be not strict. The alarm pin
+  cannot hold on both platforms until WP-2050 lands; do not re-pin it from
+  either.
+
+  Next: WP-2049 first, since a blank frame's zero shift reported at 4.8σ is a
+  wrong number a user can quote; then WP-2050, after which the alarm pin is
+  re-written once; then WP-2048. After all three, the next green nightly
+  closes this WP. If `full` times out first, read its durations table before
+  touching the limit.
 
 - **2026-10-24** — re-rated P1 → P2 by the maintainer's session after the 1.10.0 cut,
   with no code changed. The P1 reason was the `qpa` esd split, and WP-2044 fixed it
