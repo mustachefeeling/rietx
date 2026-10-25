@@ -7,12 +7,16 @@ Priority: P3 2026-10-24 — down a rung from P2: 2045 removes the one trigger me
 
 ## Goal
 
-No stage ends at an answer that exists only in its frozen discretisation. A
-stage's peak windows and FCJ node counts still stay frozen within each solve.
-Between solves, they follow the parameters: a stage whose windows have gone
-stale recompiles and solves again. It converges only on a solve that needed
-no recompile. The four acceptance standards' answers move by a measured,
-stated amount or not at all.
+No stage ends silently at an answer that exists only in its frozen
+discretisation. Each stage measures, at its answer, how much Bragg intensity
+its frozen windows drop against windows sized at that answer, records it,
+and reports a stage whose loss exceeds its own window tolerance. Then a
+prototype of windows recomputed at every evaluation is measured, to decide
+whether rietx adopts the practice of GSAS-II, MAUD, RIETAN-FP and
+EasyDiffraction. The four acceptance standards' answers do not move.
+
+(Rewritten 2026-10-25 on the maintainer's ruling, Context § The ruling. The
+goal as filed was a recompile between solves.)
 
 ## Context
 
@@ -82,12 +86,14 @@ rietx holds them for a stage. No program's manual states what its rule costs
 in accuracy.
 
 **The tier of each rule this WP adds** (written 2026-10-25 by the session
-that started it). The recompile itself is an automatic action of the first
-kind (DESIGN § Rules, 1): every program surveyed rebuilds its windows at some
-point, so the stage acts and records what it did in a field. Its trigger, the
-staleness threshold, is new judgement (tier 3). It is measured on one family,
-the hostile series cpd-1a → cpd-1b, against the independent fit of cpd-1b
-(Rwp 0.137) as the reference. No published number exists for it.
+that started it; revised after the ruling). The report is of DESIGN §
+Rules' third kind: the data cannot rank a remedy here, so the stage reports
+the number with its meaning and acts on nothing. Its threshold is no new
+number. It is the stage's own `window_area_tol`, the area the compile
+already allows each window to drop, so `lost` above it means the frozen
+windows drop more than the whole allowance. Its separation is measured on
+one family (normal stages at most 1.73 % against the 2 % tolerance and 2e-5
+against the closing 1e-3; the hostile stage 73-99 %).
 
 **Files.** `refine.py` (`Refinement._run_stage`, where a stage compiles and
 solves), `model/forward.py` (`compile_model`'s window and FCJ sizing, and
@@ -182,10 +188,28 @@ machine was swapping, so those seconds are rough.
   extracted intensities** (`refine._carry_lebail`); without them NAC's
   first stages read 41-47 % lost and recompiled at the cap.
 
+**The ruling** (maintainer, 2026-10-25, "go" on the session's proposal).
+Four options were put: report a stale stage (1), recompile every N
+iterations (2), check every accepted step and recompile on a trip (3), and
+nothing (4). A check at each solve's end was out in all of them, since it
+recompiles at the runaway. The maintainer then asked about windows
+recomputed at every evaluation, which this WP had listed as a non-goal. The
+session's view was that this is the right end state, since it removes the
+sink rather than detecting it and matches four of the five programs
+surveyed. Two costs are unmeasured. The residual steps by a tail value
+whenever a window edge crosses a point, and whether LM still meets `ftol`
+1e-9 is unknown; GSAS-II's windows run 50 FWHM below a peak and 75 above
+(`GSASIIstrMath.py:4071-4077` in 5.8.4, read this session), where rietx's
+reach about 16 FWHM of a Lorentzian at the 2 % tolerance. And the frozen
+layout is built into the compiled kernels, the batched forward, the
+derivative bases and jax's static shapes. Ruled: option 1 now, then a
+prototype of per-evaluation windows, measured before anything is adopted.
+Options 2 and 3 are dropped, since adoption would make them throwaway.
+
 ## Non-goals
 
-- Windows that move at every evaluation (WP-2045's option 7). That drops
-  the frozen-per-solve invariant itself.
+- Recompiling between solves within a stage (options 2 and 3 of the
+  ruling). Dropped for the prototype.
 - The peaks buffer, shape reuse across reflections for speed. That is fenced
   to v2 with FPA (root CLAUDE.md, the backends paragraph; WP-1122).
 - Restoring an axial ceiling, which B9 never named (WP-2045's Context, How
@@ -198,20 +222,29 @@ machine was swapping, so those seconds are rough.
       intensity dropped by the frozen windows, and the χ² ratio fresh/frozen.
       The threshold gets an `_audit` row (root CLAUDE.md § Every heuristic
       has a row), since tier 3 on one family is all that is known.
-- [ ] The design, put to the maintainer. It covers the stopping rule, what
-      the history records for a stage that recompiled, and whether the
-      closing stage stays: its start-dependence half may be what this
-      removes.
-- [ ] Measured on the four acceptance protocols (SRM 660c LaB6, the
-      fluorapatite tutorial, cpd-1a, 11-BM NAC) and on `chained_all`: time
-      and answer shift against the shipped tree, in the shape of WP-2002's
-      eighth-round table
-- [ ] The implementation, its record field and its `_audit` row
-- [ ] Tests: the hostile series' warm stage does not run away with the
-      intermediate tolerance restored, and a stage that recompiled is
-      recorded and replayed as what it ran
-- [ ] Skill and manual: `reference/refinement.md`'s staging section, and a
-      reference row only if a field or code is new
+- [x] The design, put to the maintainer (Context § Two rules, emulated, and
+      § The ruling). Ruled 2026-10-25: report now, then the per-evaluation
+      prototype.
+- [ ] `forward.rewindow(model, values)`: a copy of a compiled model whose
+      windows and FCJ node counts are sized at `values` on its frozen
+      reflection list, without a compile. Its agreement with a fresh compile
+      and its cost are measured on the four protocols.
+- [ ] The report: each stage measures `lost` at its answer through
+      `rewindow`, records it in a `StageResult` field and its `NodeAction`
+      twin, and raises a diagnostic above the stage's own
+      `window_area_tol`. Its `_audit` row, and its cost on NAC, the
+      shortest fit, against the per-stage budget (root CLAUDE.md, a
+      per-stage charge)
+- [ ] Tests: the hostile pair under the pre-2045 schedule raises the
+      diagnostic; the four protocols do not; the field round-trips through
+      history
+- [ ] Skill and manual: the diagnostic's reference row and
+      `reference/refinement.md`'s staging section
+- [ ] The prototype: windows recomputed at every evaluation on the numpy
+      path, on the hostile pair under the pre-2045 schedule and the four
+      protocols: answer shift in esd, evaluations, time, and whether LM
+      still meets `ftol` 1e-9. Then a brief to the maintainer: adopt, and
+      at what cost, or not
 - [ ] #774's zero case (Context, The axial zero case): with windows sized
       from the value and nodes from the free set, measure whether free and
       held curves at zero agree and the axial derivative rows still pass;
@@ -226,9 +259,11 @@ machine was swapping, so those seconds are rough.
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
-The hostile series' warm stages converge without running away at the
-shipped tolerances. The four standards move by no more than the bar the
-design brief states.
+The hostile pair under the pre-2045 schedule raises the stale-window
+diagnostic, and the four standards raise none and move not at all. The
+report costs NAC, the shortest fit, no more than the per-stage budget, or
+the excess is stated. The prototype's measurements and the brief that
+follows them are in the Context.
 
 ## Handover log
 
