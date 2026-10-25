@@ -206,6 +206,48 @@ derivative bases and jax's static shapes. Ruled: option 1 now, then a
 prototype of per-evaluation windows, measured before anything is adopted.
 Options 2 and 3 are dropped, since adoption would make them throwaway.
 
+**The report, measured** (2026-10-25, same machine, `[dev]`, run alone;
+probes 5 and 6). `forward.rewindow` resizes a compiled model's windows and
+FCJ node counts at given values on its frozen reflection list, reading the
+peaks `phase_peaks` draws; `forward.window_loss` compares the two models'
+Bragg sums. At every stage answer of the four protocols and the hostile pair
+it agrees with a fresh compile to six decimals (probe 5). Its node counts
+come from `fcj.fcj_node_counts`, a vectorised twin of the compile's
+per-reflection call, which was 80 % of its time; the compile keeps the
+scalar call, since a vectorised transcendental may land an ulp away and a
+count on a ceiling would move every converged fit. One check costs 1-4 ms on
+a declared stage and up to 22 ms on a closing stage, whose 1e-3 windows make
+each Bragg evaluation dearer. In whole fits, timed seven times each way and
+interleaved:
+
+| | NAC | LaB6 | Fluorapatite | cpd-1a |
+|---|---|---|---|---|
+| Added per fit | 15 ms | 21 ms | 51 ms | 46 ms |
+| Ratio | 1.034 | 1.046 | 1.041 | 1.029 |
+| Largest stage loss | 0.00 % | 1.61 % | 0.02 % | 1.32 % |
+
+NAC's 15 ms is inside the per-stage budget its shortest fit sets (17.7 ms,
+root CLAUDE.md). No standard raises `STAGE_WINDOWS_STALE`. The hostile pair
+under the shipped schedule records −1e-5 on cpd-1b's warm stage, after the
+collapse check restored it, and stays silent. Under the pre-2045 schedule
+the warm stage's `stage_end` reads 73.4 %. The fit cannot run to its result
+there, since the closing compile at `axial_sl` 558 runs for tens of minutes;
+the slow test reads the event and stops at that compile.
+
+**Which stages the code reports** (a session judgement, 2026-10-25, for the
+maintainer to reverse). The fast suite found a sixth fit: the calibrate
+guide (`examples/guides/calibrate.py`), whose `sample_profile` stage frees
+the sample broadening from zero and ends with its windows dropping 12.1 %.
+The three stages after it refit from that answer on fresh windows, and the
+guide's size lands within its esd of the true value. So the field records
+every stage, and `STAGE_WINDOWS_STALE` reports only the stages whose answer
+reaches the result with at most one refit: the last stage, and the one
+before it when the last is the closing stage. The runaway is the last
+declared stage, which only the closing stage refits, and that did not repair
+it. The alternative is to report every stage, which warns on the calibrate
+guide's correct fit. The rule is read off the record (`CLOSING_STAGE_NAME`),
+so the joint runner, which has no plan at that point, applies it too.
+
 ## Non-goals
 
 - Recompiling between solves within a stage (options 2 and 3 of the
@@ -225,21 +267,24 @@ Options 2 and 3 are dropped, since adoption would make them throwaway.
 - [x] The design, put to the maintainer (Context § Two rules, emulated, and
       § The ruling). Ruled 2026-10-25: report now, then the per-evaluation
       prototype.
-- [ ] `forward.rewindow(model, values)`: a copy of a compiled model whose
+- [x] `forward.rewindow(model, values)`: a copy of a compiled model whose
       windows and FCJ node counts are sized at `values` on its frozen
       reflection list, without a compile. Its agreement with a fresh compile
       and its cost are measured on the four protocols.
-- [ ] The report: each stage measures `lost` at its answer through
-      `rewindow`, records it in a `StageResult` field and its `NodeAction`
-      twin, and raises a diagnostic above the stage's own
+- [x] The report: each stage measures `lost` at its answer through
+      `rewindow`, records it in `StageResult.window_loss` and `NodeMetrics.window_loss`
+      (a measurement, so the metrics and not `NodeAction`, which a replay
+      reruns), raises `STAGE_WINDOWS_STALE` above the stage's own
       `window_area_tol`. Its `_audit` row, and its cost on NAC, the
       shortest fit, against the per-stage budget (root CLAUDE.md, a
       per-stage charge)
-- [ ] Tests: the hostile pair under the pre-2045 schedule raises the
-      diagnostic; the four protocols do not; the field round-trips through
-      history
-- [ ] Skill and manual: the diagnostic's reference row and
-      `reference/refinement.md`'s staging section
+- [x] Tests: the hostile pair under the pre-2045 schedule reads 73 % on the
+      warm stage's `stage_end` (its result is never reached: the closing
+      compile at the runaway takes tens of minutes); the four protocols raise
+      nothing (`test_window_domain.py`); the field reaches the node in
+      `tests/test_window_loss.py`
+- [x] Skill and manual: the diagnostic's reference row; the manual's generated pages carry the code and the field from `help.py`, and
+      `reference/refinement.md` stays as it was, being at its 50 000-character cap
 - [ ] The prototype: windows recomputed at every evaluation on the numpy
       path, on the hostile pair under the pre-2045 schedule and the four
       protocols: answer shift in esd, evaluations, time, and whether LM

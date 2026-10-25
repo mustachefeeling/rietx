@@ -36,7 +36,7 @@ Differentiability invariants honoured here (see docs/DESIGN.md):
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -153,6 +153,7 @@ from .profiles.fcj import (
     fcj_extent_deg,
     fcj_live,
     fcj_node_count,
+    fcj_node_counts,
     fcj_offsets_weights,
     fcj_offsets_weights_batch,
 )
@@ -880,6 +881,10 @@ class CompiledModel:
     # FitReport reads it to know which precision it was handed
     # (``report._reading_models``).
     window_area_tol: float | None = None
+    # The absolute capture slack every window half-width carries, as
+    # ``compile_model`` resolved it (``WINDOW_MIN_DEG`` unless a stage set
+    # ``window_slack_deg``), so ``rewindow`` sizes by the compile's rule.
+    window_slack_deg: float = WINDOW_MIN_DEG
     # The origin restraint of a ``Phase.floating_origin = "centroid"`` phase
     # (WP-1912, Flack & Schwarzenbach 1988; ``model.origin``): one row per
     # direction this solve's free set can slide the phase along.  ``None``
@@ -4217,7 +4222,87 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         pawley=pawley, restraints=restraints,
         restraint_weight_scale=float(restraint_weight_scale),
         window_area_tol=float(window_area_tol),
+        window_slack_deg=float(WINDOW_MIN_DEG if window_slack_deg is None
+                               else window_slack_deg),
     )
+
+
+def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
+    """``model`` with its windows and FCJ node counts sized at ``values``.
+
+    Everything else is the compile's: the reflection list, the sites and
+    every frozen correction.  The sizing is ``compile_model``'s rule, a
+    half-width of k(η)·Γ plus the slack, plus the FCJ extent while the
+    aberration acts.  It reads the peaks the forward model draws at
+    ``values`` (``phase_peaks``) where the compile reads its own width
+    estimate, so the two agree to that estimate's ~1 % and not to the bit.
+    The magnetic family and the extra peaks keep their windows.
+
+    The copy is a new frozen model.  A solve running on ``model`` never sees
+    it, so frozen-per-stage discreteness holds (WP-2047, where a stage asks
+    what its frozen windows drop at its answer: ``window_loss``).
+    """
+    tol = model.window_area_tol
+    sl = float(values.get("instrument.geometry.axial_sl", 0.0))
+    hl = float(values.get("instrument.geometry.axial_hl", 0.0))
+    # the compile's floor (#774), read off the model where the compile read
+    # the plan: a model holding nodes was sized with the axial term live
+    if sl > 0.0 or hl > 0.0 or any(cp.fcj_n.any() for cp in model.phases):
+        sl, hl = max(sl, AXIAL_SIZING_FLOOR), max(hl, AXIAL_SIZING_FLOOR)
+    fcj_on = fcj_live(sl, hl)
+    closing = tol <= CLOSING_WINDOW_TOL or tol < WINDOW_AREA_TOL
+    tt = np.asarray(model.tt, dtype=np.float64)
+    phases = []
+    for ip, cp in enumerate(model.phases):
+        win = np.zeros_like(cp.win)
+        fcj_n = np.zeros_like(cp.fcj_n)
+        for il, (pos, w1, w2, _) in enumerate(model.phase_peaks(ip, values)):
+            pos = np.asarray(pos, dtype=np.float64)
+            if model.shape == "voigt":
+                gamma, eta = tch_gamma_eta(
+                    np.asarray(w1, dtype=np.float64) * GAUSS_FWHM_TO_SIGMA,
+                    2.0 * np.asarray(w2, dtype=np.float64))
+            else:
+                gamma = np.asarray(w1, dtype=np.float64)
+                eta = np.asarray(w2, dtype=np.float64)
+            half = window_fwhm_mult(eta, tol) * gamma + model.window_slack_deg
+            if fcj_on:
+                half = half + fcj_extent_deg(pos, sl, hl)
+            valid = np.isfinite(pos) & np.isfinite(half)
+            pos_v = np.where(valid, pos, 0.0)
+            half_v = np.where(valid, half, 0.0)
+            i0 = np.searchsorted(tt, pos_v - half_v, side="left")
+            i1 = np.searchsorted(tt, pos_v + half_v, side="right")
+            i0[~valid] = 0
+            i1[~valid] = 0
+            win[il, :, 0], win[il, :, 1] = i0, i1
+            if fcj_on:
+                live = valid & (i1 > i0)
+                fcj_n[il, live] = fcj_node_counts(pos[live], gamma[live], sl, hl,
+                                                  closing=closing)
+        phases.append(replace(
+            cp, win=win, fcj_n=fcj_n, batch=_batch_layout(win, fcj_n, tt),
+            fcj_cache={} if (fcj_n.any() or cp.fcj_cache is not None) else None,
+            scalar_cache={}))
+    return replace(model, phases=phases)
+
+
+def window_loss(model: CompiledModel, values: dict[str, float]) -> float | None:
+    """The share of the Bragg intensity ``model``'s frozen windows drop at
+    ``values``, against windows sized there (``rewindow``).
+
+    Negative where the peaks narrowed, and ``None`` with no Bragg intensity
+    to compare.  A stage whose loss passes its own ``window_area_tol`` ends
+    on frozen windows dropping more than the compile allows each peak
+    (WP-2047: 1.73 % at most on the four acceptance protocols' stages at the
+    2 % tolerance, 73-99 % on the hostile series' runaway).
+    """
+    fresh = np.asarray(rewindow(model, values).bragg_component(values),
+                       dtype=np.float64).sum()
+    if not fresh > 0.0:
+        return None
+    frozen = np.asarray(model.bragg_component(values), dtype=np.float64).sum()
+    return float(1.0 - frozen / fresh)
 
 
 def _overlap_groups(tt: np.ndarray, fwhm: np.ndarray) -> list[list[int]]:

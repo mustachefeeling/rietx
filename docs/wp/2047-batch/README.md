@@ -20,7 +20,12 @@ OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2047-batch/pro
 | `probe3.py` | `lost` at every accepted iteration of every stage, and beside it the pseudo-Voigt estimate taken off the frozen model alone, with its cost | ~1 min a family, `hostile` ~3 min |
 | `probe4.py` | Two recompile rules emulated around the solver (`end`, `chunkN`): answer, evaluations, recompiles and seconds against the shipped tree. Takes `FAMILY ARM`; `hostile5` is the hostile pair under the shipped schedule | 1-7 s a run; `end` on the hostile pair 207 s to over 300 s, stopped by its own limit |
 
-All four ran on macOS arm64 (`[dev]`, Python 3.12) at `28c88711d`. The
+| `probe5.py` | `forward.window_loss` against probe 1's fresh-compile `lost` at every stage answer, with the milliseconds of each | 10-60 s a family |
+| `probe6.py` | The shipped report in real fits: each stage's `window_loss`, which fits raise `STAGE_WINDOWS_STALE`, and the fit time with the measurement and with it stubbed out, interleaved. Takes `FAMILY [N]`; `hostile` runs into the closing compile at `axial_sl` 558 and takes tens of minutes, so stop it there | 10-30 s a family |
+
+Time probe 6 alone: a pytest run beside it put 389 ms on a 51 ms charge.
+
+All six ran on macOS arm64 (`[dev]`, Python 3.12) at `28c88711d`. The
 families are `tests.test_window_domain._protocol`'s four (`lab6`, `fap`,
 `cpd1a`, `nac`) plus `hostile`.
 

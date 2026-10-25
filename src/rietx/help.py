@@ -4056,6 +4056,23 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "declare."
         ),
     ),
+    "STAGE_WINDOWS_STALE": HelpEntry(
+        title="A stage's peaks outgrew the windows it was solved on",
+        description=(
+            "Each stage computes every peak over a window of points, sized when the "
+            "stage starts. A peak that moves or broadens while the stage solves spills "
+            "past its window, and the model loses that part of its intensity. The stage "
+            "can then fit the loss rather than the data, and still report that it "
+            "converged. This fires when the windows drop more of the intensity, at the "
+            "stage's answer, than each window is allowed to drop. It reports only the "
+            "stages whose answer reaches the result: the last one, and the one before "
+            "a plan's closing stage. An earlier stage records its loss too, and every "
+            "stage after it refits its answer on fresh windows. Treat the result as "
+            "unconfirmed. Start that stage closer, with scales and cell refined before "
+            "widths and the axial terms. On the case measured, a further stage from "
+            "the stage's answer ran further away."
+        ),
+    ),
     "STEPHENS_STRAIN_NOT_POSITIVE": HelpEntry(
         title="Anisotropic strain coefficients are unphysical",
         description=(
@@ -5215,6 +5232,17 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "takes, and the closing stage runs at the plan's `closing_window_tol`. "
             "`model.forward.recorded_window_tol` turns this into what `compile_model` "
             "needs to reproduce the result's curves."
+        ),
+    ),
+    "StageResult.window_loss": HelpEntry(
+        title="Intensity outside stale windows",
+        description=(
+            "The share of the Bragg intensity this stage's profile windows dropped at "
+            "its answer, against windows sized there. The windows are sized where the "
+            "stage starts, so a peak that moved or broadened spills past them. "
+            "Negative where the peaks narrowed. Above the stage's window fraction it "
+            "feeds `STAGE_WINDOWS_STALE`. `None` means nobody looked. A joint fit "
+            "records its worst histogram."
         ),
     ),
     "StageResult.n_constraint_truncations": HelpEntry(

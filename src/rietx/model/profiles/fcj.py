@@ -149,6 +149,30 @@ def fcj_node_count(two_theta_deg: float, fwhm_deg: float, sl: float, hl: float,
     return int(np.clip(n, n_min, n_max))
 
 
+def fcj_node_counts(two_theta_deg: np.ndarray, fwhm_deg: np.ndarray, sl: float,
+                    hl: float, *, closing: bool = False) -> np.ndarray:
+    """:func:`fcj_node_count` over arrays, by the same rule.
+
+    For ``forward.rewindow`` (WP-2047), which sizes every reflection at once
+    and was 80 % of its time in the per-reflection call.  ``compile_model``
+    keeps the scalar one: a vectorised transcendental may land an ulp from the
+    scalar, and a count sitting on a ceiling would then move every converged
+    fit for nothing.
+    """
+    tt = np.asarray(two_theta_deg, dtype=np.float64)
+    if not fcj_live(sl, hl):
+        return np.zeros(tt.shape, dtype=np.int64)
+    per_fwhm, n_min, n_max, skip = (
+        (CLOSING_NODES_PER_FWHM, CLOSING_MIN_NODES, CLOSING_MAX_NODES,
+         CLOSING_SKIP_EXTENT_FWHM_RATIO) if closing
+        else (NODES_PER_FWHM, MIN_NODES, MAX_NODES, SKIP_EXTENT_FWHM_RATIO))
+    fwhm = np.asarray(fwhm_deg, dtype=np.float64)
+    extent = np.asarray(fcj_extent_deg(tt, sl, hl), dtype=np.float64)
+    n = np.clip(np.ceil(4.0 + per_fwhm * extent / np.maximum(fwhm, 1e-6)),
+                n_min, n_max).astype(np.int64)
+    return np.where(extent < skip * fwhm, 0, n)
+
+
 def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
                         n_nodes: int) -> tuple[np.ndarray, np.ndarray]:
     """Apparent-angle images 2φ_q (deg) and normalised weights ω_q (Σω = 1).
