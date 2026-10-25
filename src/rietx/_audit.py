@@ -989,7 +989,9 @@ ROWS: tuple[Row, ...] = (
                   "converging the last declared stage hands back 1.04-1.07x (WP-2045)"),
         grounds=("A schedule rietx chose (WP-1123); kept on four families with its failing case "
                  "stated, where the alternative is the arm that runs out of budget (the sixth "
-                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21)."),
+                 "round's Q2, bar 0.1 plain esd, ruled 2026-10-21). The last declared stage "
+                 "converges when a closing stage follows it (WP-2045 option 5, ruled "
+                 "2026-10-24)."),
         approved="2026-10-21"),
     Row("rietx.schemas.results.StageResult.window_area_tol", "action", tier=2, ambiguity=1,
         evidence=("the record of the closing stage PlanSpec:closing_window_tol runs (that "
@@ -2051,7 +2053,10 @@ ROWS: tuple[Row, ...] = (
         evidence=("no stated source; one decade under SciPy's 1e-8 default (checked); GSAS-II "
                   "5.8.4's default 'min dM/M' is 1e-3, a relative chi2 change between cycles "
                   "(GSASIIobj.py:20, checked); the closing stage and the last declared stage solve "
-                  "at it (WP-2045), and so does every stage under intermediate_ftol=None; INTERMEDIATE_FTOL's test measures "
+                  "at it (WP-2045), and so does every stage under intermediate_ftol=None; at "
+                  "1e-6 instead the hostile series' cpd-1b warm stage stopped at axial_sl 555 "
+                  "on a frozen-window plateau and at 1e-9 reaches 0.0082, one family, "
+                  "test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway; INTERMEDIATE_FTOL's test measures "
                   "against it (tests/test_staged_start_invariance.py), and this value itself "
                   "was never varied; the signature default of run_least_squares, "
                   "run_multi_least_squares and lm.minimize until the B14 lift"),
