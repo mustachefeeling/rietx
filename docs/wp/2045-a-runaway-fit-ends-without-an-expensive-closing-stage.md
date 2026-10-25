@@ -1,9 +1,9 @@
 # WP-2045 — A runaway fit ends without an expensive closing stage
 
-Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-25 — built and measured (PR #1161); open for the first nightly `full` job after merge and the maintainer's call on four audit rows' grounds
 Track: A long run is not one fit
 Depends on: —
-Priority: P2 2026-10-24 — a defect that costs a user a workaround: a fit that runs away now seems to hang, where 1.9.0 ended it in seconds; 1.10.1 waits on it
+Priority: P2 2026-10-25 — the fix is built in #1161 and 1.10.1 waits on its merge; what stays open is one nightly reading and a ruling on four rows' grounds
 
 ## Goal
 
@@ -330,6 +330,140 @@ committed) ran `SequentialRefinement(...).fit` on cpd-1a and cpd-1b under
 `stage_start`/`stage_end` events.
 
 ## Handover log
+
+### 2026-10-25 — option 5 measured and built: the last declared stage converges, and the hostile series finishes in 92 s
+
+A fit no longer hands its closing stage a runaway that came only from
+stopping too early. The last declared stage of a plan now converges at the
+solver's tolerance even when a closing stage follows, as it did before 1.10.
+On the four acceptance protocols and a real joint fit, that costs 1.04-1.07×
+the evaluations and moves no answer by 0.001 esd. The hostile round-robin
+series, which never finished on 1.10.0, now runs its whole test module in
+92 s on an arm64 Mac, every pattern after the first kept on its warm
+attempt. What it does not fix is the mechanism: a stage that converges into
+a frozen-window plateau would still hand one on. That is WP-2047's.
+
+*Done.* Inherited folded into Context and the acceptance task. Option 5
+measured first (Context, "What option 5 costs"), then built in
+`RefinementPlan.stage_ftols` (`endpoints` = the last declared and the last
+run stage); every runner reads it. A slow test,
+`test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway`, fails at
+once on any closing compile above `axial_sl` 1: on the parent tree
+`d9faf96e4` (run from a `git archive` snapshot) it fails at 557.8 in 6 s,
+and here it passes in 7-8 s. The schedule's prose was rewritten to "every
+declared stage but the last" across `staged.py`, `plan.py`, `results.py`,
+`help.py`, `textdoc.py`, the manual (reference and theory pages) and the
+root CLAUDE.md rule. Notes are staged in `releases/1.11.0.md`, the one
+staging file; the cut names the release. The skill's series bullet is now
+a one-line sign and remedy tagged Hypothesis. The four `intermediate_ftol`
+audit rows' shared evidence was re-measured, and `FTOL` and
+`StageResult.ftol` cite the new job and the ruling. VALIDATION's three
+`chained_all` rows re-measured, and the new test has its `ceiling` row.
+`test_warm_start_iteration_cost_is_reported`'s strict xfail XPASSed (both
+chains now mean Rwp 0.1282), so the mark is gone. Forward references went
+to WP-2036 (re-rated: the `full` job is unblocked pending the first
+nightly), WP-2003 (the xfail forwarded to it is gone), WP-2047 and WP-2017.
+
+*Measured* (macOS arm64, `[dev]`, compiled tier on; another session's pytest
+on about three of ten cores during the probes, idle during the module run).
+- Option 5's cost: the table in Context.
+- The hostile pair on this tree: cpd-1a cold at Rwp 0.16307; cpd-1b warm at
+  Rwp 0.13984, `axial_sl` 0.0082, warm stage 291 evaluations, closing 21;
+  8.1 s for both. The independent cpd-1b fit is 0.1373 (WP-2003).
+- `tests/test_acceptance_sequential.py`, `-n 4`: 15 passed in 92-94 s.
+  Iterations 408 restricted carry, 655 carry=*, 1255 independent; mean Rwp
+  0.1282 both chains, 0.1258 independent; zero reseeds; kept first-rung
+  ratios 0.064-0.080 of the running maximum.
+- `intermediate_ftol` 1e-6 against `None`, largest plain-esd shift: LaB6
+  8.82 (`axial_sl`, its mirrored minima, the strict xfail), FAP 0.000,
+  cpd-1a 0.0004, NAC 0.000, cpd-1a with zircon declared 0.009.
+- `test_staged_start_invariance.py`, `test_budget_and_tolerance_invariance.py`
+  and `test_bound_hit_at_convergence.py`: 43 passed, 3 xfailed.
+- FAST_SUITE_PLACEHOLDER
+
+*Gotchas.*
+- A probe's emulation (a stage's own `ftol`) is inert on this tree, since
+  option 5 gives the same schedule; `2045-batch/README.md` says so.
+- The cpd-1b runaway reads 557.8 on arm64 and 555 on Linux. The notes and
+  the test docstring quote 557.8 (the arm64 run that fails the test); the
+  73 % and 1 608× figures in `staged.py` are the Linux probe's at 555.
+- The manual's reference page sits at about 49 600 of its 50 000-character
+  cap, so the next addition there needs a cut or a split.
+- A worktree session cannot `cd`; the snapshot run used `PYTHONPATH` on
+  the snapshot's root and `src` with the venv's interpreter.
+
+*Review* (`/code-review high --fix`). Six findings. Fixed: the solver-seam
+test still pinned every pre-closing stage at 1e-6 (red under LM and TRF);
+the reference page passed its character cap (the why-paragraph moved to the
+theory page); the GUI document's tolerance comment; the root CLAUDE.md rule
+(left to me, done); the new test read eight patterns for two (done).
+Declined: choosing between 557.8 and 555 in the notes, handled in Gotchas
+above instead.
+
+*Generality* (the `generality-review` judge, report pasted as given):
+
+#### `rietx.optimize.lm.FTOL`
+
+**Verdict: holds for the edit, weak as a row.** The evidence for keeping 1e-9 is the stronger side. But this change gives the value a new job, and the row carries none of the evidence for that job.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "the closing stage and the last declared stage solve at it (WP-2045)" (`_audit.py:2053`) | Correct. In `staged.py`, `stage_ftols` now gives both stages `None` (the solver default) through `endpoints`. FTOL also now decides whether the stage before the closing stage gets past the plateau that frozen windows create. The closing stage is the final stage WP-2002 added, recompiled with tight windows. WP Context: "ends at `axial_sl` 554.99 under `ftol` 1e-6 and at 0.0139 (Rwp 0.196) under 1e-9". The row does not say this. | holds, incomplete |
+| 2. Kind of ambiguity | **none given**: the row has no `ambiguity` field | Not new to this change. The schedule rows beside it claim kind 1. | none given |
+| 3. Case against | already on the row: SciPy's default is 1e-8 and GSAS-II's `min dM/M` is 1e-3, both marked checked | For the new job, none found. The WP shows that 1e-6 fails. Nothing between 1e-6 and 1e-9, and nothing tighter, was measured. | none found (new job) |
+| 4. Case for | not on the row | WP probes: 555 against 0.0139. New slow test `test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway`. `tests/validation_matrix.py` records it reaching `axial_sl` 0.0082, and says "the parent tree fails it at 557.8". Cost is 1.04-1.07× the evaluations (WP Context table). | strong, but not cited on the row |
+| 5. Tier | 3, grounds unchanged. Delegated 2026-10-23, with WP-2017 (the second-pass audit) to refit "at 1e-8 and 1e-10" | Tier 3 still fits. The new job makes that refit matter more: whether the runaway comes back at 1e-8 is unmeasured. Only the GSAS-II and SciPy defaults are checked on the row. I checked no others. | holds |
+| 6. Families | "this value itself was never varied" | The new job rests on one family: the IUCr CPD round-robin pair cpd-1a → cpd-1b, with every parameter carried from one pattern to the next. The reference is rietx's own independent fit (Rwp 0.1373), so it verifies the code and validates nothing. | weak |
+| 7. What records it | — | `StageResult.ftol` reads `None`. `tests/test_closing_stage.py` asserts `[1e-6, None, None]`. | holds |
+
+Would change the verdict: WP-2017's 1e-8 and 1e-10 refits running the cpd-1a → cpd-1b pair, and the row citing the new test.
+
+*Author's answer:* the row now cites the new job, its one family and the new test (`d86504ea2`), and the 1e-8 refit on the pair went to WP-2017's Inherited.
+
+#### `rietx.schemas.plan.INTERMEDIATE_FTOL`, `PlanSpec:intermediate_ftol`, `StageSpec:ftol`, `StageResult.ftol`
+
+All four rows carry the same evidence string, so this one section covers them. INTERMEDIATE_FTOL is the constant. The two `Spec` rows are the defaults that apply it. `StageResult.ftol` is the action row for the schedule.
+
+**Verdict: weak.** The re-measured evidence is accurate and more current than the text it replaces. But the grounds were not rewritten. They still argue from a failing case the new evidence no longer lists, and the approval is dated before that case changed. The case against the loose tolerance is now the better-evidenced side.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "behind the closing stage, with the last declared stage converged (WP-2045), 1e-6 against every stage at 1e-9…" (`_audit.py:982`, `2615`, `2947`, `3003`) | Every declared stage except the last now stops at 1e-6 rather than 1e-9. After this change one fewer stage is loosened. | holds |
+| 2. Kind of ambiguity | `ambiguity=1` on three rows. INTERMEDIATE_FTOL has **none given**. | Kind 1 holds only if LaB6's 8.82 esd is read the evidence's way: "its mirrored S/L and H/L minima (WP-2012)". These are two equally good minima with the two axial ratios exchanged, and the Biso start test reaches both too. On that reading the tolerance only picks between them. | holds on that reading |
+| 3. Case against | "fails on SRM 660c, 8.82 esd on axial_sl … a strict xfail" | Confirmed: `tests/test_staged_start_invariance.py` has a strict xfail with reason "8.82 esd on axial_sl (WP-2002, 2026-10-23)". The esd here is plain, without the Bérar-Lelann inflation. This failure predates WP-2045. The old row's "0.000" for LaB6 was a 2026-10-21 reading and was already stale, so the edit corrects it. A refiner who runs every stage to convergence (`intermediate_ftol=None`) lands in LaB6's other minimum. `docs/practice.md` § Staging does not survey per-stage tolerances, so I could not find what the seven programs do. | case real, and stated |
+| 4. Case for | grounds: "kept on four families with its failing case stated, where the alternative is the arm that runs out of budget" | The arm that "runs out of budget" was the old failing case: cpd-1a with an absent zircon, where at 1e-9 zircon's cell walked to the stage's iteration limit. The new evidence has that case passing at 0.009. So the grounds' one accuracy argument for 1e-6 is gone, and only cost remains: "1.00-2.15x fewer evaluations … of which converging the last declared stage hands back 1.04-1.07x". The joint fit's 1.00× (143 → 143) sits outside that quoted range. `PlanSpec`'s field description (`plan.py:263`) still says "1.2-1.6x fewer". | weak: grounds not re-read |
+| 5. Tier | 3, `approved="2026-10-21"` | Tier 3 is right: the schedule is rietx's own, from WP-1123. But the 2026-10-21 approval covered "four families with its failing case stated", and that case was zircon. The failing case is now LaB6, and three families hold, not four. The maintainer has not approved that. | weak |
+| 6. Families | FAP, cpd-1a and 11-BM NAC within the bar; LaB6 fails | Three unrelated families by laboratory, instrument and material: the GSAS-II tutorial fluorapatite (lab), the IUCr CPD round robin (lab Cu), and 11-BM (synchrotron). The zircon case is cpd-1a again, not a fourth family. The reference is rietx's own all-1e-9 run, so this verifies and validates nothing. The rule asks the row to say which, and it does not. That gap predates this change. | meets the count; reference kind not stated |
+| 7. What records it | `StageResult.ftol` | Written on every stage and asserted in `tests/test_closing_stage.py`. | holds |
+
+Would change the verdict: grounds rewritten to the current failing case and the cost-only argument, then a fresh approval date from the maintainer. Alternatively, a measurement where 1e-6 beats 1e-9 on accuracy.
+
+*Author's answer:* left for the maintainer, since the grounds and the approval date are the ruling's record. This entry's Next puts it to them.
+
+#### `RefinementPlan.stage_ftols`: the last declared stage converges (not seen by the table)
+
+**Verdict: holds.** No new row is needed. The case for the rule is strong: a measured runaway, removed at a measured cost of 1.04-1.07×. Its place in the table is the `StageResult.ftol` action row, and that row's grounds do not yet cite the ruling.
+
+| Question | Author's answer (where) | What I found | Verdict |
+|---|---|---|---|
+| 1. What it decides | "Option 5 sets no threshold, so it adds no `_audit` row of its own" (WP, "Ruled 2026-10-24") | True. It reuses FTOL and INTERMEDIATE_FTOL and adds no number. It is a scheduling rule, which the table sees through `StageResult.ftol`, the action row keyed on the record field. A stage's own `ftol` still wins. | holds |
+| 2. Kind of ambiguity | inherits `StageResult.ftol`'s `ambiguity=1` | Kind 1 is plausible. The stage was stopping on an artefact: its frozen windows dropped "73.4 %" of the Bragg intensity a fresh compile computes (WP Context). No refiner wants a stage to stop there. | holds |
+| 3. Case against | "It removes this trigger and leaves the sink: a sink that is a true minimum of the frozen model would still stop a stage there" (WP, option 5) | That is a limit of the fix, not a dissent. The cost is 1.04-1.07×. I found no competent refiner who would loosen this stage. The WP's Practice section says no surveyed program has a closing stage of this kind. | none found |
+| 4. Case for | WP Context and cost table | Under 1e-6 the stage stopped at `axial_sl` 555, against 0.0139 under 1e-9. The closing compile held 1 608× the point-nodes of the stage before it. 1.10.0's hostile series did not finish after 50+ CPU-minutes, and the nightly hit its 150-minute limit. After the change, every pattern after the first is kept on its warm attempt. The largest shift is 0.000-0.0004 esd on five protocols, Rwp agreeing to 1e-10. | strong |
+| 5. Tier | maintainer's ruling, 2026-10-24 | It is part of rietx's own tier-3 schedule. The `StageResult.ftol` grounds still read only "WP-1123 … ruled 2026-10-21", with no mention of the 2026-10-24 ruling. I found no practice survey on per-stage tolerances in the repository. | holds; ruling unrecorded on the row |
+| 6. Families | five protocols for cost | The cost and the unmoved answers rest on five: LaB6, FAP, cpd-1a, NAC, and the mg090 joint fit (11-BM X-ray with BT-1 neutron). All are against rietx's own shipped run, so they verify. The defect rests on one family, the CPD pair. The WP marks single fits as "inferred from the mechanism", not measured. | defect on one family; cost on five |
+| 7. What records it | "`StageResult.ftol` already records what a stage ran at" | Confirmed: `None` on the last declared stage, asserted in `tests/test_closing_stage.py`. No diagnostic, and none is needed for a schedule. | holds |
+
+Would change the verdict: a second family where the last declared stage stops on the plateau even at 1e-9. That is the open case WP-2047 inherits, and it would argue for a guard with its own row. Separately, the `StageResult.ftol` grounds should cite the 2026-10-24 ruling.
+
+*Author's answer:* the `StageResult.ftol` grounds now cite the 2026-10-24 ruling (`d86504ea2`).
+
+Next: the maintainer, on the four schedule rows' grounds (the judge's
+second section). They still argue from the zircon failing case, which now
+passes at 0.009; the failing case is LaB6's mirrored minima, which is
+WP-2012's. Rewriting them and re-dating the approval is the maintainer's
+call. Then, after #1161 merges, read the first nightly `full` job: it is
+this WP's last acceptance line, and WP-2036's.
 
 ### 2026-10-24 (2nd session) — ruled: the stage before the closing stage converges, and windows that follow the parameters get a WP of their own
 
