@@ -48,6 +48,7 @@ from .crystallography.symmetry import reflection_label, reflection_label_row
 from .crystallography.twins import (
     carry_constraints,
     carry_state_constraints,
+    coordinate_snapshot,
     merge_site_twins,
     numbering_moves,
 )
@@ -3133,7 +3134,7 @@ class Refinement:
         parameter nothing writes is the shape WP-1076 removes, and one added
         here would fail no test.
         """
-        before = self.structure.model_copy(deep=True)
+        before = coordinate_snapshot(self.structure)
         table.apply_to_models(self.structure, self.instrument)
         # a coordinate written within reach of a special position renumbers
         # its DOFs, and the constraints must follow wherever it was written

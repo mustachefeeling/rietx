@@ -865,6 +865,42 @@ class SiteOrbit:
     images: np.ndarray
 
 
+def _snapped_stabilizer(all_rot: np.ndarray, all_tran: np.ndarray, x: np.ndarray,
+                        tol: float) -> tuple[np.ndarray, float, list[int]]:
+    """Steps 1-3 of :func:`site_orbit`: the snapped position, its shift and its stabiliser.
+
+    Split out so a caller that needs only *which operations fix a site*
+    (``twins.numbering_moves``, asking whether two coordinates have the same
+    site symmetry) does not pay for step 4's walk over the whole group.
+    """
+    def fixing(p: np.ndarray, bound: float) -> list[int]:
+        d = all_rot @ p + all_tran - p
+        d -= np.round(d)
+        return list(np.flatnonzero(np.all(np.abs(d) <= bound, axis=1)))
+
+    candidates = fixing(x, tol * (1.0 + _SITE_TOL_SLACK))
+    if len(candidates) == 1:
+        snapped, shift = x, 0.0          # general position: no arithmetic at all
+    else:
+        p = all_rot[candidates] @ x + all_tran[candidates]
+        p -= np.round(p - x)             # each image on the branch nearest x
+        snapped = p.mean(axis=0)
+        delta = snapped - x
+        shift = float(np.max(np.abs(delta - np.round(delta))))
+        if shift <= _SNAP_NOISE:
+            snapped, shift = x, 0.0      # already on it; the average is noise
+
+    stab_ops = fixing(snapped, _COINCIDENCE_TOL)
+    if len(stab_ops) == 1 and shift:
+        # the projection landed nowhere special: keep the caller's numbers, and
+        # re-measure the stabiliser *there*, since x can be fixed exactly by an
+        # operation the projected point is not — leaving the stabiliser stale
+        # would report the wrong site symmetry and trip the guard below
+        snapped, shift = x, 0.0
+        stab_ops = fixing(snapped, _COINCIDENCE_TOL)
+    return snapped, shift, stab_ops
+
+
 def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
                tol: float = SITE_TOL) -> SiteOrbit:
     """Stabiliser, snapped position, multiplicity and orbit images of one site.
@@ -916,31 +952,7 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
     order = len(ops)
     x = np.asarray(xyz, dtype=np.float64).reshape(3)
 
-    def fixing(p: np.ndarray, bound: float) -> list[int]:
-        d = all_rot @ p + all_tran - p
-        d -= np.round(d)
-        return list(np.flatnonzero(np.all(np.abs(d) <= bound, axis=1)))
-
-    candidates = fixing(x, tol * (1.0 + _SITE_TOL_SLACK))
-    if len(candidates) == 1:
-        snapped, shift = x, 0.0          # general position: no arithmetic at all
-    else:
-        p = all_rot[candidates] @ x + all_tran[candidates]
-        p -= np.round(p - x)             # each image on the branch nearest x
-        snapped = p.mean(axis=0)
-        delta = snapped - x
-        shift = float(np.max(np.abs(delta - np.round(delta))))
-        if shift <= _SNAP_NOISE:
-            snapped, shift = x, 0.0      # already on it; the average is noise
-
-    stab_ops = fixing(snapped, _COINCIDENCE_TOL)
-    if len(stab_ops) == 1 and shift:
-        # the projection landed nowhere special: keep the caller's numbers, and
-        # re-measure the stabiliser *there*, since x can be fixed exactly by an
-        # operation the projected point is not — leaving the stabiliser stale
-        # would report the wrong site symmetry and trip the guard below
-        snapped, shift = x, 0.0
-        stab_ops = fixing(snapped, _COINCIDENCE_TOL)
+    snapped, shift, stab_ops = _snapped_stabilizer(all_rot, all_tran, x, tol)
     coincide = min(tol, _COINCIDENCE_TOL)
     images: list[np.ndarray] = []
     keep: list[int] = []
@@ -974,6 +986,19 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
         tran=np.array(all_tran[keep]),
         images=np.asarray(images),
     )
+
+
+def site_stabilizer_indices(sg: gemmi.SpaceGroup, xyz, *, tol: float = SITE_TOL
+                            ) -> tuple[int, ...]:
+    """Indices (into the group's operation list) of the operations fixing ``xyz``.
+
+    Exactly the stabiliser :func:`site_orbit` reports, without its orbit: two
+    positions with the same indices have the same site symmetry, which is all
+    ``twins.numbering_moves`` asks of an atom a stage moved.
+    """
+    _, all_rot, all_tran = _group_arrays(group_key(sg))
+    x = np.asarray(xyz, dtype=np.float64).reshape(3)
+    return tuple(int(i) for i in _snapped_stabilizer(all_rot, all_tran, x, tol)[2])
 
 
 def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = SITE_TOL

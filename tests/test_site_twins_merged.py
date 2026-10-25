@@ -1138,3 +1138,47 @@ def test_a_site_that_loses_its_symmetry_says_so_in_its_own_words(pbso4):
     assert ref._user_holds == {f"{site}.dof.2"}
     (d,) = [d for d in ref._twin_findings if d.code == "SITE_DOFS_RENUMBERED"]
     assert "gained" not in d.message and f"{site}.dof.2" in d.message
+
+
+# ---- round 6, item 4: the write-back carry is priced on the atoms it can matter for
+
+def test_the_stabilizer_indices_are_the_ones_site_orbit_reports():
+    """Pins ``site_stabilizer_indices`` to ``site_orbit``'s own stabiliser on sites of
+    every kind: general, special, near-special and jittered off a cubic position."""
+    from rietx.crystallography.symmetry import site_stabilizer_indices
+    rng = np.random.default_rng(6)
+    for name in ("P n m a", "P 63/m m c", "I 21 3", "P m -3 m"):
+        sg = resolve_group(name, None)
+        for _ in range(60):
+            base = rng.choice([0.0, 0.25, 1 / 3, 0.5, 0.123], size=3)
+            x = base + rng.choice([0.0, 3e-5, 2e-4], size=3) * rng.uniform(-1, 1, size=3)
+            ops = site_stabilizer_indices(sg, x)
+            assert len(ops) == len(site_orbit(sg, x).stabilizer), (name, x)
+
+
+def test_an_atom_whose_site_symmetry_did_not_change_costs_no_orbit(pbso4, monkeypatch):
+    """Every atom moved by 1e-5, none onto or off a special position: ``numbering_moves``
+    finds nothing and never builds an orbit (the walk over the whole group)."""
+    from rietx.crystallography import twins
+    structure = Structure(phases=[pbso4])
+    new = structure.model_copy(deep=True)
+    for a in new.phases[0].atoms:
+        a.x.value += 1e-5
+        a.z.value += 1e-5
+
+    def boom(*a, **k):
+        raise AssertionError("site_orbit was called")
+    monkeypatch.setattr(twins, "site_orbit", boom)
+    import rietx.crystallography.wyckoff as wy
+    monkeypatch.setattr(wy, "site_orbit", boom)
+    assert twins.numbering_moves(structure, new) == {}
+
+
+def test_a_snapshot_reads_as_the_structure_it_was_taken_from(pbso4):
+    from rietx.crystallography.twins import coordinate_snapshot, numbering_moves
+    ref, j, site = _o5_state(pbso4)
+    before = coordinate_snapshot(ref.structure)
+    full = ref.structure.model_copy(deep=True)
+    _drift_y(ref, j, 0.2502)
+    merged, _ = _merge(ref.structure)
+    assert numbering_moves(before, merged) == numbering_moves(full, merged) != {}

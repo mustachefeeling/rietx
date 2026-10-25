@@ -15,6 +15,7 @@ to the next result they return.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -28,6 +29,7 @@ from .symmetry import (
     expand_positions,
     resolve_group,
     site_orbit,
+    site_stabilizer_indices,
     site_twin_merge,
 )
 from .wyckoff import coordinate_basis, stabilizer_rotations
@@ -160,34 +162,67 @@ def _dof_moves(sg, before: np.ndarray, after: np.ndarray, prefix: str,
     return moves
 
 
-def numbering_moves(old: Structure, new: Structure
+@dataclass(frozen=True)
+class CoordinateSnapshot:
+    """What :func:`numbering_moves` reads of a structure: its groups, labels and coordinates.
+
+    A caller that must look at the structure *before* a write (``_write_back``,
+    once per stage) takes this instead of deep-copying the whole structure,
+    which cost more than the carry it served (#1014 round 6, item 4).
+    """
+
+    phases: tuple[tuple[str, object, tuple[str, ...], np.ndarray], ...]
+
+
+def coordinate_snapshot(structure: Structure) -> CoordinateSnapshot:
+    """The coordinates and the labels, groups and operation lists they are read against."""
+    return CoordinateSnapshot(tuple(
+        (p.space_group, p.symmetry_operations, tuple(a.label for a in p.atoms),
+         np.array([[a.x.value, a.y.value, a.z.value] for a in p.atoms],
+                  dtype=np.float64).reshape(-1, 3))
+        for p in structure.phases))
+
+
+def numbering_moves(old: Structure | CoordinateSnapshot,
+                    new: Structure | CoordinateSnapshot
                     ) -> dict[str, tuple[str | None, float]]:
     """Where each coordinate DOF of ``old`` goes in ``new``, wherever a site's DOFs differ.
 
     The one reading of "this structure's DOF numbering changed", whatever
     changed it: a merge, a coordinate a fit landed within 5e-5 of a mirror
     (which :func:`~.symmetry.site_orbit` already counts as special, so no
-    merge fires), a value ``set_values`` wrote.  A holder of a hold, tie, free
-    path or stored path applies it with :func:`carry_constraints`, so the
-    carry does not depend on which route moved the site (#1014 round 5, items
-    2-6).  Phases are matched by position and atoms by label (see
-    :func:`_matched_atoms`), so a structure edited to add or rename an atom
-    keeps the carry for the others; a phase whose group changed is a different
-    model and is left to the caller's own reconciliation.
+    merge fires), a value ``set_values`` wrote, an edit that moved a site off
+    its position.  A holder of a hold, tie, free path or stored path applies it
+    with :func:`carry_constraints`, so the carry does not depend on which route
+    moved the site (#1014 round 5, items 2-6).  Phases are matched by position
+    and atoms by label (see :func:`_matched_atoms`), so a structure edited to
+    add or rename an atom keeps the carry for the others; a phase whose group
+    changed is a different model and is left to the caller's own
+    reconciliation.
+
+    An atom whose coordinates did not move is not looked at, and one that did
+    costs the site's stabiliser (:func:`~.symmetry.site_stabilizer_indices`,
+    no orbit) at the two positions: the same operations fixing both is the
+    same DOF numbering, whatever else moved.
     """
+    old = old if isinstance(old, CoordinateSnapshot) else coordinate_snapshot(old)
+    new = new if isinstance(new, CoordinateSnapshot) else coordinate_snapshot(new)
     moves: dict[str, tuple[str | None, float]] = {}
     for i, (po, pn) in enumerate(zip(old.phases, new.phases, strict=False)):
-        if po.space_group != pn.space_group:
+        (go, _, lo, xo_all), (gn, ops_n, ln, xn_all) = po, pn
+        if go != gn:
+            continue
+        pairs = [(jo, jn) for jo, jn in _matched_atoms(lo, ln)
+                 if not np.array_equal(xo_all[jo], xn_all[jn])]
+        if not pairs:
             continue
         try:
-            sg = resolve_group(pn.space_group, pn.symmetry_operations)
+            sg = resolve_group(gn, ops_n)
         except (ValueError, RuntimeError):
             continue
-        for jo, jn in _matched_atoms(po, pn):
-            ao, an = po.atoms[jo], pn.atoms[jn]
-            xo = np.array([ao.x.value, ao.y.value, ao.z.value])
-            xn = np.array([an.x.value, an.y.value, an.z.value])
-            if np.array_equal(xo, xn):
+        for jo, jn in pairs:
+            xo, xn = xo_all[jo], xn_all[jn]
+            if site_stabilizer_indices(sg, xo) == site_stabilizer_indices(sg, xn):
                 continue
             try:
                 bo = coordinate_basis(stabilizer_rotations(sg, xo))
@@ -201,8 +236,8 @@ def numbering_moves(old: Structure, new: Structure
     return moves
 
 
-def _matched_atoms(po, pn) -> list[tuple[int, int]]:
-    """(old index, new index) of the atoms the two phases both hold, by label.
+def _matched_atoms(lo: Sequence[str], ln: Sequence[str]) -> list[tuple[int, int]]:
+    """(old index, new index) of the atoms two label lists both hold.
 
     The same list in the same order matches by position.  Otherwise (an atom
     appended, one renamed, one removed: the GUI's add-atom path) an atom is
@@ -210,8 +245,7 @@ def _matched_atoms(po, pn) -> list[tuple[int, int]]:
     with no such partner is a different atom and is left alone (#1014 round 6,
     item 2).
     """
-    lo, ln = [a.label for a in po.atoms], [a.label for a in pn.atoms]
-    if lo == ln:
+    if list(lo) == list(ln):
         return [(j, j) for j in range(len(lo))]
     return [(lo.index(label), ln.index(label)) for label in lo
             if lo.count(label) == 1 and ln.count(label) == 1]
