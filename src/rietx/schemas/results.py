@@ -989,8 +989,8 @@ class StageResult(Base):
     cost_final: float
     freed: list[str] = Field(default_factory=list)
     #: the relative cost-decrease tolerance this stage actually stopped at, or
-    #: ``None`` for the solver default (1e-9) — which is what the answer-
-    #: producing last stage takes, and what every stage of every fit before
+    #: ``None`` for the solver default (1e-9) — which is what the last
+    #: declared stage and the closing stage take, and what every stage of every fit before
     #: WP-1123 took.  Recorded because it is otherwise unrecoverable from a
     #: result: the plan's schedule (``RefinementPlan.intermediate_ftol``) and a
     #: stage's own ``Stage.ftol`` both land here, and a consumer comparing two
@@ -1279,6 +1279,27 @@ class StageResult(Base):
         return value
 
 
+class Radiation(Base):
+    """The radiation a pattern was fitted with, as the compiled model held it
+    at the answer (WP-2042).
+
+    Recorded so a figure of the result can name its source the way a figure
+    of the pattern does: ``result.plot()`` labels its 2θ axis ``2θ (degrees),
+    Cu Kα, λ = 1.54059 Å`` through the rule ``PatternData.plot()`` uses.  The
+    record is the source's facts and never the label, so the rule stays one
+    piece of code and decides at read time.
+
+    ``wavelengths`` are the refined values when a wavelength was freed, which
+    is why a calibrated λ names no anode: only lines equal to a radiation
+    table entry to the last digit do.
+    """
+
+    #: ``Source.kind`` of the histogram: ``"xray_cw"`` or ``"neutron_cw"``.
+    kind: str
+    #: Each emission line's wavelength in Å, in line order, primary first.
+    wavelengths: list[float]
+
+
 class HistogramResult(Base):
     """One pattern's slice of a multi-histogram joint refinement.
 
@@ -1323,6 +1344,10 @@ class HistogramResult(Base):
     #: A satellite (WP-1326) is ``[h, k, l, m]`` — its parent H and its order —
     #: because H alone does not identify it; a nuclear row keeps three.
     tick_hkl: dict[str, list[list[int]]] = Field(default_factory=dict)
+    #: This histogram's own radiation, which a joint fit's other histograms
+    #: need not share (WP-2042); :meth:`RefinementResult.for_histogram` swaps
+    #: it in.  ``None`` on a result written before schema 0.60.
+    radiation: Radiation | None = None
     qpa: "QuantitativePhaseAnalysis | None" = None
     restraints: "RestraintReport | None" = None
     #: this histogram's own R_Bragg/R_F — the partition is of *these* counts
@@ -1935,6 +1960,14 @@ class RefinementResult(Base):
     #: because H alone does not identify it; a nuclear row keeps three.
     tick_hkl: dict[str, list[list[int]]] = Field(default_factory=dict)
 
+    #: The source the curves above were fitted with (WP-2042), which
+    #: :meth:`plot` names on its 2θ axis.  Two writers: ``refine``'s result
+    #: builder, from the compiled model, for every single fit and ``replay``;
+    #: and the joint fit's, which mirrors histogram 0 as the curves do.
+    #: ``None`` means not recorded, a result written before schema 0.60, and
+    #: never "no radiation".
+    radiation: Radiation | None = None
+
     # Quantitative phase analysis (weight fractions); computed for Rietveld
     # fits, None for Le Bail (its scales are degenerate).
     qpa: QuantitativePhaseAnalysis | None = None
@@ -2221,6 +2254,8 @@ class RefinementResult(Base):
         view.y_background = list(hr.y_background)
         view.sigma = list(hr.sigma)
         view.ticks = dict(hr.ticks)
+        view.radiation = (hr.radiation.model_copy(deep=True)
+                          if hr.radiation is not None else None)
         view.qpa = hr.qpa.model_copy(deep=True) if hr.qpa is not None else None
         view.restraints = (hr.restraints.model_copy(deep=True)
                            if hr.restraints is not None else None)

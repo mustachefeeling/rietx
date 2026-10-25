@@ -151,7 +151,7 @@ A `RefinementPlan` holds its stages and five settings.
 |---|---|---|
 | `RefinementPlan.stages` | required | the `Stage` list, in order |
 | `RefinementPlan.correlation_guard` | 0.98 | the \|ρ\| above which a stage reports a correlated pair |
-| `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
+| `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every declared stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
 | `RefinementPlan.lebail_passes` | 1 | the cap on Le Bail passes ([Le Bail passes](#le-bail-passes)) |
 | `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` skips the test ([Held parameters](#held-parameters)) |
 | `RefinementPlan.closing_window_tol` | 1e-3 | the fraction of each peak's area the closing stage's windows may drop; `None` runs no closing stage ([The closing stage](#the-closing-stage)) |
@@ -218,17 +218,17 @@ assert plan.intermediate_ftol == 1e-6
 
 ftols = plan.stage_ftols()
 assert len(ftols) == len(plan.run_stages())
-assert set(ftols[:-1]) == {1e-6} and ftols[-1] is None
+assert set(ftols[:-2]) == {1e-6} and ftols[-2:] == [None, None]
 ```
 
 The list is parallel to `RefinementPlan.run_stages`: the declared stages, then the closing stage ([The closing stage](#the-closing-stage)).
 Three rules decide a stage's tolerance, in this order.
 
 1. A stage that declares `Stage.ftol` runs at it.
-2. The last stage runs at the solver's default of 1e-9, shown as `None`, because it produces the answer. With a closing stage, that is the closing stage.
+2. The last declared stage runs at the solver's default of 1e-9, shown as `None`, because it produces the answer. The closing stage after it runs at 1e-9 too.
 3. Every other stage runs at `RefinementPlan.intermediate_ftol`.
 
-A one-stage plan with no closing stage is therefore all last stage, and nothing is loosened.
+A one-stage plan is therefore all last stage, and nothing is loosened.
 `StageResult.ftol` records the tolerance each stage ran at, so a result says which schedule produced it.
 `PlanSpec.intermediate_ftol` carries the setting into a project file and a history header, and the GUI's text document writes it as the `tolerance` line ([The GUI as a text document and a wire](gui-power.md)).
 
@@ -301,7 +301,7 @@ Two errors reach the answer of a plan without a closing stage:
 - The answer depends on the start. Biso started at 0.5 and at 1.5 Å² on every atom put the fluorapatite's Biso 0.12 esd apart, because each start stopped the early stages elsewhere.
 
 The closing stage takes the last declared stage's iteration budget, Le Bail cycles, restraint weight, window slack and `Stage.ftol`, and seeds nothing.
-It takes the solver's default tolerance, so the last declared stage becomes an intermediate one.
+It takes the solver's default tolerance, as the last declared stage does.
 `RefinementResult.stages` ends with it under the name `closing`, and `StageResult.window_area_tol` and `NodeAction.window_area_tol` record the fraction.
 A model rebuilt from `RefinementResult.parameters` reproduces the result's χ² when compiled at the default windows, which are the closing stage's: `compile_model` and `Refinement.predict` evaluate outside a fit at `CLOSING_WINDOW_TOL`.
 A declared stage records `None`, the declared stages' 2 %, so a fit run without a closing stage is rebuilt with `window_area_tol=recorded_window_tol(result.stages[-1].window_area_tol)` (`rietx.model.forward.recorded_window_tol`).

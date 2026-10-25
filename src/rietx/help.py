@@ -342,7 +342,8 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "specimen length divided by the goniometer radius. It sets how strongly "
             "low-angle peaks lean toward low 2θ. Fit it on a standard together with "
             "`axial_hl`. The two are strongly correlated and are usually reported as a "
-            "pair."
+            "pair. With both at zero and either refined, the peaks are computed with "
+            "windows and integration points sized for a ratio of 0.02 (see `axial_hl`)."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -355,7 +356,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "receiving-slit height divided by the goniometer radius. It is the second "
             "half of the axial asymmetry. It is so strongly correlated with `axial_sl` "
             "that refining one and holding the other is a common protocol. One ratio "
-            "alone still smears the peaks. Only both at zero switch the asymmetry off."
+            "alone still smears the peaks. Only both at zero switch the asymmetry off. "
+            "With both at zero and either refined, the peaks are computed with windows "
+            "and integration points sized for a ratio of 0.02, so the curve differs from the same model with "
+            "both held by up to about 5e-5 of the strongest peak."
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
@@ -2086,9 +2090,12 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "The final stage fixes its peak windows at the values it started from. At "
             "the returned values, those windows give a chi-squared that differs "
             "noticeably from a fresh calculation. The reported statistics and curves use "
-            "the fresh one. The fit is not biased, and the esds are those of the last "
-            "solve. The history node keeps the earlier figure. If the gap matters, split "
-            "that stage in two."
+            "the fresh one, and the esds are those of the last solve. The last stage's "
+            "record keeps the earlier figure, and so does the history node of a single "
+            "fit. A joint fit tests each pattern and names the worst. A large gap means the last stage carried its peaks "
+            "past the windows it was solved on, so the solve may have stopped short of the "
+            "minimum that windows sized at the answer give. Run one more stage with nothing "
+            "new freed and compare. A plan's closing stage does this already."
         ),
     ),
     "FULLPROF_MAGNETIC_PHASE_OMITTED": HelpEntry(
@@ -2803,12 +2810,21 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "INDEX_PREDICTED_BUT_ABSENT": HelpEntry(
         title="The cell predicts lines the pattern lacks",
         description=(
-            "After a Le Bail fit, some reflections this lattice predicts carry no "
-            "intensity above the background. An oversized cell does this, because it has "
-            "a translation it is not using. A correct cell does it too when a "
-            "space-group extinction removes those reflections. Compare the smaller cell "
-            "that indexes the same lines, and run the extinction screen before you "
-            "reject this one."
+            "Inside de Wolff's window (up to the 20th usable line), this lattice "
+            "predicts lines that no extinction could remove where the picker's envelope "
+            "shows nothing. An oversized cell does this, because it has a translation it "
+            "is not using, and M₂₀ cannot see it. The code caps the grade and never "
+            "refutes: a correct cell's weak general reflections below detection count "
+            "too. Glides and screws are left out of the count, so a correct cell reads "
+            "near 0: 0 on synthetic Si, a synthetic tetragonal set and SRM 676a "
+            "corundum, 2 on the round-robin magnetite and PbSO₄, against 7 to 79 for "
+            "the wrong cells tested (Si's cubic I √2·a₀ 11–12, cubic P 2a₀ 76–79); "
+            "measured on those patterns, untested beyond them. Do not check it with "
+            "Rwp: an oversized cell scored 0.379 against a correct 0.216, a "
+            "gap smaller than the spread between specimens. Without a peak list the "
+            "count is the fitted background's, over the whole range. Compare the "
+            "smaller cell that indexes the same lines, and run the extinction screen "
+            "before you reject this one."
         ),
     ),
     "INDEX_PRIOR_USED": HelpEntry(
@@ -2887,7 +2903,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "lines it predicts, which no extinction could remove, are seen no more often "
             "than chance would place them. So it ranks below the smaller cell. A real "
             "superstructure with extra lines too weak to pick escapes this test. Check "
-            "the pattern at the listed positions if the chemistry suggests one."
+            "the pattern at the listed positions if the chemistry suggests one. "
+            "Measured: it refutes Si's cubic I √2·a₀ (0 of 12 extra lines seen) and "
+            "kept every truth tested as a child, the lowest at p = 0.0072; on the "
+            "finished acceptance searches it put brucite's and 11-BM NAC's truths "
+            "first. Untested beyond those patterns."
         ),
     ),
     "INDEX_SYSTEMS_NOT_COVERED": HelpEntry(
@@ -3277,6 +3297,31 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "intensity has a large relative esd. The split shown comes from the "
             "equal-split restraint. Use the summed intensity of the group as the datum. "
             "Individual values from the group are not measurements."
+        ),
+    ),
+    "PEAK_POSITION_AT_BOUND": HelpEntry(
+        title="Positions pressed against their bound",
+        description=(
+            "Components whose fitted position ran into its bound, half the "
+            "group's seed FWHM from where detection or a re-seed put it. "
+            "The reported position is the bound's: the fit stopped on its "
+            "bound, and its uncertainty is the curvature there, which leaves "
+            "out how far past the bound the fit would have moved. Each "
+            "entry gives the bound in degrees and the component's intensity "
+            "over its esd. The value counts those still usable above the "
+            "false-discovery bar."
+        ),
+    ),
+    "PEAK_NO_INTENSITY": HelpEntry(
+        title="Components with no intensity",
+        description=(
+            "Components excluded from usable() and kept in the peak list so a "
+            "report can say why. Three causes, and each entry says which: the "
+            "fit's intensity is on its zero bound, it is under one esd, or "
+            "the caller marked it by hand whatever its intensity. On the "
+            "zero bound the position and its esd are not measurements; "
+            "whether a position under one esd is worth indexing on is a "
+            "reading of PEAK_NO_INTENSITY_SIGMA."
         ),
     ),
     "PEAK_ASYMMETRY_UNMODELLED": HelpEntry(
@@ -4227,9 +4272,9 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         title="Stage stopping tolerance",
         description=(
             "This stage's own relative tolerance on the decrease in cost. It overrides "
-            "the plan's schedule. Empty takes the value from the plan: every stage but "
-            "the last stops at the plan's `intermediate_ftol`, and the last stops at "
-            "the solver's 1e-9. The history records the tolerance a stage ran at and "
+            "the plan's schedule. Empty takes the value from the plan: every declared "
+            "stage but the last stops at the plan's `intermediate_ftol`, and the last "
+            "declared stage and the closing stage stop at the solver's 1e-9. The history records the tolerance a stage ran at and "
             "not the one it declared, so a cherry-pick replays what happened."
         ),
         default="null",
@@ -4895,6 +4940,16 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "for peaks declared by their centre."
         ),
     ),
+    "RefinementResult.radiation": HelpEntry(
+        title="Radiation",
+        description=(
+            "The source the fit used: its kind and each emission line's wavelength at "
+            "the answer, primary first, so a refined wavelength is recorded as "
+            "refined. `RefinementResult.plot` names it on the 2θ axis. `None` means "
+            "not recorded, as in a result saved before the field existed."
+        ),
+        anchor="reference/figures.html#the-fit-figure",
+    ),
     "RefinementResult.qpa": HelpEntry(
         title="Weight fractions",
         description=(
@@ -5103,8 +5158,9 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
         title="Tolerance the stage ran at",
         description=(
             "The relative cost-decrease tolerance this stage stopped at. `None` means "
-            "the solver's own default, which the last stage of a plan takes; an earlier "
-            "stage takes the plan's `intermediate_ftol` unless it declares its own."
+            "the solver's own default, which a plan's last declared stage and its "
+            "closing stage take; an earlier stage takes the plan's `intermediate_ftol` "
+            "unless it declares its own."
         ),
         anchor="theory/estimation.html#convergence",
     ),

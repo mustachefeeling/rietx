@@ -4,7 +4,7 @@ Refinement.summary: converged (rietveld)
   stage cell: converged (# evals, ftol=#e#)
   stage profile_w: converged (# evals, ftol=#e#)
   stage profile: converged (# evals, ftol=#e#)
-  stage biso: converged (# evals, ftol=#e#)
+  stage biso: converged (# evals, ftol=solver default)
   stage closing: converged (# evals, ftol=solver default), max|Δθ|/esd=#
   diagnostics under qpa: # warning, # errors, # info
     warning[FLOOR_HIT]: phases.#atoms.#biso refined to its floor (ρ=#).
