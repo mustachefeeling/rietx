@@ -134,6 +134,7 @@ Gaussians
 [gG]oniometer
 GSAS
 Guinier
+HCl
 [hH]kl
 Hofmann
 [hH]olohedry
