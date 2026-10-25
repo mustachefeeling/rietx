@@ -650,7 +650,7 @@ def test_the_excess_reads_the_density_against_the_cleanest_candidate():
     """The windowed count compared across candidates (#941's follow-up),
     on the counts the acceptance sweep measured: magnetite's true F cell and
     its P rival (2 of 36 window lines, 28 of 88), and the synthetic LaB₆ run's
-    truth and a√2 I cell (0 of 15, 2 of 16).  The raw count reads 2 for the
+    truth and a√2 I cell (0 of 19, 2 of 20).  The raw count reads 2 for the
     true F cell and for the wrong I cell alike; the excess reads 0 and 2."""
     from rietx.indexing.consensus import absence_excess
 
@@ -672,13 +672,13 @@ def test_the_excess_reads_the_density_against_the_cleanest_candidate():
         28 - 88 * 2 / 36)
     a_l = (4.1568,) * 3 + (90.0, 90.0, 90.0)
     a_i = (4.1568 * R2,) * 3 + (90.0, 90.0, 90.0)
-    lab6, root2 = screened("cubic", "P", a_l, 0, 15), screened("cubic", "I", a_i, 2, 16)
+    lab6, root2 = screened("cubic", "P", a_l, 0, 19), screened("cubic", "I", a_i, 2, 20)
     unscreened = _candidate("cubic", "P", a_l)
     absence_excess([lab6, root2, unscreened])
     assert lab6.lebail.predicted_but_absent_excess_in_window == 0.0
     assert root2.lebail.predicted_but_absent_excess_in_window == 2.0
     assert unscreened.lebail is None
     # a lone candidate is its own cleanest: the excess cannot stand in for the cap
-    alone = screened("cubic", "I", a_i, 2, 16)
+    alone = screened("cubic", "I", a_i, 2, 20)
     absence_excess([alone])
     assert alone.lebail.predicted_but_absent_excess_in_window == 0.0
