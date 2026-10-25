@@ -859,7 +859,10 @@ ROWS: tuple[Row, ...] = (
                   "(StageResult.held, WP-1325's per-pattern support hold), counting the "
                   "patterns. The hold it reports is decided by phase_support_sigma (tier 3, "
                   "on StageResult.held); this record inherits nothing from that threshold "
-                  "and gates nothing (WP-2028, ambiguity as StageResult.held's)")),
+                  "and gates nothing (WP-2028, ambiguity as StageResult.held's)"),
+        response="info",
+        responds=("read a value in a listed pattern's row, or that pattern's fraction of "
+                  "the phase, as the value handed in rather than a measurement")),
     Row("PHASE_UNCONSTRAINED", "code"),
     Row("QPA_ESD_UNAVAILABLE", "code"),
     Row("QPA_FRACTION_RANGE", "code", tier=1, ambiguity=3,

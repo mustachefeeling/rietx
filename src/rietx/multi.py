@@ -2666,6 +2666,14 @@ def _per_pattern_hold_diagnostics(stage_results: list[StageResult], mtable,
     (a one-histogram joint fit is that case).  The scale-B ridge's displacement hold and the flat-moment hold
     are their own codes' (``SCALE_B_INSEPARABLE``, the moment record) and
     are left out.
+
+    **A phase's own ``hist.h.…scale`` is counted too** (review of #1128, round
+    2): a pattern with no line of the phase holds its scale at the value
+    handed in (WP-1958, #1103), and where the joint fit sees the phase
+    ``PHASE_UNCONSTRAINED`` is silent, so this is the one finding that says
+    which patterns held it.  A scale-only hold is the same record with no
+    structural rows, and a phase held in every pattern is still
+    ``PHASE_UNCONSTRAINED``'s, which names the histograms itself.
     """
     if not stage_results:
         return []
@@ -2674,15 +2682,19 @@ def _per_pattern_hold_diagnostics(stage_results: list[StageResult], mtable,
     targets = {f"hist.{k}.{r.target}" for r in mtable.parametric
                for k in r.patterns}
     by_phase: dict[int, dict[int, list[str]]] = {}
+    scale_rows: dict[int, dict[int, list[str]]] = {}
     for path in last.held:
         h = mtable._owner(path)
         if h is None or path in targets:
             continue
         bare = _unscoped(path)
         m = _PHASE_PREFIX.match(bare)
-        if m is None or bare.endswith(".scale") or ".moment." in bare:
+        if m is None or ".moment." in bare:
             continue
         ip = int(m.group(1))
+        if bare == f"phases.{ip}.scale":
+            scale_rows.setdefault(ip, {}).setdefault(h, []).append(path)
+            continue
         # ``refine._DISPLACEMENT_PATH`` is the one spelling of the columns the
         # ridge hold takes: ``adp.k`` is the free column of an anisotropic site
         if ip in ridge and _DISPLACEMENT_PATH.match(bare):
@@ -2690,15 +2702,27 @@ def _per_pattern_hold_diagnostics(stage_results: list[StageResult], mtable,
         by_phase.setdefault(ip, {}).setdefault(h, []).append(path)
     n = mtable.n_histograms
     out: list[Diagnostic] = []
-    for ip in sorted(by_phase):
-        patterns = sorted(by_phase[ip])
+    for ip in sorted(set(by_phase) | set(scale_rows)):
+        structure_rows = by_phase.get(ip, {})
+        patterns = sorted(set(structure_rows) | set(scale_rows.get(ip, {})))
         if len(patterns) == n:
             # held in every pattern is a phase no pattern sees, which is
             # ``PHASE_UNCONSTRAINED``'s statement and not repeated here
             continue
-        where = [p for h in patterns for p in by_phase[ip][h]]
+        where = [p for h in patterns for p in structure_rows.get(h, [])]
+        n_structure = len(where)
+        where += [p for h in patterns for p in scale_rows.get(ip, {}).get(h, [])]
         name = (structure.phases[ip].name if ip < len(structure.phases)
                 else f"phase {ip}")
+        clauses = []
+        if n_structure:
+            clauses.append(
+                f"their own copies of its structure ({n_structure} "
+                f"row{'' if n_structure == 1 else 's'}) keep the values the "
+                f"stage started from and carry no esd")
+        if len(where) > n_structure:
+            clauses.append("their own scale keeps the value handed in and "
+                           "is not a measurement there")
         shown = ", ".join(str(h) for h in patterns[:10])
         more = f" and {len(patterns) - 10} more" if len(patterns) > 10 else ""
         out.append(Diagnostic(
@@ -2707,9 +2731,8 @@ def _per_pattern_hold_diagnostics(stage_results: list[StageResult], mtable,
             message=(f"Phase {ip} ({name}) was held in {len(patterns)} of {n} "
                      f"patterns ({'histogram' if len(patterns) == 1 else 'histograms'} "
                      f"{shown}{more}) by stage {last.name!r}: those patterns "
-                     f"cannot see it, so their own copies of its structure "
-                     f"({len(where)} row{'' if len(where) == 1 else 's'}) keep "
-                     f"the values the stage started from and carry no esd.")))
+                     f"cannot see it, so "
+                     + "; ".join(clauses) + ".")))
     return out
 
 

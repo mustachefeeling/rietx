@@ -278,3 +278,14 @@ shows the findings that name histogram h.
   for `_merge_unresolved` and `_specimen_path`, a test crossing
   `FINDINGS_IN_EVERY_VIEW` with `DIAGNOSTIC_HELP`, and the Lindemann bound's
   histogram.
+
+- **2026-10-25** — review round 2 on #1128 (item 7): rebased onto main after
+  #1103 merged (one conflict class: `docs/releases/1.10.0.md`, whose Upgrading
+  section is now a list, so the `hist.<h>.` sentence is an entry there).
+  Checked the scale-only hold: with a pattern holding a phase's scale under
+  #1103 and another pattern seeing the phase, `PHASE_UNCONSTRAINED` is silent
+  and `_per_pattern_hold_diagnostics` dropped `.scale` rows, so nothing named
+  the pattern. It now counts a `hist.h.phases.i.scale` row as a hold in
+  pattern h, one finding per phase with its structure rows, its message
+  saying the scale is the value handed in; a phase held in every pattern, and
+  a shared scale, stay `PHASE_UNCONSTRAINED`'s, which names its histograms.

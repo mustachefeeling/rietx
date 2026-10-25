@@ -751,3 +751,88 @@ def test_an_occupancy_above_one_in_one_histograms_copy_is_named(two_patterns):
     (found,) = _codes(own, "OCCUPANCY_ABOVE_ONE")
     assert found.where == ["hist.1.phases.0.atoms.0.occ"]
     assert "histogram 1" in found.message
+
+
+# --------------------------------------- WP-2028, review round 2 (item 7) --
+
+def _blind_pattern_fit(*, free_cell: bool):
+    """The vanished-phase pair with pattern 0 cut to 3-4°, where no line of
+    either phase lies, so pattern 0 holds both scales (WP-1958, #1103) while
+    pattern 1 sees both: the joint fit sees every phase."""
+    import rietx as rx
+    from tests.test_held_phase import (
+        _absent_phase_inputs,
+        _pattern_with_both_phases,
+    )
+    from tests.test_held_phase import synthesize as one_phase
+
+    blind, ins = _absent_phase_inputs()
+    seen = blind.model_copy(deep=True)
+    seen.phases[1].scale.value = blind.phases[0].scale.value
+    ref = rx.MultiHistogramRefinement(
+        [blind, seen], [ins, ins.model_copy(deep=True)],
+        sharing=SharingMap(per_histogram=["phases.*"]))
+    stages = [rx.Stage("scale_bkg", ["phases.*.scale",
+                                     "instrument.background.*"])]
+    if free_cell:
+        stages.append(rx.Stage("cell", ["phases.*.cell.*"]))
+    return ref.fit([one_phase(), _pattern_with_both_phases()],
+                   plan=rx.RefinementPlan(stages=stages),
+                   two_theta_limits=[(3.0, 4.0), None])
+
+
+@pytest.fixture(scope="module")
+def scale_only_hold():
+    return _blind_pattern_fit(free_cell=False)
+
+
+def test_a_scale_held_in_one_pattern_is_named_once_with_its_pattern(
+        scale_only_hold):
+    """Review of #1128, round 2, item 7: #1103's ``PHASE_UNCONSTRAINED`` is
+    silent while another pattern sees the phase, and this record dropped
+    ``.scale`` rows, so nothing said pattern 0 held only a scale."""
+    result = scale_only_hold
+    assert result.stages[-1].held == ["hist.0.phases.0.scale",
+                                      "hist.0.phases.1.scale"]
+    assert not _codes(result, "PHASE_UNCONSTRAINED")
+    found = _codes(result, "PHASE_HELD_IN_PATTERNS")
+    assert [d.where for d in found] == [["hist.0.phases.0.scale"],
+                                        ["hist.0.phases.1.scale"]]
+    for d in found:
+        assert d.value == 1.0
+        assert "held in 1 of 2 patterns (histogram 0)" in d.message
+        assert "own scale keeps the value handed in" in d.message
+        assert "structure" not in d.message
+    # the pattern that holds it is the one whose fraction is absent
+    assert all(x.weight_fraction is None
+               for x in result.for_histogram(0).qpa.phases)
+    assert all(x.weight_fraction is not None
+               for x in result.for_histogram(1).qpa.phases)
+
+
+def test_a_scale_and_its_structure_held_together_are_one_finding_per_phase():
+    result = _blind_pattern_fit(free_cell=True)
+    found = _codes(result, "PHASE_HELD_IN_PATTERNS")
+    assert [d.where for d in found] == [
+        ["hist.0.phases.0.cell.a", "hist.0.phases.0.scale"],
+        ["hist.0.phases.1.cell.a", "hist.0.phases.1.scale"]]
+    for d in found:
+        assert "structure (1 row)" in d.message
+        assert "own scale keeps the value handed in" in d.message
+
+
+@pytest.mark.parametrize("held, n, fires", [
+    (["hist.0.phases.0.scale"], 2, True),
+    (["hist.0.phases.0.scale", "hist.1.phases.0.scale"], 2, False),  # every pattern
+    (["phases.0.scale"], 2, False),                  # shared: PHASE_UNCONSTRAINED's
+    (["hist.0.phases.0.scale", "hist.1.phases.0.cell.a"], 3, True),  # union of patterns
+])
+def test_the_scale_rows_count_toward_the_patterns_a_phase_was_held_in(
+        held, n, fires):
+    from rietx.multi import _per_pattern_hold_diagnostics
+
+    stages, table, structure = _hold_stub(held, set(), n)
+    found = _per_pattern_hold_diagnostics(stages, table, structure)
+    assert bool(found) is fires
+    if fires and held[-1].startswith("hist.1"):
+        assert found[0].value == 2.0 and len(found) == 1

@@ -3509,11 +3509,13 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "PHASE_HELD_IN_PATTERNS": HelpEntry(
         title="A phase was held in some patterns of a joint fit",
         description=(
-            "In a joint fit where a phase's structure is per pattern, the last stage "
-            "held that structure in the patterns that cannot see the phase. The "
-            "message counts them, and the held rows are named in where. In those "
-            "patterns the rows keep the values the stage started from and carry no "
-            "esd, while the patterns that see the phase refine their own. This "
+            "In a joint fit where a phase's structure or scale is per pattern, the "
+            "last stage held them in the patterns that cannot see the phase. The "
+            "message counts those patterns, and the held rows are named in where. In "
+            "those patterns the structure rows keep the values the stage started from "
+            "and carry no esd, and a held scale keeps the value handed in, so the "
+            "pattern measures no fraction of the phase. The patterns that see the "
+            "phase refine their own. This "
             "records what the fit did and asks for nothing. PHASE_UNCONSTRAINED "
             "covers a phase that no pattern sees."
         ),

@@ -268,7 +268,8 @@ A structural path can belong to one pattern (`SharingMap(per_histogram=...)`, or
 So the structure's guards, `ADP_NOT_POSITIVE_DEFINITE`, `BISO_NEGATIVE`, `BISO_UNUSUALLY_LARGE` and `OCCUPANCY_ABOVE_ONE`, read every pattern's values.
 A shared path is named once, bare, and a per-pattern one by its `hist.<h>.` path in each pattern that holds the value.
 `CELL_RUNAWAY` names a cell that a free `vars.` coefficient drives out of its window, with the coefficient, as a single fit does.
-`PHASE_HELD_IN_PATTERNS` (info) names a phase whose per-pattern structure the last stage held in the patterns that cannot see it, with their count.
+`PHASE_HELD_IN_PATTERNS` (info) names a phase whose per-pattern structure or scale the last stage held in the patterns that cannot see it, with their count.
+A scale held in one pattern is named here and nowhere else while another pattern sees the phase, because `PHASE_UNCONSTRAINED` is a joint statement that stays silent then.
 `PHASE_UNCONSTRAINED` names a phase that no pattern sees, and `PHASE_HELD_IN_PATTERNS` is not raised for a phase held in every pattern.
 
 `BACKGROUND_ABSORPTION` is the one finding on both lists.
