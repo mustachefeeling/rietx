@@ -54,10 +54,13 @@ the block a package default, "off" here is a declaration in the shared
 builder, never an inherited default.
 """
 
+import importlib
+
 import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.schemas.plan import CLOSING_WINDOW_TOL
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
     MAJOR_TOL,
@@ -166,6 +169,49 @@ def _chained_all(**kw):
 def chained_all():
     """The naive default: carry everything, scales included."""
     return _chained_all()
+
+
+class _Runaway(BaseException):
+    """Raised from the closing compile, past every handler a series has."""
+
+
+@pytest.mark.slow
+def test_the_hostile_pairs_warm_stage_stops_short_of_the_runaway(monkeypatch):
+    """WP-2045: cpd-1b's warm stage, carried from cpd-1a's answer, converges.
+
+    Under a 1e-6 tolerance the warm stage stopped "converged" at
+    ``axial_sl`` 555, on a plateau of its frozen windows, which then dropped
+    73 % of the Bragg intensity a fresh compile computes.  The closing compile
+    at that answer held 1 608× the warm stage's point-nodes and ran for tens
+    of minutes.  At the solver's 1e-9 the same stage reaches 0.0139.  A
+    closing compile at an axial ratio above 1 fails the test at once, where
+    the shipped 1.10.0 tree would otherwise run that stage to its budget.
+    """
+    _require_data()
+    refine_mod = importlib.import_module("rietx.refine")
+    real = refine_mod.compile_model
+
+    def guarded(structure, instrument, pattern, **kw):
+        if (kw.get("window_area_tol") == CLOSING_WINDOW_TOL
+                and instrument.geometry.axial_sl.value > 1.0):
+            raise _Runaway(f"a closing compile at axial_sl "
+                           f"{instrument.geometry.axial_sl.value:.4g}")
+        return real(structure, instrument, pattern, **kw)
+
+    monkeypatch.setattr(refine_mod, "compile_model", guarded)
+    structure = rx.Structure(phases=_phases())
+    ins = qarr_instrument()
+    seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
+    series = rx.SequentialRefinement(structure, ins)
+    try:
+        result = series.fit(_patterns()[:2], labels=list(SAMPLE1[:2]), plan=qpa_plan())
+    except _Runaway as exc:
+        pytest.fail(f"cpd-1b's warm stage ran away: {exc}")
+    entry = result.entries[1]
+    assert entry.rung == "warm", entry.rungs_tried
+    axial = next(p.value for p in series.results_[1].parameters
+                 if p.path == "instrument.geometry.axial_sl")
+    assert axial < 1.0
 
 
 # -- accuracy: a chained fit must be as good as an unchained one ----------

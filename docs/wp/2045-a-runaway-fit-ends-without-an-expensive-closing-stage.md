@@ -295,7 +295,7 @@ climb to the 512 cap, and each new count misses the `leggauss` cache
       `multi.py:1434`, and the collapsed warm plan in `sequential.py`
       through the plan it builds. `StageResult.ftol` already records what a
       stage ran at.
-- [ ] A test that fails before the change: the hostile series' cpd-1b warm
+- [x] A test that fails before the change: the hostile series' cpd-1b warm
       stage from cpd-1a's closing answer ends with `axial_sl` under 1 (on
       the 1.10.0 tree it reaches 555 within seconds on Linux), and a fast
       `stage_ftols` test on a plan with and without a closing stage
