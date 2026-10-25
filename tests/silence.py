@@ -325,6 +325,40 @@ def _screen_unreliable_silent() -> list:
             + _screen_diagnostics("cancelled", None))
 
 
+def _net_read(offset: float) -> list:
+    """A pdCIF net column read through ``rx.read_pattern``, a 2000-count peak
+    on a baseline of ``offset`` counts that the file calls background-subtracted."""
+    import numpy as np
+
+    import rietx as rx
+    from tests.test_readers import _write_pdcif
+
+    rng = np.random.default_rng(1806)
+    tt = np.round(np.arange(10.0, 12.0, 0.01), 4)
+    peak = 2000.0 * np.exp(-0.5 * ((tt - 11.0) / 0.03) ** 2)
+    sig = np.sqrt(peak + 100.0)
+    y = peak + offset + rng.normal(0.0, 1.0, tt.size) * sig
+    found: list = []
+    with tempfile.TemporaryDirectory() as tmp:
+        p = _write_pdcif(pathlib.Path(tmp) / "net.cif", {
+            "_pd_proc_2theta_corrected": tt.tolist(),
+            "_pd_proc_ls_weight": (1.0 / sig ** 2).tolist(),
+            "_pd_proc_intensity_net": y.tolist()})
+        rx.read_pattern(p, diagnostics=found)
+    return found
+
+
+def _net_background_fires() -> list:
+    """A net column riding 300 counts above zero everywhere."""
+    return _net_read(300.0)
+
+
+def _net_background_silent() -> list:
+    """The same column returning to zero between its peaks, as a subtracted
+    pattern does (``test_readers.py``'s T6)."""
+    return _net_read(0.0)
+
+
 SILENCE: dict[str, Pair] = {
     "CIF_SITE_LISTED_TWICE": Pair(
         _listed_twice_fires, _listed_twice_silent, "tests/test_cif_sites_coincide.py"),
@@ -341,6 +375,8 @@ SILENCE: dict[str, Pair] = {
         _instprm_geometry_fires, _instprm_geometry_silent, "tests/test_gsas2_instprm.py"),
     "GSAS_PRM_PROFILE_SET_DEFAULTED": Pair(
         _profile_set_fires, _profile_set_silent, "tests/test_gsas_prm.py"),
+    "PATTERN_NET_HAS_BACKGROUND": Pair(
+        _net_background_fires, _net_background_silent, "tests/test_readers.py"),
     "PATTERN_UNDERSAMPLED": Pair(
         _undersampled_fires, _undersampled_silent, "tests/test_data_support.py"),
     "RESOLUTION_UNCONSTRAINED": Pair(
