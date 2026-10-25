@@ -2,8 +2,8 @@
 
 Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
 Track: The repo's own process
-Depends on: 2045 (the `full` job cannot finish before it); 2002 soft, the closing stage that moved most of these; 2012 soft, the LaB6 axial mirror
-Priority: P2 2026-10-25 — WP-2045's fix (PR #1161) unblocks the `full` job, to be confirmed on the first nightly after it merges; what remains is platform-dependent quotes, a Windows timeout that is a load sensor, and one unreproduced raise
+Depends on: 2045 (the `full` job cannot finish before it); 2048, 2049 and 2050 (three slow rows red by rounding until each lands); 2002 soft, the closing stage that moved most of these; 2012 soft, the LaB6 axial mirror
+Priority: P3 2026-10-25 — was P2: the `full` job completes again (#1161) and every task here is done; what remains is a green nightly, waiting on WP-2048, 2049 and 2050
 
 ## Goal
 
@@ -193,13 +193,27 @@ and 2045 on 2026-10-25):
       1's move 0.0859-0.0873 μB, scale shift 0.47 esd), the Linux fast legs pass
       it on #1161's CI, and Windows passed every test on `ac1ee1e`. Confirmed or
       reopened by the next green nightly.*
-- [ ] The four slow tests: re-run on Linux once task 1 lands. Mark the lab6 and cpd1a
+- [x] The four slow tests: re-run on Linux once task 1 lands. Mark the lab6 and cpd1a
       start rows that fail through WP-2012's degeneracies as strict xfails citing it.
       Resolve the cpd1a XPASS. Find whether the closing stage moved the 150 K null's Rwp
       ratio, and fix the fit or the bar on that evidence. *On an arm64 Mac all
       four now hold (2026-10-25, `deff4c301`, `[dev]`): the 150 K null and both
       axial-floor rows pass, and the three start rows that fail carry strict
       xfails citing WP-2002 or WP-2012. What remains is the Linux reading.*
+      *Linux, 2026-10-25 (run 40184228951, `deff4c301`): four rows red, each
+      reproduced on the Mac by a 1e-14 start nudge (probes in
+      `docs/wp/2049-batch/`, `docs/wp/2050-batch/`). (1) lab6's
+      intermediate-tolerance row passed under a strict xfail. The two minima
+      are an exact S/L ↔ H/L swap at equal Rwp, and of 49 nudged arm pairs 23
+      crossed (8.82 esd) and 26 agreed (7.4e-6), so the mark is now not strict.
+      (2) The 150 K null was fitted with a closing stage and compared with a
+      reference fitted without one; the 1.2e-3 gap was the closing stage. Both
+      are now fitted without one, 1.1e-5 at all 12 nudged starts. (3) The
+      planted series' blank frame refines zero shift and U..Y against noise
+      when its warm rung is accepted: filed as WP-2049. (4) Brucite's
+      `HIGH_CORRELATION` count moves 35-42 by rounding, its partners being a
+      flat triple: filed as WP-2050. The Le Bail row passed on Linux this time
+      (WP-2048).*
 - [x] The extra-peaks ordering (Context, "Since 2026-10-24"). *Ruled by the
       maintainer 2026-10-25: assert the inflated esd, not the ordering. The test
       now asserts the declared cell within 20 ppm of clean and the ignored arm's
