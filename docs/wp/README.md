@@ -50,7 +50,6 @@ names hard dependencies, and *soft* marks a preferred order.
 | [2036](2036-main-is-green-on-every-nightly-leg.md) | Main is green on every nightly leg: a full suite that finishes, two Windows tooling tests, and answers that move with the platform | 2026-10-25 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2041](2041-a-tutorial-shows-the-indexer-abstain.md) | A tutorial shows the indexer abstain | 2026-10-24 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2045](2045-a-runaway-fit-ends-without-an-expensive-closing-stage.md) | A runaway fit ends without an expensive closing stage | 2026-10-25 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
-| [2051](2051-compiled-per-evaluation-windows.md) | Windows resized at every evaluation, fast enough to measure | 2026-10-25 | P2 | [Unscheduled](#unscheduled) |
 
 ## Next, by priority
 
@@ -476,10 +475,6 @@ Not started and rated P1 or P2. The rest are in the tables below.
 
 ## <a id="unscheduled"></a>Unscheduled
 
-| WP | Title | Status | Priority | Depends on |
-|---|---|---|---|---|
-| [2051](2051-compiled-per-evaluation-windows.md) | Windows resized at every evaluation, fast enough to measure | 🔄 2026-10-25 | P2 | [2047](2047-windows-follow-the-parameters-between-solves.md) |
-
 ### <a id="unscheduled-coming-from-another-code"></a>Coming from another code
 
 | WP | Title | Status | Priority | Depends on |
@@ -596,6 +591,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2048](2048-a-non-finite-step-ends-a-stage-rather-than-the-fit.md) | A non-finite step ends a stage rather than the fit | ⬜ | P2 | — |
 | [2049](2049-a-frame-no-phase-is-seen-in-holds-the-instrument-too.md) | A frame no phase is seen in holds the instrument's peak terms too | ⬜ | P2 | — |
 | [2050](2050-a-correlation-with-a-flat-direction-is-not-reported.md) | A correlation with a flat direction is not reported as one | ⬜ | P3 | — |
+| [2051](2051-compiled-per-evaluation-windows.md) | Windows resized at every evaluation, fast enough to measure | ✅ 2026-10-25 | — | [2047](2047-windows-follow-the-parameters-between-solves.md) |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 

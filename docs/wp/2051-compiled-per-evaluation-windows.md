@@ -1,8 +1,8 @@
 # WP-2051 — Windows resized at every evaluation, fast enough to measure
 
-Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-10-25 — measured and ruled: per-evaluation windows filed for now, kept for the future; the fast sizing shipped
+Track: What fires, and what stays silent
 Depends on: 2047 (`forward.rewindow`, `fcj.fcj_node_counts` and probes 7 and 8 land with it)
-Priority: P2 2026-10-25 — the decision the maintainer asked to test soon: whether rietx adopts per-evaluation windows
 
 ## Goal
 
@@ -55,7 +55,8 @@ already budgets.
 **Where the resizing time goes, measured 2026-10-25** (task 1,
 [`2051-batch/resize_profile.py`](2051-batch/resize_profile.py); macOS arm64,
 `[dev]`, compiled tier on; median over 40 sizing calls spread through each
-perEval fit, each part the minimum of 5 repeats). A whole `rewindow` costs
+perEval fit, each part the minimum of 5 repeats; the `rewindow` row measured
+at b70ba5972, before task 2 gave it the table). A whole `rewindow` costs
 0.86-2.49 ms. Most of it is `window_fwhm_mult`, the 60-step bisection for the
 FWHM multiple k(η). It costs a fixed ~0.36 ms per phase and emission line,
 whatever the reflection count, because each step is a handful of numpy calls:
@@ -80,7 +81,7 @@ tier, its four rules). Only the part numpy cannot vectorise goes there.
 
 **The fast resizing, measured 2026-10-25** (task 2). `forward.window_sizing`
 is `rewindow`'s loop with k(η) read off a table built once per window
-tolerance (`window_fwhm_mult_interp`: 8193 nodes, uniform plus geometric
+tolerance (`window_fwhm_mult_interp`: 8192 nodes, uniform plus geometric
 toward η = 0, within 1.2e-5 of the bisection; `test_window_loss.py` holds it
 to 2e-5 at four tolerances). `compile_model` keeps the bisection, so no
 compiled window and no golden moves. Probe 9
@@ -91,7 +92,7 @@ machine, alone, median of 5 interleaved pairs:
 | | NAC | LaB6 | Fluorapatite | cpd-1a |
 |---|---|---|---|---|
 | `window_sizing`, ms a call (the bisection's loop: 0.86-2.49) | 0.08 | 0.09 | 0.13 | 0.16 |
-| Layouts a sync rebuilds, ms a call (median) | 0.003 | 0.016 | 0.29 | 0.10 |
+| Layouts a sync rebuilds, ms a call (median; a call where a phase moved pays that phase's `_batch_layout`, 0.05-0.30 above) | 0.003 | 0.002 | 0.002 | 0.004 |
 | Resizing seconds a fit (probe 7: 0.12, 0.21, 0.35, 1.25) | 0.03 | 0.05 | 0.13 | 0.27 |
 | Fit time ratio (probe 7: 1.24, 1.63, 1.66, 2.08) | 1.05 | 1.29 | 1.48 | 1.49 |
 | Evaluations, shipped → per evaluation | 46 → 49 | 90 → 110 | 49 → 83 | 175 → 216 |
@@ -286,6 +287,75 @@ OPENBLAS_NUM_THREADS=1 RIETX_TELEMETRY=0 .venv/bin/python docs/wp/2047-batch/pro
   asymmetry whose extent sizes the windows).
 
 ## Handover log
+
+### 2026-10-25 (2nd session) — measured, ruled: filed for now, kept for the future; closed
+
+Windows that follow the parameters at every evaluation can now be judged on
+cost. They are not slow any more. The prototype's 1.24-2.08× fit time was
+mostly one bisection, solved afresh at every call. With that replaced by a
+table the cost falls to 1.05-1.49×. A taper at each window's edge then
+removes most of the extra solver work, and built into the forward model it
+is inferred at 0.94-1.10× shipped. Answers match shipped's on the four
+standards and the old runaway stays removed. The maintainer ruled to file it
+for now and keep it as a future possibility. It buys no accuracy, and
+building it rewrites the frozen-per-stage invariant on every backend. Only
+the fast sizing ships.
+
+*Done.* Profiled one resize (task 1). `forward.window_sizing` and
+`window_fwhm_mult_interp` give the resize a k(η) table, and `compile_model`
+keeps the bisection, so no compiled window and no golden moves (task 2). The
+taper was emulated in probe 9, inward and outward at w = 0.1 (task 3). That
+departs from the task's "opt-in on the compile": a taper means nothing on
+frozen windows, so it waits on the ruling. Probes 7 and 8 were re-run as
+probes 9 and 10 on three arms (task 4). The brief offered default, opt-in or
+file and recommended filing, which was ruled (task 5). #774's zero case and
+the skill row do not apply, since nothing was adopted. Arrival: no
+`### Inherited`, and the findings were today's, so nothing was stale. The
+branch is cut from WP-2047's tip, since 2051 needs `rewindow`. It merges
+#1174's filing commit, so PR #1175 shows #1171's and #1174's commits until
+those merge. `Track:` was missing from the filed header, so the index put
+2051 in a group ROADMAP does not link; it now has 2047's track.
+
+*Measured.* The tables are in Context ("Where the resizing time goes", "The
+fast resizing", "The taper, emulated", "Which answer is right, and the
+runaway"), all macOS arm64, `[dev]`, compiled tier on, alone. Fast
+selection on this branch with origin/main merged (`[dev]`, macOS arm64):
+11792 passed, 272 skipped, 28 xfailed, 1 failed in 6:18. The failure was
+`test_every_roadmap_heading_with_rows_links_them`, the missing `Track:`, and
+that file passes on the fix (25). The one added test,
+`test_the_tabled_window_multiple_is_the_compiles` (4 cases), cost 0.08 s in
+that run; `test_window_loss.py` total 0.08 s for the added test. The full
+selection did not run. This change moves only `window_loss`, by ~1e-5 of a
+window width, so its two slow readers ran instead on the merged tree:
+`test_acceptance_sequential.py` and `test_window_domain.py`, 39 passed,
+9 xfailed in 1:39 (same venv and platform).
+
+*Code review* (`/code-review high --fix`, scoped to this session's commits).
+Fixed: the table's node count (8192, not 8193), a redundant clip, the
+test's duplicate tolerance (now 1e-2). The profiler's samples pointed at a
+model that probe 7's sync later changes, so its "layouts a sync rebuilds"
+row compared against the fit's last windows. It now snapshots each sample;
+the median re-measured at 0.002-0.004 ms, against the biased 0.003-0.29. The
+profiler now names the tree its bisection row came from. Declined: two k(η)
+solvers (deliberate, so no golden moves; the test pins them to 2e-5).
+Declined: the table's error growing past 1.2e-5 at tolerances under 5e-5 (the
+reviewer measured 1.94e-5 at 1e-8; the interpolated k lands on the wide side,
+and the window drops no more than its tolerance at any tolerance it tried).
+Documented, not re-run: probe 9's outward arm draws a peak symmetric when it
+reaches the range only through the added strip.
+
+*Generality.* Not dispatched. `_audit.py` is untouched, and the only new
+literals (the 8192-node grid, geometric to 1e-9) set an interpolation's
+precision, which a test holds to 2e-5, and judge nothing about data.
+
+*Gotchas.* Probes 9 and 10 import `2047-batch/probe7.py` and patch its
+module globals, so they break if probe 7 is renamed. The worktree guard
+refuses a compound shell command and runs none of it, so an edit in one
+silently did not happen.
+
+*Next.* Nothing on this WP. It reopens only on a `STAGE_WINDOWS_STALE`
+firing on a user's fit, or a chain WP-2045's schedule does not stop. Context's
+ruling paragraph says where to start.
 
 - **2026-10-25** — filed by WP-2047's session on the maintainer's request
   ("test the compiled version of the resizing soon"), after WP-2047's
