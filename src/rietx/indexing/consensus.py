@@ -197,7 +197,7 @@ def supercell_checks(candidates: Sequence[CellCandidate], peaks: PeakList, *,
     screens = []
     for cand in candidates:
         try:
-            screens.append(screen_for(screen, cand, peaks))
+            screens.append(screen_for(screen, cand, peaks, absence=False))
         except (ValueError, RuntimeError, np.linalg.LinAlgError):
             screens.append(None)
     for j, child in enumerate(candidates):

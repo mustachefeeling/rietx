@@ -776,24 +776,39 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
             suggestion=("Refine in the lower symmetry and test the higher "
                         "one.")))
 
+    # keyed on the validation's own counts, not on the caveat (#941 round 1):
+    # the code then reads the same on a candidate validated directly, before
+    # the gate has run, and on a validation the gate reads as failed; and a
+    # count outside de Wolff's window is said, at ``info``, rather than lost
     lebail = cand.lebail
-    if lebail is not None and "predicted_but_absent" in cand.confidence_caveats:
+    in_window = outside = 0
+    if lebail is not None and lebail.status != "failed":
+        if lebail.absent_source == "line_screen":
+            in_window = lebail.predicted_but_absent_uncancellable_in_window or 0
+            outside = (lebail.predicted_but_absent_uncancellable or 0) - in_window
+        else:
+            in_window = lebail.predicted_but_absent
+    if in_window > 0 or outside > 0:
         tt = lebail.predicted_but_absent_two_theta
         if lebail.absent_source == "line_screen":
             message = (
-                f"{lebail.predicted_but_absent_uncancellable_in_window} of the "
+                f"{in_window} of the "
                 "lines this lattice predicts inside the first twenty observed "
                 "lines, that no extinction could remove, have nothing above the "
                 "picker's background envelope at the measured width "
                 f"({lebail.predicted_but_absent} absent over the whole range, "
-                f"{lebail.predicted_but_absent_uncancellable} uncancellable).")
+                f"{lebail.predicted_but_absent_uncancellable} uncancellable)."
+                + ("" if in_window else " None of them is in the window, so "
+                   "the count caps nothing: above it a correct cell's weak "
+                   "general reflections go undetected too."))
         else:
             message = (
                 f"{lebail.predicted_but_absent} of {lebail.n_reflections} "
                 "reflections this lattice predicts have no net intensity "
                 "above the fitted background.")
         out.append(Diagnostic(
-            level="warning", code="INDEX_PREDICTED_BUT_ABSENT",
+            level="warning" if in_window else "info",
+            code="INDEX_PREDICTED_BUT_ABSENT",
             message=message,
             where=where + ([f"first at {tt[0]:.3f}°"] if tt else []),
             suggestion=("Compare the smaller cell that indexes the same lines: "
@@ -802,7 +817,10 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
                         "separate them: a converged fit of a cell that "
                         "predicts every reflection of another fits at least "
                         "as well (0.164 against 0.164 for a doubled cell on "
-                        "rietx's synthetic LaB6 pattern).")))
+                        "rietx's synthetic LaB6 pattern)."
+                        if in_window else
+                        "Look at the pattern at these positions if the cell "
+                        "is in doubt; the grade does not read them.")))
 
     refuting = [c for c in cand.supercell_checks or [] if c.verdict == "refuted"]
     if refuting:

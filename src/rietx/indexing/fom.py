@@ -586,8 +586,13 @@ def predicted_seen_fraction_at_resolution(
 
     The predicted lines are merged at ``resolution`` × the local FWHM, moved by
     the candidate's common ``shift``, and each merged line is *seen* when a
-    picked component lies within :func:`resolution_half_width`.  Same name and
-    blind spot as the windowed member it replaces in the panel: a space-group
+    picked component lies within :func:`resolution_half_width`.  Given the
+    screen's positions and common shift it reads the screen's seen fraction
+    exactly (``test_the_panel_and_the_screen_share_one_definition_of_seen``);
+    the two can still differ by their inputs, since the panel's shift comes from
+    the search window and its positions stop at the last observed line, where
+    the screen's shift reads the absence window over the pattern's range.
+    Same name and blind spot as the windowed member it replaces in the panel: a space-group
     extinction or an undetected weak line still counts against a correct cell,
     which is why it ranks and never refutes.
     """
@@ -602,7 +607,10 @@ def predicted_seen_fraction_at_resolution(
     fw_at = np.interp(pred, obs[order], np.asarray(fwhm_obs, dtype=np.float64)[order])
     groups = merge_at_resolution(pred, fw_at, resolution=resolution)
     merged = np.array([float(np.mean(pred[g])) for g in groups]) + shift
-    fw_m = np.array([float(np.mean(fw_at[g])) for g in groups])
+    # the width law read at the shifted merged line, as the line screen reads
+    # it (``screen.screen_candidate``): one definition of seen for both
+    fw_m = np.interp(merged, obs[order],
+                     np.asarray(fwhm_obs, dtype=np.float64)[order])
     seen, _j = seen_at_resolution(merged, fw_m, obs, fwhm_obs, two_theta_esd,
                                   k_sigma=k_sigma, resolution=resolution)
     return FigureOfMerit(

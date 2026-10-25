@@ -236,23 +236,38 @@ def absent_reflections(two_theta: np.ndarray, y_obs: np.ndarray,
     row regenerates that pathology, and the repair direction — inputs the
     candidate cannot buy — is recorded there, with an Rwp ratio ruled out.
     """
+    pos = np.asarray(positions, dtype=np.float64)
+    bad, ratio = absent_mask(two_theta, y_obs, y_background, sigma, pos, fwhm,
+                             k_sigma=k_sigma)
+    return ([float(v) for v in pos[bad]], [float(v) for v in ratio[bad]])
+
+
+def absent_mask(two_theta: np.ndarray, y_obs: np.ndarray,
+                y_background: np.ndarray, sigma: np.ndarray,
+                positions: np.ndarray, fwhm: np.ndarray, *,
+                k_sigma: float = ABSENT_SIGMA) -> tuple[np.ndarray, np.ndarray]:
+    """:func:`absent_reflections` as ``(absent, net_over_sigma)``, one entry per
+    position in the order given, so a caller pairs each verdict with its line
+    by index rather than by its 2θ (a position is not a key).  A position with
+    no channel inside its window is not absent and its ratio is NaN: outside
+    the fitted range, or in a gap between scanned windows, is not evidence.
+    """
     tt = np.asarray(two_theta, dtype=np.float64)
     net = np.asarray(y_obs, dtype=np.float64) - np.asarray(y_background,
                                                            dtype=np.float64)
     sig = np.asarray(sigma, dtype=np.float64)
-    pos_bad: list[float] = []
-    ratio_bad: list[float] = []
-    for pos, width in zip(np.asarray(positions, dtype=np.float64),
-                          np.asarray(fwhm, dtype=np.float64)):
-        inside = np.abs(tt - pos) <= ABSENT_WINDOW_FWHM * max(float(width), 1e-6)
+    pos = np.asarray(positions, dtype=np.float64)
+    bad = np.zeros(len(pos), dtype=bool)
+    ratio = np.full(len(pos), np.nan)
+    for i, (p, width) in enumerate(zip(pos, np.asarray(fwhm, dtype=np.float64))):
+        inside = np.abs(tt - p) <= ABSENT_WINDOW_FWHM * max(float(width), 1e-6)
         if not np.any(inside):
             continue                     # outside the fitted range: not evidence
         total = float(net[inside].sum())
         noise = float(np.sqrt((sig[inside] ** 2).sum()))
-        if total < k_sigma * noise:
-            pos_bad.append(float(pos))
-            ratio_bad.append(total / max(noise, 1e-300))
-    return pos_bad, ratio_bad
+        ratio[i] = total / max(noise, 1e-300)
+        bad[i] = total < k_sigma * noise
+    return bad, ratio
 
 
 def _shift_path(candidate: CellCandidate, instrument: Instrument) -> str:

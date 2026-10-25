@@ -670,7 +670,8 @@ ROWS: tuple[Row, ...] = (
                   "observed lines with nothing above the picker's envelope; the trigger is "
                   "> 0, so the true magnetite and PbSO4 cells (count 2) are capped and "
                   "LaB6's wrong a-sqrt2 I cell reads 2 as well: at the bottom of the range "
-                  "the count separates nothing (PR #941 round 4)"),
+                  "the count separates nothing (PR #941 round 4); absences only outside the "
+                  "window are said at info and cap nothing (#941 follow-ups)"),
         grounds=("Caps the candidate's confidence and ranks nothing; the pairwise supercell "
                  "check is what refutes, and the diagnostic says so; the count is de Wolff's "
                  "window, the > 0 trigger is rietx's own (C3, ruled 2026-10-21; a density "

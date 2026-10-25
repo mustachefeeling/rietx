@@ -2861,7 +2861,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Rwp: a converged fit of a cell that predicts every reflection of another "
             "fits at least as well (0.164 against 0.164 for a doubled cell on rietx's "
             "synthetic LaB6 pattern). Without a peak list the "
-            "count is the fitted background's, over the whole range. Compare the "
+            "count is the fitted background's, over the whole range. Absences that "
+            "sit only above the window are reported at info level and cap nothing. "
+            "Compare the "
             "smaller cell that indexes the same lines, and run the extinction screen "
             "before you reject this one."
         ),

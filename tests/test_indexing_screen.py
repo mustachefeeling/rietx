@@ -514,3 +514,127 @@ def test_the_screens_pseudo_voigt_is_the_models():
     for eta in (0.0, 0.4, 1.0):
         assert np.allclose(_pseudo_voigt(x, 0.05, eta), pseudo_voigt(x, 0.05, eta),
                            rtol=1e-12, atol=0.0)
+
+
+# ----------------------------------------------------------------------
+# #941's round-1 follow-ups
+# ----------------------------------------------------------------------
+def test_the_panel_and_the_screen_share_one_definition_of_seen(tet):
+    """Given the screen's positions and common shift, the panel's member reads
+    the screen's seen fraction, on every control cell; and both read the width
+    law at the **shifted** merged line.  Where the widths change fast across a
+    shift, the old reading (the unshifted group's mean width) called a line
+    unseen that the screen saw."""
+    from rietx.indexing.fom import (
+        LINE_COINCIDENCE_RTOL,
+        lattice_reflections,
+        predicted_seen_fraction_at_resolution,
+        two_theta_of_q,
+    )
+
+    data, ins, peaks = tet
+    pattern, screens = _screens(data, ins, peaks, TET_CELLS)
+    for name, (system, centring, cell) in TET_CELLS.items():
+        s = screens[name]
+        _h, q, _m = lattice_reflections(cell, system, centring, pattern.wavelength,
+                                        pattern.two_theta_max,
+                                        two_theta_min=pattern.two_theta_min)
+        keep = np.ones(len(q), dtype=bool)
+        keep[1:] = np.diff(q) > LINE_COINCIDENCE_RTOL * q[1:]
+        tt = two_theta_of_q(q[keep], pattern.wavelength)
+        member = predicted_seen_fraction_at_resolution(
+            pattern.obs_tt, pattern.obs_esd, pattern.obs_fwhm, tt,
+            shift=s.shift_deg, k_sigma=pattern.k_sigma)
+        assert member.value == pytest.approx(s.seen_fraction, abs=1e-12), name
+        assert member.n_possible == s.n_lines, name
+    # widths 0.02° at 30° and 0.20° at 31°; one line predicted at 30.5° and
+    # shifted +0.33° to 30.83°, 0.17° from the 31° component: at the shifted
+    # line the law reads 0.169° and the half-width 0.185° (seen); the
+    # unshifted 0.11° gave 0.155° (unseen)
+    obs = np.array([30.0, 31.0])
+    member = predicted_seen_fraction_at_resolution(
+        obs, np.full(2, 1e-4), np.array([0.02, 0.20]), np.array([30.5]),
+        shift=0.33)
+    assert member.value == 1.0
+
+
+def test_absences_are_paired_with_their_lines_by_index():
+    """``absent_mask`` answers per position in the order given (the root
+    rulebook's tick rule: a position is not a key); a position in a gap of the
+    scan is not absent, its ratio NaN; ``absent_reflections`` is its selection."""
+    from rietx.indexing.workflow import absent_mask, absent_reflections
+
+    tt = np.concatenate([np.arange(20.0, 30.0, 0.01), np.arange(40.0, 50.0, 0.01)])
+    y = np.full(len(tt), 100.0)
+    y[np.abs(tt - 25.0) < 0.05] += 400.0
+    bkg = np.full(len(tt), 100.0)
+    sigma = np.full(len(tt), 10.0)
+    pos = np.array([25.0, 27.0, 35.0, 27.0, 45.0])
+    bad, ratio = absent_mask(tt, y, bkg, sigma, pos, np.full(len(pos), 0.05))
+    assert bad.tolist() == [False, True, False, True, True]
+    assert np.isnan(ratio[2]) and not np.isnan(ratio).any(where=bad)
+    listed, ratios = absent_reflections(tt, y, bkg, sigma, pos, np.full(len(pos), 0.05))
+    assert listed == [27.0, 27.0, 45.0]
+    assert ratios == pytest.approx(list(ratio[bad]))
+
+
+def test_a_candidate_is_screened_once_per_run_and_the_refuter_skips_the_grid(
+        si, monkeypatch):
+    """``supercell_checks`` reads only seen / indexed / uncancellable, so it
+    asks no absence question of the pattern; the validation's request for the
+    absences then recomputes once, and every later request is the memo's."""
+    from rietx.indexing import workflow
+    from rietx.indexing.consensus import supercell_checks
+    from rietx.indexing.screen import PatternScreen, screen_for
+
+    data, ins, peaks = si
+    pattern = PatternScreen.from_peaks(peaks, q_match=absence_window(peaks),
+                                       data=data, instrument=ins)
+    calls = []
+    real = workflow.absent_mask
+
+    def spy(*a, **kw):
+        calls.append(1)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(workflow, "absent_mask", spy)
+    cands = [_candidate(*SI_CELLS[n]) for n in ("truth cF", "cI sqrt2 a0", "cP 2a0")]
+    supercell_checks(cands, peaks, q_match=absence_window(peaks), k_sigma=3.0,
+                     screen=pattern)
+    supercell_checks(cands, peaks, q_match=absence_window(peaks), k_sigma=3.0,
+                     screen=pattern)
+    assert calls == []
+    assert len(pattern._memo) == 3
+    full = screen_for(pattern, cands[1], peaks)
+    assert full.absent is not None and len(calls) == 1
+    assert screen_for(pattern, cands[1], peaks) is full
+    assert screen_for(pattern, cands[1], peaks, absence=False) is full
+    assert len(calls) == 1
+    assert any(k.verdict == "refuted" for k in cands[1].supercell_checks)
+
+
+def test_the_absent_code_reads_the_counts_not_the_caveat():
+    """INDEX_PREDICTED_BUT_ABSENT fires from the validation's counts: before
+    the gate has run (no caveats yet), at warning inside de Wolff's window;
+    at info, capping nothing, when every uncancellable absence is above it;
+    silent at zero and on a failed fit."""
+    from rietx.indexing.diagnostics import candidate_diagnostics
+
+    def code(lebail):
+        cand = _candidate("cubic", "F", SI_CELLS["truth cF"][2], lebail=lebail)
+        assert cand.confidence_caveats == []
+        found = [d for d in candidate_diagnostics(cand)
+                 if d.code == "INDEX_PREDICTED_BUT_ABSENT"]
+        return found[0] if found else None
+
+    base = LeBailValidation(
+        rwp=0.3, gof=2.0, space_group="F m -3 m", n_reflections=15,
+        predicted_but_absent=6, predicted_but_absent_uncancellable=2,
+        predicted_but_absent_uncancellable_in_window=2, absent_source="line_screen",
+        predicted_but_absent_two_theta=[40.1, 49.7])
+    assert code(base).level == "warning"
+    above = base.model_copy(update={"predicted_but_absent_uncancellable_in_window": 0})
+    d = code(above)
+    assert d.level == "info" and "caps nothing" in d.message
+    assert code(above.model_copy(update={"predicted_but_absent_uncancellable": 0})) is None
+    assert code(base.model_copy(update={"status": "failed"})) is None

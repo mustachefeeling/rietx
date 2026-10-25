@@ -497,7 +497,7 @@ On a laboratory magnetite pattern the wrong primitive description reads 0.174 ag
 Read `predicted_but_absent` as "this cell predicts lines the pattern lacks", never as "this cell is too big".
 It counts against the lattice group, so a space-group extinction (a glide plane, a screw axis) shows in the count on a correct cell, and the extinction screen afterwards separates the two ([The extinction symbol](extinction.md)).
 The caveat of the same name reads only the absences no extinction could cancel, inside the first twenty lines, and it caps rather than refutes: a correct cell's weak reflections below detection read absent too, over the whole range, so the count keeps `high` out of reach and the supercell check is what refutes.
-A nonzero count raises [`INDEX_PREDICTED_BUT_ABSENT`](diagnostics-indexing.md#index_predicted_but_absent), and unmatched observed lines raise [`INDEX_IMPURITY_LINES`](diagnostics-indexing.md#index_impurity_lines).
+A nonzero count raises [`INDEX_PREDICTED_BUT_ABSENT`](diagnostics-indexing.md#index_predicted_but_absent), as a warning inside the window and at info level when every such absence lies above it, and unmatched observed lines raise [`INDEX_IMPURITY_LINES`](diagnostics-indexing.md#index_impurity_lines).
 
 ### The confidence gate
 
