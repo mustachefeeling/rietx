@@ -17,6 +17,7 @@ from rietx.history.events import as_event_stream, read_events
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from rietx.optimize.statistics import MAX_SHIFT_CONVERGED
 from rietx.params.multi import SharingMap
+from rietx.refine import FROZEN_COMPILE_CHI2_REL
 from rietx.strategy.staged import RefinementPlan
 from tests.test_multi_histogram import (
     _broadened,
@@ -119,13 +120,19 @@ def test_a_joint_event_log_partitions_by_histogram(two_patterns, tmp_path):
                 by_hist[r["histogram_index"]].append(r)
     for h, rows in by_hist.items():
         assert len(rows) == n_stages
-        # the last stage's reading is the answer's, from the same models
-        assert rows[-1]["rwp"] == result.histograms[h].statistics.rwp
+        # the last stage's reading is the as-optimised one, on that stage's
+        # compile; the result's is a compile at the answer (WP-1421), so the
+        # two differ by the frozen windows alone, under FROZEN_COMPILE_STALE's 1 %
+        assert rows[-1]["rwp"] == pytest.approx(
+            result.histograms[h].statistics.rwp, rel=FROZEN_COMPILE_CHI2_REL / 2)
 
     start = log[0][1]
     assert start["n_points"] == sum(r["n_points"] for r in start["histograms"])
     ends = [d for k, d in log if k == "stage_end"]
-    assert ends[-1]["rwp"] == log[-1][1]["rwp"] == result.statistics.rwp
+    assert log[-1][1]["rwp"] == result.statistics.rwp
+    assert ends[-1]["rwp"] == pytest.approx(result.statistics.rwp,
+                                            rel=FROZEN_COMPILE_CHI2_REL / 2)
+    assert "FROZEN_COMPILE_STALE" not in {d.code for d in result.diagnostics}
 
     # an eval's values align with the most recent stage_start's free paths,
     # and those split by histogram on their ``hist.<h>.`` scope

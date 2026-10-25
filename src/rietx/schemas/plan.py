@@ -85,7 +85,8 @@ CORRELATION_GUARD = 0.98
 #: height, and a scale fitted to pure noise lifted that point past it.
 #:
 #: **A plan carries it since WP-2002 (B1, ruled 2026-10-19)**, so a caller can
-#: set another threshold or switch the absent-phase hold off.  It lives here,
+#: set another threshold or switch the significance test off (``None``; a
+#: phase with no line in range is held either way, WP-1958).  It lives here,
 #: beside the mirror, for :data:`INTERMEDIATE_FTOL`'s reason: the pydantic
 #: field needs it at class definition.  ``model.forward`` re-exports it, where
 #: the screen is.
@@ -109,7 +110,8 @@ def check_phase_support_sigma(value: Any) -> float | None:
         raise ValueError(
             f"phase_support_sigma is the number of esds a phase's scale must "
             f"sit from zero to count as seen, a positive finite number, or "
-            f"None to switch the absent-phase hold off; got {value!r}")
+            f"None to switch the significance test off (a phase with no "
+            f"line in range is still held); got {value!r}")
     return float(value)
 
 
@@ -148,7 +150,7 @@ def check_phase_support_sigma(value: Any) -> float | None:
 #: strongest line's height, 2 % of a Lorentzian), MAUD (±15 FWHM, 2.1 %),
 #: RIETAN-FP and FullProf, and more than GSAS-II (0.5 %), BGMN and
 #: EasyDiffraction, which compute the whole peak
-#: (``docs/wp/2002-batch/practice.md``).  At 1e-3 the window error is under
+#: (``docs/practice.md``).  At 1e-3 the window error is under
 #: 0.1σ at every point on four families, and the closing answer lies within
 #: 0.1 plain esd of the converged tails' on three of them
 #: (``tests/test_window_domain.py``).  SRM 660c LaB6 misses by 0.9 esd on U,
@@ -274,7 +276,9 @@ class PlanSpec(Base):
             "more solve.  The default cell window follows the same number.  "
             "null = no hold, no release, no restore and no window "
             "(PHASE_UNCONSTRAINED still reports a phase under the default 3); "
-            "WP-1301/1523, a caller's option since WP-2002 B1"))
+            "WP-1301/1523, a caller's option since WP-2002 B1.  A phase with no "
+            "reflection in the fitted range is held whole, scale included, at "
+            "any value here, null too (WP-1958)"))
 
     closing_window_tol: float | None = Field(
         CLOSING_WINDOW_TOL, description=(

@@ -11,6 +11,7 @@ Altomare
 [aA]ntiparallel
 [aA]ntiphase
 [aA]ntisite
+[aA]ragonite
 [aA]symptote
 [aA]ttenuator
 [aA]utodiff
@@ -75,8 +76,10 @@ Cracknell
 [cC]rystallites
 [cC]rystallographer
 Daams
+Dal
 [dD]e
 Debye
+[dD]ecompositions
 [dD]ecorrelate
 [dD]ecorrelates
 [dD]ecorrelating
@@ -208,6 +211,7 @@ Maxwellian
 [mM]ultiplet
 [mM]ultiplets
 [nN]anocrystalline
+Negro
 Niggli
 [nN]m
 [nN]onbonding
@@ -256,6 +260,7 @@ Pitschke
 [qQ]uantile
 [qQ]uartic
 [qQ]uaternion
+[qQ]uickstart
 Rachinger
 Raftery
 [rR]ealification
@@ -335,6 +340,7 @@ Uiso
 [uU]ncentred
 [uU]nconverged
 [uU]nderdetermined
+Ungaretti
 [uU]niaxial
 [uU]nindexed
 [uU]nmodelled

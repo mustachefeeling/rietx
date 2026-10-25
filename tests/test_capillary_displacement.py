@@ -26,8 +26,8 @@ eliminates displacement error, so 11-BM should recover x, y ≈ 0.  It does not.
 Over NAC's certified 2-24° range the three positional shapes are degenerate
 (unit-column Gram eigenvalue 1.6e-5), so the fit slides along the null
 direction to +4.86 and +2.12 mm with esds of 2.5 and 0.9 mm — while Rwp
-*improves* and the cell leaves its acceptance band by 5109 ppm, with an esd
-of 2579 ppm that says so.  Until WP-2002 (2026-10-20) a ±1 mm default bound
+*improves* and the cell leaves its acceptance band by 5111 ppm, with an esd
+of 2544 ppm that says so (1.10.0).  Until WP-2002 (2026-10-20) a ±1 mm default bound
 stopped the walk at 1097 ppm, a prior that the mount is aligned which held
 here, with the same esd.  What the last two tests assert is therefore the sharper claim: on
 this instrument the correction must not be refined, and the package says so
@@ -466,10 +466,10 @@ def test_11bm_is_where_this_correction_must_not_be_refined(nac_pair):
 def test_on_11bm_rwp_improves_and_the_cell_leaves_its_band(nac_pair):
     """The invariant, on the correction that ships with this WP.
 
-    Freeing eq (4) over 2-24° takes Rwp *down* — 0.14035 → 0.13809, a 1.6 %
+    Freeing eq (4) over 2-24° takes Rwp *down* — 0.14010 → 0.13784, a 1.6 %
     improvement — while the cell walks out of the acceptance band, 10.2512 to
-    10.1986 Å, which is 5109 ppm and 26× the ±2e-3 Å the NAC acceptance
-    allows (1117 ppm while a ±1 mm default bound stopped the offsets, until
+    10.1986 Å, which is 5111 ppm and 26× the ±2e-3 Å the NAC acceptance
+    allows (1097 ppm while a ±1 mm default bound stopped the offsets, until
     WP-2002).  A session judging this correction by Δ Rwp would have accepted
     it here and shipped a cell wrong in the third digit.
 

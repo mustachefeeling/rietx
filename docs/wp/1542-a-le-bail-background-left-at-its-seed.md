@@ -43,6 +43,13 @@ here (2026-10-03, at the maintainer's request).
 
 ### Inherited
 
+- **2026-10-24, from WP-2039: a model's starting background is now drawn before a fit.**
+  `data.plot(model=ref)` draws the background at its starting values, dashed, over the
+  channels a fit would use (`viz.plots._starting_model`). An `auto_background()` model
+  starts its P-spline at zero and its air-scatter term at 0.001, so the figure shows a
+  dashed line along zero: a seed left unset is visible before any fit runs. Usable as the
+  picture this WP's report points to.
+
 - **2026-10-16, from the issue triage (#726): a second case where the seeded
   `profile_only` prefit was not enough.** The 2026-10-11 PbSO₄ neutron entry
   below now has a companion: #726's comment of 2026-10-15, on a lab

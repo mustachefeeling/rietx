@@ -44,11 +44,12 @@ from ..schemas.suggest import (
     ParameterCandidate,
     SuggestionResult,
 )
+from .staged import ROUGHNESS_SEED, STRAIN_SEED_PPM
 
 #: Probe seeds, per family.  Two kinds of floor candidate are scored at the
 #: seed the corresponding stage would start its solve from (the
-#: ``strategy/staged.py`` literals: roughness ``0.3``,
-#: ``strain_seed=1000.0``), and report ``seeded=True``.  A Stephens block at
+#: ``strategy/staged.py`` constants: :data:`~.staged.ROUGHNESS_SEED` and
+#: :data:`~.staged.STRAIN_SEED_PPM`), and report ``seeded=True``.  A Stephens block at
 #: S ≡ 0 sits on √Σ's unbounded slope (an FD there returns an h-dependent
 #: value, not a derivative).  Suortti roughness at b = 0 is the *identity*,
 #: and 0.3 is ``_ROUGHNESS_STAGE``'s measured start.
@@ -72,8 +73,8 @@ from ..schemas.suggest import (
 #: peak, moves probe χ²_red from 1.01 to 7.1, and hands every width
 #: parameter a spurious gain ≈ 3×10⁴ at a *converged* fit
 #: (``Refinement.suggest`` implements the split and tells the same story).
-SUGGEST_SEED_ROUGHNESS = 0.3
-SUGGEST_SEED_STEPHENS = 1000.0
+SUGGEST_SEED_ROUGHNESS = ROUGHNESS_SEED
+SUGGEST_SEED_STEPHENS = STRAIN_SEED_PPM
 
 
 @dataclass(frozen=True)

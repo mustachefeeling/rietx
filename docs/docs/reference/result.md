@@ -50,9 +50,8 @@ The last stage solved on a compile whose peak windows and quadrature node counts
 When the two χ² differ by more than 1 %, the result carries [`FROZEN_COMPILE_STALE`](diagnostics-refinement.md#frozen_compile_stale) with both figures in its message.
 The esds are not re-measured.
 They are the last solve's, read off its Jacobian, and the history node keeps the frozen compile's figures.
-Two results report the frozen compile's figures and never carry `FROZEN_COMPILE_STALE`.
-One is a Pawley result, whose intensity block belongs to the solve.
-The other is a joint fit, which `rietx.multi` builds itself.
+A Pawley result reports the frozen compile's figures and never carries `FROZEN_COMPILE_STALE`, because its intensity block belongs to the solve.
+A joint fit compiles each pattern again at its answer and compares each pattern's χ², naming the worst.
 
 The literature is not consistent about which quantity is called χ².
 The IUCr guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should approach 1.
@@ -334,7 +333,15 @@ Past each cap a `HIGH_CORRELATION_OMITTED` or `FLAT_DIRECTION_OMITTED` row gives
 
 `print(result)`, which is `str(result)`, is the view a bare `RefinementResult` can answer on its own.
 It shows each stage's status, the last stage's convergence number (max|Δθ|/esd), every diagnostic, the provenance, and the agreement indices last.
-It needs no compiled model, so it works on a result read back from a project or handed across a process boundary.
+It is given no deliverable, so an error prints in full and every other diagnostic on one line, its code, its paths and the purposes it is a warning under.
+`RefinementResult.summary(deliverable="qpa")` prints the same view with the diagnostics read under that purpose: the errors and the warnings for it in full, the rest one line each.
+It adds nothing else, and its last diagnostic line names `Refinement.summary`, which prints the rows that decide the purpose.
+Both need no compiled model, so they work on a result read back from a project or handed across a process boundary.
+Every `summary()` also takes `levels=`, a map from a code to `"allow"`, `"warn"` or `"deny"`.
+The caller's word replaces the audited level under every purpose, so an expert can quiet a code and a pipeline can print one as an error.
+It never lowers a diagnostic raised as an error, and the diagnostics header counts the rows it set.
+`RefinementResult.usable_under({"PATTERN_UNDERSAMPLED": "deny"})` is `usable` under the same map, so a pipeline can treat a code as blocking.
+`usable` itself reads nothing but the stored result, so it answers the same on every machine.
 It stays under 80 lines on a five-stage fit.
 [A first fit in Python](../start/first-fit.md) shows one.
 
@@ -363,9 +370,14 @@ When no held parameter clears the noise floor, it reads `next: nothing to free`.
 [How to choose the next parameter to free](../guides/next.md) works with the full ranking.
 
 `deliverable=` adds the rows one purpose decides on, because the report will not infer your purpose.
+It also decides which diagnostics print in full: the errors and the warnings for that purpose, with every other row on one line.
 `"phase_id"` adds the unmatched observed peaks and the Le Bail gap ratio.
 `"qpa"` adds the worst entry of `background.absorption` and the weight fractions with esds.
 `"structure"` adds `identifiability.exchangeability`.
+`"cell"` adds each phase's refined cell with its esds and volume, then the rows of `identifiability.exchangeability` that name a cell path.
+`"microstructure"` adds each phase's `result.microstructure` readings, or says the size and strain are not quotable when `RESOLUTION_UNCONSTRAINED` fired.
+`"calibration"` adds the instrument parameters the fit refined, and whether the standard's cell was held fixed, as a calibration needs.
+`"magnetic"` adds each site's moment rows and the moment directions the stages held or turned (`StageResult.moment_flat_axes`, `StageResult.moment_turned`).
 [How to find the weight fraction of each phase in a mixture](../guides/qpa.md) and [Structure agreement indices](#structure-agreement-indices) say what each row means:
 
 <!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
@@ -423,10 +435,60 @@ The other three purposes are refused there by name, and `Refinement.summary(deli
 print(series.summary(deliverable="series"))
 ```
 
+## Diagnostics over a batch
+
+A batch of fits is read as counts rather than row by row.
+`diagnostics_summary(results)` takes a list of `RefinementResult`s and returns a `DiagnosticsSummary`.
+Every level it counts comes from the view `summary()` prints.
+So a count never disagrees with a printed row.
+`deliverable=` and `levels=` mean what they mean to `summary()`.
+An unknown deliverable, code or level word is refused the same way, even on an empty list.
+
+| Field | Is |
+|---|---|
+| `DiagnosticsSummary.n_results` | the number of results in the batch |
+| `DiagnosticsSummary.deliverable` | the deliverable the counts were taken under, or `None` |
+| `DiagnosticsSummary.levels` | the caller's `levels=` map, empty when none was given |
+| `DiagnosticsSummary.codes` | one `CodeTally` per code that fired, most results first |
+| `DiagnosticsSummary.warnings_per_result` | the mean number of warning rows a result carries, keyed by purpose |
+| `DiagnosticsSummary.pareto` | one `ParetoRow` per code with a warning row, largest share first |
+
+A `CodeTally` counts one code, named by `CodeTally.code`.
+`CodeTally.n_results` is the number of results it fired on.
+`CodeTally.rate` is that number over the batch.
+`CodeTally.n_rows` counts all its rows.
+`CodeTally.n_error`, `CodeTally.n_warning` and `CodeTally.n_info` split those rows by level.
+Under a deliverable, a row's level is its level for that purpose.
+Without one, a row's level is the level it was raised at.
+
+`DiagnosticsSummary.pareto` is the "bad actor" ranking of alarm management (ISA-18.2).
+`ParetoRow.code` names the code.
+`ParetoRow.n_warning` counts its warning rows.
+`ParetoRow.share` is that count over every warning row in the batch.
+`ParetoRow.cumulative` adds the shares down the ranking, so the last row reads 1.0.
+A code that fired only as `info` or `error` is in `codes` and not in `pareto`.
+
+Without a deliverable, `warnings_per_result` has a key for every purpose except `"series"`.
+Each value is counted under that purpose.
+With a deliverable, it has that key alone.
+An empty list gives `n_results` 0 and empty tallies:
+
+<!-- api-doc: no-exec — needs a batch of completed fits -->
+```python
+summary = rx.diagnostics_summary(results, deliverable="qpa")
+print(summary)
+```
+
+`print(summary)` shows the Pareto table.
+Each row gives the code, the results it fired on, its warning rows and the cumulative share.
+The counts decide nothing.
+A code that fires on most of a batch says something the fits share, such as the model or the plan.
+
 ## Objects in a notebook or a terminal
 
 Every rietx object prints as text you can read, and a notebook cell shows the same text.
 A model prints as an indented tree with one line per parameter: its value with the esd in brackets, its unit, and `(vary)` when it is free.
+The one-line fields of a block print their values in one column.
 Fields that are `None` or empty are left out.
 A long sequence prints as a count and a range, in `repr` and in `print` alike, so a pattern never prints its channels:
 
@@ -440,10 +502,10 @@ print(data)
 
 ```text
 PatternData of 500 points, 10–19.98° 2θ, median step 0.02°
-  intensity: <500 floats 100…599>
-  sigma: None
+  intensity:        <500 floats 100…599>
+  sigma:            None
   excluded_regions: none
-  metadata: none
+  metadata:         none
 ```
 
 The numbers are still there.
@@ -454,7 +516,7 @@ These objects print a view of their own:
 | Object | Prints |
 |---|---|
 | `PatternData` | the range and step, then whether σ came with the file |
-| `PatternDiagnostics` | every field, `signal_cutoffs` first, an empty finding as `none` |
+| `PatternDiagnostics` | every field under three headings, each number to three significant figures; an empty finding as `none`, and a check that could not run as `not checked` |
 | `RefinementResult` | the termination view in [Printing a result](#printing-a-result) |
 | `RefinedParameter`, `ParameterRow` | `path  value(esd)  state` on one line, so `ref.parameters()` reads as a table |
 | `Diagnostic` | `level[CODE]: message`, then `at:` with the paths and `help:` with the suggestion |
@@ -469,8 +531,13 @@ These objects print a view of their own:
 | `Trajectory` | one row per point: its label, its x and its value with the esd |
 
 A `Refinement` reads only its own fields when it prints.
-It never calls `Refinement.summary`, which builds a report, and a notebook asks for every displayed object twice.
-In a notebook the tabular parts arrive as HTML tables: a result's refined parameters, a refinement's varying parameters, an indexing result's candidates, a peak list, a trajectory and a phase's microstructure terms.
+It never calls `Refinement.summary`, which builds a report.
+A notebook asks for the text each time a cell displays the refinement.
+In a notebook, a `RefinementResult`, an `IndexingResult` and a `PeakList` add to their text.
+Under each diagnostic's `help:` line, a `means:` line gives its `Diagnostic.explanation`.
+A result then lists `RefinementResult.parameters` in columns headed `path`, `value` and `at_bound`.
+An `equations` column follows when a parametric equation set a row.
+The display is one block of fixed-width text, so its columns stay aligned in GitHub's notebook viewer as well as in JupyterLab.
 A `StructureFigure` from `render_structure` displays as its picture.
 
 A figure behaves in a notebook as any returned value does.

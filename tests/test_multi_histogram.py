@@ -7,6 +7,7 @@ corrupts one histogram and checks its own Rwp exposes it rather than the pooled
 number masking it.
 """
 
+import dataclasses
 import math
 from pathlib import Path
 
@@ -21,7 +22,7 @@ from rietx import (
     Refinement,
     refine_multi,
 )
-from rietx.model.forward import compile_model
+from rietx.model.forward import compile_model, recorded_window_tol
 from rietx.model.profiles.caglioti import (
     apparent_size_from_size_coefficient,
     microstrain_from_strain_coefficient,
@@ -39,6 +40,7 @@ from rietx.params.multi import (
     size_value_scales,
 )
 from rietx.params.vector import ParameterTable
+from rietx.refine import FROZEN_COMPILE_CHI2_REL
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.structure import Structure
 from rietx.strategy.staged import RefinementPlan, Stage
@@ -166,6 +168,20 @@ def test_every_histograms_ticks_name_their_reflections(two_patterns):
     # each at its own wavelength's angles
     first, second = result.histograms
     assert set(first.tick_hkl) == set(second.tick_hkl)
+
+
+def test_each_histograms_view_names_its_own_radiation(two_patterns):
+    """The other half of a second builder (WP-2042): ``for_histogram(h)``
+    copies the top-level fields, so a radiation recorded only there would label
+    histogram 1's figure with histogram 0's λ."""
+    structure, instruments = perturbed_inputs()
+    result = MultiHistogramRefinement(structure, instruments).fit(
+        two_patterns, plan="mccusker_default")
+    assert result.radiation == result.histograms[0].radiation   # mirrors hist 0
+    for h, lam in enumerate((0.41390, 0.71070)):
+        assert result.histograms[h].radiation.wavelengths == [lam]
+        label = result.for_histogram(h).plot().get_axes()[0].get_xlabel()
+        assert label.endswith(rf"$\lambda$ = {lam:g} Å"), (h, label)
 
 
 def test_bad_histogram_shows_in_its_own_rwp(two_patterns):
@@ -479,6 +495,36 @@ def size_fixture():
     return [p0, p1], [v0, v1]
 
 
+def test_a_joint_result_is_measured_on_a_compile_at_its_answer(size_fixture):
+    """A joint result's curves rebuild from its own parameters (WP-1421).
+
+    The last stage frees ``lor_size``, so the peaks outgrow the windows sized
+    where that stage started.  Measured on that stage's compile, the report
+    read the cut tails as unmatched peaks (WP-1341: 44 and 27); the closing
+    stage hides that, so it is switched off here to leave the case bare.
+    """
+    patterns, _ = size_fixture
+    structure, _ = _width_start(0.41390)
+    instruments = [_width_start(lam)[1] for lam in (0.41390, 0.71070)]
+    ref = MultiHistogramRefinement(structure, instruments)
+    plan = dataclasses.replace(_width_plan("lor_size"), closing_window_tol=None)
+    result = ref.fit(patterns, plan=plan)
+    tol = recorded_window_tol(result.stages[-1].window_area_tol)
+    for h, table in enumerate(ref.mtable.tables):
+        fresh = compile_model(ref.mtable.structures[h], ref.mtable.instruments[h],
+                              patterns[h], mode="rietveld",
+                              moving_paths=set(table.moving_paths),
+                              window_area_tol=tol)
+        np.testing.assert_allclose(result.histograms[h].y_calc,
+                                   fresh.evaluate(table.decode(table.x0())),
+                                   rtol=1e-12, atol=1e-9)
+        assert ref.report(h).unmatched == [], f"hist {h}: cut tails read as peaks"
+    # the gap is tested per pattern and the finding names the worst one
+    stale = [d for d in result.diagnostics if d.code == "FROZEN_COMPILE_STALE"]
+    assert len(stale) == 1 and stale[0].value > FROZEN_COMPILE_CHI2_REL
+    assert "histogram 1" in stale[0].message
+
+
 def test_a_joint_fit_recovers_one_crystallite_at_both_wavelengths(size_fixture):
     """The WP-1131 acceptance: one specimen, one size, two coefficients.
 
@@ -711,6 +757,8 @@ def test_a_seed_one_histogram_cannot_hold_is_written_in_none():
     """
     instruments = [Instrument.debye_scherrer(wavelength=lam)
                    for lam in (0.41390, 0.71070)]
+    for ins in instruments:     # Y's own box has no floor since WP-2002
+        ins.profile.y.min = 0.0
     instruments[0].profile.y.max = 1.5e-3
     instruments[1].profile.y.max = 5e-4
     mt = MultiParameterTable(make_lab6(), instruments,
@@ -1116,7 +1164,7 @@ def _joint_cubic_pair_fit(monkeypatch, stages, script, *, full=False, log=None):
 
     monkeypatch.setattr(multi_module, "run_multi_least_squares", solve)
     monkeypatch.setattr(multi_module, "_hold_unsupported_phases_multi",
-                        lambda *a, **k: [])
+                        lambda models, *a, **k: ([], [set() for _ in models]))
     monkeypatch.setattr(multi_module, "_rehold_multi", lambda *a, **k: ([], []))
     instruments = []
     for lam in (0.41390, 0.71070):

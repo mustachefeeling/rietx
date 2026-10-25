@@ -126,8 +126,8 @@ Three shared size coefficients, `lor_size`, `gauss_size` and `magnetic_lor_size`
 That is a matter of wavelength rather than radiation ([Size in a joint fit](derived.md#size-in-a-joint-fit), `rietx.params.multi.SIZE_LAMBDA_POWER`).
 
 The three diagnostics that key on the radiation, `DISPERSION_NEGLECTED`, `NEUTRON_RESONANT_ABSORBER` and `SPECIES_FALLBACK_NEUTRAL`, land on the pattern whose radiation raised them, never at the top level ([Diagnostic placement](#diagnostic-placement)).
-`HistogramResult` carries no instrument, so the result does not say which radiation each pattern was.
-Read `MultiHistogramRefinement.fitted_instruments` instead, whose entry for each pattern carries its `source.kind`.
+`HistogramResult.radiation` records each pattern's source `kind` and each line's λ at the answer.
+`MultiHistogramRefinement.fitted_instruments` holds each pattern's whole refined instrument.
 
 The real-data joint fit this package is tested against is one Nd₂Ru₂O₇ specimen measured on the APS 11-BM synchrotron and the NCNR BT-1 constant-wavelength neutron diffractometer, with the neutron wavelength refined.
 
@@ -229,6 +229,7 @@ An empty list means an ordinary single-pattern fit.
 | `HistogramResult.sigma` | its per-point σ |
 | `HistogramResult.ticks` | its reflection positions, by phase |
 | `HistogramResult.tick_hkl` | which reflection each of those is, paired by index |
+| `HistogramResult.radiation` | its source kind and line wavelengths, which its figure names |
 | `HistogramResult.qpa` | its phase quantities |
 | `HistogramResult.restraints` | always `None`: a joint fit refuses soft restraints |
 | `HistogramResult.phase_agreement` | its R<sub>Bragg</sub> and R<sub>F</sub>, per phase |
@@ -244,7 +245,7 @@ The pooled figure describes neither.
 `RefinementResult.data_support` is `None` for a joint fit ([Diagnostic placement](#diagnostic-placement)).
 
 `RefinementResult.for_histogram` returns a single-pattern view of one pattern.
-Its curves, statistics, ticks, phase quantities and diagnostics move to the top level and `histograms` is cleared, so `result.for_histogram(0).plot()` and a report built from it work per pattern.
+Its curves, statistics, ticks, radiation, phase quantities and diagnostics move to the top level and `histograms` is cleared, so `result.for_histogram(0).plot()` and a report built from it work per pattern.
 The view's `parameters` keep the shared rows and that pattern's own rows.
 Its own rows lose their `hist.<h>.` prefix, so they are spelled as a single fit spells them.
 Every other pattern's rows are dropped.
@@ -325,10 +326,11 @@ The specimen has one crystallite size, so every pattern's report carries the joi
 On a two-wavelength pair in `tests/test_joint_report.py` both reports quote 408.82(4.86) Å, and the two patterns refined alone give 408.71(8.05) Å and 409.20(6.43) Å.
 The separability caveat beside the size is each report's own, from that pattern's 2θ range.
 
-A joint result's curves come from the last stage's compile, sized at the values the stage started from.
-A single fit compiles the model again at its answer, and a joint fit does not.
-If the last stage broadened the peaks, their tails stop at the old windows and Layer 0 reports the cut as unmatched peaks.
-On that size pair the reports find 44 and 27 unmatched peaks where a compile at the answer finds none, so read Layer 0 there against the plot.
+A joint result's curves come from a compile at its answer, as a single fit's do.
+The last stage solved on windows sized at the values it started from.
+If it broadened the peaks, their tails stop at those windows, and a report read off that compile counts the cut as unmatched peaks.
+On that size pair with the closing stage switched off, that compile gives 38 and 28 unmatched peaks, and the compile at the answer gives none.
+The two compiles' χ² are compared pattern by pattern. When any pattern's differ by more than 1 %, the result carries one [`FROZEN_COMPILE_STALE`](diagnostics-refinement.md#frozen_compile_stale) naming the pattern that moved most.
 
 ## Precision of a joint fit
 

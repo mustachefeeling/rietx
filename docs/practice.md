@@ -1,15 +1,20 @@
-# What the seven programs do by default (2026-10-21)
+# What the other Rietveld programs do
 
-Surveyed for the fifth round's questions and for tier 2's widened program list
-(`docs/milestones/generality.md` § The rule). One agent per program read its manual or
-source and, where cheap, ran it. The lead checked the load-bearing numbers against the
-reports. Versions: GSAS-II 5.8.4 (source), FullProf 8.20 (manual and `fp2k` runs), TOPAS
-Technical Reference Version 9 (no source or `Topas.inc` read), RIETAN-FP 3.12 (manual and
-runs), BGMN 4.2.23 with Profex 5.7.2 (manual, Profex docs and templates, runs; no source,
-GPL), MAUD 3.07 (BSD-3 source at the tag), EasyDiffraction 0.21.1 with cryspy 0.13.0
-(source). The sources for the load-bearing rows are listed at the end; where each program
-sits on disk is in the maintainer's memory (`foreign-code-sources-on-disk`). "Checked" means
-read in the source or manual; "ran" means measured.
+A standing reference: what established programs do by default, by topic, each claim cited and
+marked checked (read in the source or manual), ran (measured) or inferred. Read it before
+designing a default, a limit or an automatic action, since tier 2 of the audit rule rests on
+it (`docs/milestones/generality.md` § The rule). Add a section after every survey, rather
+than leaving one in a conversation or a WP's batch directory.
+
+The seven programs are the ones rietx-bench runs: GSAS-II 5.8.4 (source), FullProf 8.20 (manual
+and `fp2k` runs), TOPAS Technical Reference Version 9 (no source or `Topas.inc` read), RIETAN-FP
+3.12 (manual and runs; its licence forbids copying, so it is paraphrased), BGMN 4.2.23 with
+Profex 5.7.2 (manual, Profex docs and templates, runs; GPL, so no source), MAUD 3.07 (BSD-3
+source at the tag) and EasyDiffraction 0.21.1 with cryspy 0.13.0 (source). Where each sits on
+disk is in the maintainer's memory (`foreign-code-sources-on-disk`).
+
+The first sections were surveyed 2026-10-21 for WP-2002's fifth round, one agent per program,
+with the load-bearing numbers checked by the lead. Each later section carries its own date.
 
 ## How far a peak is computed
 
@@ -37,6 +42,31 @@ The Lorentzian column is the area a pure Lorentzian loses to the default cut.
 | FullProf | FCJ under `Npr = 7`; quadrature not documented |
 | MAUD, EasyDiffraction (cryspy) | no FCJ; an empirical or Bérar-Baldinozzi asymmetry |
 | BGMN | ray-traced instrument function, computed once before the fit and held |
+
+## Axial divergence at zero, and whether a refine flag reaches the calculation
+
+Surveyed 2026-10-25 for WP-1421 (#774's zero case). rietx sizes the FCJ nodes and the peak
+window as if S/L = H/L = 0.02 when both sit at zero and either is free, so that a refinement
+starting from zero has a live finite-difference column. A model at zero therefore draws a
+curve that depends on its free set, by 4.8e-5 of the strongest peak on 2026-10-25 (1.66e-4 on
+2026-10-16), measured on #774's rutile reproducer.
+
+| Program | At zero | Does a refine flag reach the profile? |
+|---|---|---|
+| rietx | FCJ off when both are 0; sized at 0.02 when free (`forward.AXIAL_SIZING_FLOOR`) | yes, at exactly zero only |
+| GSAS-II | never computed: one parameter SH/L = (S+H)/L, floored at 0.002 by value for the profile and its window at every evaluation, refined or not; the Fortran's zero branch gives a stand-in derivative of 0.002·sign(Δ2θ) (checked) | no; windows come from values each evaluation |
+| RIETAN-FP | not described; Gauss-Legendre N between 10 and 100 "depending on τmin", which follows rs and rd (§3.10.3, checked) | no flag named; the count follows the values |
+| FullProf | not described; S_L and D_L act only below `AsymLim`, an angle (LINE 30 notes, checked) | no flag named |
+| TOPAS | not read this session | not read this session |
+
+No program read makes a calculation depend on whether a parameter is refined. GSAS-II avoids a
+zero state by flooring the physics itself, and its zero branch, never reached through the
+profile call, carries a stand-in slope.
+
+GSAS-II 5.8.4 sources: the floor at `GSASIIstrMath.py:3980` (profile) and `:4309`
+(derivatives), 0.0005 at `:3723` (`GetFobsSq`); the window `GSASIIpwd.getWidthsCW`
+(`GSASIIpwd.py:811-832`) widens its low-angle side by 50·SH/L·|cos 2θ|; the zero branch and its
+stand-in derivative in `sources/powsubs/psvfcjo.for:139` and `:288-299`.
 
 ## Reflections past the fitted range
 
@@ -90,6 +120,80 @@ their manuals discusses it.
 | MAUD | ±0.5, ±0.3, ±0.1 on U, V, W, not enforced by its least squares | floored at 1e-7° | size 50-5000 Å, strain ≤ 0.005, not enforced |
 | EasyDiffraction | none | H_G² floored at machine ε; a negative H_L passes | none |
 | BGMN | no Caglioti widths | fatal error | Profex writes B1 ≤ 0.01 and k2 ≤ 1e-4 into the files it creates |
+
+## Instrument and specimen widths refined together
+
+Read 2026-10-23 (WP-2002, 8th session), after removing rietx's U and Y floors exposed the
+degeneracy those floors had been breaking. An instrument width coefficient and a specimen
+broadening term with the same angular shape are exactly degenerate when both are free: the data
+fix only their sum. The pairs, in each program's own letters, follow from the formulas cited
+below. Gaussian, in the variance: the instrument's tan²θ term (U) and the specimen's Gaussian
+microstrain; and where a program has a 1/cos²θ instrument term (FullProf's IG, TOPAS's Z), the
+Gaussian size. Lorentzian, in the width: the instrument's tanθ term and the specimen's Lorentzian
+microstrain, and the instrument's 1/cosθ term and the Lorentzian size. FullProf and
+EasyDiffraction call the tanθ Lorentzian term X and the 1/cosθ one Y; GSAS-II, RIETAN-FP and
+rietx call them the other way round, Y and X. In GSAS-II a microstrain's Gaussian part enters
+the variance squared, so it goes as tan²θ like U.
+
+| Program | Positivity enforced on | Both twins refined together | Instrument function alone kept positive |
+|---|---|---|---|
+| GSAS-II 5.8.4 | the total width, `max(0.001, …)` per reflection (`GSASIIstrMath.py:3900-3903`) | no check pairs instrument and sample flags (grep of five modules); size and mustrain refine flags off by default (`GSASIImath.py:6295-6298`), `.instprm` widths off (`GSASIIfiles.py:531`); singular parameters dropped and pairs above 0.95 listed after the fit (`GSASIIstrMain.py:54-139`) | no |
+| FullProf 8.20 | the user's | structural: with a resolution file (IRF, `Res=`) the instrument lives there and the `.pcr` terms "have a meaning" as sample size and strain, V and W to be fixed at zero (manual p. 21, p. 51); the shipped `cuf1k.pcr` holds U, V, W, X at 0 and refines Y with the Stephens terms; without an IRF, only the general advice to refine correlated parameters separately (p. 14); size and strain last in the advised order (p. 13) | no |
+| RIETAN-FP 3.12 | refuses a negative width | manual: U, V, W do not converge stably together and adding P makes the matrix singular; fix V and W from a well-crystallised standard with P = 0, then subtract the standard's U and Y by hand to read strain (manual pp. 35, 106-107; paraphrased, its licence forbids copying) | no |
+| TOPAS v9 | opt-in `force_positive_fwhm`, on the convolution widths (§7) | nothing in the reference; no default limits on u-z (Table 2-1); the `CS_*`/`Strain_*` macros are exact twins of the TCHZ terms (§7.2, §22.1); nothing refines unless marked (§2.1) | no |
+| BGMN 4.2 | B1 cannot be negative; bounds by `start_lower^upper` (§4.2, App. A.4) | impossible by design: the instrument function is ray-traced or learnt from a standard (`STANDARDPAR`, §10.3) and has no refinable width, which the manual calls the reason the refinement is robust (§5.5) | not refinable |
+| MAUD 3.07 | the total half-width, floored at 1e-7° (`InstrumentBroadening.java:45-46`) | nothing (grep of the tree; `FilePar.checkBound` is a stub); help text says free U, V, W by hand after one cycle; Delft strain is Gaussian in tanθ, so it twins the instrument's tan²θ variance term (`SizeStrainDelf.java:57-65`) | no |
+| EasyDiffraction 0.21.1 | H_G² floored at machine ε; H_L unfloored (`cryspy/.../powder_diffraction_const_wavelength.py:122-123`) | no constant-wavelength sample term to pair (`easydiffraction/analysis/calculators/cryspy.py:849-854`); cryspy's own per-phase terms add to the instrument's and are degenerate by construction; correlations shown on request only; every parameter starts fixed (`core/variable.py:46-49`) | no |
+
+**The practice.** No program floors an instrument coefficient, and none keeps the instrument
+function alone positive; positivity, where enforced, is on the total width. None refuses, warns
+about or automatically holds a twin pair. Every program that separates instrument from specimen
+does it by holding the instrument from a standard: FullProf (the IRF) and BGMN (ray tracing) by
+design, RIETAN-FP by its advised protocol, GSAS-II through defaults that leave the sample terms
+off. Three readers checked every citation above in the source or manual on 2026-10-23; their
+scratch copies were not kept. The claims they marked inferred are TOPAS's quadrature/linear
+combination rule (not stated in the reference), the scope of `force_positive_fwhm`, and
+FullProf's constant-wavelength combination rule with an IRF.
+
+## Extinction
+
+Surveyed 2026-10-24 for WP-2044, one agent across six programs, with each
+load-bearing line re-read by the lead. Sabine's powder model is
+E = E_L·cos²θ + E_B·sin²θ. Its Laue half E_L is printed as a series for x ≤ 1
+and an asymptote above (Sabine, Von Dreele & Jørgensen 1988, eqs 3-4; ITC C
+§6.4.5). Both truncate e^(−x)·[I₀(x) + I₁(x)], the integral ITC describes,
+checked by quadrature in WP-2044. The table gives each program's value of E_L
+on either side of x = 1.
+
+| Program | Powder extinction model | E_L at 1⁻ / 1⁺ | Derivative |
+|---|---|---|---|
+| rietx (to 1.9) | Sabine, GSAS-II's branches | 0.6742 / 0.6981, +3.6 % | forward difference (checked) |
+| Sabine's paper, ITC C | series and four-term asymptote | 0.6823 / 0.6678, −2.2 % | — |
+| exact (WP-2044) | e^(−x)·[I₀ + I₁] | 0.6737, continuous | dE_L/dx = −e^(−x)·I₁/x |
+| GSAS-II | Sabine: six-term series, two-term asymptote, switch at x = 1 | 0.6742 / 0.6981, +3.6 % | analytic per branch (checked) |
+| MAUD | Sabine: the paper's series, and its asymptote with the bracket inside the square root, switch at x = 1 | 0.6823 / 0.7299, +7.0 % | none in the class, so numerical (inferred) |
+| TOPAS | no keyword; §16.6 suggests an empirical `scale_pks = 1/Sqrt(1 + 1e-5·extinction·I)`, with no angle dependence | — | numerical for an expression (inferred) |
+| FullProf | one empirical powder parameter (`Extinc`, the SHELX-style form); `Ext-Model` is single-crystal only | — | not found |
+| EasyDiffraction (cryspy) | Becker-Coppens, single crystal only; no powder use found | — | analytic |
+| RIETAN-FP | none (the manual calls secondary extinction negligible for powders) | — | — |
+| BGMN | none found in the keyword table | — | — |
+
+No program evaluates E_L continuously. The two that carry Sabine's E_L both
+switch branches at x = 1, and neither gives a reason. TOPAS's expression
+language has no modified Bessel function (Table 3-1; "there is no Bessel
+function", near §16 on modulated structures). Its functions are Sqrt, Exp, Ln,
+the trigonometric and hyperbolic functions, the Erf, Erfc and Gamma
+approximations, Abs, Min, Max, Mod, Round and Sign, with If, For and Sum.
+
+Sources: GSAS-II `GSASIIstrMath.GetPwdrExt` and `GetPwdrExtDerv`. MAUD
+`src/it/unitn/ing/rista/diffr/sfm/ExtinctionSabineModel.java:140-146`, with the
+same constants in the 3.07 jar by `javap`. TOPAS Technical Reference v9 §16.6
+and Table 3-1. FullProf manual, the scale line's `Extinc` and the `Ext-Model`
+entry in the 2002 news. cryspy 0.13.0 `A_functions_base/extinction.py`, and
+EasyDiffraction `analysis/calculators/cryspy.py:1575-1576` ("single crystal
+only"). RIETAN-FP 3.12 manual, by full-text search (one hit, on secondary
+extinction). BGMN by the binary's keyword table, with no manual
+installed.
 
 ## The tier-2 rows resting on a program default
 

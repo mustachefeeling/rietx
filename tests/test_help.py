@@ -41,10 +41,13 @@ from rietx.help import (
     PEAK_FLAG_HELP,
     PEAK_ORIGIN_HELP,
     READER_OPTION_HELP,
+    RESULT_FIELD_HELP,
+    RESULT_FIELD_TYPES,
     SEARCH_FIELD_HELP,
     STAGE_FIELD_HELP,
     UNIT_DISPLAY,
     HelpEntry,
+    explain,
     help_key_for,
     help_registry,
     plan_help,
@@ -335,6 +338,7 @@ def _arms() -> dict[str, dict[str, HelpEntry]]:
         "instrument_fields": INSTRUMENT_FIELD_HELP,
         "search_fields": SEARCH_FIELD_HELP,
         "plans": plan_help(),
+        "result_fields": RESULT_FIELD_HELP,
     }
 
 
@@ -507,6 +511,62 @@ def test_search_control_defaults_are_the_schemas_own():
         "search entries whose default disagrees with the schema "
         f"(field, entry, schema): {wrong} — a retuned default leaves a stale "
         "number in the popover and in the glossary")
+
+
+def _result_types() -> dict[str, type[BaseModel]]:
+    """Each name in ``RESULT_FIELD_TYPES``, resolved to its schema class.
+
+    Resolved here rather than imported by name, so a type added to the tuple
+    reaches the crossing below with no second list to edit, and a name that
+    resolves to nothing fails rather than dropping out of coverage.
+    """
+    from rietx.schemas import results, sequential
+
+    out = {}
+    for name in RESULT_FIELD_TYPES:
+        cls = getattr(sequential, name, None) or getattr(results, name, None)
+        assert isinstance(cls, type) and issubclass(cls, BaseModel), (
+            f"RESULT_FIELD_TYPES names {name!r}, which is no schema in "
+            "rietx.schemas.results or rietx.schemas.sequential")
+        out[name] = cls
+    return out
+
+
+def test_every_result_field_has_an_entry():
+    """A result field is explained once, keyed ``"<Type>.<field>"`` (WP-2037).
+
+    The seat a demoted statistic moves into: a number in a field costs nothing
+    until read, and its sentence lives here rather than in a diagnostic that
+    fires on every run.  Crossed against the live ``model_fields`` both ways,
+    so a field added to one of the four types fails until it is described, and
+    a renamed one cannot leave its old entry describing nothing.
+    """
+    fields = {f"{name}.{f}" for name, cls in _result_types().items()
+              for f in cls.model_fields}
+    assert len(fields) >= 80, f"the result types lost their fields: {sorted(fields)}"
+    assert set(RESULT_FIELD_HELP) == fields, (
+        f"missing: {sorted(fields - set(RESULT_FIELD_HELP))}; "
+        f"describing nothing: {sorted(set(RESULT_FIELD_HELP) - fields)}")
+
+
+def test_codes_and_result_field_keys_cannot_collide():
+    """``explain`` reads two arms with one key, so their key sets are disjoint.
+
+    By shape, not by luck: a diagnostic code is UPPER_SNAKE with no dot and a
+    field key is ``Type.field``, so neither arm can grow a key the other has.
+    """
+    assert not set(DIAGNOSTIC_HELP) & set(RESULT_FIELD_HELP)
+    assert all(re.fullmatch(r"[A-Z][A-Z0-9_]*", code) for code in DIAGNOSTIC_HELP)
+    assert all(key.count(".") == 1 for key in RESULT_FIELD_HELP)
+
+
+def test_explain_answers_a_code_and_a_result_field():
+    assert explain("RefinementResult.status") is RESULT_FIELD_HELP["RefinementResult.status"]
+    assert explain("StageResult.held") is RESULT_FIELD_HELP["StageResult.held"]
+    assert explain("BOUND_HIT") is DIAGNOSTIC_HELP["BOUND_HIT"]
+    # a stored file may name what this build does not have, and must still open
+    assert explain("RefinementResult.no_such_field") is None
+    assert explain("NO_SUCH_CODE") is None
 
 
 def test_the_plan_arm_is_plan_info_projected_not_restated():
@@ -750,7 +810,8 @@ def test_the_registry_is_json_and_carries_every_arm():
     registry = help_registry()
     assert set(registry) == {"parameters", "peak_flags", "diagnostics",
                              "peak_origins", "stage_fields", "reader_options",
-                             "instrument_fields", "search_fields", "plans"}
+                             "instrument_fields", "search_fields", "plans",
+                             "result_fields"}
     payload = json.dumps(registry)  # raises on anything unserialisable
     assert len(payload) > 10_000
 

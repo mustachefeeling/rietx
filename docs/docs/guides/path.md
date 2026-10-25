@@ -39,7 +39,7 @@ The downward chain repeats the work of the upward one, so `direction="both"` tak
 `SEQUENTIAL_DISCONTINUITY` flags a step much larger than the series' typical step.
 Such a step is either in the data or made by the chain, and the diagnostic cannot tell which.
 `verify_discontinuities=True` refits the step's two patterns from your starting model, each on its own, and reports the step they give.
-This replaces the 700 K pattern with one whose cell is 2 % larger:
+This replaces the 700 K pattern with one whose cell is 1.5 % larger:
 
 ```{literalinclude} ../../../examples/guides/path.py
 :language: python
@@ -49,13 +49,13 @@ This replaces the 700 K pattern with one whose cell is 2 % larger:
 
 <!-- output of examples/guides/path.py -->
 ```text
-phases.0.cell.a steps by 0.08537 between p003 and p004 (T (K) 600 → 700), 41× its median step over the series. Refitted cold and independently, the two patterns step by 0.08537, 1.00× the chain's.
+phases.0.cell.a steps by 0.06454 between p003 and p004 (T (K) 600 → 700), 31× its median step over the series. Refitted cold and independently, the two patterns step by 0.06454, 1.00× the chain's.
 p000  cold
 p001  warm
 p002  warm
 p003  warm
 p004  warm_staged
-p005  warm_staged
+p005  warm
 p006  warm
 ```
 
@@ -70,10 +70,10 @@ Here `cell.b` and `cell.c` are flagged at the same step as `cell.a`, because the
 
 ## Read where each fit started
 
-The jump also broke the warm start.
-Started from the 600 K answer, the 700 K fit reached an Rwp over 0.9, far above the rest of the series.
-The series fitted it again with the whole plan, still from the 600 K answer, and reached 0.039.
-The 800 K pattern started from the jumped cell and needed the same rescue.
+The jump also broke a warm start, at the jumped pattern.
+The 700 K fit, started from the 600 K answer, reached an Rwp over 0.9, far above the rest of the series.
+The series fitted it again with the whole plan, still from the 600 K answer, and reached 0.04.
+The 800 K fit, started from that answer, needed no second attempt.
 `entry.rwp_warm` keeps the Rwp the first attempt reached.
 
 A `cold` entry after the first pattern means no warm start could be rescued, and the pattern was fitted from your starting model.

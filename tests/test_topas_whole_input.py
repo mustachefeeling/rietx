@@ -123,6 +123,41 @@ def test_an_xray_extinction_is_written_in_electrons_squared(tmp_path):
         assert arm > 4 * err         # measured 2.4e-1 and 3.7
 
 
+def test_the_written_laue_factor_is_within_its_stated_bound(tmp_path):
+    """TOPAS has no Bessel function, so the file spells e^(−x)·[I₀ + I₁] as
+    Abramowitz & Stegun 9.8.1-9.8.4 (WP-2044). The Laue factor is cut out of
+    the written ``scale_pks`` line, mapped to python and evaluated against
+    scipy over x in (0, 10⁴], and the file's head says what was written."""
+    from scipy.special import i0e, i1e
+
+    from rietx.io.projects.topas_input import _LAUE_SPELLING_REL
+
+    ref, pattern = _xray_extinction(20.0)
+    rx.write_topas_inp(ref.fitted_structure, tmp_path / "x.inp", free=ref,
+                       instrument=ref.fitted_instrument, pattern=pattern,
+                       scale="topas")
+    text = (tmp_path / "x.inp").read_text(encoding="utf-8")
+    assert "Abramowitz & Stegun" in text.split("scale_pks")[0]
+    (line,) = [ln for ln in text.splitlines() if "scale_pks" in ln]
+    rhs = line.split("=", 1)[1].rstrip(";").strip()
+    # the Laue arm sits between the x <= 0 guard and the closing '*Cos(Th)^2'
+    xv = rhs[rhs.index("If(") + 3:rhs.index(" <= 0, 1, ")]
+    laue = rhs[rhs.index("If("):rhs.rindex("*Cos(Th)^2")].replace(xv, "X")
+    expr = (laue.replace("^", "**").replace("Exp", "np.exp")
+            .replace("Sqrt", "np.sqrt"))
+    expr = re.sub(r"If\(", "_if(", expr)
+
+    def _if(c, a, b):
+        return np.where(c, a, b)
+
+    x = np.concatenate([np.geomspace(1e-6, 10, 20001), np.geomspace(10, 1e4, 2001)])
+    with np.errstate(all="ignore"):
+        got = eval(compile(expr, "<laue>", "eval"),  # noqa: S307 - our own file
+                   {"np": np, "_if": _if, "X": x})
+    exact = i0e(x) + i1e(x)
+    assert np.max(np.abs(got - exact) / exact) <= _LAUE_SPELLING_REL  # 3.59e-8
+
+
 @pytest.mark.parametrize("stem", ['a"b', "a\nb", "a\rb"])
 def test_a_data_file_name_the_xdd_line_cannot_hold_is_refused(tmp_path, stem):
     ref, pattern = case_nacl_neutron()

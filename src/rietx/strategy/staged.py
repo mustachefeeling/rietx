@@ -15,6 +15,7 @@ import dataclasses
 import functools
 import re
 from dataclasses import dataclass, field
+from typing import Literal
 
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
@@ -153,7 +154,8 @@ class Stage:
     #: microstrain (ppm of ΔM/M) to put a freed but still all-zero Stephens
     #: block on before solving.  ``seed`` cannot serve: the S_HKL DOFs are
     #: unbounded below, and their pathology at zero is the *exploding*
-    #: gradient of √Σ.  0 = no seed.
+    #: gradient of √Σ.  0 = no seed.  ``ParameterTable.seed_stephens``;
+    #: recorded in ``StageResult.seeded``, every DOF of the block at its seed.
     strain_seed: float = 0.0
     #: c_w of McCusker eq (7), S = S_y + c_w·S_G: how heavily this stage weights
     #: the geometric 'observations' (every soft restraint the phases declare)
@@ -215,9 +217,17 @@ class Stage:
 #: switched-off branch inside the valid range.  No program supplies a Pitschke
 #: start, so 0.3 stays, at tier 3.  A per-model value would need a per-path seed
 #: or a second stage, and an inert stage re-solves everything already freed.
+ROUGHNESS_SEED = 0.3
 _ROUGHNESS_STAGE = (
-    Stage("roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3),
+    Stage("roughness", ["instrument.geometry.surface_roughness.*"],
+          seed=ROUGHNESS_SEED),
 )
+
+#: The microstrain, in ppm of ΔM/M, that ``lab_sample_refine`` puts an all-zero
+#: Stephens block at before solving (``Stage.strain_seed``): the width's square
+#: root has unbounded slope at zero, so some start is forced.  1000 ppm is
+#: GSAS-II's isotropic microstrain default, on the isotropic ray (WP-1467).
+STRAIN_SEED_PPM = 1000.0
 
 
 #: Additive background peaks (:class:`~rietx.schemas.instrument.HumpComponent`)
@@ -351,7 +361,9 @@ class RefinementPlan:
     #: support, and no cell is windowed.  ``PHASE_UNCONSTRAINED`` still reports
     #: a phase under :data:`PHASE_SUPPORT_SIGMA`, whose structural parameters
     #: then refined without signal.  The default reproduces every fit before
-    #: the field, bit for bit.
+    #: the field, bit for bit.  A phase with no reflection in the fitted range
+    #: is held whole, scale included, at any value here, ``None`` too
+    #: (WP-1958): that is a count, not a significance call.
     phase_support_sigma: float | None = PHASE_SUPPORT_SIGMA
     #: the area fraction the closing stage's peak windows may drop (WP-2002,
     #: the sixth round's Q1 and Q2).  After the declared stages, one more
@@ -572,7 +584,7 @@ class RefinementPlan:
             Stage("sample_profile", ["phases.*.lor_size", "phases.*.lor_strain",
                                      "phases.*.gauss_size", "phases.*.gauss_strain",
                                      "phases.*.microstrain.dof.*"],
-                  strain_seed=1000.0),
+                  strain_seed=STRAIN_SEED_PPM),
             Stage("biso", list(_DISPLACEMENT_GLOBS)),
             *_ROUGHNESS_STAGE,
         ])
@@ -1041,7 +1053,18 @@ class GuardFinding:
 
     @classmethod
     def nonpositive_resolution(cls, n_bad: int, n_total: int, worst: float,
-                               two_theta: float) -> "GuardFinding":
+                               two_theta: float, *,
+                               width: Literal["gaussian", "lorentzian"] = "gaussian"
+                               ) -> "GuardFinding":
+        """``width="lorentzian"`` is Γ_L's finding: one code for both widths,
+        since the action is the same for either (WP-2002)."""
+        if width == "lorentzian":
+            return cls("RESOLUTION_NOT_POSITIVE",
+                       ("instrument.profile.x", "instrument.profile.y"),
+                       float(worst),
+                       f"the Lorentzian instrument width ({n_bad} of {n_total} "
+                       f"fitted points, worst Γ_L {worst:+.2e}° at "
+                       f"{two_theta:.3f}° 2θ)")
         return cls("RESOLUTION_NOT_POSITIVE",
                    ("instrument.profile.u", "instrument.profile.v",
                     "instrument.profile.w"),
@@ -1686,7 +1709,15 @@ RESOLUTION_CONE_TOL = 1e-9
 
 
 def check_resolution_positive(table, model) -> list[GuardFinding]:
-    """The Caglioti resolution function dipping below zero in the fitted range.
+    """An instrument width going below zero in the fitted range.
+
+    Two widths, one finding each.  The Gaussian one is below.  The Lorentzian
+    one, Γ_L = X/cosθ + Y·tanθ, is a FWHM and must not go negative either.
+    Y has no floor of its own since 2026-10-23 (WP-2002), so a negative Y can
+    take Γ_L below zero at high angle once X is too small to carry it.  The
+    model refuses nothing there: the TCH mixing gives a negative η.  Tested
+    the same way as Γ_G², over the fitted axis, on the instrument alone, at
+    the same relative tolerance.
 
     Γ_G² = U·tan²θ + V·tanθ + W is a **variance**, so the physical constraint
     is on the quadratic as a whole and not on its three coefficients: U, V and
@@ -1726,7 +1757,8 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     histogram also holds the **total** Γ_G², each phase's Gaussian size and
     strain included, at or above ``caglioti._MIN_GAMMA_G2`` at every
     reflection, as a linear inequality (WP-1938 D7,
-    ``optimize.least_squares.gaussian_width_inequalities``).  That keeps the
+    ``optimize.least_squares.gaussian_width_inequalities``), and the total
+    Γ_L at or above zero (``lorentzian_width_inequalities``).  That keeps the
     width columns alive, and it does not make this guard redundant.  A phase
     term can carry the total while the instrument quadratic is negative, the
     points between reflections are not held, and a stage that starts under
@@ -1747,15 +1779,27 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
     except KeyError:  # defensive: ParameterTable always adds the five profile
         return []     # entries, so nothing in-tree reaches this
 
-    tan = np.tan(np.radians(0.5 * tt))
+    th = np.radians(0.5 * tt)
+    tan = np.tan(th)
+    out: list[GuardFinding] = []
     g2 = u * tan * tan + v * tan + w
     scale = max(float(np.max(np.abs(g2))), 1.0)
     bad = g2 < -RESOLUTION_CONE_TOL * scale
-    if not bad.any():
-        return []
-    k = int(np.argmin(g2))
-    return [GuardFinding.nonpositive_resolution(
-        int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k]))]
+    if bad.any():
+        k = int(np.argmin(g2))
+        out.append(GuardFinding.nonpositive_resolution(
+            int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k])))
+    x, y = values.get("instrument.profile.x"), values.get("instrument.profile.y")
+    if x is not None and y is not None:
+        gl = x / np.cos(th) + y * tan
+        scale = max(float(np.max(np.abs(gl))), 1.0)
+        bad = gl < -RESOLUTION_CONE_TOL * scale
+        if bad.any():
+            k = int(np.argmin(gl))
+            out.append(GuardFinding.nonpositive_resolution(
+                int(bad.sum()), int(gl.size), float(gl[k]), float(tt[k]),
+                width="lorentzian"))
+    return out
 
 
 #: a free column counts as "on its bound" within this fraction of **the closest

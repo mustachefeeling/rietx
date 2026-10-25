@@ -128,6 +128,25 @@ def test_the_settings_page_shows_every_entry_of_its_arms():
             assert f"\n`{name}`\n: {entry['title']}. " in text, (key, name)
 
 
+def test_the_result_field_page_shows_every_field_under_its_type():
+    from rietx.help import RESULT_FIELD_TYPES
+
+    text = reference_pages.result_field_page()
+    sections = dict(zip(re.findall(r"^## (\w+)$", text, flags=re.M),
+                        re.split(r"^## \w+$", text, flags=re.M)[1:], strict=True))
+    assert list(sections) == list(RESULT_FIELD_TYPES)
+    for name, entry in help_registry()["result_fields"].items():
+        assert f"\n`{name}`\n: {entry['title']}. " in sections[name.split(".")[0]], name
+
+
+def test_a_result_type_with_no_lead_raises(monkeypatch):
+    leads = dict(reference_pages._RESULT_TYPE_LEADS)
+    leads.pop("StageResult")
+    monkeypatch.setattr(reference_pages, "_RESULT_TYPE_LEADS", leads)
+    with pytest.raises(RuntimeError, match="StageResult"):
+        reference_pages.result_field_page()
+
+
 # ----------------------------------------------------------------------
 # The plan ladder
 # ----------------------------------------------------------------------
@@ -180,7 +199,7 @@ def test_the_index_holds_every_code_the_skill_walk_finds():
 
 def test_the_index_reaches_the_shapes_a_keyword_walk_misses(tmp_path):
     """A `GuardFinding` constructor's code, a `*_CODES` table (annotated too),
-    and a level."""
+    a level, and whether a site passes a `where` (WP-2037)."""
     pkg = tmp_path / "rietx"
     (pkg / "gui").mkdir(parents=True)
     (pkg / "a.py").write_text(
@@ -188,15 +207,22 @@ def test_the_index_reaches_the_shapes_a_keyword_walk_misses(tmp_path):
         "def f():\n"
         '    GuardFinding("GUARD_CODE", (), 0.0, "")\n'
         '    Diagnostic(level="warning", code="KW_CODE", message="")\n'
-        '    Diagnostic(level=lv, code="RUN_CODE", message="")\n', encoding="utf-8")
+        '    Diagnostic(level=lv, code="RUN_CODE", where=paths, message="")\n'
+        '    Diagnostic(level="info", code="EMPTY_CODE", where=[], message="")\n'
+        '    Diagnostic(code="SPLAT_CODE", **kw)\n', encoding="utf-8")
     (pkg / "gui" / "b.py").write_text('E(code="GUI_CODE")\n', encoding="utf-8")
     (pkg / "c.py").write_text('_Y_CODES: tuple = ("KW_CODE", "TYPED_CODE")\n', encoding="utf-8")
     index = reference_pages.diagnostic_index(pkg)
-    assert sorted(index) == ["GUARD_CODE", "KW_CODE", "ONE_CODE", "ONE_OMITTED", "RUN_CODE",
-                             "TYPED_CODE"]
+    assert sorted(index) == ["EMPTY_CODE", "GUARD_CODE", "KW_CODE", "ONE_CODE", "ONE_OMITTED",
+                             "RUN_CODE", "SPLAT_CODE", "TYPED_CODE"]
     assert index["KW_CODE"]["levels"] == {"warning"}
     assert index["RUN_CODE"]["levels"] == {""}
     assert index["GUARD_CODE"]["levels"] == set()
+    # a literal empty `where` names no path; a splat or a helper cannot be read
+    assert {c: index[c]["where"] for c in ("RUN_CODE", "KW_CODE", "EMPTY_CODE", "SPLAT_CODE",
+                                           "GUARD_CODE")} == {
+        "RUN_CODE": {True}, "KW_CODE": {False}, "EMPTY_CODE": {False}, "SPLAT_CODE": set(),
+        "GUARD_CODE": set()}
     # A table that only lists a code raised elsewhere does not raise it.
     assert index["KW_CODE"]["files"] == {"rietx/a.py"}
     assert index["TYPED_CODE"]["files"] == {"rietx/c.py"}

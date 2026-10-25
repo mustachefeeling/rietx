@@ -26,7 +26,6 @@ from rietx.model.corrections import lorentz_polarization
 from rietx.model.profiles.caglioti import _MIN_GAMMA_G2
 from rietx.schemas.instrument import (
     TCHZ_BOUNDS,
-    TCHZ_BOUNDS_COARSE,
     TCHZ_CEILING_DEG,
     NeutronSource,
     ProfileTCHZ,
@@ -118,15 +117,14 @@ def test_a_long_wavelength_line_wider_than_one_degree_builds():
     X-ray-sized box (w <= 1 deg²) made unreachable from this preset."""
     inst = rx.Instrument.constant_wavelength_neutron(2.52, fwhm_deg=1.2)
     assert inst.profile.w.value == pytest.approx(1.44)
-    for name, (lo, hi) in TCHZ_BOUNDS_COARSE.items():
+    for name, (lo, hi) in TCHZ_BOUNDS.items():
         param = getattr(inst.profile, name)
         assert (param.min, param.max) == (lo, hi)
 
 
 def test_a_bare_wide_width_refuses_and_names_both_escapes():
-    """WP-1312's ruling, the cost said out loud: the default box stays and a
-    bare width past it is refused by name, never switched into another box
-    on the caller's behalf. The message names both ways out."""
+    """WP-1312's ruling: a bare width is refused by name, and the message
+    names both ways to build one."""
     for kwargs in (dict(u=1.576), dict(u=1.576, v=-0.501, w=0.475)):
         with pytest.raises(ValueError) as exc:
             ProfileTCHZ(**kwargs)
@@ -143,23 +141,27 @@ def test_the_explicit_parameter_escape_builds_a_wide_width():
 
 
 def test_a_published_d1b_caglioti_model_constructs_through_coarse():
-    """Issue #276: the APDW Co3O4 D1B FullProf model, U outside the default
-    box and V just outside it, built through the named escape: all five
-    widths in the coarse box (the instrument, not one bound)."""
+    """Issue #276: the APDW Co3O4 D1B FullProf model, whose V = -0.501 sat
+    under the old X-ray floor, built from bare values in the one box every
+    preset builds since the floors went (WP-2002, ruled 2026-10-23)."""
     profile = ProfileTCHZ.coarse(u=1.576, v=-0.501, w=0.475)
     assert (profile.u.value, profile.v.value, profile.w.value) == (
         1.576, -0.501, 0.475)
-    for name, (lo, hi) in TCHZ_BOUNDS_COARSE.items():
+    for name, (lo, hi) in TCHZ_BOUNDS.items():
         param = getattr(profile, name)
         assert (param.min, param.max) == (lo, hi)
     # round-trips with its box
     again = ProfileTCHZ.model_validate_json(profile.model_dump_json())
     assert again == profile
-    # under the coarse box's floor it still refuses, by the Parameter's own
-    # message; its chosen ceilings went (WP-2002, the fifth round's Q5)
-    with pytest.raises(ValueError, match="outside bounds"):
-        ProfileTCHZ.coarse(u=-0.6)
+    # U has no chosen floor or ceiling; past the 2θ axis it still refuses,
+    # by the Parameter's own message
+    assert ProfileTCHZ.coarse(u=-0.6).u.value == -0.6
     assert ProfileTCHZ.coarse(u=9.0).u.value == 9.0
+    with pytest.raises(ValueError, match="outside bounds"):
+        ProfileTCHZ.coarse(u=-TCHZ_CEILING_DEG ** 2 - 1.0)
+    # X keeps its floor: at θ → 0 it is the whole Lorentzian width
+    with pytest.raises(ValueError, match="outside bounds"):
+        ProfileTCHZ.coarse(x=-0.01)
 
 
 def test_a_bare_width_inside_the_default_box_refuses_by_name():
@@ -181,21 +183,20 @@ def test_a_bare_width_inside_the_default_box_refuses_by_name():
     lambda: rx.Instrument.flat_plate_transmission(),
 ])
 def test_the_x_ray_profile_box_is_unchanged(build):
-    """The coarse box is the neutron preset's alone: every X-ray instrument
-    still builds the profile it always has, literal for literal.  W's floor is
-    the Γ_G² clamp since WP-1938 (D7), on both presets.  The chosen ceilings
-    went on 2026-10-21 (WP-2002, the fifth round's Q5); the ceiling left is the
-    2θ axis, 180° and 180² deg² (the sixth round's Q7)."""
+    """Every X-ray instrument builds the profile literal for literal.  W's
+    floor is the Γ_G² clamp since WP-1938 (D7).  The chosen ceilings went on
+    2026-10-21 (WP-2002, the fifth round's Q5); the ceiling left is the 2θ
+    axis, 180° and 180² deg² (the sixth round's Q7).  The chosen U, V and Y
+    floors went on 2026-10-23, each now the ceiling's mirror image."""
     sq, deg = 180.0 ** 2, 180.0
     expected = {
-        "u": dict(value=0.0, min=-0.05, max=sq, unit="deg^2"),
-        "v": dict(value=0.0, min=-0.5, max=sq, unit="deg^2"),
+        "u": dict(value=0.0, min=-sq, max=sq, unit="deg^2"),
+        "v": dict(value=0.0, min=-sq, max=sq, unit="deg^2"),
         "w": dict(value=1e-3, min=_MIN_GAMMA_G2, max=sq, unit="deg^2",
                   transform="softplus"),
         "x": dict(value=1e-3, min=0.0, max=deg, unit="deg",
                   transform="softplus"),
-        "y": dict(value=0.0, min=0.0, max=deg, unit="deg",
-                  transform="softplus"),
+        "y": dict(value=0.0, min=-deg, max=deg, unit="deg"),
     }
     profile = build().profile
     for name, kw in expected.items():
