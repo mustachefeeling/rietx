@@ -265,7 +265,14 @@ parked in Context, unexamined.
   0, and a default fluorapatite fit 0.64-0.71 s → 1.32-1.35 s, Rwp 0.0944624 → 0.0944623.
 - After a cancelled second fit, `predict()` differed from `result_.y_calc` by 1041 counts on an
   85 967-count peak before the review's fix; 0 after.
-- COUNTS
+- Counts, `[dev]` venv, darwin/arm64, no other suite running, on the branch merged with
+  `origin/main` at `ab5922dd` (WP-2045's PR #1160): fast selection 11 673 passed, 272 skipped,
+  27 xfailed in 6:34; slow selection 401 passed, 19 skipped, 16 xfailed, 0 failed in 1:47:37.
+  Two tests added, both passes: the fast count was 11 671 on this branch before them, skips
+  unchanged at 272. Their local seconds (`tests.added_test_times`): 1.03 s
+  (`test_multi_histogram.py::test_a_joint_result_is_measured_on_a_compile_at_its_answer`) and
+  0.75 s (`test_run_control.py::test_a_cancelled_second_fit_leaves_the_first_report_alone`),
+  neither near the fast tier's tail.
 
 **Code review** (`/code-review high --fix`): findings 1-4, 6, 7 applied (commit `5ee469ad`).
 (5), testing each histogram's staleness instead of the sum, was declined here and then taken
