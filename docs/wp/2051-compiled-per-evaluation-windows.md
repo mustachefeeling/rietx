@@ -138,6 +138,39 @@ WP's Context names, which a wider inward taper (w = 0.25) reaches too. The
 `_omega_batch`. The probe's sync costs 0.3-1.4 ms a call, most of it the mask
 copy.
 
+**Which answer is right, and the runaway, measured 2026-10-25** (task 4:
+probe 10, which is probe 8 on probe 9's arms, and probe 9's `fit` mode). Each
+arm's answer is polished at 5e-5 windows to a fixed point, as in probe 8.
+"Apart" is the distance between the per-evaluation arm's polished point and
+shipped's, in esd of the row that differs most:
+
+| | No taper | Inward w = 0.1 | Outward w = 0.1 |
+|---|---|---|---|
+| NAC: apart; χ² polished (shipped 12.406) | 0.0; 12.406 | 0.0; 12.406 | 0.0; 12.406 |
+| LaB6: apart; χ² polished (shipped 3.518) | 5.06 on `profile.u`; 3.549 | 0.0; 3.518 | 9.84 on `axial_hl`; 3.518 |
+| Fluorapatite: apart; χ² (shipped 2.747) | 0.0; 2.747 | 0.0; 2.747 | 0.0; 2.747 |
+| cpd-1a: apart; χ² (shipped 1.847) | 0.95 on `profile.v`; 1.845 | 0.36 on `lor_strain`; 1.846 | 0.47 on `lor_strain`; 1.847 |
+| Each arm to its own polished point, largest, esd | 0.02-0.55 | 0.01-0.03, LaB6 3.92 | 0.01-0.04, LaB6 3.92 |
+| Hostile pair, pre-WP-2045 schedule: cpd-1b `axial_sl`, Rwp (shipped 557.8, runaway) | 0.0076, 0.1394 | 0.0080, 0.1397 | 0.0080, 0.1398 |
+| Hostile pair, shipped schedule: the same | 0.0076, 0.1394 | 0.0080, 0.1397 | 0.0080, 0.1398 |
+
+Shipped's own answer sits 0.008-0.019 esd from its polished point, LaB6
+3.92 esd on `profile.u` (its Γ_G² floor defect). Read together:
+
+- **Accuracy is a wash.** On NAC and fluorapatite every arm polishes to
+  shipped's point. Where a polished point differs it is by a flat direction
+  (LaB6 outward, `axial_hl`, χ² equal to four figures) or a shallow second
+  minimum (cpd-1a, χ² within 0.1 %). The taper brings the arms closer:
+  inward reaches shipped's point on LaB6, where the untapered arm found a
+  χ² 0.9 % worse.
+- **The runaway stays removed** under every arm and either schedule. All six
+  hostile runs converged in 39-70 evaluations at `axial_sl` 0.008. Under the
+  shipped schedule the shipped arm no longer runs away either (WP-2045).
+- **LM terminations** (probe 9's `time` records): every stage of every arm
+  converged. NAC's seven end exactly as shipped's. Elsewhere one or two of
+  7-9 stages swap `ftol_runs` for `exhausted_fp64` or back, both converged
+  endings; no stage ends on a limit.
+
 **What a real implementation must settle** (from probe 7, all unmeasured):
 - a policy for LM trial points far from the start, since each now builds
   its own windows (one cpd-1a trial at `axial_sl` 1096 built 17.8× the
@@ -206,7 +239,7 @@ needed, `optimize/least_squares.py` (the closures), `docs/wp/2047-batch/`
       on frozen windows, so the opt-in on the compile waits for the ruling
       on per-evaluation windows. The mask seam carries it through both Ω
       builders alike, so their 1-2 ulp gap is untouched
-- [ ] Probes 7 and 8 re-run with the fast resizing, with and without the
+- [x] Probes 7 and 8 re-run with the fast resizing, with and without the
       taper: fit time, evaluations, LM terminations, answer shift and the
       polished fixed points, on the four protocols and the hostile pair
 - [ ] The brief to the maintainer: default, opt-in or file, with the table
