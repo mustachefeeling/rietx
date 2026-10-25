@@ -302,7 +302,7 @@ climb to the 512 cap, and each new count misses the `leggauss` cache
 - [x] The `intermediate_ftol` rows in `src/rietx/_audit.py`, and the
       `INTERMEDIATE_FTOL` and `CLOSING_WINDOW_TOL` docstrings, re-read
       against the new schedule
-- [ ] `tests/test_acceptance_sequential.py` finishes, WP-2003's second
+- [x] `tests/test_acceptance_sequential.py` finishes, WP-2003's second
       chain (`test_the_first_rung_bound_moves_no_accepted_value`) included;
       VALIDATION.md's three `chained_all` rows (marked unmeasured on 1.10.0)
       re-measured

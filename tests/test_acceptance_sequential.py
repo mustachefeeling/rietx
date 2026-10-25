@@ -272,11 +272,6 @@ def test_cells_are_stable_across_the_series(chained):
 # -- the warm start: measured, not assumed --------------------------------
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=True, reason=(
-    "WP-2002's width twin hold keeps the X/Y split each pattern's instrument-only "
-    "stage lands on, and the two carry policies hand it different starts: "
-    "restricted-carry Rwp 0.1282 against carry=* 0.1256 and independent 0.1258 "
-    "(decision 1(a), 2026-10-23; forwarded to WP-2003)"))
 def test_warm_start_iteration_cost_is_reported(chained, chained_all,
                                                independent):
     """The headline warm-start number, reported rather than gated.
@@ -288,6 +283,12 @@ def test_warm_start_iteration_cost_is_reported(chained, chained_all,
     the difference is small in iterations and nil in Rwp — so what is
     *asserted* is only the part that would matter to a user: neither chain
     diverged, and restricting the carry did not make the fit worse.
+
+    It was a strict xfail from WP-2002's width twin hold (restricted-carry Rwp
+    0.1282 against carry=* 0.1256, 2026-10-23) until WP-2045 converged the
+    last declared stage.  Since then both chains read mean Rwp 0.1282 against
+    0.1258 independent, at 408 and 655 iterations against 1255 (macOS arm64,
+    ``[dev]``, 2026-10-25).
     """
     baseline = sum(sum(s.n_iterations for s in r.stages) for r in independent)
     print(f"\niterations over sample 1a-1h: independent={baseline} "
