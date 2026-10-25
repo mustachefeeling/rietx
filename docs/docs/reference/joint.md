@@ -326,10 +326,11 @@ The specimen has one crystallite size, so every pattern's report carries the joi
 On a two-wavelength pair in `tests/test_joint_report.py` both reports quote 408.82(4.86) Å, and the two patterns refined alone give 408.71(8.05) Å and 409.20(6.43) Å.
 The separability caveat beside the size is each report's own, from that pattern's 2θ range.
 
-A joint result's curves come from the last stage's compile, sized at the values the stage started from.
-A single fit compiles the model again at its answer, and a joint fit does not.
-If the last stage broadened the peaks, their tails stop at the old windows and Layer 0 reports the cut as unmatched peaks.
-On that size pair the reports find 44 and 27 unmatched peaks where a compile at the answer finds none, so read Layer 0 there against the plot.
+A joint result's curves come from a compile at its answer, as a single fit's do.
+The last stage solved on windows sized at the values it started from.
+If it broadened the peaks, their tails stop at those windows, and a report read off that compile counts the cut as unmatched peaks.
+On that size pair with the closing stage switched off, that compile gives 38 and 28 unmatched peaks, and the compile at the answer gives none.
+The two compiles' χ² are compared pattern by pattern. When any pattern's differ by more than 1 %, the result carries one [`FROZEN_COMPILE_STALE`](diagnostics-refinement.md#frozen_compile_stale) naming the pattern that moved most.
 
 ## Precision of a joint fit
 
