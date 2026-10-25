@@ -9799,7 +9799,7 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
                       unmeasured=unmeasured, held=held_only)
     if qpa is None:
         return None, _qpa_unavailable_diagnostics(structure, values)
-    diagnostics = microabsorption_diagnostics(qpa)
+    diagnostics = microabsorption_diagnostics(qpa, structure)
     if blind_paths:
         diagnostics = diagnostics + _qpa_esd_unavailable_diagnostics(
             structure, values, blind_paths, where_of or (lambda p: p))
