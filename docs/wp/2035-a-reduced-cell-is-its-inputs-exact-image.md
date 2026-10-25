@@ -110,7 +110,7 @@ CI runs pins the case.
   identical. `tests/test_acceptance_indexing.py`: 44 passed on both trees.
   *Skill*: none; no name an agent calls changed. `src/rietx/indexing/CLAUDE.md`'s
   exact-image clause now says the cell is built from M·G·Mᵀ, never gemmi's
-  vector. The 1.10.0 staging file has one note under `## Changed`.
+  vector. The 1.11.0 staging file has one note under `## Changed`.
   *Generality*: no `_audit` row; no code, default, module-level number or
   field is added.
   Next: review on the PR; closing moves this narrative to the release record.
