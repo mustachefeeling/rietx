@@ -2677,9 +2677,9 @@ CLAIMS: tuple[Claim, ...] = (
                  "the null alone, 1e-14 start nudges read 1.2e-3 at some "
                  "starts, which was the closing stage (WP-2036, 2026-10-25, "
                  "macOS arm64; Linux deff4c301). The esd grows as the modulus shrinks, since the "
-                 "moment's column vanishes at zero.  1.9.0's LM read 0.067 "
-                 "+/- 0.330 at 1.1e-5 relative, the modulus TRF stopped at "
-                 "(0.067 +/- 0.83), before WP-2002's closing stage (#1085); "
+                 "moment's column vanishes at zero.  1.9.0's LM read the same "
+                 "0.067 +/- 0.330 at 1.1e-5, the protocol having had no "
+                 "closing stage then either; TRF stopped at 0.067 +/- 0.83; "
                  "the esd read 3.24 before WP-1929 left the stationary polar "
                  "angle out of the covariance",
     ),

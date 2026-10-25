@@ -49,7 +49,9 @@ bias (McCusker et al. 1999, §10; `docs/practice.md`).
 
 **The honest reading, and it is not the one this WP assumed.** Declaring
 recovers the clean cell (-1.0 ppm) and ignoring does not (+7.6 ppm, with the
-esd inflated 7.5x, 8.7x on the 1.6.0 tree, and Rwp 3.7x) — that part holds. But *excluding also
+esd inflated 7.5x, 8.7x on the 1.6.0 tree, and Rwp 3.7x) — on that tree. Since
+WP-2002 ignoring recovers it too (-0.4 ppm, above), and only the inflated esd
+separates the arms. But *excluding also
 recovers it*, to +0.6 ppm, for 256 channels (4.8 %). On this fixture the case
 for declaring is **not** cell accuracy over exclusion. It is that the channels
 stay in the fit, and that the intruder is measured rather than discarded:
@@ -229,6 +231,7 @@ def test_declaring_the_intruder_recovers_the_clean_cell(arms):
     a_clean, sd_clean = _a(arms["clean"])
     a_declare, _ = _a(arms["declare"])
     a_ignore, sd_ignore = _a(arms["ignore"])
+    assert sd_clean is not None and sd_ignore is not None, (sd_clean, sd_ignore)
 
     ppm = lambda a: 1e6 * (a - a_clean) / a_clean          # noqa: E731
     assert abs(ppm(a_declare)) < 20.0, (a_declare, a_clean)

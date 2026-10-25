@@ -199,7 +199,8 @@ and 2045 on 2026-10-25):
       ratio, and fix the fit or the bar on that evidence. *On an arm64 Mac all
       four now hold (2026-10-25, `deff4c301`, `[dev]`): the 150 K null and both
       axial-floor rows pass, and the three start rows that fail carry strict
-      xfails citing WP-2002 or WP-2012. What remains is the Linux reading.*
+      xfails citing WP-2002 or WP-2012 (lab6's intermediate-tolerance one since
+      made not strict, below). What remains is the Linux reading.*
       *Linux, 2026-10-25 (run 40184228951, `deff4c301`): four rows red, each
       reproduced on the Mac by a 1e-14 start nudge (probes in
       `docs/wp/2049-batch/`, `docs/wp/2050-batch/`). (1) lab6's

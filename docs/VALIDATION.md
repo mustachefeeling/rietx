@@ -1561,7 +1561,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** the nuclear-only fit to the same 150 K pattern; the claim is inadmissibility (supported is False), not a value
 
-**Measured:** |m| 0.067 +/- 0.330 mu_B (0.20 sigma, bar 3); Rwp 0.099241 against 0.099242 nuclear-only, 1.1e-5 relative (bar 1e-3 relative), both fitted with no closing stage; with one on the null alone, 1e-14 start nudges read 1.2e-3 at some starts, which was the closing stage (WP-2036, 2026-10-25, macOS arm64; Linux deff4c301). The esd grows as the modulus shrinks, since the moment's column vanishes at zero.  1.9.0's LM read 0.067 +/- 0.330 at 1.1e-5 relative, the modulus TRF stopped at (0.067 +/- 0.83), before WP-2002's closing stage (#1085); the esd read 3.24 before WP-1929 left the stationary polar angle out of the covariance
+**Measured:** |m| 0.067 +/- 0.330 mu_B (0.20 sigma, bar 3); Rwp 0.099241 against 0.099242 nuclear-only, 1.1e-5 relative (bar 1e-3 relative), both fitted with no closing stage; with one on the null alone, 1e-14 start nudges read 1.2e-3 at some starts, which was the closing stage (WP-2036, 2026-10-25, macOS arm64; Linux deff4c301). The esd grows as the modulus shrinks, since the moment's column vanishes at zero.  1.9.0's LM read the same 0.067 +/- 0.330 at 1.1e-5, the protocol having had no closing stage then either; TRF stopped at 0.067 +/- 0.83; the esd read 3.24 before WP-1929 left the stationary polar angle out of the covariance
 
 ### `tests/test_acceptance_magnetic_lamno3.py`
 

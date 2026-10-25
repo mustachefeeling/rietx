@@ -1,7 +1,8 @@
 """Row 4: per-standard warning counts under a 1e-14 relative nudge to one start value.
 
-usage: row4_probe.py WORKTREE STANDARD[,STANDARD...] K[,K...] [TARGET]
-TARGET: 'cell_a' (phases.0.cell.a, default) or 'zero' (instrument.zero_shift, additive 1e-14*k*0.01)
+usage: row4_probe.py WORKTREE STANDARD[,STANDARD...] K[,K...] [TARGET [MAG]]
+TARGET: 'cell_a' (phases.0.cell.a, default) or 'scale' (phases.0.scale), each
+multiplied by (1 + k*MAG); MAG defaults to 1e-14
 """
 import sys
 from collections import Counter
@@ -26,6 +27,8 @@ for key in keys:
         elif target == "scale":
             p = inputs.structure.phases[0].scale
             p.value = p.value * (1 + k * MAG)
+        else:
+            raise SystemExit(f"unknown TARGET {target!r}: 'cell_a' or 'scale'")
         ref = rx.Refinement(inputs.structure, inputs.instrument, history=False)
         r = ref.fit(inputs.data, plan=inputs.plan, telemetry=False,
                     two_theta_limits=inputs.two_theta_limits)
