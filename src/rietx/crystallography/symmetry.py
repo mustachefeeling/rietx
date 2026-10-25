@@ -1108,7 +1108,13 @@ def site_twin_merge(sg, cell, xyz, *, tol: float = SITE_TOL,
     # that operation is dropped and the rest are kept.
     kept = [i for i in np.flatnonzero(admitted)
             if _operation_move(all_rot[i], all_tran[i], x) <= reach * bound]
-    p = all_rot[kept] @ x + all_tran[kept]
+    # The kept operations need not close into a group (a threefold axis and
+    # one of its three mirrors, the other two dropped for a longer own move),
+    # and the average over a set that is not a group is not a fixed point
+    # (#1014 round 6, item 1).  The subgroup they generate has the same fixed
+    # points, so the position is the mean over its elements.
+    rots, trans = _generated_group(all_rot[kept], all_tran[kept])
+    p = rots @ x + trans
     p -= np.round(p - x)                 # each image on the branch nearest x
     snapped = p.mean(axis=0)
     delta = snapped - x
@@ -1135,6 +1141,36 @@ def site_twin_merge(sg, cell, xyz, *, tol: float = SITE_TOL,
     gap = float(norms[same].max())
     return TwinMerge(position=position, gap=gap,
                      before=tight.multiplicity, after=loose.multiplicity)
+
+
+def _generated_group(rots: np.ndarray, trans: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """The operations (rotation, translation mod 1) the given ones generate, as two arrays.
+
+    Closure under (R1, t1)(R2, t2) = (R1 R2, R1 t2 + t1), translations taken
+    mod 1; the group of a site is finite, so the loop ends, and the cap only
+    guards a malformed input.  The identity is always among the result.
+    """
+    def key(r, t):
+        return (tuple(np.rint(r).astype(int).ravel()), tuple(np.rint((t % 1.0) * 1e5).astype(int) % 100000))
+
+    elements = {key(np.eye(3), np.zeros(3)): (np.eye(3), np.zeros(3))}
+    gens = []
+    for r, t in zip(rots, trans):
+        gens.append((np.asarray(r, dtype=np.float64), np.asarray(t, dtype=np.float64)))
+        elements.setdefault(key(r, t), gens[-1])
+    frontier = list(elements.values())
+    while frontier and len(elements) < 192:
+        grown = []
+        for r1, t1 in frontier:
+            for r2, t2 in gens:
+                r, t = r1 @ r2, r1 @ t2 + t1
+                k = key(r, t)
+                if k not in elements:
+                    elements[k] = (r, t)
+                    grown.append((r, t))
+        frontier = grown
+    vals = list(elements.values())
+    return np.array([v[0] for v in vals]), np.array([v[1] for v in vals])
 
 
 def _operation_move(rot: np.ndarray, tran: np.ndarray, x: np.ndarray) -> float:

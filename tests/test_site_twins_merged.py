@@ -1057,3 +1057,47 @@ def test_every_route_keeps_a_hold_on_z_and_a_tie_to_it_on_z(pbso4, route):
     (k,) = _z_dofs(out, j)
     assert out._user_holds == {f"{site}.dof.{k}"}
     assert [s for s, _ in out._ties[f"{site}.dof.0"].terms] == [f"{site}.dof.{k}"]
+
+
+# ------------------------------------------------ round 6: Yue's review at d7d45e08
+
+
+@pytest.mark.parametrize("group", ["P 63/m m c", "P 6/m m m"])
+def test_a_site_near_a_three_or_six_fold_axis_merges_wherever_the_axis_is_in_reach(group):
+    """Sweeps offsets from the (⅓, ⅔, z) axis out to 0.9 × the reach in every
+    direction.  The axis point is within reach by construction, so every one
+    must merge onto it, including the offsets where two of the three mirrors
+    through the axis have a longer own move than the reach and the kept
+    operations alone do not close into a group."""
+    sg = resolve_group(group, None)
+    cell = (5.0, 5.0, 8.0, 90, 90, 120)
+    rng = np.random.default_rng(1014)
+    r = 0.9 * TWIN_COORD_TOL
+    special = 4        # Wyckoff 2c-type axis at z ≠ 0: 4f of P 6₃/mmc, 4h of P 6/mmm
+    merged = 0
+    for _ in range(400):
+        d = rng.uniform(-r, r, size=2)
+        x = np.array([1 / 3 + d[0], 2 / 3 + d[1], 0.0705])
+        merge = site_twin_merge(sg, cell, x)
+        if merge is None:           # already special at site_orbit's own tolerance
+            assert site_orbit(sg, x).multiplicity == special, d
+            continue
+        assert merge.after == special and merge.before > special, d
+        np.testing.assert_allclose(merge.position[:2], [1 / 3, 2 / 3], atol=1e-12)
+        merged += 1
+    assert merged > 300
+
+
+def test_the_reviewers_site_near_the_hexagonal_axis_merges():
+    """Yue's case: Fe at (0.332848, 0.666937, 0.070472) in P 6₃/mmc, 4.85e-4 per coordinate."""
+    sg = resolve_group("P 63/m m c", None)
+    merge = site_twin_merge(sg, (5.0, 5.0, 8.0, 90, 90, 120),
+                            np.array([0.332848, 0.666937, 0.070472]))
+    assert merge is not None and (merge.before, merge.after) == (24, 4)
+
+
+def test_a_site_further_than_the_reach_from_every_hexagonal_special_position_is_left():
+    """The negative arm: ~2e-3 from the axis and from every mirror through it."""
+    sg = resolve_group("P 63/m m c", None)
+    assert site_twin_merge(sg, (5.0, 5.0, 8.0, 90, 90, 120),
+                           np.array([1 / 3 + 2.0e-3, 2 / 3 + 1.0e-3, 0.0705])) is None
