@@ -1,6 +1,6 @@
 # WP-2047 — Windows follow the parameters between solves
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-25 — claimed by @yue-here
 Track: What fires, and what stays silent
 Depends on: 2045 (the trigger it removes first); 2017 soft (the families this is measured on)
 Priority: P3 2026-10-24 — down a rung from P2: 2045 removes the one trigger measured, and the sink it leaves has no second known case
