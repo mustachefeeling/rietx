@@ -420,8 +420,10 @@ def _assert_exact_image(cell, centring):
     assert np.max(np.abs(got - theirs)) <= eps
 
 
-_NEAR_RIGHT = st.tuples(st.floats(min_value=1e-7, max_value=1e-5),
-                        st.sampled_from([-1.0, 1.0]))
+_NEAR_RIGHT = st.one_of(
+    st.just((0.0, 1.0)),                     # exactly 90°: the metric's zero entries
+    st.tuples(st.floats(min_value=1e-7, max_value=1e-5),
+              st.sampled_from([-1.0, 1.0])))
 
 
 @pytest.mark.parametrize("centring", ["P", "C", "I", "F", "R"])
@@ -429,9 +431,11 @@ _NEAR_RIGHT = st.tuples(st.floats(min_value=1e-7, max_value=1e-5),
           suppress_health_check=[HealthCheck.filter_too_much])
 @given(lengths, lengths, lengths, angles, angles, angles,
        st.integers(0, 2), _NEAR_RIGHT)
+@example(3.0, 4.0, 5.0, 90.0, 100.0, 90.0, 0, (0.0, 1.0))   # monoclinic: two exact 90°
 def test_the_exact_image_holds_with_one_angle_within_epsilon_of_90(
         centring, a, b, c, al, be, ga, which, offset):
-    """WP-2035's sweep: one angle 1e-7–1e-5° either side of 90° puts a
+    """WP-2035's sweep: one angle 1e-7–1e-5° either side of 90° (or exactly
+    90°, where a metric zero carries rounding noise of either sign) puts a
     Niggli parameter within the reduction's ε of zero, where gemmi's
     ``normalize`` and Křivý–Gruber steps disagree on a sign.  On ``main``'s
     sign-gated path about 30 % of such P cells left the exact image."""
