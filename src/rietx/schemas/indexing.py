@@ -167,7 +167,36 @@ from .structure import Cell
 #: the bar adds the capping caveat ``indexed_lines_low`` (a vocabulary member
 #: of ``IndexCaveat``, no new field); no other indexing acceptance row changes
 #: grade by the intensity reading.
-INDEXING_THRESHOLDS_VERSION = "1.11"
+#: 1.12, C3 (issue #916): the reversed questions are asked at the measured
+#: **resolution** (``indexing.fom.RESOLUTION_FWHM``) by a candidate-independent
+#: line screen (``indexing/screen.py``), never in the search window or of the
+#: candidate's own fit.  ``predicted_seen_fraction`` is the screen's seen
+#: fraction after the candidate's common shift; ``supercell_checks`` asks child
+#: against parent by containment of the indexed observed set with the denser
+#: line set as the child, so cubic I √2·a₀ over cubic F a₀ and a trigonal
+#: description of a cubic truth are now asked and refuted; ``verdict`` gains
+#: a middle band (refuted needs the extras seen no more often than chance,
+#: ``n_seen ≤ n_extra·p0``); ``LeBailValidation.predicted_but_absent`` is the
+#: screen's count against the picker's envelope, with the uncancellable and
+#: windowed-uncancellable counts beside it, and the ``predicted_but_absent``
+#: caveat fires on the windowed count and **caps** rather than refutes.
+#: Also 1.12 (#934 (c)): the picker names every bound its group fit ends on:
+#: ``PEAK_POSITION_AT_BOUND`` and ``PEAK_NO_INTENSITY`` are new, and the
+#: ``where`` entries of those two, ``PEAK_WIDTH_CAPPED`` and
+#: ``PEAK_EXPECTED_FALSE_LINES`` carry each line's bound and value.  No flag,
+#: threshold or ``usable()`` moved; it shares C3's 1.12, the release cycle's
+#: one bump, because a list's diagnostics are part of what this string stamps,
+#: as its flags were at 1.10.
+#: Also 1.12 (#939): ``determine_extinction_symbol`` refines the cell by default
+#: (``refine_cell=True``: a cell-free ``profile_only`` Le Bail of the lattice
+#: group, from a seeded background when the instrument's is all zero) and
+#: abstains when its reference fit fails the ``REFERENCE_NET_RWP_MAX`` gate
+#: (``status="unreliable"``, ``EXTINCTION_SCREEN_UNRELIABLE``);
+#: ``ExtinctionScreen`` gains ``prefit_rwp`` and ``reference_rwp_net``.
+#: Every pinned class held (synthetic P 2₁/c, FAP, NAC, certified corundum),
+#: with their ΔBIC moved (corundum −3434 → −1301, FAP −16 → −83); the PbSO₄
+#: X-ray histogram at a 0.1-0.2 % cell went from an abstention to ``P c - n``.
+INDEXING_THRESHOLDS_VERSION = "1.12"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
 #: flagged ``position_unmeasured``.
@@ -575,9 +604,15 @@ Confidence = Literal["high", "medium", "low"]
 #: supplied at all (``IndexingResult.validated`` is then False) or because the
 #: run's ceiling expired part-way down the shortlist, which
 #: ``INDEX_BUDGET_EXHAUSTED`` counts: the run-level flag and this caveat are
-#: therefore not each other's negation.  ``predicted_but_absent`` — the Le Bail fit found reflections where
-#: the pattern has no intensity, the classic oversized-cell false positive M₂₀
-#: cannot see.  ``indexed_fraction_low`` — below
+#: therefore not each other's negation.  ``predicted_but_absent`` — the line
+#: screen found reflections this lattice predicts, that no extinction could
+#: remove, inside de Wolff's window (the first twenty lines), where the
+#: pattern has nothing above the picker's background envelope
+#: (``LeBailValidation.predicted_but_absent_uncancellable_in_window``).
+#: **Capping** since thresholds 1.12: a true cell's weak general reflections
+#: below detection read absent too (corundum 5 over the full range, 0 in the
+#: window), so the count keeps ``high`` out of reach and the pairwise
+#: ``supercell_refuted`` is what refutes.  ``indexed_fraction_low`` — below
 #: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines' intensity.
 #: ``indexed_lines_low`` — the intensity passes that bar but the cell indexes
 #: fewer than :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines by count
@@ -627,7 +662,7 @@ IndexCaveat = Literal[
 #: constant read by :func:`rietx.indexing.consensus.confidence_for` rather than
 #: a chain of conditions.
 INDEX_REFUTING_CAVEATS: frozenset[str] = frozenset({
-    "geometric_ambiguity", "fom_panel_disagrees", "predicted_but_absent",
+    "geometric_ambiguity", "fom_panel_disagrees",
     "indexed_fraction_low", "volume_unphysical", "validation_failed",
     "supercell_refuted"})
 
@@ -1126,8 +1161,16 @@ class SupercellCheck(Base):
     parent_cell: tuple[float, float, float, float, float, float]
     parent_system: str
     parent_centring: str
-    #: how many of the parent's primitive cells one of this lattice's holds
+    #: how many of the parent's primitive cells one of this lattice's holds;
+    #: 0 when the parent is not a sublattice (``relation="containment"``)
     index: int
+    #: ``"sublattice"``: the parent is an index-2-to-4 sublattice of this
+    #: lattice.  ``"containment"`` (thresholds 1.12): every observed line the
+    #: parent indexes, this lattice indexes, and this one's line set is the
+    #: denser — the relation ``indexing.screen.contains`` asks, which reaches
+    #: cubic I √2·a₀ over cubic F a₀ and a trigonal description of a cubic
+    #: truth, neither a sublattice pair
+    relation: Literal["sublattice", "containment"] = "sublattice"
     n_extra: int
     n_seen: int
     p0: float
@@ -1201,9 +1244,27 @@ class LeBailValidation(Base):
     #: the reflections whose absence is not yet established.
     space_group: str
     n_reflections: int
-    #: reflections the lattice predicts where the pattern has no intensity, from
-    #: Layer 0's ``unmatched_calc``
+    #: lines the lattice predicts where the pattern has no intensity.  Since
+    #: thresholds 1.12 the line screen's count (``indexing/screen.py``): merged
+    #: predicted lines, testable (resolved from every picked component and
+    #: quiet in the peak-list model) and with nothing above the picker's
+    #: background envelope at the measured width — inputs the candidate
+    #: cannot buy.  With no peak list supplied it is the older count against
+    #: the fit's own background (``absent_source``).
     predicted_but_absent: int = 0
+    #: of those, the lines no space group of this lattice could extinguish
+    #: (``ambiguity.uncancellable``); ``None`` before C3 (thresholds 1.12) or without a screen
+    predicted_but_absent_uncancellable: int | None = None
+    #: of *those*, the lines inside de Wolff's window — positions up to the
+    #: Q of the 20th usable line, where a true cell's lines are strong enough
+    #: to be detected.  The ``predicted_but_absent`` caveat fires on this one.
+    predicted_but_absent_uncancellable_in_window: int | None = None
+    #: which detector produced the count
+    absent_source: Literal["line_screen", "fitted_background"] = "fitted_background"
+    #: the screen's denominator: predicted lines merged at the resolution in
+    #: the peak list's range.  ``n_reflections`` is the fit's and counts every
+    #: reflection, so ``predicted_but_absent`` is a share of *this* number
+    n_lines_screened: int | None = None
     #: observed peaks with no calculated reflection nearby — impurity content, or
     #: a wrong cell.  Layer 0's ``unmatched_obs``
     unmatched_observed: int = 0
@@ -1988,7 +2049,9 @@ class IndexingResult(Base):
                          f"{c.n_indexed}/{c.n_lines} lines;  chi2_red {c.chi2_red:.2f}"
                          + (f";  Le Bail Rwp {c.lebail.rwp:.4f}, "
                             f"{c.lebail.predicted_but_absent} of "
-                            f"{c.lebail.n_reflections} reflections absent"
+                            + (f"{c.lebail.n_lines_screened} lines absent"
+                               if c.lebail.n_lines_screened is not None else
+                               f"{c.lebail.n_reflections} reflections absent")
                             if c.lebail is not None else ""))
             if c.confidence_caveats:
                 lines.append(f"      not higher because: {', '.join(c.confidence_caveats)}")
@@ -2247,6 +2310,18 @@ class ExtinctionScreen(Base):
     profile_rwp: float = float("inf")
     #: the declared facts the members were filtered by (``restrict=``)
     prior: ExtinctionPrior | None = None
+    #: Rwp of the cell-free ``profile_only`` Le Bail the screen ran first
+    #: (``refine_cell=True``, the default); ``None`` when the cell was held
+    prefit_rwp: float | None = None
+    #: the reference fit's background-subtracted Rwp (Toby 2006): the weighted
+    #: misfit as a fraction of the net signal.  Above
+    #: :data:`~rietx.indexing.extinction.REFERENCE_NET_RWP_MAX` the screen is
+    #: ``"unreliable"``; ``None`` until the reference fit ran
+    reference_rwp_net: float | None = None
+    #: ``"converged"``; ``"failed"`` (no reference fit, nothing ranked);
+    #: ``"unreliable"`` (ranked, but the reference fit left more of the net
+    #: signal unexplained than any absence test can be read against, so
+    #: :meth:`best_or_none` abstains); ``"cancelled"``
     status: str = "converged"
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
@@ -2254,13 +2329,15 @@ class ExtinctionScreen(Base):
     def best_or_none(self) -> ExtinctionCandidate | None:
         """The one extinction class, or None.
 
-        Returns a class only when it was fitted, is not refuted, rests on at
-        least one absence the data could **test** (or is the absence-free class
-        itself, whose claim is that there is nothing to see), is separated from
-        the next surviving class by a decisive ΔBIC margin, and **no unrefuted
-        class was left unfitted** — a ``max_classes`` cap or a cancelled run
-        leaves an unasked question, which must not read as a clean answer.  Every
-        other situation returns None with the reason in :attr:`diagnostics`.
+        Returns a class only when the reference fit passed its gate (``status``
+        is not ``"unreliable"``), the class was fitted, is not refuted, rests on
+        at least one absence the data could **test** (or is the absence-free
+        class itself, whose claim is that there is nothing to see), is separated
+        from the next surviving class by a decisive ΔBIC margin, and **no
+        unrefuted class was left unfitted** — a ``max_classes`` cap or a
+        cancelled run leaves an unasked question, which must not read as a clean
+        answer.  Every other situation returns None with the reason in
+        :attr:`diagnostics`.
 
         With a declared :attr:`prior`, only classes it leaves a member in can be
         returned and the margin is taken to the next such class — that is the
@@ -2273,6 +2350,8 @@ class ExtinctionScreen(Base):
         """
         from ..indexing.extinction import DECISIVE_DELTA_BIC
 
+        if self.status == "unreliable":
+            return None                 # the absence tests read the misfit
         if any(not c.refuted and not c.screened for c in self.candidates):
             return None                 # an unasked question, not a clean answer
         alive = [c for c in self.candidates if not c.refuted]

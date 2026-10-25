@@ -154,6 +154,7 @@ WALKED: dict[str, int] = {
     "project.py": 2002,
     "io/formats/dif.py": 2006,
     "io/formats/gsas.py": 2006,
+    "io/formats/pdcif.py": 2006,
     "io/formats/peaklist.py": 2006,
     "io/instrument_profile.py": 2006,
     "io/projects/fullprof.py": 2006,
@@ -561,6 +562,16 @@ ROWS: tuple[Row, ...] = (
     Row("EXTINCTION_GROUPS_NOT_SEPARABLE", "code"),
     Row("EXTINCTION_PRIOR_APPLIED", "code"),
     Row("EXTINCTION_SCREEN_FAILED", "code"),
+    Row("EXTINCTION_SCREEN_UNRELIABLE", "code", tier=3, ambiguity=2,
+        evidence=("warning; fires when the absence-free reference fit leaves more than "
+                  "REFERENCE_NET_RWP_MAX of the net weighted power unexplained; the silent side "
+                  "holds on four real families, the firing side is shown on synthetic Si only"),
+        grounds=("Withholds the pick and keeps the ranking, and no default path calls the "
+                 "pick; ruled 2026-10-21 (PR #939)."),
+        approved="2026-10-21", response="warning",
+        responds=("read the classes as a ranking only, since the reference fit they are "
+                  "scored against does not model the allowed lines; refine the cell or the "
+                  "profile and screen again before quoting a symbol")),
     Row("EXTINCTION_SYMBOL_AMBIGUOUS", "code"),
     Row("EXTRA_PEAK_NO_INTENSITY", "code"),
     Row("EXTRA_PEAK_ON_REFLECTION", "code"),
@@ -642,7 +653,18 @@ ROWS: tuple[Row, ...] = (
     Row("INDEX_MULTIPLE_SOLUTIONS", "code"),
     Row("INDEX_NOT_VALIDATED", "code"),
     Row("INDEX_PANEL_REDUCED", "code"),
-    Row("INDEX_PREDICTED_BUT_ABSENT", "code"),
+    Row("INDEX_PREDICTED_BUT_ABSENT", "code", tier=3, ambiguity=2,
+        evidence=("warning; fires when a candidate's line screen counts a non-zero number of "
+                  "predicted lines that no extinction could remove inside the first twenty "
+                  "observed lines with nothing above the picker's envelope; the trigger is "
+                  "> 0, so the true magnetite and PbSO4 cells (count 2) are capped and "
+                  "LaB6's wrong a-sqrt2 I cell reads 2 as well: at the bottom of the range "
+                  "the count separates nothing (PR #941 round 4)"),
+        grounds=("Caps the candidate's confidence and ranks nothing; the pairwise supercell "
+                 "check is what refutes, and the diagnostic says so; the count is de Wolff's "
+                 "window, the > 0 trigger is rietx's own (C3, ruled 2026-10-21; a density "
+                 "compared across candidates is owed)."),
+        approved="2026-10-21"),
     Row("INDEX_PRIOR_USED", "code"),
     Row("INDEX_SEARCH_INCOMPLETE", "code"),
     Row("INDEX_SHIFT_ALLOWANCE", "code"),
@@ -650,7 +672,15 @@ ROWS: tuple[Row, ...] = (
     Row("INDEX_SHIFT_FROM_PAIRS", "code"),
     Row("INDEX_SHIFT_MODEL_AMBIGUOUS", "code"),
     Row("INDEX_SINGLE_ENGINE", "code"),
-    Row("INDEX_SUPERCELL_REFUTED", "code"),
+    Row("INDEX_SUPERCELL_REFUTED", "code", tier=3, ambiguity=2,
+        evidence=("warning; fires when the containment refuter reads 'refuted' for a pair "
+                  "beyond index 4: the extra lines no extinction could remove sit on an "
+                  "observed line no more often than chance p0 predicts; it ranks the "
+                  "superlattice below its parent and leaves it in the list; the explanation "
+                  "names the weak superstructure the radiation barely sees (PR #941 round 4)"),
+        grounds=("Ranks below the parent and withholds nothing else; a superstructure is "
+                 "indexed by its subcell first, as ruled on WP-1968 (C3, ruled 2026-10-21)."),
+        approved="2026-10-21"),
     Row("INDEX_SYSTEMS_NOT_COVERED", "code"),
     Row("INDEX_VALIDATION_FAILED", "code"),
     Row("INDEX_VOLUME_UNPHYSICAL", "code"),
@@ -719,8 +749,40 @@ ROWS: tuple[Row, ...] = (
     Row("PARAMETRIC_TARGET_UNSEEN", "code"),
     Row("PATTERN_DEAD_CHANNELS", "code"),
     Row("PATTERN_DUPLICATE_POINTS", "code"),
+    Row("PATTERN_INTENSITY_NET", "code", tier=1, ambiguity=1,
+        evidence=("a record of which column was read: the file states only "
+                  "_pd_proc_intensity_net, and the code names it with the IUCr "
+                  "pdCIF dictionary's definition (_pd_proc.intensity_net); y is "
+                  "not changed"),
+        response="info",
+        responds=("note which column was read as the intensity and hold the background "
+                  "at zero only if the column's minimum agrees with its label")),
     Row("PATTERN_INTENSITY_SCALED", "code"),
     Row("PATTERN_MULTISCAN_DEFAULTED", "code"),
+    Row("PATTERN_NET_HAS_BACKGROUND", "code", tier=3, ambiguity=3,
+        evidence=("warning; fires when a column the file labels background-subtracted "
+                  "(_pd_proc_intensity_net, the IUCr pdCIF definition) never comes within "
+                  "NET_BACKGROUND_MIN_SIGMA = 5 of zero in y/sigma; the statistic is "
+                  "arithmetic, the 5 is ours: the smallest y/sigma is 14.1 (COD 2242872, "
+                  "synchrotron capillary), 955 (2017714, Stoe Stadi-P), 1212 (2242532, "
+                  "PANalytical MPD Pro) and 6037 (2310780, neutron) against |y|/sigma of order "
+                  "1 on a synthetic zero baseline; misfires on a subtracted pattern "
+                  "windowed onto a peak cluster; reports only, y is never shifted and "
+                  "the caller decides, as Rule 1's third kind asks"),
+        grounds=("Reports only and shifts nothing; the threshold sits between a measured "
+                 "zero baseline (order 1) and four unrelated deposits (four laboratories, "
+                 "four instruments, four materials; 14 to 6000), with a stated "
+                 "misfire; the 5 is rietx's own, so the row stays tier 3 (ruled "
+                 "2026-10-24, #1006 round 3). The evidence is that the warning fires on four "
+                 "unrelated deposits; silence is shown only on a synthetic zero baseline "
+                 "(test_readers.py), with real subtracted deposits pending. A subtracted "
+                 "pattern windowed onto a peak cluster, with no empty baseline in range, "
+                 "misfires."),
+        approved="2026-10-24",
+        response="warning",
+        responds=("hold a scale, ADP or fraction back as less certain until the column's "
+                  "background is settled: tell whether a background was left in or the "
+                  "range holds no empty baseline, then refine one or hold it at zero")),
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
@@ -731,6 +793,14 @@ ROWS: tuple[Row, ...] = (
         scope=("qpa", "structure", "microstructure", "calibration", "magnetic")),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),
+    Row("PATTERN_ZERO_WEIGHT_EXCLUDED", "code", tier=1, ambiguity=1,
+        evidence=("info; a record of an act the file's own value asks for: the pdCIF "
+                  "dictionary defines _pd_proc_ls_weight = 0 as 'a data point not used for "
+                  "refinement', and a point of weight 0 adds nothing to sum(w r^2), so "
+                  "excluding it is arithmetic; fires exactly when points were excluded"),
+        response="info",
+        responds=("nothing: the points of weight 0 are excluded, every other point keeps "
+                  "its sigma")),
     Row("PAWLEY_OFF_DATA_RIDGED", "code"),
     Row("PAWLEY_OVERLAP_UNRESOLVED", "code"),
     Row("PEAK_ASYMMETRY_UNMODELLED", "code"),
@@ -741,6 +811,31 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_KALPHA2_RESIDUAL", "code"),
     Row("PEAK_LIST_TOO_SHORT", "code"),
     Row("PEAK_NOT_SEPARABLE", "code"),
+    Row("PEAK_NO_INTENSITY", "code", tier=1, ambiguity=1,
+        response="info",
+        responds=("read the listed components as excluded from usable() and kept in peaks "
+                  "for a report; a 2θ on the zero bound is not a measurement, and one under "
+                  "its esd is a reading of PEAK_NO_INTENSITY_SIGMA"),
+        evidence="Arithmetic: a record of main's no_intensity flag, which "
+                 "pick._flags_for sets for a component on its zero-intensity bound "
+                 "or under PEAK_NO_INTENSITY_SIGMA of its own esd (that threshold "
+                 "owned by its own row) and which the editor's set_flags can set by "
+                 "hand. The message names the three causes and says what is true of "
+                 "all of them, that the component is excluded from usable() and kept "
+                 "in peaks; it moves no flag, threshold or usable() (Yue, #993 "
+                 "round 2, 2026-10-21)."),
+    Row("PEAK_POSITION_AT_BOUND", "code", tier=1, ambiguity=1,
+        response="info",
+        responds=("read a listed component's 2θ as its bound's, with a σ(2θ) that is the "
+                  "curvature at the bound and omits how far past it the fit would have moved"),
+        evidence="Arithmetic: a record of main's position_at_bound flag, a component whose "
+                 "fitted 2θ equals its box bound (PEAK_POSITION_BOUND_FWHM × the window's "
+                 "seed FWHM) to 1e-8 relative, so the reported 2θ is the bound's and "
+                 "its σ is the curvature there, which leaves out how far past "
+                 "the bound the fit would have moved. It moves no flag, threshold or usable(); the level "
+                 "is info everywhere (Yue's ruling, #993 round 2, 2026-10-21: of the "
+                 "19 usable above-bar components freed on 16 Oct, 12 moved away from "
+                 "the lattice's line and 7 towards it)."),
     Row("PEAK_POSITION_PRECISION", "code"),
     Row("PEAK_SHOULDER_SEEDED", "code"),
     Row("PEAK_SIGMA_ASSUMED", "code"),
@@ -1432,10 +1527,28 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines._INDEX_MIN_DEFECT", "constant", value=1e-06),
     Row("rietx.indexing.engines._INDEX_MIN_ROWS", "constant", value=15000),
     Row("rietx.indexing.extinction.DECISIVE_DELTA_BIC", "constant", value=10.0),
+    Row("rietx.indexing.extinction.REFERENCE_NET_RWP_MAX", "constant", tier=3, value=0.7071,
+        evidence=("Statistic: Toby (2006)'s background-subtracted Rwp over the picker's "
+                  "envelope (the envelope is rietx's own). Right or nearly right cells read "
+                  "<= 0.36 on 11-BM NAC, GSAS-II FAP, GSAS-II PbSO4 X-ray and SRM 676a; cells "
+                  "outside the basin read >= 1.6, shown on synthetic Si only. Fails on an "
+                  "unmodelled second phase carrying half the net power, and by arithmetic on "
+                  "weak data (S < N)."),
+        grounds="Kept on both grounds, ruled 2026-10-21 (PR #939).",
+        approved="2026-10-21"),
     Row("rietx.indexing.extinction._MODULI", "constant", value=(2, 3, 4, 6)),
     Row("rietx.indexing.fom.FOM_N", "constant", value=20),
     Row("rietx.indexing.fom.LINE_COINCIDENCE_RTOL", "constant", value=1e-09),
     Row("rietx.indexing.fom.MATCH_SIGMA", "constant", value=3.0),
+    Row("rietx.indexing.fom.RESOLUTION_FWHM", "constant", tier=3, value=1.0,
+        evidence=("Merge distance, seen half-width and p0's scale, in FWHM. 1.0 over 0.5 on the "
+                  "synthetic tetragonal set (0.5 refuted a true 0.9-FWHM split); holds on the "
+                  "real acceptance corpus (no truth lost rank, PR #941). Rayleigh/Sparrow put "
+                  "one line or two at 0.58-0.85 FWHM and do not cover the seen window or p0. "
+                  "Fails where a real split under 1 FWHM ties a truth with its higher-symmetry "
+                  "description."),
+        grounds="Kept, ruled 2026-10-21 (PR #941); a 0.5-1.0 sweep on real families is owed.",
+        approved="2026-10-21"),
     Row("rietx.indexing.fom._AGGREGATE_FLOOR_RTOL", "constant", value=1e-06),
     Row("rietx.indexing.fom._BOUNDARY_RTOL", "constant", value=1e-09),
     Row("rietx.indexing.peakfit._H_POS", "constant", value=1e-05),
@@ -1464,6 +1577,16 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.reduce._SELLING_STEPS", "constant", value=1000),
     Row("rietx.indexing.reduce._SETTING_STEPS", "constant", value=200),
     Row("rietx.indexing.reduce._SETTING_TIE", "constant", value=1e-12),
+    Row("rietx.indexing.screen.SCREEN_WINDOW_LINES", "constant", tier=2,
+        evidence="de Wolff's window: M20 is defined on the first 20 observed lines and the "
+                 "calculated lines up to the Q of the 20th (de Wolff 1968, J. Appl. Cryst. 1, "
+                 "108); the screen counts its absences in the same window, with its own "
+                 "literal so a retune of fom.FOM_N cannot move it.",
+        value=20),
+    Row("rietx.indexing.screen._LN2", "constant", tier=1,
+        evidence="Arithmetic: ln 2 in the unit-area Gaussian of FWHM Γ, "
+                 "2√(ln2/π)/Γ · exp(−4 ln2 x²/Γ²).",
+        value=0.6931471805599453),
     Row("rietx.indexing.svd.ANGLE_HI", "constant", value=130.0),
     Row("rietx.indexing.svd.ANGLE_LO", "constant", value=90.0),
     Row("rietx.indexing.svd.IMPURITY_CUT_DEG", "constant", value=0.05),
@@ -1488,6 +1611,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.workflow.ABSENT_WINDOW_FWHM", "constant", value=0.5),
     Row("rietx.indexing.workflow.VALIDATION_METRIC_REL", "constant", value=0.01),
     Row("rietx.indexing.workflow.VALIDATION_SLACK_BOUNDS_DEG", "constant", value=(0.3, 6.0)),
+    Row("rietx.io.formats.pdcif.NET_BACKGROUND_MIN_SIGMA", "constant", tier=3, value=5.0,
+        evidence=("the smallest y/sigma of a net column before PATTERN_NET_HAS_BACKGROUND "
+                  "fires; 14.1, 955, 1212 and 6037 on four unrelated deposits labelled "
+                  "net, order 1 on a synthetic zero baseline; one case it misfires: a "
+                  "subtracted pattern windowed onto a peak cluster"),
+        grounds=("The decision threshold of PATTERN_NET_HAS_BACKGROUND, which only reports "
+                 "(ruled 2026-10-24, #1006 round 3). The evidence is that the warning fires "
+                 "on four unrelated deposits (four laboratories, instruments and materials); "
+                 "silence is shown only on a synthetic zero baseline (test_readers.py), with "
+                 "real subtracted deposits pending. A subtracted pattern windowed onto a peak "
+                 "cluster, with no empty baseline in range, misfires."),
+        approved="2026-10-24"),
     Row("rietx.io.formats.base.HEAD_BYTES", "constant", value=4096),
     Row("rietx.io.formats.base.INTEGRAL_TOL", "constant", value=0.001),
     Row("rietx.io.formats.dif._MIN_ROWS", "constant", value=3),
@@ -3388,7 +3523,13 @@ ROWS: tuple[Row, ...] = (
     Row("EXTINCTION_GROUPS_NOT_SEPARABLE.suggestion", "suggestion", value=1),
     Row("EXTINCTION_PRIOR_APPLIED.suggestion", "suggestion", value=1),
     Row("EXTINCTION_SCREEN_FAILED.suggestion", "suggestion", value=2),
-    Row("EXTINCTION_SYMBOL_AMBIGUOUS.suggestion", "suggestion", value=3),
+    Row("EXTINCTION_SCREEN_UNRELIABLE.suggestion", "suggestion", tier=3, ambiguity=2, value=1,
+        evidence=("lists the causes without ranking them: the cell, a phase the reference does "
+                  "not model, weak data (S < N), the range, the wavelength, the width law"),
+        grounds=("No order is claimed, so no cause is steered away from; ruled 2026-10-21 "
+                 "(PR #939) once it listed them unranked."),
+        approved="2026-10-21"),
+    Row("EXTINCTION_SYMBOL_AMBIGUOUS.suggestion", "suggestion", value=4),
     Row("EXTRA_PEAK_NO_INTENSITY.suggestion", "suggestion", value=1),
     Row("EXTRA_PEAK_ON_REFLECTION.suggestion", "suggestion", value=1),
     Row("FLAT_DIRECTION.suggestion", "suggestion", value=1),
@@ -3476,6 +3617,11 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_DEAD_CHANNELS.suggestion", "suggestion", value=2),
     Row("PATTERN_INTENSITY_SCALED.suggestion", "suggestion", value=6),
     Row("PATTERN_MULTISCAN_DEFAULTED.suggestion", "suggestion", value=1),
+    Row("PATTERN_NET_HAS_BACKGROUND.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence=("says how to tell the two readings apart (y against y - "
+                  "_pd_proc_intensity_bkg_calc where the file states one, an empty stretch "
+                  "of baseline otherwise) and names each reading's fix; it prescribes "
+                  "neither branch, so no dissenter is left; takes no action itself")),
     Row("PATTERN_ROWS_DROPPED.suggestion", "suggestion", value=1),
     Row("PATTERN_SIGMA_CONSTANT.suggestion", "suggestion", value=1),
     Row("PATTERN_UNDERSAMPLED.suggestion", "suggestion", value=1),
@@ -3491,6 +3637,18 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_KALPHA2_RESIDUAL.suggestion", "suggestion", value=1),
     Row("PEAK_LIST_TOO_SHORT.suggestion", "suggestion", value=1),
     Row("PEAK_NOT_SEPARABLE.suggestion", "suggestion", value=1),
+    Row("PEAK_NO_INTENSITY.suggestion", "suggestion", value=1, tier=1, ambiguity=1,
+        evidence="Arithmetic: says only what holds for all three causes, that the "
+                 "component is excluded from usable() and kept in peaks so a report "
+                 "can say why, and that a component on the zero bound has a 2θ and "
+                 "σ(2θ) that are not measurements, one under its esd a weak "
+                 "gradient and a large σ(2θ) (Yue, #993 round 3, 2026-10-22)."),
+    Row("PEAK_POSITION_AT_BOUND.suggestion", "suggestion", value=1, tier=1, ambiguity=1,
+        evidence="Arithmetic: the reported 2θ is the box bound's, the fit stopped "
+                 "on it, and σ(2θ) is the curvature there, which leaves out how "
+                 "far past the bound the fit would have moved. It says nothing "
+                 "of the line's true position, which the 16 Oct re-solve showed the "
+                 "bound does not predict (Yue, #993 round 2, 2026-10-21)."),
     Row("PEAK_POSITION_PRECISION.suggestion", "suggestion", value=1),
     Row("PEAK_SHOULDER_SEEDED.suggestion", "suggestion", value=1),
     Row("PEAK_SIGMA_ASSUMED.suggestion", "suggestion", value=1),
@@ -3765,7 +3923,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "INDEX_NOT_VALIDATED.suggestion",
     "INDEX_PANEL_REDUCED",
     "INDEX_PANEL_REDUCED.suggestion",
-    "INDEX_PREDICTED_BUT_ABSENT",
     "INDEX_PREDICTED_BUT_ABSENT.suggestion",
     "INDEX_PRIOR_USED",
     "INDEX_PRIOR_USED.suggestion",
@@ -3781,7 +3938,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "INDEX_SHIFT_MODEL_AMBIGUOUS.suggestion",
     "INDEX_SINGLE_ENGINE",
     "INDEX_SINGLE_ENGINE.suggestion",
-    "INDEX_SUPERCELL_REFUTED",
     "INDEX_SUPERCELL_REFUTED.suggestion",
     "INDEX_SYSTEMS_NOT_COVERED",
     "INDEX_SYSTEMS_NOT_COVERED.suggestion",
