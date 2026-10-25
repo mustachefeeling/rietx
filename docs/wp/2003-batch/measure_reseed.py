@@ -1386,10 +1386,11 @@ def _totals(fam, arms, ref_name, ref, truth) -> list[str]:
     hdr = [h for h in hdr if h is not None]
     out = ["### Totals", "",
            f"\"Differ\" = a value apart by > {DIFFER_ESD} esd (the esd of the row "
-           f"compared against: `on`, or the reference), an esd-less "
-           f"value moved by > {NOESD_REL:g} relative, or a path only one row "
-           f"carries (the script's `differ`).  \"bit-identical\" compares "
-           f"`values_sha`.  nfev (entries) is `SeriesEntry.n_iterations`; "
+           f"compared against: `on`, the arm's pair, or the reference), an "
+           f"esd-less value moved by > {NOESD_REL:g} relative, or a path only "
+           f"one row carries (the script's `differ`).  \"bit-identical\" "
+           f"compares `values_sha`; \"pair\" is the arm differing from this "
+           f"one by one switch (`PAIRED`).  nfev (entries) is `SeriesEntry.n_iterations`; "
            f"solver nfev / njev count every solve, the automatic "
            f"profile-interval refits included.  Counts are over each arm's own "
            f"patterns; comparisons over the patterns both rows have.", "",
