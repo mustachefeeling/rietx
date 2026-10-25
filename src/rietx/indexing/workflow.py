@@ -571,7 +571,11 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
             predicted_but_absent_uncancellable=screen.n_absent_uncancellable,
             predicted_but_absent_uncancellable_in_window=(
                 screen.n_absent_uncancellable_in_window),
-            absent_source="line_screen", n_lines_screened=screen.n_lines)
+            absent_source="line_screen", n_lines_screened=screen.n_lines,
+            n_lines_screened_in_window=screen.n_lines_in_window,
+            predicted_but_absent_density_in_window=(
+                screen.n_absent_uncancellable_in_window / screen.n_lines_in_window
+                if screen.n_lines_in_window else None))
     else:
         positions = np.array([r.two_theta for r in rows], dtype=np.float64)
         absent_tt, _ratio = absent_reflections(
@@ -1138,8 +1142,9 @@ def index_pattern(peaks: PeakList | None = None, *,
     # between candidates and between one candidate's derivative cells (#895),
     # so a fired token leaves the question unasked
     # (capping) rather than half-answered
-    from .consensus import enumerate_ambiguity
+    from .consensus import absence_excess, enumerate_ambiguity
 
+    absence_excess(outcome.candidates)
     enumerate_ambiguity(outcome, peaks, top=top, cancel=run_cancel)
 
     # the reserve boundary is part of the ceiling's scheduling: a search it

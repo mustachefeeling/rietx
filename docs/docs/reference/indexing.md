@@ -464,6 +464,9 @@ The middle one is the classic doubled-cell false positive, which is why validati
 | `LeBailValidation.predicted_but_absent_uncancellable` | of those, the lines no space group of the lattice could extinguish |
 | `LeBailValidation.predicted_but_absent_uncancellable_in_window` | of those, the lines inside the first twenty observed lines; the caveat reads this one |
 | `LeBailValidation.n_lines_screened` | the lines the screen asked about, merged at the resolution; the share `predicted_but_absent` is of |
+| `LeBailValidation.n_lines_screened_in_window` | of those, the lines inside the first twenty observed lines |
+| `LeBailValidation.predicted_but_absent_density_in_window` | the windowed count over the window's lines: the share of what the cell asserts there that reads absent, reported only |
+| `LeBailValidation.predicted_but_absent_excess_in_window` | the windowed count above what the run's cleanest candidate's density implies for this cell's lines; 0 for that candidate and for a lone one, so it is reported and never gates |
 | `LeBailValidation.absent_source` | `"line_screen"`, or `"fitted_background"` when no peak list was supplied |
 | `LeBailValidation.unmatched_observed` | observed peaks with no calculated reflection nearby, as the fit report's Layer 0 counts them |
 | `LeBailValidation.predicted_but_absent_two_theta`, `LeBailValidation.unmatched_observed_two_theta` | where each of those is, ° 2θ |

@@ -467,6 +467,12 @@ def test_validation_reads_the_screen_and_freezes_the_profile(si):
     assert doubled.predicted_but_absent > 0.5 * doubled.n_lines_screened
     assert doubled.n_lines_screened < doubled.n_reflections
     assert v.n_lines_screened == 15
+    # the density: the windowed count over the window's screened lines
+    assert v.predicted_but_absent_density_in_window == 0.0
+    assert 0 < doubled.n_lines_screened_in_window <= doubled.n_lines_screened
+    assert doubled.predicted_but_absent_density_in_window == pytest.approx(
+        doubled.predicted_but_absent_uncancellable_in_window
+        / doubled.n_lines_screened_in_window)
     legacy = validate_by_lebail(truth, data, ins)
     assert legacy.absent_source == "fitted_background"
     assert legacy.predicted_but_absent_uncancellable_in_window is None
@@ -638,3 +644,41 @@ def test_the_absent_code_reads_the_counts_not_the_caveat():
     assert d.level == "info" and "caps nothing" in d.message
     assert code(above.model_copy(update={"predicted_but_absent_uncancellable": 0})) is None
     assert code(base.model_copy(update={"status": "failed"})) is None
+
+
+def test_the_excess_reads_the_density_against_the_cleanest_candidate():
+    """The windowed count compared across candidates (#941's follow-up),
+    on the counts the acceptance sweep measured: magnetite's true F cell and
+    its P rival (2 of 36 window lines, 28 of 88), and the synthetic LaB₆ run's
+    truth and a√2 I cell (0 of 15, 2 of 16).  The raw count reads 2 for the
+    true F cell and for the wrong I cell alike; the excess reads 0 and 2."""
+    from rietx.indexing.consensus import absence_excess
+
+    def screened(system, centring, cell, a, n):
+        lebail = LeBailValidation(
+            rwp=0.3, gof=2.0, space_group="P 1", n_reflections=n,
+            predicted_but_absent=a, predicted_but_absent_uncancellable=a,
+            predicted_but_absent_uncancellable_in_window=a,
+            absent_source="line_screen", n_lines_screened=n,
+            n_lines_screened_in_window=n,
+            predicted_but_absent_density_in_window=a / n)
+        return _candidate(system, centring, cell, lebail=lebail)
+
+    a_m = (8.3913,) * 3 + (90.0, 90.0, 90.0)
+    truth, rival = screened("cubic", "F", a_m, 2, 36), screened("cubic", "P", a_m, 28, 88)
+    absence_excess([truth, rival])
+    assert truth.lebail.predicted_but_absent_excess_in_window == 0.0
+    assert rival.lebail.predicted_but_absent_excess_in_window == pytest.approx(
+        28 - 88 * 2 / 36)
+    a_l = (4.1568,) * 3 + (90.0, 90.0, 90.0)
+    a_i = (4.1568 * R2,) * 3 + (90.0, 90.0, 90.0)
+    lab6, root2 = screened("cubic", "P", a_l, 0, 15), screened("cubic", "I", a_i, 2, 16)
+    unscreened = _candidate("cubic", "P", a_l)
+    absence_excess([lab6, root2, unscreened])
+    assert lab6.lebail.predicted_but_absent_excess_in_window == 0.0
+    assert root2.lebail.predicted_but_absent_excess_in_window == 2.0
+    assert unscreened.lebail is None
+    # a lone candidate is its own cleanest: the excess cannot stand in for the cap
+    alone = screened("cubic", "I", a_i, 2, 16)
+    absence_excess([alone])
+    assert alone.lebail.predicted_but_absent_excess_in_window == 0.0

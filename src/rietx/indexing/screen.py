@@ -318,6 +318,10 @@ class LineScreen:
         return len(self.two_theta)
 
     @property
+    def n_lines_in_window(self) -> int:
+        return int(self.in_window.sum())
+
+    @property
     def seen_fraction(self) -> float:
         return float(np.mean(self.seen)) if len(self.seen) else 0.0
 
