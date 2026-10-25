@@ -102,7 +102,7 @@ def parts(model, values):
     t["rewindow_whole"] = tr
     t["window_sizing"], sized = tmin(lambda: fw.window_sizing(model, values))
     t["sync_layouts"] = tmin(lambda: [
-        fw._batch_layout(w, f, tt) for (w, f), cp in zip(sized, model.phases)
+        fw._batch_layout(w, f, tt) for (w, f, _), cp in zip(sized, model.phases)
         if not (np.array_equal(w, cp.win) and np.array_equal(f, cp.fcj_n))])[0]
     return t, per
 

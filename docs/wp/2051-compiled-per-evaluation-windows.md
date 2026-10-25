@@ -102,6 +102,42 @@ which the taper is for: with the resizing taken out the ratio is 1.0, 1.19,
 0.5 ms; no batching across phases and lines, since a line now costs ~20 µs.
 Answers match probe 7's (cpd-1a's 0.99 esd on `profile.v`, the second minimum).
 
+**The taper, emulated 2026-10-25** (task 3, probe 9 with `PROBE9_TAPER`).
+After each sizing, every phase's 0/1 window mask becomes mask·T(u), with
+u = |2θ − pos|/half at that evaluation's values and T a cos² ramp from 1 to 0
+over the ramp, with zero slope at both ends. The mask multiplies the forward Ω
+and every partial plane (`forward.py`, `_omega_batch` and
+`derivative_bases`), so the cost is continuous where an edge crosses a point.
+The Jacobian leaves out ∂T/∂θ alone. FCJ node counts still step. Only the
+ramp's points are touched, found by `searchsorted`; the probe copies the
+mask each call, which a taper inside `_omega_batch` would not. Two shapes,
+both at w = 0.1:
+
+- *Inward*: the ramp is the outer tenth of the half-width. It drops area
+  inside the sized edge: 0.053 × the window tolerance for any η ≥ 0.3, but
+  0.37 × for a pure Gaussian at the 2 % tolerance and 0.82 × at the closing
+  stage's 1e-3 (computed for one pseudo-Voigt without slack, an upper bound).
+  At w = 0.25 the Gaussian figure passes the tolerance itself (1.17 ×).
+- *Outward* (`PROBE9_TAPER_SIDE=out`): the window widens to 1.1 × the
+  half-width and the ramp covers the added strip, so nothing inside the sized
+  edge is dropped and the window holds a tenth more points.
+
+Median of 5 interleaved pairs, same machine, alone:
+
+| | NAC | LaB6 | Fluorapatite | cpd-1a |
+|---|---|---|---|---|
+| Evaluations: shipped / no taper / inward / outward | 46 / 49 / 49 / 47 | 90 / 110 / 91 / 101 | 49 / 83 / 53 / 49 | 175 / 216 / 188 / 186 |
+| Fit time ratio, inward / outward | 1.13 / 1.16 | 1.09 / 1.25 | 1.04 / 1.13 | 1.33 / 1.36 |
+| The same less the probe's sync (resize, taper, copy) | 0.99 / 0.99 | 0.97 / 1.10 | 0.94 / 1.01 | 1.10 / 1.11 |
+| Largest answer shift from shipped, esd, inward / outward | 0.007 / 0.008 | 0.004 / 8.8 | 0.016 / 0.040 | 0.37 / 0.47 |
+
+The taper recovers most of the extra evaluations. LaB6's 8.8 esd is on
+`axial_hl`, at Rwp equal to shipped to six figures: the flat direction the
+WP's Context names, which a wider inward taper (w = 0.25) reaches too. The
+"less sync" row is the inferred ceiling for a taper built into
+`_omega_batch`. The probe's sync costs 0.3-1.4 ms a call, most of it the mask
+copy.
+
 **What a real implementation must settle** (from probe 7, all unmeasured):
 - a policy for LM trial points far from the start, since each now builds
   its own windows (one cpd-1a trial at `axial_sl` 1096 built 17.8× the
@@ -163,9 +199,13 @@ needed, `optimize/least_squares.py` (the closures), `docs/wp/2047-batch/`
 - [x] Vectorise what numpy can (across phases and lines, the layout build);
       re-measure; a compiled kernel only for what remains above ~0.5 ms a
       call, under the compiled tier's four rules
-- [ ] A tapered window edge, opt-in on the compile: the cost made
+- [x] A tapered window edge, opt-in on the compile: the cost made
       continuous in θ, its area cost against the window tolerance, and both
-      Ω builders kept 1-2 ulp apart as root CLAUDE.md requires
+      Ω builders kept 1-2 ulp apart as root CLAUDE.md requires.
+      *Done as an emulation in probe 9 (2026-10-25)*: a taper means nothing
+      on frozen windows, so the opt-in on the compile waits for the ruling
+      on per-evaluation windows. The mask seam carries it through both Ω
+      builders alike, so their 1-2 ulp gap is untouched
 - [ ] Probes 7 and 8 re-run with the fast resizing, with and without the
       taper: fit time, evaluations, LM terminations, answer shift and the
       polished fixed points, on the four protocols and the hostile pair

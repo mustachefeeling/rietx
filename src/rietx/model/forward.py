@@ -4279,8 +4279,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
 
 
 def window_sizing(model: CompiledModel, values: dict[str, float]
-                  ) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Each phase's (windows, FCJ node counts) sized at ``values``.
+                  ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Each phase's (windows, FCJ node counts, half-widths) sized at ``values``.
 
     ``compile_model``'s rule: a half-width of k(η)·Γ plus the slack, plus the
     FCJ extent while the aberration acts.  It reads the peaks the forward
@@ -4288,7 +4288,9 @@ def window_sizing(model: CompiledModel, values: dict[str, float]
     own width estimate, so the two agree to that estimate's ~1 % and not to
     the bit; k(η) comes off :func:`window_fwhm_mult_interp`'s table.  The
     arrays have the compile's shapes, so a caller can compare them with
-    ``CompiledPhase.win`` and ``.fcj_n`` before building anything.
+    ``CompiledPhase.win`` and ``.fcj_n`` before building anything.  The
+    half-widths, (lines, reflections) in degrees and NaN where a peak is not
+    finite, are the continuous edges the windows round to points.
     """
     tol = model.window_area_tol
     sl = float(values.get("instrument.geometry.axial_sl", 0.0))
@@ -4304,6 +4306,7 @@ def window_sizing(model: CompiledModel, values: dict[str, float]
     for ip, cp in enumerate(model.phases):
         win = np.zeros_like(cp.win)
         fcj_n = np.zeros_like(cp.fcj_n)
+        halves = np.full(cp.win.shape[:2], np.nan)
         for il, (pos, w1, w2, _) in enumerate(model.phase_peaks(ip, values)):
             pos = np.asarray(pos, dtype=np.float64)
             gamma, eta = model.peak_gamma_eta(w1, w2)
@@ -4313,11 +4316,12 @@ def window_sizing(model: CompiledModel, values: dict[str, float]
             valid = np.isfinite(pos) & np.isfinite(half)
             i0, i1 = _window_bounds(tt, pos, half, valid)
             win[il, :, 0], win[il, :, 1] = i0, i1
+            halves[il] = np.where(valid, half, np.nan)
             if fcj_on:
                 live = valid & (i1 > i0)
                 fcj_n[il, live] = fcj_node_counts(pos[live], gamma[live], sl, hl,
                                                   closing=closing)
-        out.append((win, fcj_n))
+        out.append((win, fcj_n, halves))
     return out
 
 
@@ -4337,7 +4341,7 @@ def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
     phases = [replace(cp, win=win, fcj_n=fcj_n, batch=_batch_layout(win, fcj_n, tt),
                       fcj_cache={} if (fcj_n.any() or cp.fcj_cache is not None) else None,
                       scalar_cache={})
-              for cp, (win, fcj_n) in zip(model.phases, window_sizing(model, values))]
+              for cp, (win, fcj_n, _) in zip(model.phases, window_sizing(model, values))]
     return replace(model, phases=phases)
 
 
