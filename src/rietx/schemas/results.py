@@ -989,8 +989,8 @@ class StageResult(Base):
     cost_final: float
     freed: list[str] = Field(default_factory=list)
     #: the relative cost-decrease tolerance this stage actually stopped at, or
-    #: ``None`` for the solver default (1e-9) — which is what the answer-
-    #: producing last stage takes, and what every stage of every fit before
+    #: ``None`` for the solver default (1e-9) — which is what the last
+    #: declared stage and the closing stage take, and what every stage of every fit before
     #: WP-1123 took.  Recorded because it is otherwise unrecoverable from a
     #: result: the plan's schedule (``RefinementPlan.intermediate_ftol``) and a
     #: stage's own ``Stage.ftol`` both land here, and a consumer comparing two

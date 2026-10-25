@@ -288,7 +288,7 @@ climb to the 512 cap, and each new count misses the `leggauss` cache
       iterations: `StageResult.n_iterations` counts iterations, and WP-1123's
       saving is 1.2-1.6× fewer evaluations. If option 5 costs more than that
       saving, put the numbers to the maintainer.
-- [ ] The implementation: `RefinementPlan.stage_ftols` gives the last
+- [x] The implementation: `RefinementPlan.stage_ftols` gives the last
       declared stage the solver's tolerance when a closing stage follows it,
       a stage's own `ftol` still winning. Every runner then inherits it:
       `PlanSpec` through `resolve_plan`, the joint fit through

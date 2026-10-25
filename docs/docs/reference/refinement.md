@@ -151,7 +151,7 @@ A `RefinementPlan` holds its stages and five settings.
 |---|---|---|
 | `RefinementPlan.stages` | required | the `Stage` list, in order |
 | `RefinementPlan.correlation_guard` | 0.98 | the \|ρ\| above which a stage reports a correlated pair |
-| `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
+| `RefinementPlan.intermediate_ftol` | 1e-6 | the tolerance every declared stage but the last stops at ([Stage tolerances](#stage-tolerances)) |
 | `RefinementPlan.lebail_passes` | 1 | the cap on Le Bail passes ([Le Bail passes](#le-bail-passes)) |
 | `RefinementPlan.phase_support_sigma` | 3 | the number of esds a phase's scale must sit from zero for the stage to treat the phase as seen; `None` skips the test ([Held parameters](#held-parameters)) |
 | `RefinementPlan.closing_window_tol` | 1e-3 | the fraction of each peak's area the closing stage's windows may drop; `None` runs no closing stage ([The closing stage](#the-closing-stage)) |
@@ -218,17 +218,25 @@ assert plan.intermediate_ftol == 1e-6
 
 ftols = plan.stage_ftols()
 assert len(ftols) == len(plan.run_stages())
-assert set(ftols[:-1]) == {1e-6} and ftols[-1] is None
+assert set(ftols[:-2]) == {1e-6} and ftols[-2:] == [None, None]
 ```
 
 The list is parallel to `RefinementPlan.run_stages`: the declared stages, then the closing stage ([The closing stage](#the-closing-stage)).
 Three rules decide a stage's tolerance, in this order.
 
 1. A stage that declares `Stage.ftol` runs at it.
-2. The last stage runs at the solver's default of 1e-9, shown as `None`, because it produces the answer. With a closing stage, that is the closing stage.
+2. The last declared stage runs at the solver's default of 1e-9, shown as `None`, because it produces the answer. The closing stage after it runs at 1e-9 too.
 3. Every other stage runs at `RefinementPlan.intermediate_ftol`.
 
-A one-stage plan with no closing stage is therefore all last stage, and nothing is loosened.
+A one-stage plan is therefore all last stage, and nothing is loosened.
+
+The last declared stage converges even though the closing stage polishes its answer.
+A stage computes on peak windows frozen at its start.
+A stage stopped at 1e-6 can stop where a parameter has widened the peaks past those windows, and the intensity outside them drops out of the model.
+On the hostile series' cpd-1b, the warm stage stopped that way with the axial ratio S/L at 555, where real instruments sit near 0.01-0.05.
+At 1e-9 the same stage reached 0.014.
+The closing stage at 555 recompiled about 1 600 times the work and ran for tens of minutes.
+Converging the last declared stage costs 1.04-1.07 times the evaluations on the four acceptance protocols, and moves no answer by 0.001 esd.
 `StageResult.ftol` records the tolerance each stage ran at, so a result says which schedule produced it.
 `PlanSpec.intermediate_ftol` carries the setting into a project file and a history header, and the GUI's text document writes it as the `tolerance` line ([The GUI as a text document and a wire](gui-power.md)).
 

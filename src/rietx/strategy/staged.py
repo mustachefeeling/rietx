@@ -130,9 +130,9 @@ class Stage:
     max_iter: int = 100
     #: this stage's own ftol (relative cost-decrease termination), overriding
     #: whatever schedule the plan sets.  ``None`` = take it from the plan
-    #: (:attr:`RefinementPlan.intermediate_ftol` for every stage but the last,
-    #: the solver's 1e-9 for the last, which is the closing stage when the
-    #: plan has one) — which is why the two cannot be told
+    #: (:attr:`RefinementPlan.intermediate_ftol` for every declared stage but
+    #: the last, the solver's 1e-9 for the last declared stage and for the
+    #: closing stage when the plan has one) — which is why the two cannot be told
     #: apart here and a plan is where the schedule is declared.  Set it to say
     #: that *this* stage is different: an early stage whose seed the next one
     #: is unusually sensitive to, or a one-stage validation fit that must
@@ -333,7 +333,7 @@ MAGNETIC_WIDTH_STAGE_PATHS: tuple[tuple[str, ...], ...] = (
 class RefinementPlan:
     stages: list[Stage]
     correlation_guard: float = CORRELATION_GUARD
-    #: the tolerance every stage but the last runs at, unless that stage
+    #: the tolerance every declared stage but the last runs at, unless that stage
     #: declares its own :attr:`Stage.ftol`.  ``None`` = the solver default
     #: (1e-9) everywhere, which is what every fit before WP-1123 did and what
     #: it still does, bit for bit.  See :meth:`stage_ftols` for the rule and
@@ -425,21 +425,31 @@ class RefinementPlan:
         and is applied once per fit instead of restated per call site.
 
         Three inputs, in precedence order: a stage's own ``ftol`` wins; the
-        last stage takes the solver default, because it is the one that
-        produces the answer; everything else takes
+        last declared stage takes the solver default, because it produces the
+        answer, and so does the closing stage after it; everything else takes
         :attr:`intermediate_ftol`.  The list is parallel to
-        :meth:`run_stages`, so with a closing stage the last is the closing
-        stage and the last declared stage is an intermediate one.
+        :meth:`run_stages`.
 
-        A single-stage plan without a closing stage is therefore all endpoint
-        and nothing is loosened, which is the right reading of the indexing
-        validation fit, with no successor to seed.  With one, its stage seeds
-        the closing stage like any other.
+        **The last declared stage converges even with a closing stage
+        following it** (WP-2045, ruled 2026-10-24).  The closing stage
+        recompiles at whatever it is handed, and a stage stopped at 1e-6 can
+        stop on a plateau of its own frozen windows: on the hostile series'
+        cpd-1b the warm stage ended at ``axial_sl`` 555 under 1e-6, with the
+        windows dropping 73 % of the Bragg intensity a fresh compile computes,
+        and at 0.0139 under 1e-9.  The closing compile at 555 held 1 608× the
+        warm stage's point-nodes and ran for tens of minutes.  On the four
+        acceptance protocols converging this stage costs 1.04-1.07× the
+        evaluations and moves no answer by 0.001 esd
+        (``docs/wp/2045-batch/probe6.py``).
+
+        A single-stage plan is therefore all endpoint and nothing is
+        loosened, with or without a closing stage: the indexing validation fit
+        and a series' collapsed warm refit both read it that way.
         """
         stages = self.run_stages()
-        last = len(stages) - 1
+        endpoints = {len(self.stages) - 1, len(stages) - 1}
         return [s.ftol if s.ftol is not None
-                else (None if i == last else self.intermediate_ftol)
+                else (None if i in endpoints else self.intermediate_ftol)
                 for i, s in enumerate(stages)]
 
     def __getattr__(self, name: str):
