@@ -792,7 +792,10 @@ reaches; neither mechanism is verified. The measurements are `clashes.md` X16 an
    against it, `_collapse` seeds nothing (`sequential.py:506`), and from the bounded arm's scale
    exactly on the floor T088 recovers. (b) The width state T087 hands on separates the arms
    (T086's, held, with the bound; a resolution function that is not positive without it).
-   Blocks C3's (a) and fix 2.
+   Blocks C3's (a) and fix 2. **Resolved 2026-10-26**, neither hypothesis: the LM driver's
+   `LinearInequality.violated` dropped every Γ_L row once X and Y both sat at 0, so T087's
+   second solve walked Y to −0.0137 with Γ_L negative everywhere (`clashes.md` X16; fixed in
+   `0bd7823`). C3's (a) and fix 2 are unblocked.
 9. **The cascade** (X17). *Reproduce:* `--family cpd-noclose --arm status_runaway` (about 20
    minutes), 1c-1h; or, with no option (iii), warm-start 1c from `ref_seeded`'s 1b with the
    closing stage off, which tests whether the floored `axial_sl` alone does it. *Hypotheses:*
