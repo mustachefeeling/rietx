@@ -1322,8 +1322,12 @@ class SequentialRefinement:
         self.failures_ = failures
 
         before = _inside_before(entries, direction)
+        # ``entries`` is in series order; the quarantine's successor is the
+        # next pattern *walked*, which a backward chain walks the other way
+        walk = sorted(entries, key=lambda e: e.index,
+                      reverse=direction == "backward")
         diagnostics = [d for e in entries
-                       for d in (_reseed_diagnostics(e) + _unrecovered_diagnostics(e, entries)
+                       for d in (_reseed_diagnostics(e) + _unrecovered_diagnostics(e, walk)
                                  + _rwp_outlier_diagnostics(e, before.get(e.index)))]
         diagnostics += [_series_pattern_failed_diagnostic(f) for f in failures]
         cancelled = cancel is not None and bool(cancel)
@@ -1664,6 +1668,9 @@ class SequentialRefinement:
                 # it moves no value, so the ladder's choice is unchanged, and it
                 # lands before the entry copies the rows
                 attach_stationary_intervals(best_ref, data, cancel=cancel)
+                # a stop it read ends the walk here, as a cancel on a later
+                # rung does: the pattern is kept, and none starts after it
+                cancelled = cancel is not None and bool(cancel)
             entry = _entry_from_result(k, names[k], xs[k], best)
             # WP-1329: the moment arm, per pattern, from the fit that produced
             # the values — the one place the compiled model and the fitted
@@ -2160,11 +2167,19 @@ def _unrecovered_diagnostics(entry: SeriesEntry,
 
 
 def _rerouted(entry: SeriesEntry, walk: Sequence[SeriesEntry]) -> str:
-    """Where the successor of quarantined ``entry`` started instead, or ''."""
-    after = [e for i, e in enumerate(walk) if i and walk[i - 1] is entry]
-    if not after:
+    """Where the successor of quarantined ``entry`` started instead, or ''.
+
+    ``walk`` is in walk order, so the next entry is the next walked; it is
+    the successor only when its series index is one step on, since a pattern
+    that failed on every rung in between has no entry, and *it* was the
+    pattern the quarantine re-routed.
+    """
+    at = next((i for i, e in enumerate(walk) if e is entry), None)
+    if at is None or at + 1 >= len(walk):
         return ""
-    nxt = after[0]
+    nxt = walk[at + 1]
+    if abs(nxt.index - entry.index) != 1:
+        return ""
     if nxt.seeded_from is None:
         return f" Pattern {nxt.index} ({nxt.label}) started cold instead."
     source = next((e for e in walk if e.index == nxt.seeded_from), None)
@@ -2442,8 +2457,12 @@ def _series_steps(series: SeriesResult,
         # consecutive *entries* only: a pattern the path is absent from (a
         # held cell) is not in the trajectory at all, and the two points
         # either side of it are two steps apart, not one
-        pos = np.asarray(traj.positions)
-        adjacent = np.diff(pos) == 1
+        # by series index, never by place in ``entries``: a pattern that
+        # failed on every rung (``on_error="skip"``/``"carry"``) has no entry,
+        # so its two neighbours sit side by side there and are still two
+        # steps apart
+        idx = np.asarray([series.entries[p].index for p in traj.positions])
+        adjacent = np.diff(idx) == 1
         for k in np.flatnonzero(kept[:-1] & kept[1:] & adjacent):
             step = float(signed[k])
             esd = float(sd[k + 1])
@@ -2455,8 +2474,7 @@ def _series_steps(series: SeriesResult,
                 size = step / esd
             out.append(SeriesStep(
                 path=path, labels=(traj.labels[k], traj.labels[k + 1]),
-                indices=(series.entries[traj.positions[k]].index,
-                         series.entries[traj.positions[k + 1]].index),
+                indices=(int(idx[k]), int(idx[k + 1])),
                 step=step, size_esd=size))
     # stable, so equal sizes keep path order, then series order
     out.sort(key=lambda s: (s.size_esd is None,
@@ -2690,7 +2708,9 @@ def _moment_diagnostics(series: SeriesResult) -> list[Diagnostic]:
                 message += (
                     f" The modulus was reseeded to its floor "
                     f"({MOMENT_FLOOR_MU_B:g} μ_B) on {len(reseeded)} successor "
-                    f"pattern(s) ({', '.join(reseeded)}) instead of "
+                    f"pattern(s) ({', '.join(reseeded[:4])}"
+                    f"{' …' if len(reseeded) > 4 else ''}; every one is on "
+                    f"SeriesEntry.floored) instead of "
                     f"warm-starting from a value the pattern before did not "
                     f"support.")
             out.append(Diagnostic(
