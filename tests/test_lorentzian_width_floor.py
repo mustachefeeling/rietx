@@ -183,3 +183,25 @@ def test_the_joint_runner_holds_the_lorentzian_width_too(too_broad, monkeypatch)
     assert all(g.min() < 0.0 for g in unheld)
     for g in _joint_gamma_l(pattern, start):
         assert g.min() >= -1e-9 * np.max(np.abs(g))
+
+
+def _rows_from(pattern, x: float, y: float):
+    structure, ins = _models({"w": 1e-4, "x": x, "y": y}, true=False)
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    table.set_vary(["instrument.profile.x", "instrument.profile.y"], True)
+    return ls.lorentzian_width_inequalities(model, table, table.x0()), table.x0()
+
+
+def test_a_start_left_on_every_rows_face_keeps_its_rows(too_broad):
+    """X on its floor and Y followed to 0 put every row on its face, and a
+    stage that ended there handed the next one no row, which then walked Y to
+    −0.0137 with Γ_L negative everywhere: on the planted cooling ramp, 40
+    warm-started patterns at Rwp 0.433 against 0.042 (WP-2003, X16).  A start
+    violating its rows by more than rounding still builds none."""
+    pattern, _ = too_broad
+    (clear,), _ = _rows_from(pattern, 0.002, 0.0)
+    (block,), x0 = _rows_from(pattern, 4e-22, -4e-21)
+    assert (block.slack(x0) < 0.0).any()
+    assert block.T.shape == clear.T.shape
+    assert _rows_from(pattern, 0.0, -0.0137)[0] == []

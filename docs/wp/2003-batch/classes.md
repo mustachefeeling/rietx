@@ -6,6 +6,16 @@ proposal (tier, kind, evidence as it would enter the table, grounds, class, demo
 response, and the decision owed). The rule is `../../milestones/generality.md` § The rule; the
 measurement this leans on is `reseed.md` and the 2026-10-24 handover's *Measured* block.
 
+**Superseded picks.** This file is the 2026-10-24 draft. `batch.md` holds the current picks,
+revised against the clash table, then on 2026-10-25 against DESIGN.md § Rules on the numbers
+re-measured on `main` after WP-2045, and `rows.json` follows `batch.md`. Changed: C1 (the fence
+a reported ratio; escalate on diverged or raised only, the `max_iter` and `CELL_RUNAWAY`
+triggers measured and not adopted), C2 (rank by the full cost; `max_iter` keeps tying
+`converged`; `on_error` an open question; an `error`-level attempt counted as diverged), C3
+(the bound the caller's, landing after `clashes.md` X16), C9 (the warm start the caller's, what
+is carried tested for invariance; the closing stage kept) and C10 (the joint absent-phase hold
+its own row). The table and the sections below are left as drafted.
+
 **Already in the table.** 17 rows needed no approval and were written into `src/rietx/_audit.py`
 on 2026-10-24 (`"applied": true` in `rows.json`), each off `UNAUDITED_BASELINE` and, for the five
 codes given a response, off `RESPONSE_BASELINE`: tier 1, `SERIES_PATTERN_FAILED` (+ suggestion),
@@ -22,7 +32,7 @@ classes. Two proposal-only words in `rows.json`: `"covered"` marks a row-less jo
 record field already has a 2002 row and ruling, and a `null` tier with a `demotion` marks an entry
 proposed for removal. A row-less entry carries `row_note`: the row it should get, or why none.
 
-| Class | Entries | What you decide | My pick |
+| Class | Entries | What you decide | Draft pick (2026-10-24; current in `batch.md`) |
 |---|---|---|---|
 | C1 The Rwp fence and status-only | 11 | What triggers the ladder | Escalate on diverged, raised or `max_iter`; the 1.25 fence a reported statistic and opt-in trigger, once one cheap arm is measured |
 | C2 Ladder, quarantine, kept attempt | 13 | Confirm the protection; tier its parts | Pass; `seeded_from` lands; rank `max_iter` below converged |

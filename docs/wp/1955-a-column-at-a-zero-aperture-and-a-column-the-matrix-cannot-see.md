@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-26 — was P3: #1075 repro 1, LM ends converged at S/L = H/L = 0 on lab_bragg_brentano from defaults with FLOOR_HIT, while one TRF stage drops χ² by ~1 200 χ²_red·f²; the profile confirms the floor with a zero-width interval
+Priority: P2 2026-10-26 — two measurements the same day: WP-2003's double-zero aperture collapsing a warm-started CPD fit (Rwp 0.79-10.7 against 0.109), and #1075's LM ending converged at S/L = H/L = 0 on lab_bragg_brentano from defaults while one TRF stage drops χ² by ~1 200 χ²_red·f²; the single-zero column is still off its difference with no test
 
 ## Goal
 
@@ -53,6 +53,19 @@ when U and V are both zero beside W on its floor. It is the only other
 `sharp_widths` covers W on its floor with U and V nonzero.
 
 ### Inherited
+
+- **From WP-2003 (2026-10-26): both apertures at 0 cost an answer, not only an esd.** CPD
+  sample 1b fitted independently under `qpa_plan()` ends with S/L and H/L both on their
+  floors at 0 (S/L esd 251). A warm refit of 1c from that state collapses: Rwp 10.724 with
+  the closing stage off, 0.791 with it on (S/L to 64.8 and 4284, `STAGE_WINDOWS_STALE`),
+  against the independent 1c's 0.10901. The same start with S/L lifted to 0.011 converges at
+  0.10881 in 39 evaluations. Reading: the column at the double zero is nearly flat, the first
+  LM step is tens to thousands of units, and the windows sized from `AXIAL_SIZING_FLOOR` at
+  compile are stale for the rest of the solve. The default CPD chain escapes only because its
+  own 1b ends off the floor. Measurement and reproduction: `docs/wp/2003-batch/clashes.md`
+  X17 (`measure_reseed.py --family cpd-noclose --arm status_runaway`, and the probe it
+  describes). A remedy is this WP's shape one rank out, WP-1938's rule: a floor or a lift where
+  the column is live, and it moves every fit that frees an aperture from 0.
 
 - **2026-10-26 issue triage: #1075 repro 1, LM stops with both axial ratios at 0
   on `lab_bragg_brentano` from the constructor's defaults, and calls it
