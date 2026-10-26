@@ -113,7 +113,13 @@ identification call.
   the exact check this WP's Goal names. `Fraction` is the arithmetic of
   `wyckoff._nullspace_int` and of `magnetic/isotropy.py`. The prototype's
   13 CPU-minutes and 23 s are the reporter's and were not re-run. The decisions
-  stay open until the maintainer answers.
+  stay open until the maintainer answers. Read against `docs/DESIGN.md`
+  § Rules, the proposals leave three gaps. Rule 4 (a new output) wants the
+  splitting result to carry the (P, p) its labels belong to, and the sketch's
+  `{"4a": ["2a", "2d"]}` drops it. Rule 2 wants the method and its source
+  stated: the (P, p) is spglib's standardisation and can move with spglib or
+  moyo. Rule 4 (a new topic) wants the reference named before the code: the
+  Tests task's "stated set of named maximal subgroups" is not yet stated.
 
 ## Non-goals
 
