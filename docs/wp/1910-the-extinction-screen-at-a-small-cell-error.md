@@ -1,6 +1,6 @@
 # WP-1910 — the extinction screen at a small cell error, and the other centring
 
-Milestone: unscheduled · Status: 🔄 2026-10-25 — the default flip and the reference-fit gate merged (PR #939); open: the margin scan, point 2, the skill recipe, the PNGs
+Milestone: unscheduled · Status: 🔄 2026-10-26 — the default flip and the gate (PR #939), the margin scan's rows and the PNGs (PR #1178) merged; open: the default's confident misses, the contract's prose, point 2, the skill recipe
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — a silent wrong answer on a path few fits run: at +0.06 % the screen refutes certified corundum's class and returns one whose members exclude it, nothing names the cell, and the skill's own recipe screens the unrefined index cell
@@ -238,7 +238,8 @@ and is not proposed here. No code is ported.
 - [ ] A failing row: the corundum fixture at ×1.0008 refutes `R - c -` today.
       Add the margin both ways at finer steps, and the same scan on FAP
       (`P 63 - -`) and the synthetic monoclinic, so the contract quotes a
-      margin per pattern, not one number.
+      margin per pattern, not one number. *Rows pinned by PR #1178; the
+      contract's prose waits for #1170 and #1140.*
 - [x] Maintainer decision on point 1, recorded here: document only; refine
       the cell in the shared fit; a caution (code name settled at review);
       or a combination. *Decided 2026-10-06 on PR #747: document the
@@ -254,7 +255,7 @@ and is not proposed here. No code is ported.
 - [ ] Skill: `references/diagnostics-indexing.md`'s recipe screens the
       Le Bail-refined cell (or states the contract), inside
       `tests/skill_caps.py`'s budget; a diagnostic code adds its row.
-- [ ] Tests, with obs/calc/diff PNGs to `tests/output/`.
+- [x] Tests, with obs/calc/diff PNGs to `tests/output/`. *PR #1178.*
 
 ## Acceptance
 
@@ -370,3 +371,26 @@ are out of its reach.
   margin scan (task 1), point 2, the skill recipe, and the PNGs. Round 4's
   follow-ups stand: print √(N/(N+S)) beside `reference_rwp_net`, and show the
   gate firing on a real family. *Next:* task 1's margin scan, then point 2.
+- **2026-10-26** — PR #1178 (task 1's scan and the PNGs, by @mustachefeeling)
+  merged as `7b5181bb`. `tests/test_extinction_margin.py` pins the margin per
+  pattern at both edges, held and default: corundum ×0.998-1.0004 held,
+  ×0.9975-1.015 default; FAP ×0.9996-1.001 held, ×1.000-1.005 default;
+  synthetic P 2₁/c ×0.9998-1.0002 held, ×0.9995-1.001 default. The scans
+  were identical on macOS arm64 and Linux x86_64. Four **strict xfails** pin
+  the default returning a wrong class confidently: corundum ×0.995
+  (`R - - -`), FAP ×1.0075 (`P - - -`), and the monoclinic ×0.999 and
+  ×1.002 (`P 1 - 1`). A control row holds the prefit's own cell, screens again
+  from the declared instrument, and gets the true class at each. So what
+  refutes the class is what the prefit carries besides the cell (its widths,
+  zero and seeded background). Carrying the cell alone costs PbSO₄'s X-ray
+  `P c - n`. Each row draws the true class's own screen fit, through a spy
+  on `_fit_class`, whole and zoomed on the first refuting position. The
+  corundum ×0.995 zoom shows the prefit's profile overshooting the 70.4° line.
+  The contract's prose waits for #1170 and #1140, which edit the same two
+  files. The PR asks which way the default goes: (a) accept the misses,
+  (b) carry the cell and background but refit widths and zero, or (c) report
+  a finding when the default and the held-at-the-prefit's-cell answers
+  disagree. That question went to the maintainer the same day. Gated in a
+  stack with #1179 (counts in WP-1968's entry of today). *Next:* the
+  maintainer's answer on the default, then the contract's prose after #1170
+  and #1140, point 2, and the skill recipe.
