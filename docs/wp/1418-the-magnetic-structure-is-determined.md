@@ -828,6 +828,8 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   the confident wrong singleton the package's report rule forbids; the
   reporter reads it as an `exchanges` case for the identifiability report.
 
+- 2026-10-26 issue triage: #455 closed. The reporter's re-run of the cubic `P n -3 m:1` case on main at 7472e200 gave one partition in 9 of 9 seed × basis runs, the condition this WP's 2026-10-15 note set. Checked against the tree at c0e32ab29.
+
 ## Non-goals
 
 - Modulated and incommensurate structures (superspace): issue #258 holds the
