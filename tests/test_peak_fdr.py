@@ -27,8 +27,9 @@ from scipy.special import ndtr, ndtri
 
 import rietx as rx
 from rietx.indexing.peaks import Detection, fdr_screen
-from rietx.indexing.pick import flag_weak_lines
+from rietx.indexing.pick import flag_weak_lines, pick_peaks_with_state
 from rietx.schemas.indexing import PEAK_FDR_Q, ObservedPeak
+from tests.peak_pictures import draw_pick
 
 LAM = 0.825739
 SI_CIF = ("data_Si\n_cell_length_a 5.4311\n_cell_length_b 5.4311\n_cell_length_c 5.4311\n"
@@ -176,9 +177,11 @@ def test_steep_background_junk_fails_the_patterns_bar_and_no_true_line_does(tmp_
     usable() as width_capped before the bar sees them: 17 usable,
     4 of them below the bar."""
     truth = _si_lines()
-    pl = rx.pick_peaks(_silicon(tmp_path, steep=True, hi=102.1161),
-                       rx.Instrument.debye_scherrer(wavelength=LAM),
-                       two_theta_range=RANGE)
+    data = _silicon(tmp_path, steep=True, hi=102.1161)
+    ins = rx.Instrument.debye_scherrer(wavelength=LAM)
+    pl, det, fits = pick_peaks_with_state(data, ins, two_theta_range=RANGE)
+    draw_pick("fdr_steep_silicon", data, ins, pl, det, fits, truth=truth,
+              title="#728 arm c2: silicon on a background falling 3x over 12-23 deg")
     per, off = _count(pl, truth)
     assert per == [1] * len(truth)
     assert off <= 2
@@ -200,7 +203,9 @@ def test_tail_maxima_on_a_clean_pattern_fail_the_bar(tmp_path):
     data = _silicon(tmp_path, steep=False, hi=62.0)
     ins = rx.Instrument.debye_scherrer(wavelength=LAM)
     ins.profile.w.value, ins.profile.u.value, ins.profile.x.value = 3e-4, 5e-4, 5e-3
-    pl = rx.pick_peaks(data, ins, two_theta_range=RANGE)
+    pl, det, fits = pick_peaks_with_state(data, ins, two_theta_range=RANGE)
+    draw_pick("fdr_flat_silicon", data, ins, pl, det, fits, truth=truth,
+              title="#916's flat silicon: tail maxima under the false-discovery bar")
     per, off = _count(pl, truth)
     assert per == [1] * len(truth) and off == 0
     kept = [p for p in pl.usable() if "weak_line" not in p.flags]

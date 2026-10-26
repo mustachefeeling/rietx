@@ -195,6 +195,29 @@ only"). RIETAN-FP 3.12 manual, by full-text search (one hit, on secondary
 extinction). BGMN by the binary's keyword table, with no manual
 installed.
 
+## A sharp peak no phase accounts for
+
+Surveyed 2026-10-25 for WP-2036, on what `tests/test_acceptance_extra_peaks.py` should assert.
+
+- McCusker et al. (1999), *J. Appl. Cryst.* 32, 36, checked. §12.6: small unindexed peaks
+  found in other preparations too are probably not an impurity, though they may be the
+  sample holder's. Peaks that vary between preparations probably belong to a second phase,
+  which is identified and refined as a second phase where its structure is known. The paper
+  never recommends excluding the region, and quantifies no bias from leaving a peak
+  unmodelled. §10: e.s.d.'s assume counting statistics are the only error, and "reflect the
+  precision of the refined parameters and not their accuracy". An unmodelled peak is a
+  systematic error of the kind they say an e.s.d. cannot estimate.
+- GSAS-II 5.8.4, checked: background peaks, each with a refinable position, intensity and
+  Gaussian and Lorentzian width (`BkPkpos`, `BkPkint`, `BkPksig`, `BkPkgam`;
+  `GSASIIpwd.py:1093-1096`), are the same mechanism as a declared extra peak.
+- TOPAS, not read this session: `xo_Is` single peaks, recorded as prior art in WP-1103.
+
+So practice declares an intruder, or identifies its phase. What modelling it buys is claimed
+as a sound fit, not as a measured gain in accuracy. rietx's own measurement agrees: on the
+SRM 660c fixture, ignoring two holder lines moves the cell 0.4 ppm and reports an esd 9.9×
+the clean fit's. Rwp rises 4.4× in the same arm, and an esd scales with √χ², so the larger
+esd reports the worse fit; it does not measure the bias.
+
 ## Sequential refinement
 
 Surveyed 2026-10-24 for WP-2003, one agent across the seven programs. A chain here is N
@@ -294,6 +317,29 @@ budget; the quarantine's exclusion from the median; `direction="both"` and
 `SEQUENTIAL_PATH_DEPENDENT`; the discontinuity scan and its cold verification; and the moment
 floor and onset (`SEQUENTIAL_MOMENT_HOLD`, `SEQUENTIAL_MOMENT_ONSET`), the persistent-finding
 summary and the width-growth screen (`SEQUENTIAL_WIDTH_GROWTH`).
+
+## A pdCIF weight column with bad entries
+
+Surveyed 2026-10-26 for PR #1173, by the lead. The question: a `_pd_proc_ls_weight` column with
+mostly positive entries and a few negative or null (`?`, `.`) ones. Does a reader keep the good
+weights or drop the column?
+
+The dictionary (`cif_pd.dic` 2.5.1-dev, 2026-09-08, checked) gives the item
+`_enumeration.range 0.0:`, so a negative weight lies outside its definition. A zero marks "a
+data point not used for refinement". It states no meaning for a null.
+
+| Program | What it does with the column |
+|---|---|
+| rietx | Reads it as 1/σ² when every entry is ≥ 0 and one is positive; a zero excludes its own point. Any negative or null entry drops the whole column to the Poisson σ (checked, `io/formats/pdcif.py`) |
+| GSAS-II 5.8.4 | `G2pwd_CIF.py:300-306` turns a null into a weight of 0 and passes a negative through unchecked. The line that would use the result, `w = np.array(vl)`, is commented out (`:334`). The weights come from the intensity's own su, else √y, whatever the weight column holds (checked; PyCifRW parses `?` and `.` as `None` and `-0.5` as itself, ran) |
+| MAUD 3.07 | `CIFDataFile.java:161, 219` sets each weight from √I and reads no weight or su column (checked at tag v3.07) |
+| FullProf 8.20 | No pdCIF data input in the manual (checked) |
+| EasyDiffraction 0.21.1, cryspy 0.13.0 | No reader of `_pd_proc_ls_weight` in either package (checked by search) |
+| TOPAS, RIETAN-FP, BGMN | Not checked; no pdCIF data reader is known |
+
+No program surveyed uses a pdCIF weight column at all. rietx's whole-column fallback
+therefore never trusts the file less than practice does. GSAS-II's unused code shows one
+intent: a null weight means an excluded point.
 
 ## The tier-2 rows resting on a program default
 

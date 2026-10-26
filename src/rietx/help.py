@@ -3506,6 +3506,20 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         ),
         anchor="theory/profiles.html#the-instrument-sample-width-split",
     ),
+    "PHASE_HELD_IN_PATTERNS": HelpEntry(
+        title="A phase was held in some patterns of a joint fit",
+        description=(
+            "In a joint fit where a phase's structure or scale is per pattern, the "
+            "last stage held them in the patterns that cannot see the phase. The "
+            "message counts those patterns, and the held rows are named in where. In "
+            "those patterns the structure rows keep the values the stage started from "
+            "and carry no esd, and a held scale keeps the value handed in, so the "
+            "pattern measures no fraction of the phase. The patterns that see the "
+            "phase refine their own. This "
+            "records what the fit did and asks for nothing. PHASE_UNCONSTRAINED "
+            "covers a phase that no pattern sees."
+        ),
+    ),
     "PHASE_UNCONSTRAINED": HelpEntry(
         title="The data cannot see this phase",
         description=(
@@ -4054,6 +4068,22 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "stays silent, because some models lack a component. Correct the name, or "
             "use a wildcard if the stage should reach a component that only some models "
             "declare."
+        ),
+    ),
+    "STAGE_WINDOWS_STALE": HelpEntry(
+        title="A stage's peaks outgrew the windows it was solved on",
+        description=(
+            "Each stage computes every peak over a window of points, sized when the "
+            "stage starts. A peak that moves or broadens while the stage solves spills "
+            "past its window, and the model loses that part of its intensity. The stage "
+            "can then fit the loss rather than the data, and still report that it "
+            "converged. This fires when the windows drop more of the intensity, at the "
+            "stage's answer, than each window is allowed to drop. It reports only the "
+            "stages whose answer reaches the result: the last one, and the one before "
+            "a plan's closing stage. An earlier stage records its loss too, and every "
+            "stage after it refits its answer on fresh windows. Treat the result as "
+            "unconfirmed, and refit from starting values nearer the data. On the case "
+            "measured, a further stage from the stage's answer ran further away."
         ),
     ),
     "STEPHENS_STRAIN_NOT_POSITIVE": HelpEntry(
@@ -5215,6 +5245,20 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "takes, and the closing stage runs at the plan's `closing_window_tol`. "
             "`model.forward.recorded_window_tol` turns this into what `compile_model` "
             "needs to reproduce the result's curves."
+        ),
+    ),
+    "StageResult.window_loss": HelpEntry(
+        title="Intensity outside stale windows",
+        description=(
+            "The share of the Bragg intensity this stage's profile windows dropped at "
+            "its answer, against windows sized there. The windows are sized where the "
+            "stage starts, so a peak that moved or broadened spills past them. "
+            "Negative where the peaks narrowed. Above the stage's window fraction it "
+            "feeds `STAGE_WINDOWS_STALE` on the last stage and the one before a closing "
+            "stage; an earlier stage records it without a warning, since the stages "
+            "after it refit its answer. Magnetic windows and extra peaks are not "
+            "measured. `None` means nobody looked. A joint fit records its worst "
+            "histogram."
         ),
     ),
     "StageResult.n_constraint_truncations": HelpEntry(
