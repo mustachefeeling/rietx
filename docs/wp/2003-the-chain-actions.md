@@ -352,7 +352,22 @@ the discontinuity threshold is gone: every step is listed in esds and none is ca
 - Fast suite on the X16 fix alone: 11 842 passed, 284 skipped, 32 xfailed, 31:27, nothing
   else running (one BLAS thread; the first attempt with BLAS threads unset reached 37 % in
   30 min and was killed).
-- FAST_FINAL_PLACEHOLDER
+- The final tree, `origin/main` merged in (`70d133f`), alone on the machine, one BLAS thread:
+  fast selection 1 failed, 11 850 passed, 284 skipped, 32 xfailed (28:44); the slow tier
+  (`-m slow`) 3 failed, 408 passed, 19 skipped, 15 xfailed (1:09:03). The fast failure was this
+  branch's: the series guide's quoted summary lacked C4's `largest step` line; fixed
+  (`docs/docs/guides/series.md`), and all 24 guide-script cases then pass. The three slow
+  failures are red on `main`'s nightly of 2026-10-26 (`7b5181bb`, run 40317456318, the full
+  suite job) with the same messages and numbers: `test_the_axial_sizing_floor_does_not_change_the_answer[lab6]`
+  (8.820 esd on `axial_sl`), `test_a_wrong_triclinic_le_bail_fit_raises_no_degenerate_cell_error`
+  (`ValueError: array must not contain infs or NaNs`) and `test_suite_alarms` (one warning fewer
+  per result under every purpose). Not this branch's, not fixed here.
+- Count: passed+skipped 12 126 on the X16 commit, 12 134 + the fixed case on the final tree.
+  The +9 is this branch's added tests (22 added names, several replacing the removed scan's)
+  together with `main`'s two merged commits; not separated. Added tests' cost (`added_test_times`,
+  the local junit, this machine): 35.87 s over 22; `test_the_background_step_is_the_largest_step_of_its_constant`
+  26.93 s, the planted fixture's rename of the scan test it replaces, at that test's cost; the
+  chain's interval test 5.17 s (stubbed; 70 s with the real interval); the rest under 2.5 s.
 - Lanes (`session_usage.py lanes 5442497d-…`): main 217 requests, peak 471K, $22.77; one
   lane $15.38.
 
