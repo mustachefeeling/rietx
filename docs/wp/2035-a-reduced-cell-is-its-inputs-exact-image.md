@@ -1,6 +1,6 @@
 # WP-2035 — a reduced cell is its input's exact image, near a right angle too
 
-Milestone: unscheduled · Status: 🔄 2026-10-23 — built, on review
+Milestone: unscheduled · Status: 🔄 2026-10-26 — merged from outside as PR #1136 (`6823e532`); the close is owed (the v1.11 record's narrative and ✅)
 Track: What fires, and what stays silent
 Depends on: — (1923, closed: the exact change of basis; 1932, closed: the boundary-free comparison that reads it)
 Priority: P3 2026-10-23 — a property test fails on a reachable F-centred cell at 1.1e-7 of the metric's scale, and replays only from one machine's local hypothesis database, so CI cannot see it
@@ -71,6 +71,19 @@ CI runs pins the case.
   (the ε every comparison in it uses).
 
 ## Handover log
+
+- **2026-10-26** — merged from outside as PR #1136 (`6823e532`), after four
+  review rounds; the claim issue #1131 is closed. Every task above is done, so
+  a reduced cell is now the exact image of its input on main, on every
+  centring and within ε of a right angle. *Gated*: #1136 and #1128 stacked onto
+  main `c0d701cd` as `669ab69a`; `[dev,jax]` venv, macOS arm64, Python 3.12,
+  nothing else running; fast selection 11 914 passed, 199 skipped, 28 xfailed;
+  the whole `-m slow` suite, `test_acceptance_indexing.py` included, 419
+  passed, 12 skipped, 15 xfailed. Main after both merges is identical to the
+  gated tree. *Review's late findings*: the release note had to move from the
+  released `1.10.0.md` to `1.11.0.md` and compare with 1.10.0; nothing in the
+  code changed after round 2. *Next*: the close, which moves this narrative
+  into the v1.11 record and sets ✅.
 
 - **2026-10-23** — built, as planned on #1131 (taken by @mustachefeeling).
   `reduce_cell` now builds every reduced cell from M·G·Mᵀ, so the cell it
