@@ -1,6 +1,6 @@
 # WP-2003 — The chain actions: what a series decides between patterns
 
-Milestone: generality · Status: 🔄 2026-10-26 — batch re-measured on main, revised against DESIGN § Rules and ruled (maintainer's delegation); next X16/X17, then the record fields and demotions (tasks 3, 7)
+Milestone: generality · Status: 🔄 2026-10-26 — claimed by @yue-here (fourth session: X16, X17, then tasks 3 and 7)
 Track: The audits
 Depends on: 2002, 2037
 Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
