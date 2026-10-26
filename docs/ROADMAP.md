@@ -563,8 +563,7 @@ scope creep. Each item names what fenced it.
   closes**, then cut T-1, T-2/T-3, T-5; **amended 2026-10-08: T-1 (axis, readers) cut as
   [1927](wp/1927-tof-t1-the-axis-and-its-readers.md)**, closed 2026-10-23 with T-2's inheritance in its Context; the rest still waiting, with #442 (a bank's CW
   width rows) decided inside T-1, and #618 (Mantid's instrument values: with provenance,
-  never the files), and #1067 (TOF pulse shapes as a registry of kinds, W1-W10, after T-2/T-3
-  and T-5; fenced 2026-10-26) — and issue #362 lists the constant-wavelength reads
+  never the files), and #1067 (TOF pulse shapes as a registry, after T-2/T-3) — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py` and
   23 more sites) a second compiled-model class meets, so the accessor seam it
   proposes waits for that class rather than preceding it; difference Fourier /
