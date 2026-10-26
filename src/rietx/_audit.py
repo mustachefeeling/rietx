@@ -855,11 +855,11 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_WIDTH_CAPPED", "code"),
     Row("PEAK_WIDTH_LAW_MISMATCH", "code"),
     Row("PHASE_HELD_IN_PATTERNS", "code", tier=1, ambiguity=1,
-        evidence=("arithmetic: an info record of the hold the answer's stage already made "
-                  "(StageResult.held, WP-1325's per-pattern support hold), counting the "
-                  "patterns. The hold it reports is decided by phase_support_sigma (tier 3, "
-                  "on StageResult.held); this record inherits nothing from that threshold "
-                  "and gates nothing (WP-2028, ambiguity as StageResult.held's)"),
+        evidence=("arithmetic: an info record of the holds the answer's stage already made "
+                  "(StageResult.held): a structure row held by phase_support_sigma on the "
+                  "joint screen (tier 3, WP-1325), and a scale row held where the pattern "
+                  "has no reflection of the phase in range (WP-1958); counts the patterns, "
+                  "inherits neither threshold, gates nothing (WP-2028)"),
         response="info",
         responds=("read a value in a listed pattern's row, or that pattern's fraction of "
                   "the phase, as the value handed in rather than a measurement")),

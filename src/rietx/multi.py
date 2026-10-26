@@ -2650,8 +2650,8 @@ def _parametric_unseen_diagnostics(mtable, unseen: dict[str, frozenset[int]]
 
 def _per_pattern_hold_diagnostics(stage_results: list[StageResult], mtable,
                                   structure: Structure) -> list[Diagnostic]:
-    """``PHASE_HELD_IN_PATTERNS`` — a phase's per-pattern structure held in
-    some patterns at the answer (WP-2028).
+    """``PHASE_HELD_IN_PATTERNS`` — a phase's per-pattern structure or scale
+    held in some patterns at the answer (WP-2028).
 
     A record of what the fit did, never a verdict.  The answer-producing
     stage's support hold (``StageResult.held``) holds a ``hist.h.`` copy of a
