@@ -1,6 +1,6 @@
 # WP-2028 — a joint fit's guards see every histogram
 
-Milestone: unscheduled · Status: 🔄 2026-10-23 — tasks 1-3, 5, 6 built, on review; 4 measured; 7 and 8 open
+Milestone: unscheduled · Status: 🔄 2026-10-26 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7 and 8 open
 Track: What fires, and what stays silent
 Depends on: — (1341 closed: it built the joint report this WP completes; 1325
 soft: its parametric codes and per-pattern holds are what tasks 3 and 6
@@ -209,6 +209,23 @@ shows the findings that name histogram h.
   WP-2001 and WP-2004 (the tier rule).
 
 ## Handover log
+
+- **2026-10-26** — tasks 1-3, 5 and 6 merged from outside as PR #1128
+  (`1ba6c216`), after four review rounds. A joint fit's structure guards now
+  read every pattern, its `CELL_RUNAWAY` names a driving `vars.` coefficient,
+  `PHASE_HELD_IN_PATTERNS` records a per-pattern hold of a phase's structure
+  or scale, and `for_histogram(h)` keeps its ticks' hkl, the phase agreement
+  and the findings that name pattern h. *Gated*: #1136 and #1128 stacked onto
+  main `c0d701cd` as `669ab69a`; `[dev,jax]` venv, macOS arm64, Python 3.12,
+  nothing else running; fast selection 11 914 passed, 199 skipped, 28 xfailed;
+  the whole `-m slow` suite 419 passed, 12 skipped, 15 xfailed. #1128's head
+  took one sync commit (`a4196dcb`, the WP index after #1136), and main after
+  the merge is identical to the gated tree. *Gotchas*: a finding's path in a
+  joint result now reads `hist.<h>.` for a per-pattern parameter, which the
+  1.11.0 Upgrading list carries; the contributor's entries below are in
+  oldest-first order, against the template. *Next*: task 4's choice (the joint
+  support screen against WP-1523's z, measured above but not wired), task 7's
+  census, task 8. The claim issue #1124 stays open for them.
 
 - **2026-10-23** — created by WP-1341's close, on the maintainer's decision
   that day to close 1341 and forward its open items to one new WP. It holds
