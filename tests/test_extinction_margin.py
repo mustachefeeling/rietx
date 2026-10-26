@@ -22,9 +22,9 @@ P 2₁/c, ``P 1 21/c 1``  ×0.9998 to ×1.0002    ×0.9995 to ×1.001
 
 Outside those ranges the screen mostly abstains (``EXTINCTION_SCREEN_UNRELIABLE``
 past about ±2 %, or the prefit fails).  But at some offsets it returns a **wrong
-class confidently**, and those rows are the strict ``xfail`` ones below.  In each
-of them the prefit's cell is good: screening that same cell held, from the
-declared instrument, returns the true class (corundum ×0.995 lands at −391 ppm
+class confidently** (eight of the 72 default rows); four are the strict ``xfail``
+rows below.  In each of those four the prefit's cell is good: screening that same
+cell held, from the declared instrument, returns the true class (corundum ×0.995 lands at −391 ppm
 and reads ``R - c -`` at ΔBIC −2794 held; FAP ×1.0075 lands at −305 ppm and reads
 ``P 63 - -``; the monoclinic ×0.999 and ×1.002 land within 150 ppm and read
 ``P 1 21/c 1``).  What crosses from the prefit besides the cell is what refutes
