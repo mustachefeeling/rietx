@@ -437,15 +437,39 @@ def test_series_deliverable_reads_the_comparisons_own_record():
 
 
 def test_series_deliverable_reads_a_steps_verification_state():
-    unverified = _series_result(diagnostics=[rx.Diagnostic(
-        level="info", code="SEQUENTIAL_DISCONTINUITY",
-        where=["phases.0.cell.a"], message="m")])
-    assert "not verified" in unverified.summary(deliverable="series")
+    """The row reads ``SeriesResult.steps`` (WP-2003): a step's
+    ``cold_ratio`` is the verification, and no step is called a jump."""
+    from rietx.schemas.sequential import SeriesStep
 
-    verified = _series_result(diagnostics=[rx.Diagnostic(
-        level="info", code="SEQUENTIAL_DISCONTINUITY",
-        where=["phases.0.cell.a"], message="m", value=0.05)])
-    assert "reproduces 0.05×" in verified.summary(deliverable="series")
+    def step(cold_ratio=None):
+        return SeriesStep(path="phases.0.cell.a", labels=("p1", "p2"),
+                          indices=(1, 2), step=1e-4, size_esd=10.0,
+                          cold_ratio=cold_ratio)
+
+    assert "steps: NOT recorded" in _series_result().summary(deliverable="series")
+    unverified = _series_result(steps=[step()])
+    assert "none re-measured cold" in unverified.summary(deliverable="series")
+    verified = _series_result(steps=[step(0.05)])
+    text = verified.summary(deliverable="series")
+    assert "phases.0.cell.a p1→p2: an independent cold pair reproduces 0.05×" in text
+
+
+def test_series_summary_names_the_largest_step_in_its_trajectory_block():
+    """One line, read off the field's first numbered row, and no diagnostic
+    (WP-2037's mock-up, § 5); a series with no numbered step prints none."""
+    from rietx.schemas.sequential import SeriesStep
+
+    steps = [SeriesStep(path="phases.0.cell.a", labels=("p1", "p2"),
+                        indices=(1, 2), step=1e-4, size_esd=-4.1),
+             SeriesStep(path="phases.0.cell.b", labels=("p0", "p1"),
+                        indices=(0, 1), step=1e-4, size_esd=None)]
+    lines = _series_result(steps=steps).summary().splitlines()
+    k = next(i for i, line in enumerate(lines) if line.startswith("  trajectory"))
+    assert lines[k + 1] == ("    largest step phases.0.cell.a -4.1σ at p1→p2 "
+                            "(series.steps)")
+    assert not any("SEQUENTIAL_" in line for line in lines)
+    bare = _series_result(steps=steps[1:]).summary()
+    assert "largest step" not in bare
 
 
 def test_series_deliverable_refuses_a_per_pattern_purpose_by_name():

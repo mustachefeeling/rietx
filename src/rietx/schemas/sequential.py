@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 from typing import ClassVar, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ..report.schemas import MomentEvidence
 from .common import Base, Diagnostic, Mode, Provenance
@@ -184,6 +184,27 @@ class SeriesEntry(Base):
     #: the field: no fence judged it.  Written by
     #: ``SequentialRefinement._chain``.
     rwp_fence: float | None = None
+    #: The series index of the pattern whose fitted state seeded this
+    #: pattern's warm rungs (WP-2003): the last pattern accepted before it in
+    #: the walk.  That is not the pattern walked just before it when that one
+    #: was quarantined (WP-1051) or, under ``on_error="carry"``, raised on
+    #: every rung, and this field is the only place the substitution is
+    #: recorded.  It says where the warm rungs started whichever rung was
+    #: kept; :attr:`rung` and :attr:`reseeded` say whether that start produced
+    #: the values.  ``None`` where no warm start existed — the first pattern
+    #: walked, the first after an ``on_error="skip"`` failure — and in a
+    #: document written before the field.  Written by
+    #: ``SequentialRefinement._chain``.
+    seeded_from: int | None = None
+    #: The moment modulus paths floored before **the kept attempt** started
+    #: (WP-1329's hold along the series): a modulus the pattern it was
+    #: warm-started from did not support, scaled to ``MOMENT_FLOOR_MU_B`` with
+    #: its direction kept.  Empty when the kept attempt started cold, since a
+    #: cold rung starts from the initial models and never saw the floor
+    #: (WP-2003, X7), on every chain without a moment, and in a document
+    #: written before the field.  ``SEQUENTIAL_MOMENT_HOLD`` reads it.  Written
+    #: by ``SequentialRefinement._chain``.
+    floored: list[str] = Field(default_factory=list)
 
     #: Where this pattern's own history lives (one tree per pattern — a tree is
     #: pinned to one pattern by its data fingerprint).
@@ -325,14 +346,19 @@ def _unservable(series: "SeriesResult", path: str) -> str:
 
 
 class SeriesStep(Base):
-    """One step ``SEQUENTIAL_DISCONTINUITY`` flagged, as fields (WP-1469).
+    """One parameter's change between two consecutive patterns (WP-2003).
 
-    The diagnostic says it in prose and names the parameter in ``where``;
-    this says between *which two patterns* and *how far*, so a caller never
-    parses the message for the pair.  One per diagnostic, in the same order,
-    and ``path`` is that diagnostic's ``where[0]`` — the scan flags at most
-    one step per path, so the path is the key.  The verification pass
-    re-measures exactly this pair, and the trajectory plot shades it.
+    A row of :attr:`SeriesResult.steps`, which holds one for every step of
+    every refined path, written by ``sequential._series_steps``.  It asserts
+    nothing about the step: there is no threshold above which a step is
+    called a jump, because what a jump *is* — a transition, a sample shift, a
+    beam dump, a wrong model — depends on the sample's history, which no
+    pattern records (the help entry of ``SeriesResult.steps`` carries that
+    reading).  Until WP-2003 a row existed only for a step the removed
+    ``SEQUENTIAL_DISCONTINUITY`` scan flagged (WP-1469).
+
+    The pair is named here, so a caller never parses a message for it, and
+    ``fit(verify_steps=k)`` re-measures exactly this pair.
     """
 
     path: str
@@ -340,10 +366,25 @@ class SeriesStep(Base):
     labels: tuple[str, str]
     #: their :attr:`SeriesEntry.index`, earlier first
     indices: tuple[int, int]
-    #: later minus earlier, **signed**: the verification ratio divides by it,
-    #: and two magnitudes divided would call a cold pair that stepped the other
-    #: way a reproduction.  The message keeps the magnitude.
+    #: later minus earlier, **signed**, and modulo a turn on a moment angle
+    #: path: :attr:`cold_ratio` divides by it, and two magnitudes divided
+    #: would call a cold pair that stepped the other way a reproduction.
     step: float
+    #: :attr:`step` over the **later** pattern's esd of the path, signed.
+    #: ``None`` where that esd is ``None`` (a direction the fit did not
+    #: measure) or not positive: a step against no esd has no size in esds,
+    #: and 0 or ∞ would each read as one.  Written by
+    #: ``sequential._series_steps`` on every row; the list sorts ``None``
+    #: after every number.
+    size_esd: float | None = None
+    #: The cold step over :attr:`step`, signed: the same two patterns
+    #: refitted cold and independently, no warm start and no neighbour.  Near
+    #: 1.0 the step is in the data, near 0 the chain made it, and negative is
+    #: a pair that moved the other way, which is neither.  Written only by
+    #: ``SequentialRefinement._verify_steps``, on the ``verify_steps`` largest
+    #: rows; ``None`` everywhere else, and on a verified row whose cold pair
+    #: raised or did not determine the path — "not re-measured", never 0.
+    cold_ratio: float | None = None
 
 
 class SeriesFailure(Base):
@@ -685,8 +726,9 @@ class SeriesResult(Base):
     """The result of a sequential refinement over an ordered set of patterns.
 
     Iterating it yields :class:`SeriesEntry` in series order.  Series-level
-    diagnostics (path dependence, discontinuities, reseeds) sit on
-    :attr:`diagnostics`; per-pattern ones stay on their entry.
+    diagnostics (path dependence, reseeds) sit on :attr:`diagnostics`;
+    per-pattern ones stay on their entry, and every step between consecutive
+    patterns on :attr:`steps`.
     """
 
     mode: Mode = "rietveld"
@@ -706,13 +748,16 @@ class SeriesResult(Base):
     #: returns.
     backward: "SeriesResult | None" = None
     diagnostics: list[Diagnostic] = Field(default_factory=list)
-    #: Every ``SEQUENTIAL_DISCONTINUITY`` in :attr:`diagnostics` as a
-    #: :class:`SeriesStep`, in the same order (WP-1469): the pair the
-    #: diagnostic names in prose.  ``None`` in a document written before the
-    #: field, which may carry the diagnostics without them — "not recorded",
-    #: never "no step".  Written by ``SequentialRefinement.fit``; ``[]`` on a
-    #: series that flagged nothing.
-    discontinuities: list[SeriesStep] | None = None
+    #: Every refined path's change between consecutive patterns, as a
+    #: :class:`SeriesStep`, largest :attr:`SeriesStep.size_esd` in magnitude
+    #: first and the rows with no size last (WP-2003).  No threshold and no
+    #: diagnostic: the help entry carries the reading.  A step into or out of
+    #: a pattern the fence rejected (``"diverged"``, or above the Rwp fence) is
+    #: not a row, and neither is a relative path (:attr:`relative_paths`).
+    #: Written by ``SequentialRefinement.fit`` on the reported chain and on
+    #: :attr:`backward`; ``None`` in a document written before the field —
+    #: "not recorded", never "no step"; ``[]`` on a series of one pattern.
+    steps: list[SeriesStep] | None = None
     #: The paths whose values are **steps, not positions** (WP-1317): a
     #: coordinate DOF measured from where its fit began, a rigid body's
     #: rotation DOF (``sequential._relative_paths``, WP-1333).  Nothing in an
@@ -740,6 +785,22 @@ class SeriesResult(Base):
     #: guard that could otherwise only be read by counting diagnostics.
     n_failed: int = 0
     provenance: Provenance | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_discontinuities(cls, data: object) -> object:
+        """Drop the ``discontinuities`` key a document written before WP-2003
+        carries.
+
+        It held the pairs the removed ``SEQUENTIAL_DISCONTINUITY`` scan
+        flagged, a projection of a threshold that no longer exists, so nothing
+        maps onto :attr:`steps`: that document opens with ``steps=None``, "not
+        recorded", and its old diagnostics stay as written.  Without this the
+        schema's ``extra="forbid"`` refuses every series saved before.
+        """
+        if isinstance(data, dict) and "discontinuities" in data:
+            data = {k: v for k, v in data.items() if k != "discontinuities"}
+        return data
 
     def __len__(self) -> int:
         return len(self.entries)
@@ -1240,6 +1301,14 @@ class SeriesResult(Base):
                                    "series" if deliverable == "series" else None,
                                    levels=levels)
         lines.append(f"  trajectory ({self.x_label}):")
+        # the steps' one line (WP-2003): read off the field, which is sorted
+        # largest first, so this is its first numbered row and nothing else
+        largest = next((s for s in self.steps or [] if s.size_esd is not None),
+                       None)
+        if largest is not None:
+            lines.append(f"    largest step {largest.path} {largest.size_esd:.1f}σ "
+                         f"at {largest.labels[0]}→{largest.labels[1]} "
+                         f"(series.steps)")
         shown = (list(range(n)) if n <= 2 * max_entries else
                 [*range(max_entries), None, *range(n - max_entries, n)])
         for i in shown:
@@ -1375,21 +1444,27 @@ class SeriesResult(Base):
                          "refines the coefficients with a joint esd, and "
                          "summary(parametric=that result) prints them here")
 
-        steps = by_code.get("SEQUENTIAL_DISCONTINUITY", [])
-        lines.append(f"    steps: {len(steps)}")
-        for d in steps:
-            where = ", ".join(d.where)
-            # `value` absent covers two cases and the row must not pick one:
-            # the check was never asked for, and the check ran and the cold
-            # pair did not determine this parameter (the diagnostic's own
-            # message says which).  Naming only the first tells a caller who
-            # already ran it to run it again.
-            verdict = ("not verified — pass fit(verify_discontinuities=True), "
-                       "or, if it was passed, the cold pair did not determine "
-                       "this parameter (the message says which)"
-                       if d.value is None else
-                       f"an independent cold pair reproduces {d.value:.2f}× of it")
-            lines.append(f"      {where}: {verdict}")
+        # the steps (WP-2003): no step is called a jump, so the row says which
+        # were re-measured cold and what each reproduced, read off the field
+        if self.steps is None:
+            lines.append("    steps: NOT recorded — this series was written "
+                         "before SeriesResult.steps")
+        else:
+            verified = [s for s in self.steps if s.cold_ratio is not None]
+            if not verified:
+                # no cold_ratio covers two cases and the row must not pick
+                # one: the check was never asked for, and it ran and the cold
+                # pair did not determine the path.  Naming only the first
+                # tells a caller who already ran it to run it again.
+                lines.append("    steps: none re-measured cold — "
+                             "fit(verify_steps=k) refits the k largest, or "
+                             "their cold pair did not determine the path")
+            else:
+                lines.append(f"    steps: {len(verified)} re-measured cold")
+            for s in verified:
+                lines.append(f"      {s.path} {s.labels[0]}→{s.labels[1]}: an "
+                             f"independent cold pair reproduces "
+                             f"{s.cold_ratio:.2f}× of it")
 
         held = sorted({p for e in self.entries for d in e.diagnostics
                        if d.code == "PHASE_UNCONSTRAINED" for p in d.where})

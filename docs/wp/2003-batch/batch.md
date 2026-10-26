@@ -792,7 +792,10 @@ reaches; neither mechanism is verified. The measurements are `clashes.md` X16 an
    against it, `_collapse` seeds nothing (`sequential.py:506`), and from the bounded arm's scale
    exactly on the floor T088 recovers. (b) The width state T087 hands on separates the arms
    (T086's, held, with the bound; a resolution function that is not positive without it).
-   Blocks C3's (a) and fix 2.
+   Blocks C3's (a) and fix 2. **Resolved 2026-10-26**, neither hypothesis: the LM driver's
+   `LinearInequality.violated` dropped every Γ_L row once X and Y both sat at 0, so T087's
+   second solve walked Y to −0.0137 with Γ_L negative everywhere (`clashes.md` X16; fixed in
+   `0bd7823`). C3's (a) and fix 2 are unblocked.
 9. **The cascade** (X17). *Reproduce:* `--family cpd-noclose --arm status_runaway` (about 20
    minutes), 1c-1h; or, with no option (iii), warm-start 1c from `ref_seeded`'s 1b with the
    closing stage off, which tests whether the floored `axial_sl` alone does it. *Hypotheses:*
@@ -802,7 +805,12 @@ reaches; neither mechanism is verified. The measurements are `clashes.md` X16 an
    frozen-window signature (`refine.py:9003-9008`), and `_collapse`'s comment records a plateau
    at `axial_sl` 555 on 1b before WP-2045 (`sequential.py:510-515`); against (b) alone,
    `FROZEN_COMPILE_STALE` fires on 1c under `status` too, which did not collapse. C2's
-   question 5 catches it.
+   question 5 catches it. **Narrowed 2026-10-26**: the second reproduction ran. From the
+   independent 1b, both apertures on 0, the warm 1c collapses with the closing stage off
+   (Rwp 10.724) and with it on (0.791); with `axial_sl` lifted to 0.011 it recovers
+   (0.10881). The default chain is spared only because its kept 1b ends off the floor. Reading (b) through
+   WP-1938's rule: a floor where the axial column is nearly flat (`clashes.md` X17). The fix
+   is a real floor or lift for the apertures, owed in a WP of its own.
 
 ---
 

@@ -776,8 +776,10 @@ def run(family: str, arm: str, out: Path, first: int | None) -> Path:
         record["failures"] = [f.model_dump(mode="json") for f in result.failures]
         record["series_codes"] = [[d.code, d.level, list(d.where or [])]
                                   for d in result.diagnostics]
-        record["discontinuities"] = [[s.path, *s.indices]
-                                     for s in result.discontinuities or []]
+        # the ten largest of SeriesResult.steps, which replaced the flagged
+        # pairs with every step and no threshold (WP-2003, C4)
+        record["steps"] = [[s.path, *s.indices, _num(s.size_esd) if s.size_esd
+                            is not None else None] for s in (result.steps or [])[:10]]
         record["post_chain_solver"] = list(tail)
         record["wall_s"] = round(wall, 2)
     elif arm in REFERENCE_ARMS:
@@ -1498,7 +1500,8 @@ def _series_codes(fam, arms) -> list[str]:
         for a in arms:
             hits = [w for c, _l, w in fam[a]["series_codes"] if c == code]
             if code == "SEQUENTIAL_DISCONTINUITY":
-                steps = [f"{p} {i}→{j}" for p, i, j in fam[a]["discontinuities"]]
+                # a JSON written before WP-2003 removed the code
+                steps = [f"{p} {i}→{j}" for p, i, j in fam[a].get("discontinuities", [])]
                 cells.append(f"{len(hits)}: " + "; ".join(steps) if hits else "0")
             else:
                 cells.append(str(len(hits)))
