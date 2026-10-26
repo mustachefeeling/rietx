@@ -779,6 +779,55 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   fixture-or-faster-`analyse` choice this section already holds is the lever;
   2019 left the file alone as this WP's.
 
+- **2026-10-26 issue triage: #1083, the winner's structure is reachable only
+  privately or through a lossy magCIF round trip.** `MagneticTrial._structure`
+  (`strategy/magnetic.py:426`) is the only carrier; the guide's route 2 reads
+  the winner back. Checked against the tree at c0e32ab29 on the issue's
+  synthetic k = (0,0,½) set (124.360 winner, `tie_to_parent=True`): the
+  read-back has every moment `vary=False`, no modulus esd
+  (`CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED`), scale 1.0 against the trial's
+  0.2507, and no anti-translation tie, so a next fit freeing `moment.dof*`
+  gives each modulus 3.0022 ± 14 930 μ_B (the forbidden ferromagnetic
+  combination is free and flat). The `vary=False` alone costs nothing to a plan
+  that names `moment.dof*` (a plan replaces vary flags, WP-1208). Proposed by
+  the reporter: a read-only `MagneticTrial.structure` returning a deep copy of
+  the fitted structure, moments' `vary` as fitted, with
+  `MagneticSolution.best.structure` the usual call; a `MagneticSolution.refinement(data)`
+  carrying the solve's ties is the alternative, and it is the one that would
+  also carry the ties (a `Structure` cannot; #1081's option 1 would make that
+  moot by deriving them in the table). This is the access half of the
+  § Tasks box the 2026-10-21 entry asks for (#458 in the package).
+
+- **2026-10-26 issue triage: #1082, no preset refines the moment with the
+  structure, and a fit under one never says the moment was held.** Checked
+  against the tree at c0e32ab29: of the eight `PLAN_PRESETS`, only
+  `magnetic_width` frees `moment.dof*`, and it frees no coordinate, Biso or
+  cell. On #1081's synthetic k = (0,0,½) child with the moment started 20 %
+  high (3.6 against 3.0 μ_B), `mccusker_default` and `mccusker_structural` both
+  return it at 3.6 with no esd, no row in `result.parameters`, and no
+  diagnostic about the moment; `mccusker_structural` fires `BISO_NEGATIVE`
+  instead. Under `refine_sequential`, `SEQUENTIAL_MOMENT_HOLD` says "no verdict
+  … because the modulus has no esd there", never that the plan freed none.
+  Proposed by the reporter: (1) a `magnetic_structural` preset,
+  `mccusker_structural`'s order with the moment staged as the solve stages it
+  (moduli, then all moment DOFs, then cell, zero and profile, coordinates,
+  Biso, the moments free throughout once released), with its `PLAN_INFO` row;
+  (2) one plan-level sentence, in a single fit and in a series, where a plan
+  frees no moment DOF on a structure that has one. The reporter recommends
+  both, (2) as wording in `SEQUENTIAL_MOMENT_HOLD`'s explanation. This is the
+  plan half of the #458 box above; a new preset is a new `_audit` default
+  seat for the generality judge.
+
+- **2026-10-26 issue triage: #1075 § 4, which site carries a cant is a χ² tie
+  the esds call decided.** Not re-run; the reporter's measurement on
+  `afce00a4`, on `test_stationary_moment_angle`'s two-site set: with Mn1 canted
+  δ toward c, a start exactly on a puts the cant on Mn2 in 225 of 225 fits with
+  δ ≥ 0.01, within Δχ² 0.07 of the tilted start's Mn1 answer, and in 206 of
+  them each fit's esds exclude the other assignment at 2σ. A determination
+  that reports one assignment with tight esds where the other fits as well is
+  the confident wrong singleton the package's report rule forbids; the
+  reporter reads it as an `exchanges` case for the identifiability report.
+
 ## Non-goals
 
 - Modulated and incommensurate structures (superspace): issue #258 holds the
