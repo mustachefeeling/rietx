@@ -10,11 +10,12 @@
   "demotion": null,
   "dissenter": "none found",
   "applied": false,
-  "decision": "with C1; the code stays whichever trigger is ruled",
+  "decision": "C1 2 (i): stays, tier 3, response warning; on main it fires only under the fence (planted 35, tut05-broken 1) (revised 2026-10-25, batch.md)",
   "class": "C1",
   "response": "warning",
   "responds": "read the named pattern's step from its neighbour as a cold fit's, not the chain's, before quoting a trajectory's cell or fraction across it",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_RESEED.suggestion",
@@ -28,38 +29,41 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_RWP_OUTLIER",
   "kind": "code",
   "row": true,
-  "tier": 3,
+  "tier": null,
   "ambiguity": 3,
-  "evidence": "warning at one site (sequential.py:2106); names a kept fit still above the fence, quoting GoF and Rexp against the last inside it; three measured causes (sequential.py:2076-2085); planted 114, CPD 0 under on, cpd-1b under off",
+  "evidence": "warning at one site (sequential.py:2106); names a kept fit still above the fence, quoting GoF and Rexp against the last inside it; three measured causes (sequential.py:2076-2085); planted 114, CPD 0 under on, cpd-1b under off; on main: planted 114 under on and off, 149 under off_nobound (the X16 freeze), CPD 0",
   "grounds": "Reports and does not judge; the carve-out it names (not quarantined, steps left out of the scan) is WP-1469's measured choice.",
-  "demotion": "info, if the fence is ruled a reported statistic (it still fires on the factor's number)",
+  "demotion": "removed (C1 1 (b)): the 1.25 threshold decides whether the code exists (the record § Demotion); the statistic becomes each pattern's Rwp over the accepted median, replacing SeriesEntry.rwp_fence",
   "dissenter": "none found",
   "applied": false,
-  "decision": "with C1: warning while the 1.25 is an approved threshold, info if it is demoted",
+  "decision": "C1 1 (b) (pick): removed; under 1 (a), tier 3 with approval, response warning, against DESIGN.md § Rules, 4 (revised 2026-10-25, batch.md)",
   "class": "C1",
   "response": "warning",
   "responds": "open the named pattern's own fit before quoting its cell, fraction or width: its best rung is still above the chain's fence",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_RWP_OUTLIER.suggestion",
   "kind": "suggestion",
   "row": true,
-  "tier": 1,
+  "tier": null,
   "ambiguity": 3,
   "evidence": "arithmetic: open the pattern's own fit, and refit with reseed on when 'cold' is not in rungs_tried (sequential.py:2120-2123)",
   "grounds": null,
-  "demotion": null,
+  "demotion": "removed with its code (C1 1 (b))",
   "dissenter": "none found",
   "applied": false,
-  "decision": null,
-  "class": "C1"
+  "decision": "with its code (revised 2026-10-25, batch.md)",
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_UNRECOVERED",
@@ -76,7 +80,8 @@
   "class": "C2",
   "response": "warning",
   "responds": "quote no cell, fraction or width from the named pattern: its fit diverged after every rung, seeded no successor and joins no median",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_UNRECOVERED.suggestion",
@@ -90,7 +95,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_CANCELLED",
@@ -202,7 +208,8 @@
   "class": "C4",
   "response": null,
   "responds": null,
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_DISCONTINUITY.suggestion",
@@ -216,7 +223,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "with the code",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PATH_DEPENDENT",
@@ -233,7 +241,8 @@
   "class": "C5",
   "response": "warning",
   "responds": "if kept: hold, restrain, or quote the two directions' spread before quoting the cell, coordinate or width named",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PATH_DEPENDENT.suggestion",
@@ -247,7 +256,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with the code",
-  "class": "C5"
+  "class": "C5",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PERSISTENT_FINDING",
@@ -264,7 +274,8 @@
   "class": "C6",
   "response": null,
   "responds": null,
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PERSISTENT_FINDING.suggestion",
@@ -278,7 +289,8 @@
   "dissenter": "a refiner on a ramp whose impurity appears in the last 40 % of the patterns: the count is the sentence they act on and 'more than half' hides it",
   "applied": false,
   "decision": "with the code",
-  "class": "C6"
+  "class": "C6",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_WIDTH_GROWTH",
@@ -295,7 +307,8 @@
   "class": "C7",
   "response": "warning",
   "responds": "if kept: fit the onset pattern with the missing component before quoting this width, or the phase's scale and cell",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_WIDTH_GROWTH.suggestion",
@@ -309,7 +322,8 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "with the code",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_HOLD",
@@ -326,7 +340,8 @@
   "class": "C8",
   "response": "warning",
   "responds": "quote the named patterns' moment as held, never as a value with an esd, and read the trajectory from magnetic_trajectory()",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_HOLD.suggestion",
@@ -340,7 +355,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C8"
+  "class": "C8",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_ONSET",
@@ -357,7 +373,8 @@
   "class": "C8",
   "response": null,
   "responds": null,
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_ONSET.suggestion",
@@ -371,7 +388,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "re-count its sites after the split (advise() rewrites one through model_copy)",
-  "class": "C8"
+  "class": "C8",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
@@ -450,7 +468,8 @@
   "class": "C10",
   "response": "warning",
   "responds": "quote the equation's coefficients, not the target's value (a cell, a width), at the named patterns: there it is the equation's alone",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "PARAMETRIC_TARGET_UNSEEN.suggestion",
@@ -464,7 +483,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C10"
+  "class": "C10",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "PARAMETRIC_FORM_REJECTED",
@@ -481,7 +501,8 @@
   "class": "C10",
   "response": "warning",
   "responds": "quote no parametric coefficient's esd, nor the cell or width it predicts, until the next term or a narrower subset passes the form test",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "PARAMETRIC_FORM_REJECTED.suggestion",
@@ -495,7 +516,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C10"
+  "class": "C10",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "STAGE_FREED_NOTHING",
@@ -540,7 +562,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with _ladder",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.reseeded",
@@ -548,27 +571,29 @@
   "row": true,
   "tier": 3,
   "ambiguity": 1,
-  "evidence": "records that the kept attempt is the cold rung on a warm-startable pattern (sequential.py:1676); planted 49, tut05-broken 1, CPD 0",
+  "evidence": "records that the kept attempt is the cold rung on a warm-startable pattern (sequential.py:1676); on main planted 35 and tut05-broken 1 under the fence, none under status; CPD 0",
   "grounds": "The record of the escalation; tiered with it.",
   "demotion": null,
-  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted: 114 patterns above the fence, 4.3x the evaluations, no value moved past 0.0007 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
+  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
   "applied": false,
-  "decision": "with C1",
-  "class": "C1"
+  "decision": "C1 2 (i): tier 3, the record of the kept action (revised 2026-10-25, batch.md)",
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.rwp_fence",
   "kind": "action",
   "row": true,
-  "tier": 3,
+  "tier": null,
   "ambiguity": 1,
   "evidence": "records reseed_factor x the median accepted Rwp at this pattern, whatever reseed says (sequential.py:1679, _rwp_fence 1992-2001); above_fence and SEQUENTIAL_RWP_OUTLIER are re-derived from it",
   "grounds": "The statistic the fence acts on; under a status-only trigger it stays as the reported number with no escalation keyed on it.",
-  "demotion": null,
+  "demotion": "replaced (C1 1 (b)) by each pattern's Rwp over the median of those accepted before it, under a name that asserts no verdict (tier 1, a record); its help entry says the first patterns are judged against a median of one or two (X8)",
   "dissenter": "none found",
   "applied": false,
-  "decision": "with C1",
-  "class": "C1"
+  "decision": "C1 1 (b) (pick): demoted to the ratio field (revised 2026-10-25, batch.md)",
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.rungs_tried",
@@ -582,7 +607,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with _ladder",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.rungs_raised",
@@ -596,49 +622,53 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with _ladder",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.RESEED_FACTOR",
   "kind": "constant",
   "row": true,
-  "tier": 3,
+  "tier": null,
   "ambiguity": null,
-  "evidence": "no citation and no program restarts a pattern by itself (docs/practice.md § Sequential refinement); measured 2026-10-24 on/status-only/off (2003-batch/reseed.md): carried load once, IUCr CPD cpd-1b with the closing stage on, whose warm rung ended max_iter at Rwp 0.7652 (3.75x the fence) with corundum a 4.987(88) against the independent fit's 4.75809(38) and an 18.0 deg zero shift, rescued to 4.75804(38); bit-identical on trigger, Cr2WO6, tut05-jump, the planted null twin and CPD with the closing stage off; planted 248: 115 escalations, 49 near-tie reseeds, 4.3x the evaluations, nothing moved past 0.0007 esd",
-  "grounds": "Kept only as the default of a caller's option if the status rule below cannot rescue cpd-1b: the one real rescue is also caught by escalating on max_iter, and the fence's named dissenter pays 4.3x where it acts on a lasting change.",
-  "demotion": "record field rietx.schemas.sequential.SeriesEntry.rwp_fence (kept as a statistic, no escalation keyed on it)",
-  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted: 114 patterns above the fence, 4.3x the evaluations, no value moved past 0.0007 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
+  "evidence": "no citation and no program restarts a pattern by itself (docs/practice.md § Sequential refinement); measured on main at 9ad4d1f6 after WP-2045, every arm (2003-batch/reseed/, batch.md C1): the fence escalated 116 patterns (planted 115, tut05-broken 1) and moved no value past 7.2e-4 esd; its pre-WP-2045 rescue (cpd-1b, closing on) is gone, 1b keeping its warm rung in every default arm at corundum 94.32(23) wt % against 94.31 weighed; its one rescue on disk is planted T088 with first_rung_factor=None, a freeze the default bound prevents (clashes.md X16); an Rwp comparison, which DESIGN.md § Rules, 4 bars as a default action's evidence",
+  "grounds": "Removed: its one rescue is gone on main, its named dissenter pays 4.1x for nothing, and its trigger is an Rwp comparison (Rule 4).",
+  "demotion": "removed (C1 1 (b)); the caller names any factor through fit:reseed_factor, and the statistic stays as a ratio field replacing SeriesEntry.rwp_fence",
+  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
   "applied": false,
-  "decision": "Rwp fence as the escalation trigger (keep, tier 3) or escalate on status alone with max_iter counted (diverged, raised, max_iter), the 1.25 fence kept as a reported statistic and opt-in trigger; the status+max_iter arm is unmeasured",
-  "class": "C1"
+  "decision": "C1 1 (b) and 2 (i) (pick): no default fence; escalate on diverged or raised only; (ii) max_iter and (iii) CELL_RUNAWAY measured on main and not adopted; lands in C3's order (X16) (revised 2026-10-25, batch.md)",
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.FIRST_RUNG_SAMPLES",
   "kind": "constant",
   "row": true,
-  "tier": "invariant",
+  "tier": 3,
   "ambiguity": null,
-  "evidence": "WP-1127: a kept first rung costs 27-64 evaluations on trigger-series and 25-107 on cpd-series, a losing one ~400; 0 of 1030 and 0 of 392 accepted values moved; asserted bit-identical with the margin on the thermal ramp and the CPD chain (test_the_first_rung_bound_moves_no_accepted_value, tests/test_sequential.py:1202 and tests/test_acceptance_sequential.py); held back: since WP-2002 a truncated warm stage the closing stage converges reads 'converged', so the forced escalation and _prefer's rank never see it (factor 0.5 on the thermal ramp: three patterns kept a closed truncated rung, within 8e-4 esd; sequential.py:213-219); the three-sample minimum: at one sample the bound was 16 evaluations against a third pattern wanting 17 (sequential.py:173-180)",
+  "evidence": "measured on main at 9ad4d1f6 (2003-batch/reseed/, batch.md C3): the bound at 3.0 moves one pattern of 514 run with and without it (CPD, planted, its null twin, trigger), planted T087, the blank frame: with it scale 0 and zero shift 0.00597 held (truth 0 and 0.006), without it 7.32(70)e-8 and -0.0231(48), 6.06 esd from truth, so the cut moves T087 toward the planted truth; T087's unbounded first rung cost 108 evaluations against a running maximum of 11 (9.8x, against the calibration's 1.29); the saving is 49 evaluations of 13 083 on planted and none elsewhere; under reseed=False its forced escalation is what keeps T088-T127 from freezing (clashes.md X16); before WP-2045: 0 of 1030 and 0 of 392 accepted values moved (WP-1127), and since WP-2002 a truncated warm stage the closing stage converges reads 'converged' (sequential.py:213-219); the three-sample minimum: at one sample the bound was 16 evaluations against a third pattern wanting 17 (sequential.py:173-180)",
   "grounds": null,
   "demotion": null,
   "dissenter": "none found",
   "applied": false,
-  "decision": "fix the closing-stage clash first (read truncation off the bounded warm stage's own status, not result.status; pick) and add an arm where the bound bites a winner to the invariance test; then invariant",
-  "class": "C3"
+  "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted; this constant stays inside the opt-in at tier 3, or becomes a second caller argument (revised 2026-10-25, batch.md)",
+  "class": "C3",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.FIRST_RUNG_FACTOR",
   "kind": "constant",
   "row": true,
-  "tier": "invariant",
+  "tier": null,
   "ambiguity": null,
-  "evidence": "WP-1127: a kept first rung costs 27-64 evaluations on trigger-series and 25-107 on cpd-series, a losing one ~400; 0 of 1030 and 0 of 392 accepted values moved; asserted bit-identical with the margin on the thermal ramp and the CPD chain (test_the_first_rung_bound_moves_no_accepted_value, tests/test_sequential.py:1202 and tests/test_acceptance_sequential.py); held back: since WP-2002 a truncated warm stage the closing stage converges reads 'converged', so the forced escalation and _prefer's rank never see it (factor 0.5 on the thermal ramp: three patterns kept a closed truncated rung, within 8e-4 esd; sequential.py:213-219)",
+  "evidence": "measured on main at 9ad4d1f6 (2003-batch/reseed/, batch.md C3): the bound at 3.0 moves one pattern of 514 run with and without it (CPD, planted, its null twin, trigger), planted T087, the blank frame: with it scale 0 and zero shift 0.00597 held (truth 0 and 0.006), without it 7.32(70)e-8 and -0.0231(48), 6.06 esd from truth, so the cut moves T087 toward the planted truth; T087's unbounded first rung cost 108 evaluations against a running maximum of 11 (9.8x, against the calibration's 1.29); the saving is 49 evaluations of 13 083 on planted and none elsewhere; under reseed=False its forced escalation is what keeps T088-T127 from freezing (clashes.md X16); before WP-2045: 0 of 1030 and 0 of 392 accepted values moved (WP-1127), and since WP-2002 a truncated warm stage the closing stage converges reads 'converged' (sequential.py:213-219)",
   "grounds": null,
-  "demotion": null,
-  "dissenter": "none found",
+  "demotion": "removed (C3 (a)): the caller names the factor through fit:first_rung_factor",
+  "dissenter": "a refiner on a chain where one pattern's winning rung costs several times its neighbours' (planted T087, 9.8x)",
   "applied": false,
-  "decision": "fix the closing-stage clash first (read truncation off the bounded warm stage's own status, not result.status; pick) and add an arm where the bound bites a winner to the invariance test; then invariant",
-  "class": "C3"
+  "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted (revised 2026-10-25, batch.md)",
+  "class": "C3",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.DISCONTINUITY_FACTOR",
@@ -652,7 +682,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "remove; verify_discontinuities then refits the steps the caller names or the largest k with k the caller's",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.DISCONTINUITY_SIGMA",
@@ -666,7 +697,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "remove; verify_discontinuities then refits the steps the caller names or the largest k with k the caller's",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.MIN_POINTS_FOR_DISCONTINUITY",
@@ -680,7 +712,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "remove; verify_discontinuities then refits the steps the caller names or the largest k with k the caller's",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.MIN_POINTS_FOR_PERSISTENCE",
@@ -694,7 +727,8 @@
   "dissenter": "a refiner on a ramp whose impurity appears in the last 40 % of the patterns: the count is the sentence they act on and 'more than half' hides it",
   "applied": false,
   "decision": "with the code; tier 3 if the code stays",
-  "class": "C6"
+  "class": "C6",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.NOISE_FLOOR_REL",
@@ -722,7 +756,8 @@
   "dissenter": "a refiner reading many paths over many patterns at 3 sigma, where chance flags are expected (n paths x m patterns comparisons), or one who reads a sub-3-sigma gap that repeats over every pattern as path dependence; the largest flags measured were axis relabellings, 81.5 sigma in Fddd (docs/skill/rietx/references/series.md:136-150)",
   "applied": false,
   "decision": "demote SEQUENTIAL_PATH_DEPENDENT to a field, or keep 3 sigma at tier 3 (no family measured)",
-  "class": "C5"
+  "class": "C5",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.WIDTH_GROWTH_FACTOR",
@@ -736,7 +771,8 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "hand the ruling to WP-2004's Inherited; bump nothing here",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.WIDTH_GROWTH_GOF_FACTOR",
@@ -750,7 +786,8 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "hand the ruling to WP-2004's Inherited; bump nothing here",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.WIDTH_GROWTH_SIGMA",
@@ -764,21 +801,23 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "hand the ruling to WP-2004's Inherited; bump nothing here",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:carry",
   "kind": "default",
   "row": true,
-  "tier": 2,
+  "tier": "invariant",
   "ambiguity": 1,
-  "evidence": "the warm start from the previous pattern: EasyDiffraction (checked) and FullProf's cyclic mode (inferred); rietx carries every entry where GSAS-II and EasyDiffraction carry the varied ones (docs/practice.md § Sequential refinement); WP-0505: 838 iterations carried against 2863 unchained, Rwp 0.1278; on CPD the chain sits 7.05-14.2 esd from the independent fits, worst path a lor_strain each time (2003-batch/reseed.md); the GUI passes its own (gui/session.py:1699)",
-  "grounds": "The series verb's own act and inside practice; the trajectory it gives is path-dependent by construction, which direction='both' measures.",
+  "evidence": "the warm start from the previous pattern: EasyDiffraction (checked) and FullProf's cyclic mode (inferred); rietx carries every entry where GSAS-II and EasyDiffraction carry the varied ones, and the two differ only where an entry no stage frees changes during a fit, which only a package action does (docs/practice.md § Sequential refinement); WP-0505: 838 iterations carried against 2863 unchained, Rwp 0.1278; on main CPD (closing on) sits 2.87-5.62 esd from the independent fits, worst path instrument.profile.v, its mean |dW| 1.82 wt % against weighed as the independent fits' (2003-batch/reseed/); no default path reaches the verb's default: the GUI's series route passes its own setup.carry (src/rietx/gui/session.py:1695-1699); the invariance test (every entry against the plan's turn_on globs, accepted values bit-identical) is not yet written",
+  "grounds": "Rule 1's first pick case: the caller asked for a warm-started chain by calling the verb made for one, so the warm start is the caller's; the package chooses only what is carried, which the invariance test settles.",
   "demotion": null,
-  "dissenter": "GSAS-II's default: each histogram starts from its own values unless Copy2Next is ticked (checked); MAUD's and Profex's batches start from the file each row names",
+  "dissenter": "GSAS-II's default: each histogram starts from its own values unless Copy2Next is ticked (checked), reachable here as carry=(); MAUD's and Profex's batches start from the file each row names",
   "applied": false,
-  "decision": "a default switching on an action: tier 2 with GSAS-II's dissent named and approved (pick), given the CPD chain's 7-14 esd from independent fits; and the carry x width-twin-hold clash (Rwp 0.1282 restricted, 0.1256 all, 0.1258 independent)",
-  "class": "C9"
+  "decision": "C9 question 1 (pick): the warm start the caller's, the '*' default invariant once the every-entry-against-varied test lands; where it differs, tier 3 on those paths, the two programs its dissent; and the carry x width-twin-hold clash (X11) measured on QPA before the twin hold is touched (revised 2026-10-25, batch.md)",
+  "class": "C9",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:carry_hkl_intensities",
@@ -792,7 +831,8 @@
   "dissenter": "GSAS-II's default (no carry); EasyDiffraction collects parameter values only",
   "applied": false,
   "decision": "tier 3: needs its chain measured carried and not (Le Bail and Pawley chains, tests/test_sequential.py:2245, 2673)",
-  "class": "C9"
+  "class": "C9",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:backend",
@@ -807,7 +847,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:solver",
@@ -822,7 +863,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:history",
@@ -837,7 +879,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:x",
@@ -851,7 +894,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "add an arm to test_a_series_observed_is_the_series_unobserved (tests/test_answer_invariant_defaults.py:171), labels with a label-blind compare since chain_answer carries labels; then invariant",
-  "class": "C11"
+  "class": "C11",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:x_label",
@@ -865,7 +909,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "add an arm to test_a_series_observed_is_the_series_unobserved (tests/test_answer_invariant_defaults.py:171), labels with a label-blind compare since chain_answer carries labels; then invariant",
-  "class": "C11"
+  "class": "C11",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:labels",
@@ -879,7 +924,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "add an arm to test_a_series_observed_is_the_series_unobserved (tests/test_answer_invariant_defaults.py:171), labels with a label-blind compare since chain_answer carries labels; then invariant",
-  "class": "C11"
+  "class": "C11",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:mode",
@@ -907,7 +953,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "extend B7's approval to the series seat",
-  "class": "C9"
+  "class": "C9",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:refit",
@@ -921,7 +968,8 @@
   "dissenter": "on cost: trigger-series, where the staged plan is cheaper (1253 against 1603 nfev, WP-1127); rietx alone stages the first pattern",
   "applied": false,
   "decision": "confirm tier 2 (not applied: it sets the ladder's first rung, whose rungs C2 rules)",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:two_theta_limits",
@@ -950,7 +998,8 @@
   "applied": false,
   "decision": "re-read if C5 demotes SEQUENTIAL_PATH_DEPENDENT (the switch then fills a field)",
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:reseed",
@@ -958,41 +1007,44 @@
   "row": true,
   "tier": 3,
   "ambiguity": 1,
-  "evidence": "switches on the ladder's escalation; under False each pattern keeps its first rung except where WP-1127's budget truncated it (forced, sequential.py:1563, 1571), against its docstring (sequential.py:1077-1083); planted pattern 87 escalates in every arm",
+  "evidence": "switches on the ladder's escalation; under False each pattern keeps its first rung except where WP-1127's budget truncated it (forced, sequential.py:1563, 1571), against its docstring (sequential.py:1077-1083); planted T087 escalates in every arm with the bound, and without it under reseed=False T088-T127 freeze (clashes.md X16)",
   "grounds": "Trying a colder start on a diverged or unfinished fit and keeping the better is what a refiner does by hand; the escalation never keeps a worse attempt (_prefer).",
   "demotion": null,
-  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted: 114 patterns above the fence, 4.3x the evaluations, no value moved past 0.0007 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287) (on the Rwp half only; none found for diverged or raised)",
+  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287) (on the Rwp half only; none found for diverged or raised)",
   "applied": false,
-  "decision": "with RESEED_FACTOR; and reseed=False x the forced escalation: drop the budget under reseed=False (pick) or fix the docstring",
-  "class": "C1"
+  "decision": "tier 3, the ladder's switch, approved with C2; under C1 2 (i) it escalates a diverged or raised rung only; the forced-escalation breach (X2) is fixed after X16 (revised 2026-10-25, batch.md)",
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:reseed_factor",
   "kind": "default",
   "row": true,
-  "tier": 3,
+  "tier": "caller",
   "ambiguity": 1,
-  "evidence": "the default of RESEED_FACTOR, same value (sequential.py:1030); one audit covers both",
-  "grounds": "As RESEED_FACTOR.",
+  "evidence": "today the default of RESEED_FACTOR, same value (sequential.py:1030); under C1 1 (b) it loses its default and becomes the caller's opt-in fence, the package naming no number",
+  "grounds": null,
   "demotion": null,
-  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted: 114 patterns above the fence, 4.3x the evaluations, no value moved past 0.0007 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
+  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
   "applied": false,
-  "decision": "with RESEED_FACTOR; and validate it: inf is accepted unchecked (sequential.py:1028-1030) and also switches off the discontinuity scan's above-fence drop (tut05-broken gains a SEQUENTIAL_DISCONTINUITY under inf)",
-  "class": "C1"
+  "decision": "C1 1 (b) (pick): caller, no default; refused unless finite and positive (inf is accepted unchecked today, sequential.py:1028-1030, and also switches off the discontinuity scan's above-fence drop) (revised 2026-10-25, batch.md)",
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:first_rung_factor",
   "kind": "default",
   "row": true,
-  "tier": "invariant",
+  "tier": "caller",
   "ambiguity": 1,
-  "evidence": "WP-1127: a kept first rung costs 27-64 evaluations on trigger-series and 25-107 on cpd-series, a losing one ~400; 0 of 1030 and 0 of 392 accepted values moved; asserted bit-identical with the margin on the thermal ramp and the CPD chain (test_the_first_rung_bound_moves_no_accepted_value, tests/test_sequential.py:1202 and tests/test_acceptance_sequential.py); held back: since WP-2002 a truncated warm stage the closing stage converges reads 'converged', so the forced escalation and _prefer's rank never see it (factor 0.5 on the thermal ramp: three patterns kept a closed truncated rung, within 8e-4 esd; sequential.py:213-219)",
+  "evidence": "measured on main at 9ad4d1f6 (2003-batch/reseed/, batch.md C3): the bound at 3.0 moves one pattern of 514 run with and without it (CPD, planted, its null twin, trigger), planted T087, the blank frame: with it scale 0 and zero shift 0.00597 held (truth 0 and 0.006), without it 7.32(70)e-8 and -0.0231(48), 6.06 esd from truth, so the cut moves T087 toward the planted truth; T087's unbounded first rung cost 108 evaluations against a running maximum of 11 (9.8x, against the calibration's 1.29); the saving is 49 evaluations of 13 083 on planted and none elsewhere; under reseed=False its forced escalation is what keeps T088-T127 from freezing (clashes.md X16); before WP-2045: 0 of 1030 and 0 of 392 accepted values moved (WP-1127), and since WP-2002 a truncated warm stage the closing stage converges reads 'converged' (sequential.py:213-219)",
   "grounds": null,
   "demotion": null,
-  "dissenter": "none found",
+  "dissenter": "a refiner on a chain where one pattern's winning rung costs several times its neighbours' (planted T087, 9.8x)",
   "applied": false,
-  "decision": "fix the closing-stage clash first (read truncation off the bounded warm stage's own status, not result.status; pick) and add an arm where the bound bites a winner to the invariance test; then invariant",
-  "class": "C3"
+  "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted (revised 2026-10-25, batch.md)",
+  "class": "C3",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:verify_discontinuities",
@@ -1007,7 +1059,8 @@
   "applied": false,
   "decision": "re-read once SEQUENTIAL_DISCONTINUITY goes (C4: what picks the pairs)",
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:prepare",
@@ -1050,21 +1103,23 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:on_error",
   "kind": "default",
   "row": true,
-  "tier": 2,
+  "tier": null,
   "ambiguity": 1,
   "evidence": "carry on past a pattern every rung of which raised, from the last good state (sequential.py:1616-1656): EasyDiffraction does the same by default and does not seed from the failure (checked); GSAS-II ends the chain at a singular matrix and MAUD at an exception (checked; docs/practice.md § Sequential refinement)",
   "grounds": "A default that switches on an action: going on keeps a 200-pattern batch from being rerun for one bad frame, and the failure seeds nothing (Rule 1's protection); the dissent is GSAS-II's and MAUD's stop.",
   "demotion": null,
   "dissenter": "a refiner who wants the batch to stop at the first failure so the model is fixed before 200 patterns are spent (GSAS-II's and MAUD's default); 'raise' keeps what converged on self (sequential.py:1622-1638)",
   "applied": false,
-  "decision": "tier 2 with the dissent named, approved as a protection of expensive work, or 'raise'",
-  "class": "C2"
+  "decision": "open, no pick (batch.md C2 question 4): 'carry' (today; tier 3, approved as the protection of a long batch, GSAS-II's and MAUD's stop named) or 'raise' (the default changes, 'carry' becomes the caller's); a default switching on an action with a named dissent cannot be tier 2 under 'a dissent counts' (revised 2026-10-25, batch.md)",
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:events",
@@ -1079,7 +1134,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:cancel",
@@ -1094,7 +1150,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:progress",
@@ -1109,7 +1166,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:telemetry",
@@ -1124,7 +1182,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:label",
@@ -1139,7 +1198,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._prefer",
@@ -1147,14 +1207,15 @@
   "row": false,
   "tier": 1,
   "ambiguity": 1,
-  "evidence": "keeping the best attempt is Rule 1's protection; the criterion: an untruncated attempt over a truncated one (WP-1127, measured: _better alone kept a truncated rung at equal Rwp), then not diverged over diverged, then the lower Rwp (sequential.py:1960-1989). Of two minima of one pattern under one weighting, the lower weighted residual is the better fit by the objective's own definition (arithmetic), up to restraint and penalty rows Rwp leaves out",
+  "evidence": "keeping the best attempt is Rule 1's protection; the criterion: an untruncated attempt over a truncated one (WP-1127, measured: _better alone kept a truncated rung at equal Rwp), then not diverged over diverged, then the lower Rwp (sequential.py:1960-1989). The solver minimised the full cost S, the data rows plus the background-penalty, Pawley-restraint and soft-restraint rows (model/rows.py BLOCK_ORDER; StageResult.cost_final), and Rwp sees the data rows alone (RestraintReport's docstring), so of two minima of one pattern under one weighting the better fit by the objective's definition is the lower S (arithmetic), compared on one compiled model; on disk, planted T087 kept warm_staged (0.048071) over the truncated warm rung (0.048022), at the planted truth",
   "grounds": null,
   "demotion": null,
-  "dissenter": "on max_iter ranked equal to converged in _better (sequential.py:1962): a refiner would rank an unfinished fit below a finished one at any Rwp; it decided nothing on disk (cpd-1b: max_iter 0.7652 against converged 0.1378)",
+  "dissenter": "on max_iter ranked equal to converged in _better (sequential.py:1962): a refiner would rank an unfinished fit below a finished one; no case on disk on main decides it",
   "applied": false,
-  "decision": "confirm tier 1 for the Rwp order; rank max_iter below converged or not",
+  "decision": "C2: tier 1 for the full-cost order (question 3, pick: S, not Rwp; max_iter ties converged); diverged before truncated (question 2, pick) (revised 2026-10-25, batch.md)",
   "class": "C2",
-  "row_note": "no row of its own: SeriesEntry.rung records the attempt kept; the criterion is written into the ladder rows' evidence"
+  "row_note": "no row of its own: SeriesEntry.rung records the attempt kept; the criterion is written into the ladder rows' evidence",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._reseed_needed",
@@ -1162,14 +1223,15 @@
   "row": false,
   "tier": 3,
   "ambiguity": 1,
-  "evidence": "rejects a diverged attempt or one above the fence; max_iter is not tested (sequential.py:2004-2009); cpd-1b's bad warm rung was max_iter, not diverged",
-  "grounds": "As RESEED_FACTOR.",
+  "evidence": "rejects a diverged attempt or one above the fence; max_iter is not tested (sequential.py:2004-2009); on main (batch.md C1): the fence's 116 escalations moved no value past 7.2e-4 esd; status_maxiter (option (ii)) is status bit for bit on all eight families; status_runaway (option (iii)) acts on CPD 1b alone, with the closing stage on escalating a fit within 1 esd of weighed and moving lor_strain 7-14 esd from the independent fits, and off rescuing 1b into a collapse of 1c-1h (clashes.md X17)",
+  "grounds": "Diverged or raised is a fact every refiner reads as failure; max_iter has a dissent from practice (extend an unfinished fit, do not restart it cold), and CELL_RUNAWAY one on disk (CPD 1b, closing on).",
   "demotion": null,
-  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted: 114 patterns above the fence, 4.3x the evaluations, no value moved past 0.0007 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
+  "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
   "applied": false,
-  "decision": "with RESEED_FACTOR: whether max_iter joins diverged as a rejection",
+  "decision": "C1 2 (i) (pick): diverged only (a raised rung escalates at its own site); tier 3, kind 1, approved with C2's ladder; C2 question 5 asks whether an error-level kept attempt counts as diverged (revised 2026-10-25, batch.md)",
   "class": "C1",
-  "row_note": "no row of its own: what it decides is recorded by SeriesEntry.reseeded, rungs_tried and rwp_fence, whose rows carry its tier"
+  "row_note": "no row of its own: what it decides is recorded by SeriesEntry.reseeded, rungs_tried and rwp_fence, whose rows carry its tier",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._ladder",
@@ -1184,22 +1246,24 @@
   "applied": false,
   "decision": "approve the rungs, their order and the give-up point after the cold rung",
   "class": "C2",
-  "row_note": "no row of its own: SeriesEntry.rung, rungs_tried and rungs_raised record it and carry its tier; the middle rung's Rwp is recorded nowhere (rwp_of is local, sequential.py:1545)"
+  "row_note": "no row of its own: SeriesEntry.rung, rungs_tried and rungs_raised record it and carry its tier; the middle rung's Rwp is recorded nowhere (rwp_of is local, sequential.py:1545)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._first_rung_budget",
   "kind": "action",
   "row": false,
-  "tier": "invariant",
+  "tier": "caller",
   "ambiguity": 1,
-  "evidence": "WP-1127: a kept first rung costs 27-64 evaluations on trigger-series and 25-107 on cpd-series, a losing one ~400; 0 of 1030 and 0 of 392 accepted values moved; asserted bit-identical with the margin on the thermal ramp and the CPD chain (test_the_first_rung_bound_moves_no_accepted_value, tests/test_sequential.py:1202 and tests/test_acceptance_sequential.py); held back: since WP-2002 a truncated warm stage the closing stage converges reads 'converged', so the forced escalation and _prefer's rank never see it (factor 0.5 on the thermal ramp: three patterns kept a closed truncated rung, within 8e-4 esd; sequential.py:213-219)",
+  "evidence": "measured on main at 9ad4d1f6 (2003-batch/reseed/, batch.md C3): the bound at 3.0 moves one pattern of 514 run with and without it (CPD, planted, its null twin, trigger), planted T087, the blank frame: with it scale 0 and zero shift 0.00597 held (truth 0 and 0.006), without it 7.32(70)e-8 and -0.0231(48), 6.06 esd from truth, so the cut moves T087 toward the planted truth; T087's unbounded first rung cost 108 evaluations against a running maximum of 11 (9.8x, against the calibration's 1.29); the saving is 49 evaluations of 13 083 on planted and none elsewhere; under reseed=False its forced escalation is what keeps T088-T127 from freezing (clashes.md X16); before WP-2045: 0 of 1030 and 0 of 392 accepted values moved (WP-1127), and since WP-2002 a truncated warm stage the closing stage converges reads 'converged' (sequential.py:213-219)",
   "grounds": null,
   "demotion": null,
-  "dissenter": "none found",
+  "dissenter": "a refiner on a chain where one pattern's winning rung costs several times its neighbours' (planted T087, 9.8x)",
   "applied": false,
-  "decision": "fix the closing-stage clash first (read truncation off the bounded warm stage's own status, not result.status; pick) and add an arm where the bound bites a winner to the invariance test; then invariant",
+  "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted (revised 2026-10-25, batch.md)",
   "class": "C3",
-  "row_note": "no row of its own: an answer-invariant item rides FIRST_RUNG_FACTOR's row; no field says a rung was truncated or what the budget was"
+  "row_note": "no row of its own: rides fit:first_rung_factor's caller row; no field says a rung was truncated or what the budget was",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._chain.quarantine",
@@ -1212,24 +1276,26 @@
   "demotion": null,
   "dissenter": "none found",
   "applied": false,
-  "decision": "approve as a protection; approve SeriesEntry.seeded_from as its record",
+  "decision": "approve as a protection; approve SeriesEntry.seeded_from as its record; and batch.md C2 question 5: an error-level kept attempt counted as diverged (pick, after one arm on tut05-broken and CPD closing off), since a converged 1c at Rwp 10.83 with MODEL_FAR_FROM_DATA seeded 1d-1h (clashes.md X17) (revised 2026-10-25, batch.md)",
   "class": "C2",
-  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.seeded_from (the index whose state seeded this pattern's warm rungs, None on a cold-only pattern), the row this action is keyed on; it lands with the ruling"
+  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.seeded_from (the index whose state seeded this pattern's warm rungs, None on a cold-only pattern), the row this action is keyed on; it lands with the ruling",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._chain.rwp_outlier_carve_out",
   "kind": "action",
   "row": false,
-  "tier": 3,
+  "tier": null,
   "ambiguity": 1,
   "evidence": "WP-1469, issue #481: quarantining an above-fence pattern cost +55 % iterations and flagged 18 of 18 on a 24-pattern ramp whose counts fall 4x, +107 % under an unmodelled phase, and bought 2-8 % on the blank with values identical to the digit (sequential.py:1690-1698); dropping its steps from the scan let the planted step behind a blank be seen (sequential.py:2375-2386)",
   "grounds": "Not quarantining a converged fit is no act on its values; the scan drop goes with the scan (C4).",
-  "demotion": null,
+  "demotion": "lapses under C1 1 (b): with no default fence there is no above-fence pattern to carve out of the quarantine; the scan half leaves with C4",
   "dissenter": "none found",
   "applied": false,
-  "decision": "confirm; the scan half is ruled in C4",
+  "decision": "lapses under C1 1 (b) (pick), with no default fence to carve out of; under 1 (a), confirm; the scan half is ruled in C4 (revised 2026-10-25, batch.md)",
   "class": "C1",
-  "row_note": "no row of its own: SeriesEntry.rwp_fence and the above_fence property record it, and SEQUENTIAL_RWP_OUTLIER names it; the scan half leaves with SEQUENTIAL_DISCONTINUITY"
+  "row_note": "no row of its own: SeriesEntry.rwp_fence and the above_fence property record it, and SEQUENTIAL_RWP_OUTLIER names it; the scan half leaves with SEQUENTIAL_DISCONTINUITY",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._floor_unsupported_moments",
@@ -1244,22 +1310,24 @@
   "applied": false,
   "decision": "approve under the rare-feature clause; approve SeriesEntry.floored as its record",
   "class": "C8",
-  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.floored (the moment paths floored before this pattern's warm start), the row this action is keyed on; today only SEQUENTIAL_MOMENT_HOLD's message, cut at four labels"
+  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.floored (the moment paths floored before this pattern's warm start), the row this action is keyed on; today only SEQUENTIAL_MOMENT_HOLD's message, cut at four labels",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._carry_into",
   "kind": "action",
   "row": false,
-  "tier": 2,
+  "tier": "invariant",
   "ambiguity": 1,
   "evidence": "copies every fitted value matching the carry globs into the next pattern's models, a coordinate as its site's displacement and a rigid body's orientation and torsions, then re-derives each tie (sequential.py:646-709)",
   "grounds": "The act carry selects; tiered with it.",
   "demotion": null,
   "dissenter": "as carry",
   "applied": false,
-  "decision": "with carry",
+  "decision": "with carry (C9 question 1) (revised 2026-10-25, batch.md)",
   "class": "C9",
-  "row_note": "no row of its own: keyed on SeriesEntry.seeded_from once task 3 adds it (the quarantine's row), with carry's tier"
+  "row_note": "no row of its own: keyed on SeriesEntry.seeded_from once task 3 adds it (the quarantine's row), with carry's tier",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._reanchor_carried",
@@ -1274,7 +1342,8 @@
   "applied": false,
   "decision": null,
   "class": "C9",
-  "row_note": "no row: a correctness rebase, decides nothing"
+  "row_note": "no row: a correctness rebase, decides nothing",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._carry_variables",
@@ -1289,7 +1358,8 @@
   "applied": false,
   "decision": null,
   "class": "C9",
-  "row_note": "no row: no choice beyond carry's"
+  "row_note": "no row: no choice beyond carry's",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._collapse",
@@ -1297,14 +1367,15 @@
   "row": false,
   "tier": 3,
   "ambiguity": 1,
-  "evidence": "one stage freeing the union of the plan's globs at its largest max_iter, no stage seed (chi2_red 1.05828 seeded against 1.05145 on the LaB6 ramp), the largest strain_seed, and the plan's intermediate_ftol and closing_window_tol (sequential.py:468-536); cpd-1b's warm rung ran its closing stage to the 400 cap and its cell ran away (CELL_RUNAWAY under status and off), and with the closing stage off no CPD pattern escalated (2003-batch/reseed.md)",
+  "evidence": "one stage freeing the union of the plan's globs at its largest max_iter, no stage seed (seed=0.0, sequential.py:506; chi2_red 1.05828 seeded against 1.05145 on the LaB6 ramp), the largest strain_seed, and the plan's intermediate_ftol and closing_window_tol (sequential.py:470-526); on main (after WP-2045) every CPD pattern keeps its warm rung with the closing stage (644 evaluations, 708 without), 1b's corundum 0.04 of its esds from weighed against 1.96 without; the 10-24 cpd-1b runaway was the declared warm stage stopping early, not the closing stage (clashes.md X3, X13); a warm refit from a floored axial_sl collapsed CPD 1c with the closing stage off (X17)",
   "grounds": "The collapsed warm refit is inside practice (refit); its details are rietx's.",
   "demotion": null,
   "dissenter": "none found",
   "applied": false,
-  "decision": "the closing stage on the warm refit (the fence covered for it at cpd-1b): measure, WP-2036 owns the cost",
+  "decision": "tier 3 for its details; the closing stage kept on the warm refit (C9 question 4 (a), pick); its seed=0.0 re-read with X17's investigation; its cost along a chain is WP-2036's (revised 2026-10-25, batch.md)",
   "class": "C9",
-  "row_note": "no row of its own: StageResult.name 'warm_refit' on the per-pattern results; refit's row carries the choice"
+  "row_note": "no row of its own: StageResult.name 'warm_refit' on the per-pattern results; refit's row carries the choice",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._verify_discontinuities",
@@ -1319,22 +1390,24 @@
   "applied": false,
   "decision": "what picks the pairs once the code goes (a caller's number keeps the switch caller)",
   "class": "C4",
-  "row_note": "no row of its own (caller, the switch's row is tiered); its ratio lives in Diagnostic.value on the code the WP removes, so it needs a home: a SeriesStep field (say SeriesStep.cold_ratio); and each cold refit pays the moment-angle interval unasked (gate with _auto_intervals = False)"
+  "row_note": "no row of its own (caller, the switch's row is tiered); its ratio lives in Diagnostic.value on the code the WP removes, so it needs a home: a SeriesStep field (say SeriesStep.cold_ratio); and each cold refit pays the moment-angle interval unasked (gate with _auto_intervals = False)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._chain.on_error_carry",
   "kind": "action",
   "row": false,
-  "tier": 2,
+  "tier": null,
   "ambiguity": 1,
   "evidence": "the act fit:on_error selects (sequential.py:1616-1656); record SeriesResult.failures and n_failed",
   "grounds": "As fit:on_error.",
   "demotion": null,
   "dissenter": "as fit:on_error",
   "applied": false,
-  "decision": "with fit:on_error",
+  "decision": "with fit:on_error (open) (revised 2026-10-25, batch.md)",
   "class": "C2",
-  "row_note": "no row of its own while SeriesResult is outside _audit.RECORD_SCHEMAS: fit:on_error carries its tier, SERIES_PATTERN_FAILED reports it, and SeriesEntry.seeded_from would say which pattern seeded the successor"
+  "row_note": "no row of its own while SeriesResult is outside _audit.RECORD_SCHEMAS: fit:on_error carries its tier, SERIES_PATTERN_FAILED reports it, and SeriesEntry.seeded_from would say which pattern seeded the successor",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._persistent_diagnostics.half",
@@ -1349,7 +1422,8 @@
   "applied": false,
   "decision": "with the code",
   "class": "C6",
-  "row_note": "row-less (an inline literal the walk cannot see); none needed if the field lands, a hand row (B14) if the code stays"
+  "row_note": "row-less (an inline literal the walk cannot see); none needed if the field lands, a hand row (B14) if the code stays",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.NOT_A_SERIES_FINDING",
@@ -1364,7 +1438,8 @@
   "applied": false,
   "decision": "with the code",
   "class": "C6",
-  "row_note": "row-less (a frozenset the walk cannot see); a hand row (B14) if the code stays, none if the field lands (its count is then one more row)"
+  "row_note": "row-less (a frozenset the walk cannot see); a hand row (B14) if the code stays, none if the field lands (its count is then one more row)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._WIDTH_SUFFIXES",
@@ -1379,7 +1454,8 @@
   "applied": false,
   "decision": null,
   "class": "C7",
-  "row_note": "row-less (a dict); its membership carries into the field if the code goes; a hand row (B14) otherwise"
+  "row_note": "row-less (a dict); its membership carries into the field if the code goes; a hand row (B14) otherwise",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._relative_paths",
@@ -1394,7 +1470,8 @@
   "applied": false,
   "decision": null,
   "class": "C4",
-  "row_note": "no row: arithmetic inside the scans; its record SeriesResult.relative_paths and angle_paths sits outside _audit.RECORD_SCHEMAS"
+  "row_note": "no row: arithmetic inside the scans; its record SeriesResult.relative_paths and angle_paths sits outside _audit.RECORD_SCHEMAS",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._fit_one.declared_wavelengths",
@@ -1409,37 +1486,40 @@
   "applied": false,
   "decision": null,
   "class": "C9",
-  "row_note": "no row: moves only a diagnostic's reference"
+  "row_note": "no row: moves only a diagnostic's reference",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_unsupported_phases_multi",
   "kind": "action",
   "row": false,
-  "tier": "covered",
+  "tier": 3,
   "ambiguity": 1,
-  "evidence": "writes StageResult.held (tier 3, B1, approved 2026-10-23) and held_reach, the single runner's field and ruling; inside refine_multi / MultiHistogramRefinement, which no default path calls (searched 2026-10-24); a package choice inside it is tiered on its own",
-  "grounds": null,
+  "evidence": "writes StageResult.held (B1) and held_reach but judges support by CompiledModel.phase_support alone, the scale's conditional z, at the stage start and at the answer (_joint_unsupported_phases, multi.py:401-431), where the single runner reads the marginal significance (refine._answer_significance, WP-1523) at the answer and beside the screen at the start (refine.py:1510-1516); the screen bounds the marginal reading from above (refine.py:2081-2083), so under one 3sigma the joint fit holds and restores less; the docstring defers alignment to WP-1341 (multi.py:418-421); no joint case on disk differs; inside refine_multi / MultiHistogramRefinement, which no default path calls (searched 2026-10-24)",
+  "grounds": "The hold is B1's act, approved; the statistic it reads here was never on trial in B1.",
   "demotion": null,
   "dissenter": "none found",
   "applied": false,
-  "decision": "the joint runner judges support by CompiledModel.phase_support, never WP-1523's scale significance (multi.py:413-417), so the two runners call a phase unseen by different statistics: align or tier the joint one",
+  "decision": "batch.md C10 question 2: (a) align with refine._answer_significance (pick, after one joint fixture where the two statistics disagree shows what moves) or (b) its own row, tier 3 with approval, B1's 3sigma on a second statistic; tier 3 on (b)'s wording until ruled (revised 2026-10-25, batch.md)",
   "class": "C10",
-  "row_note": "no new row: StageResult.held (tier 3, B1, approved 2026-10-23) and held_reach covers it"
+  "row_note": "proposed: a row of its own (a hand row, B14), since StageResult.held's row names B1's statistic and the joint runner reads another; none once aligned",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._rehold_multi",
   "kind": "action",
   "row": false,
-  "tier": "covered",
+  "tier": 3,
   "ambiguity": 1,
-  "evidence": "writes StageResult.released and collapsed (tier 3, B1, approved 2026-10-19), the single runner's field and ruling; inside refine_multi / MultiHistogramRefinement, which no default path calls (searched 2026-10-24); a package choice inside it is tiered on its own",
-  "grounds": null,
+  "evidence": "writes StageResult.released and collapsed (B1) but judges support by CompiledModel.phase_support alone, the scale's conditional z, at the stage start and at the answer (_joint_unsupported_phases, multi.py:401-431), where the single runner reads the marginal significance (refine._answer_significance, WP-1523) at the answer and beside the screen at the start (refine.py:1510-1516); the screen bounds the marginal reading from above (refine.py:2081-2083), so under one 3sigma the joint fit holds and restores less; the docstring defers alignment to WP-1341 (multi.py:418-421); no joint case on disk differs; inside refine_multi / MultiHistogramRefinement, which no default path calls (searched 2026-10-24)",
+  "grounds": "The hold is B1's act, approved; the statistic it reads here was never on trial in B1.",
   "demotion": null,
   "dissenter": "none found",
   "applied": false,
-  "decision": null,
+  "decision": "batch.md C10 question 2: (a) align with refine._answer_significance (pick, after one joint fixture where the two statistics disagree shows what moves) or (b) its own row, tier 3 with approval, B1's 3sigma on a second statistic; tier 3 on (b)'s wording until ruled (revised 2026-10-25, batch.md)",
   "class": "C10",
-  "row_note": "no new row: StageResult.released and collapsed (tier 3, B1, approved 2026-10-19) covers it"
+  "row_note": "proposed: a row of its own (a hand row, B14), since StageResult.held's row names B1's statistic and the joint runner reads another; none once aligned",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_scale_b_ridges_multi",
@@ -1454,7 +1534,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no new row: StageResult.scale_b_held (tier 1) covers it"
+  "row_note": "no new row: StageResult.scale_b_held (tier 1) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_flat_moments_multi",
@@ -1469,7 +1550,8 @@
   "applied": false,
   "decision": "three inline tolerances (multi.py:796, 822, 856) are hand rows (B14)",
   "class": "C10",
-  "row_note": "no new row: StageResult.moment_flat_axes (tier 1) and moment_turned (tier 3, B2, approved 2026-10-19) covers it"
+  "row_note": "no new row: StageResult.moment_flat_axes (tier 1) and moment_turned (tier 3, B2, approved 2026-10-19) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_width_twins_multi",
@@ -1484,7 +1566,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no new row: StageResult.width_twins_held (tier 3, approved 2026-10-23) covers it"
+  "row_note": "no new row: StageResult.width_twins_held (tier 3, approved 2026-10-23) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._reset_cell_runaway_multi",
@@ -1499,7 +1582,8 @@
   "applied": false,
   "decision": "a bug, not a tier: _cell_runaway_diagnostic(cell_runaway) at multi.py:1632 never folds refine._vars_driven_cell_escapes (refine.py:1704; folded at 4480, 4710), so a vars.X-driven escape in a joint fit is neither reset nor named",
   "class": "C10",
-  "row_note": "no new row: StageResult.cell_reset (tier 3, B8, approved 2026-10-19) covers it"
+  "row_note": "no new row: StageResult.cell_reset (tier 3, B8, approved 2026-10-19) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi.MultiHistogramRefinement._run_plan.seed",
@@ -1514,7 +1598,8 @@
   "applied": false,
   "decision": "the joint runner seeds no Stephens block, the single one does (Stage.strain_seed)",
   "class": "C10",
-  "row_note": "no new row: StageResult.seeded (tier 3, approved 2026-10-21) covers it"
+  "row_note": "no new row: StageResult.seeded (tier 3, approved 2026-10-21) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._parametric_form_tests.at_bound_hold",
@@ -1529,7 +1614,8 @@
   "applied": false,
   "decision": "with B16's clash measurement",
   "class": "C10",
-  "row_note": "row-less: the form test records no list of what it held; propose ParametricFormTest.held if B16 keeps it"
+  "row_note": "row-less: the form test records no list of what it held; propose ParametricFormTest.held if B16 keeps it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._joint_unmeasured_phases",
@@ -1544,7 +1630,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: HistogramResult sits outside _audit.RECORD_SCHEMAS"
+  "row_note": "no row: HistogramResult sits outside _audit.RECORD_SCHEMAS",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.optimize.least_squares._freeze_strain_cap_multi",
@@ -1559,7 +1646,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: no record, and the caps' constants are tier-1 rows; no test names it (add one)"
+  "row_note": "no row: no record, and the caps' constants are tier-1 rows; no test names it (add one)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.optimize.least_squares._freeze_cell_windows_multi",
@@ -1574,7 +1662,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no new row: the cell window's row covers it; no test names it"
+  "row_note": "no new row: the cell window's row covers it; no test names it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.params.multi.size_value_scales",
@@ -1589,7 +1678,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: the model's physics, not a choice; SIZE_NORMALISED_ACROSS_WAVELENGTHS (tier 1, applied) reports it"
+  "row_note": "no row: the model's physics, not a choice; SIZE_NORMALISED_ACROSS_WAVELENGTHS (tier 1, applied) reports it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.params.multi.MultiParameterTable._rebuild_columns.bound_intersection",
@@ -1604,7 +1694,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: no choice"
+  "row_note": "no row: no choice",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.params.multi.SharingMap.is_shared",
@@ -1619,7 +1710,8 @@
   "applied": false,
   "decision": "add the seat or a hand row; confirm the citation is read before tier 2 is written",
   "class": "C10",
-  "row_note": "no row today: SharingMap is not a DEFAULT_SEATS seat; a hand row (B14) or a seat"
+  "row_note": "no row today: SharingMap is not a DEFAULT_SEATS seat; a hand row (B14) or a seat",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi.MultiHistogramRefinement.fit:weights",
@@ -1634,7 +1726,8 @@
   "applied": false,
   "decision": "add the seat or a hand row",
   "class": "C10",
-  "row_note": "no row today: not a DEFAULT_SEATS seat; a hand row (B14) or a seat"
+  "row_note": "no row today: not a DEFAULT_SEATS seat; a hand row (B14) or a seat",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi.MultiHistogramRefinement._ticks.extra_components",
@@ -1649,6 +1742,7 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: a builder decides nothing; the risk is the member contract's (root CLAUDE.md: a third extra_components member audits this reader)"
+  "row_note": "no row: a builder decides nothing; the risk is the member contract's (root CLAUDE.md: a third extra_components member audits this reader)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  }
 ]

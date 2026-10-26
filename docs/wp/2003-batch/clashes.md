@@ -7,6 +7,13 @@ carry policy against the width twin hold, the closing stage against path depende
 B7 and B16. The three clashes found on 2026-10-24 are X1-X3. The classes (C1-C11) are those of
 `classes.md`. Line numbers are this worktree's at `ded5c3f` (2026-10-24), each re-read this session.
 
+**Re-measured on `main`, 2026-10-25.** Every reseed JSON was rewritten on `main` at `9ad4d1f6`,
+after WP-2045 (#1161: the last declared stage converges behind the closing stage), with CPD on
+all eight patterns in every arm and two new arms: `status_runaway` (option (iii) of `batch.md`
+C1) and `on_nobound`/`off_nobound` (the first-rung bound at `None`). X1-X5 and X13 carry a dated
+note where `main` changed them; the rest of each section is the 2026-10-24 record. X16 and X17
+are new, both found in those arms.
+
 **Measurements.** Linux x86-64, 4-core cloud container, worktree venv `[dev]`, compiled tier on
 except the planted chain (off, as in `measure_reseed.py`'s planted protocol), one BLAS thread,
 `RIETX_TELEMETRY=0`, beside the reseed lane's background CPD run. Run by this lane on 2026-10-24
@@ -23,11 +30,11 @@ the reported esd (Bérar-Lelann f included) unless it says "plain". Wall clock i
 
 | # | Clash | Order matters? | Measured? | Moves a reported value? | Class | Proposed resolution |
 |---|---|---|---|---|---|---|
-| X1 | First-rung bound × closing stage | Yes | Yes: thermal ramp at factor 0.5; planted at 3.0 | Yes. Hidden truncation: ≤ 8e-4 esd (thermal). The closing stage cut: 39.3 esd on the blank frame's scale (planted) | C3 | Fix: read the truncation off the rung's own stages, and cap and sample the same thing. Then FIRST_RUNG_FACTOR cannot be `invariant` on its present evidence (planted's ratio is 6.7) |
-| X2 | `reseed=False` × forced escalation | Yes | Yes: thermal (no closing stage) and planted T087 | Yes: planted T087, the 39.3 esd of X1 | C1, C3 | Fix: no first-rung budget when `reseed=False`. One breach of the docstring, none other |
-| X3 | Closing stage × the fence (cpd-1b) | Yes | Yes (reseed JSONs) | Yes: every value of cpd-1b; corundum *a* 4.8 % | C1, C9 | Ruling for C1, with the mechanism stated: the fence's one rescue is a runaway the closing stage made on a warm refit. Without the closing stage, a degraded warm fit passes every trigger |
-| X4 | Closing stage × a status-only trigger | Yes | Yes (reseed JSONs: Cr₂WO₆ status+`max_iter`) | Yes: ≤ 0.087 esd, at 3.07× the evaluations | C1 | Ruling: which stage's `max_iter` counts. Reading the closing stage catches cpd-1b and triples Cr₂WO₆'s cost. Reading the warm stage catches neither |
-| X5 | Ladder × `_prefer`/`_better` | Yes (the comparison order) | Partly: planted T087 | Yes: T087 kept the higher-Rwp attempt | C2 | Ruling on `max_iter` versus `converged` (C2). Fix: rank diverged before truncated. Fix the `_ladder` docstring |
+| X1 | First-rung bound × closing stage | Yes | Yes: thermal ramp at factor 0.5 (not re-run); planted at 3.0, re-run on `main` | Yes. Hidden truncation: ≤ 8e-4 esd (thermal). On `main` the planted cut moves T087's zero shift 6.06 esd, toward the planted truth (39.3 esd on the scale before WP-2045) | C3 | Fix: read the truncation off the rung's own stages, and cap and sample the same thing. FIRST_RUNG_FACTOR cannot be `invariant` (T087's ratio is 9.8 on `main`). Superseded in part 2026-10-25 |
+| X2 | `reseed=False` × forced escalation | Yes | Yes: thermal (no closing stage) and planted T087 | Yes: planted T087 (X1); and on `main` the forced escalation is what keeps T088-T127 from freezing (X16) | C1, C3 | Fix: no first-rung budget when `reseed=False`, after X16 is fixed, since that fix is `off_nobound` |
+| X3 | Closing stage × the fence (cpd-1b) | Yes | Yes (reseed JSONs) | Before WP-2045: every value of cpd-1b. On `main`: none; 1b keeps its warm rung in every arm but (iii) | C1, C9 | Superseded in part 2026-10-25: the runaway was the declared warm stage stopping early as an intermediate stage, which WP-2045 fixed, not the closing stage's own solve. The fence has no rescue left in the default configuration |
+| X4 | Closing stage × a status-only trigger | Yes | Yes (reseed JSONs: Cr₂WO₆ status+`max_iter`) | Before WP-2045: ≤ 0.087 esd at 3.07×. On `main`: none; (ii) is `status` bit for bit on every family | C1 | Superseded in part 2026-10-25: both cases are gone on `main`. (ii) is dropped on Rule 1's dissent from practice, not on this table |
+| X5 | Ladder × `_prefer`/`_better` | Yes (the comparison order) | Partly: planted T087 | Yes: T087 kept the higher-Rwp attempt, which sits at the planted truth | C2 | Ruling on `max_iter` versus `converged` (C2), ranked by the full cost. Fix: rank diverged before truncated. Fix the `_ladder` docstring |
 | X6 | Ladder × width growth | No | Yes: soak, three arms | No: ≤ 5.1e-5 esd, finding identical | C7 | No interaction, shown by the soak. The C7 field carries `rung` beside each ratio |
 | X7 | Ladder and quarantine × moment carry | Yes | No (no family has a floor before an escalation) | Record only | C8, C2 | No value interaction. Record fix: `floored` beside `seeded_from`, so a floored-then-cold pattern does not read as floored |
 | X8 | Quarantine × median × fence | Yes (walk position, direction) | Partly: the soak's median following the drift | Not on disk | C1 | Ruling: the fence's first patterns are judged against a median of one or two. State it in the fence's help entry, or arm the fence after a minimum |
@@ -35,13 +42,28 @@ the reported esd (Bérar-Lelann f included) unless it says "plain". Wall clock i
 | X10 | Rejected rungs and `verify_discontinuities` × the automatic profile interval | No | Yes: Cr₂WO₆ counts (reseed JSONs) | No: cost only | C2, C4 | Fix (task 3): `_auto_intervals = False` on every rung and verify refit, and the interval run once on the kept attempt |
 | X11 | Carry policy × width twin hold | Yes (carry first, hold second) | Yes: the strict xfail | Yes: mean Rwp +0.0026 (values not measured) | C9 | Measure QPA against weighed before ruling `carry`. Candidate design: hold the twins for the chain at pattern 0's instrument-only value |
 | X12 | Closing stage × path dependence | No | Yes: thermal, jump, trigger, `direction="both"` | No: no flag appears or vanishes; the gaps shrink | C5, C9 | No interaction that moves a flag, shown on three synthetic families. CPD not run |
-| X13 | B7 (`intermediate_ftol`) along a chain | Yes (it stops the warm stage before the closing stage) | Yes: thermal, jump, trigger | ≤ 2.7e-4 esd, set by pattern 0 and not amplified | C9 | No chain amplification on three families. One CPD arm would settle whether 1e-6 on the warm stage feeds X3 |
+| X13 | B7 (`intermediate_ftol`) along a chain | Yes (it stops the warm stage before the closing stage) | Yes: thermal, jump, trigger; CPD on `main` (`cpd-ftolnone`) | ≤ 2.7e-4 esd on the toys; ≤ 2.1e-4 esd on CPD on `main` | C9 | Superseded in part 2026-10-25: the CPD arm ran, and on `main` the setting is moot. X3's runaway was the early stop WP-2045 removed |
 | X14 | B16 (bound test) × the joint parametric form test | One way | No | Unmeasured | C10 | Measurement owed above `BVLS_MAX_COLUMNS`, where the joint fit leaves the exact active set |
 | X15 | Ladder × path dependence | Yes | No (no measured `direction="both"` family escalates) | Unmeasured | C5, C1 | Unmeasured. The C5 field should carry each direction's `rung` beside each gap |
+| X16 | First-rung bound × the absent-phase hold under `reseed=False` (planted) | Yes (the bound's forced escalation decides T088's start) | Yes: planted `off` against `off_nobound` and `on_nobound`, on `main` | Yes: T088-T127, the scale 40-61 esd from truth, Rwp ×10 | C3, C1, C2 | Investigation owed: a chain defect the bound masks. C3's (a) and X2's fix wait on it |
+| X17 | Option (iii) × the collapsed warm refit from a floored row (CPD closing off) | Yes ((iii) decides 1c's start) | Yes: `cpd-noclose_status_runaway`, on `main` | Yes: 1c-1h, corundum 3.9-73 wt % against 5.0-55.1 weighed | C1, C2, C9 | Investigation owed. (iii) not adopted (C1); an `error`-level attempt counted as diverged would catch it (C2 question 5) |
 
 ---
 
 ## X1. The first-rung bound × the closing stage
+
+**Superseded in part, 2026-10-25** (`main` at `9ad4d1f6`; the thermal-ramp arms were not
+re-run). Planted, the bound at 3.0 against `None`: `on` against `on_nobound` is bit-identical
+on 200 of 248 patterns and moves one past 1e-3 esd, T087. With the bound its warm rung is
+truncated (Rwp 0.048022) and the forced `warm_staged` kept (0.048071): scale 0.0, zero shift
+0.00597 and widths T086's, held esd-less. Without it the warm rung converges in 95 + 13
+evaluations (Rwp 0.048033): scale 7.32(70)e-8, zero shift −0.0231(48). Against the planted
+truth (scale 0, zero shift 0.006) the bound's answer sits on it (worst key path background c0,
+1.5 esd) and the unbounded one 6.06 esd off on the zero shift; the independent cold fit of T087
+ends `max_iter` at 0.0119(47), 1.26 esd off. T088 moves 1.65e-4 esd, the rest ≤ 8.5e-6 esd.
+T087's unbounded first rung is 108 evaluations against a running maximum of 11 (9.8×, not
+6.7×). The saving is 49 evaluations of 13 083 on planted and none on CPD, the null twin or
+trigger. The 39.3 esd below is the tree before WP-2045.
 
 **The actions.** WP-1127's first-rung bound (`_first_rung_budget`, `sequential.py:571-603`, applied
 by `_bounded_plan`, `:606-623`, at `:1574-1575`). WP-2002's closing stage, which `_collapse` carries
@@ -113,6 +135,10 @@ moved accepted value, not a meaningful one.
 
 ## X2. `reseed=False` × the forced escalation
 
+**Superseded in part, 2026-10-25.** On `main` the breach moves T087 toward the planted truth
+(X1's note), and it is what keeps T088-T127 from freezing under `reseed=False`: `off_nobound`,
+which is exactly the fix proposed below, freezes them (X16). The fix waits on X16.
+
 **The actions.** The caller's `reseed` switch, and WP-1127's forced escalation of a bitten first
 rung.
 
@@ -150,6 +176,19 @@ keep a truncated rung, so the budget has to go with the switch.
 ---
 
 ## X3. The closing stage × the fence (cpd-1b)
+
+**Superseded in part, 2026-10-25.** The mechanism below is wrong in its cause. The runaway was
+the declared warm stage stopping early as an intermediate stage (`intermediate_ftol` 1e-6, at
+136 evaluations), not the closing stage's own solve: WP-2045 (#1161) makes the last declared
+stage converge, `_collapse`'s comment records the plateau it stopped on at `axial_sl` 555
+(`sequential.py:510-515`), and `intermediate_ftol=None` on `main` moves the chain ≤ 2.1e-4 esd
+(X13). On `main`, closing on, cpd-1b keeps its warm rung in `on`, `status`, `off`,
+`status_maxiter`, `on_nobound` and `off_nobound`, bit-identical across them: converged in
+280 + 21 evaluations, Rwp 0.13984 (the independent `ref_seeded` 0.13732), corundum 94.32(23) wt %
+against 94.31 weighed, *a* 4.75801(41) Å against 4.75809(38), `CELL_RUNAWAY` still firing. The
+eight-pattern chain is 644 evaluations, about 41 s. Only `status_runaway` (option (iii))
+escalates it (`batch.md` C1). The closing-off rows below reproduce bit for bit on
+`main`. The fence has no rescue left in the default configuration.
 
 **The actions.** The closing stage on a collapsed warm refit (`_collapse`, `sequential.py:470-526`,
 carrying `closing_window_tol` at `:517`), and the Rwp fence (`_reseed_needed`, `:2004-2009`).
@@ -206,6 +245,12 @@ measure what it does to path dependence and to the stage tolerance.
 
 ## X4. The closing stage × a status-only trigger (new)
 
+**Superseded in part, 2026-10-25.** On `main` Cr₂WO₆ 150 K's closing stage converges (warm
+stage 50 evaluations, closing stage 377) in every arm, and cpd-1b no longer ends `max_iter`, so
+`status_maxiter` is `status` bit for bit on all eight families (482 evaluations on Cr₂WO₆). The
+table's two cases are both gone. The split stands as a question of practice: `batch.md` C1
+drops option (ii) on Rule 1's dissent, not on this table.
+
 **The actions.** C1's proposed rule (escalate on diverged, raised or `max_iter`), and the closing
 stage, whose verdict is the result's status.
 
@@ -242,6 +287,11 @@ so the closing-stage reading costs evaluations, not answers, on these two cases.
 ---
 
 ## X5. The ladder × the kept attempt (`_prefer`, `_better`)
+
+**Superseded in part, 2026-10-25.** On `main` T087's truncated warm rung reads Rwp 0.048022
+and the kept `warm_staged` 0.048071, which sits at the planted truth (X1's note). The cpd-1b
+comparison below is the tree before WP-2045; under option (iii) on `main` both of 1b's rungs
+converged and the lower Rwp won. `batch.md` C2 ranks by the full cost, not Rwp.
 
 **The actions.** The escalation (fence, status, forced) and the choice of which attempt to keep.
 
@@ -505,6 +555,14 @@ forward against backward).
 
 ## X13. B7: `intermediate_ftol` along a chain
 
+**Superseded in part, 2026-10-25: the open arm ran, on `main`** (`cpd-ftolnone`: CPD 1a-1h,
+closing on, `intermediate_ftol=None`). `on` equals `status` on all eight (750 evaluations).
+Against `cpd` no pattern is bit-identical and the worst gap is 1.1e-4 to 2.1e-4 esd
+(`instrument.profile.v`). Evaluations: 1a 277 against 175, 1b 305 against 301, 1c-1h equal. 1b
+keeps its warm rung at Rwp 0.139841 with `CELL_RUNAWAY`. So the 10-24 runaway (X3) was the warm
+stage's early stop, which WP-2045 removed, and `intermediate_ftol` along a chain is moot on
+`main`. The toy-family numbers below predate WP-2045 and were not re-run.
+
 **The actions.** WP-1123's intermediate tolerance (1e-6), which WP-2002 kept with a 0.1-plain-esd
 bar once the closing stage landed (`2002-batch/waiting.md` § B7), and the chain.
 
@@ -591,12 +649,115 @@ direction: planted with `direction="both"` (about 5 minutes an arm).
 
 ---
 
+## X16. The first-rung bound × the absent-phase hold under `reseed=False` (new, 2026-10-25)
+
+**The actions.** WP-1127's bound and its forced escalation (`sequential.py:1564`); the caller's
+`reseed=False`; the absent-phase hold and its collapse restore (WP-1301, B1); the collapsed warm
+refit of the next pattern (`_collapse`, no stage seed).
+
+**Order matters.** Yes. Whether T087's first rung is cut decides which state T088 warm-starts
+from.
+
+**Measured** (planted, the reseed JSONs on `main`: `off` against `off_nobound`, with
+`on_nobound` and the truth beside them). T087 is the blank frame (truth: scale 0).
+- *With the bound* (`off`, `on`): T087's warm rung is truncated and the forced `warm_staged`
+  kept, scale 0.0, zero shift and widths T086's, held esd-less (`FLOOR_HIT`,
+  `PHASE_UNCONSTRAINED`). T088 recovers in its warm rung (Rwp 0.04155).
+- *Without it, `reseed=False`* (`off_nobound`): T087's warm rung converges (95 + 13 evaluations)
+  at Rwp 0.048033 with the widths walked: U 0.068(347) against T086's −0.0009(46), X on its floor
+  at 0, `RESOLUTION_NOT_POSITIVE`, `PHASE_UNCONSTRAINED` with the cell held, scale 7.32(70)e-8,
+  zero shift −0.0231(48). T088-T127 (40 patterns) warm-start from it and each converges in 25-28
+  evaluations at Rwp 0.433-0.435, against 0.041-0.044 in `off`. The scale stays 7.35249e-08 on
+  every one (truth 2e-4): 40-61 esd from truth by its own esd, 317-434 from `off`'s by `off`'s.
+  The zero shift and widths stay T087's, with esds 34-75× T087's. The cell is held and absent
+  (`PHASE_UNCONSTRAINED`), and `RESOLUTION_NOT_POSITIVE` fires on all 40.
+  `SEQUENTIAL_RWP_OUTLIER` fires 149 times against 114, and nothing escalates under
+  `reseed=False`. At T128 the chain recovers, within 5.5e-4 esd of `off` thereafter; why there
+  was not traced.
+- *Without it, the fence on* (`on_nobound`): T088's warm rung freezes the same way (Rwp 0.4334,
+  above its fence 0.0605), climbs to `warm_staged`, which raises `LinAlgError('Eigenvalues did
+  not converge')`, and keeps `cold` at Rwp 0.04155, equal to `on`'s and the independent fit's.
+  This is the fence's one rescue on disk on `main`.
+- *Without it, status only* (not run): T087 and T088 are both `converged`, so nothing
+  escalates them, and by reading the chain freezes as `off_nobound` does.
+
+**Mechanism.** Unknown. Two readings, neither verified. (a) A scale just above its floor is
+lifted by no seed while the absent-phase hold holds the phase's structure. Against it,
+`_collapse` seeds nothing (`seed=0.0`, `sequential.py:506`), and from the bounded arm's scale
+exactly on its floor T088 recovers, so a floor-lift does not separate the arms. (b) The width
+state T087 hands on separates them: T086's, held, with the bound; walked to a resolution
+function that is not positive somewhere, without it. A warm refit from (b)'s state may find no
+peak to scale; the scale's esd on T088 is 10× the recovered fit's.
+
+**What it moves.** Every value of T088-T127: the phase reads unseen through a stretch where it
+is planted at full scale.
+
+**Class.** C3 (the bound's default), C1 (what escalates), C2 (no `error` fires: Rwp 0.43 is
+under `MODEL_FAR_FROM_DATA_RWP`).
+
+**Proposed.** An investigation, not fixed here. Reproduce with `measure_reseed.py --family
+planted --arm off_nobound` (about a minute). Separate (a) from (b) by warm-starting T088 from
+T087's unbounded state with the widths reset to T086's. Until the cause is fixed, C3's (a) and
+X2's fix each reproduce the freeze in a configuration the package defaults to or the caller
+asks for, so both wait on it.
+
+---
+
+## X17. Option (iii) × the collapsed warm refit from a floored row (new, 2026-10-25)
+
+**The actions.** `batch.md` C1's option (iii), escalate while the best attempt so far carries
+`CELL_RUNAWAY` (the arm `status_runaway`, not a package default); the ladder's `warm_staged`
+rung; the next pattern's collapsed warm refit (`_collapse`); the closing stage, off in this
+declared variant.
+
+**Order matters.** Yes. (iii) decides which state 1c warm-starts from.
+
+**Measured** (`cpd-noclose_status_runaway.json` on `main`, against `status` and `ref_seeded`;
+the lead session checked that `on`, `status`, `off` and `status_maxiter` reproduce the 10-24
+`cpd-noclose` files bit for bit). 1b: the degraded warm fit (Rwp 0.16333, corundum 94.84(27) wt % with its cell held,
+`CELL_RUNAWAY`, `PHASE_UNCONSTRAINED`) climbs to `warm_staged`: Rwp 0.13928, corundum 94.26(24)
+against 94.31 weighed, *a* 4.75808(39) Å. That is the independent fit's answer (Rwp 0.13932,
+*a* 4.75809(39)), `axial_sl` on its floor at 0 in both (esd 251 and 253); under `status` the kept
+warm fit has 0.011(14). 1c's warm refit from that state converges in 314 evaluations at Rwp
+10.83 (independent 0.10901): zero shift −6.33(264)°, sample displacement −8.9(37), *a*
+4.668(38) Å against 4.7572(10), `axial_sl` 34.8 esd-less, with `MODEL_FAR_FROM_DATA` (level
+`error`), `FROZEN_COMPILE_STALE`, `RESOLUTION_NOT_POSITIVE`, `RESOLUTION_UNCONSTRAINED` and
+`BISO_UNUSUALLY_LARGE`. Nothing in (iii) fires, so 1c is kept and seeds 1d-1h. Each ends
+`max_iter` at 400 evaluations, Rwp 0.759-0.772, `axial_sl` 121-137, zero shift about −6.3°,
+corundum 55-73 wt % with esds of 39-71 against 13.5-55.1 weighed. The chain: 2 957 evaluations
+against 708, 1 198 s against 36 s; mean |ΔW| over 1a-1h 13.98 wt % against 1.82 (`status`) and
+1.78 (independent). With the closing stage on, (iii)'s kept 1b has `axial_sl` 0.004(30), off its
+floor, and 1c-1h converge.
+
+**What would have caught it.** The fence (1c at Rwp 10.83); option (ii) catches 1d-1h but not
+1c; an `error`-level kept attempt read as diverged (`batch.md` C2, question 5) catches 1c.
+
+**Mechanism.** Unknown. Two readings, neither verified. (a) `_collapse` hands the warm refit
+`seed=0.0` (`sequential.py:506`), which leaves the floored row where it is. (b) The windows are
+compiled at `axial_sl` 0 and the parameter walks to 34.8 inside one solve, with no closing stage
+to recompile at the answer. `MODEL_FAR_FROM_DATA`'s docstring names that frozen-window signature
+(`refine.py:9003-9008`), and `_collapse`'s comment records a plateau at `axial_sl` 555 on 1b
+before WP-2045 (`sequential.py:510-515`). Against (b) alone, `FROZEN_COMPILE_STALE` fires on 1c
+under `status` too, which did not collapse.
+
+**What it moves.** Every value of 1c-1h.
+
+**Class.** C1 (option (iii)), C2 (question 5), C9 (`_collapse`'s seed; what is carried).
+
+**Proposed.** An investigation, not fixed here. Reproduce with `--family cpd-noclose --arm
+status_runaway` (about 20 minutes), or with no option (iii): warm-start 1c from `ref_seeded`'s
+1b with the closing stage off. That second run tests whether the floored row alone does it, in
+which case any chain whose kept 1b reaches the independent fit's answer collapses at 1c.
+
+---
+
 ## Bugs and docstring errors (fixes, not rulings)
 
 - `first_rung_factor`'s docstring, "A bound that bites costs an escalation and never an answer"
   (`sequential.py:1104-1107`), is false twice: X1 outcome 1 costs no escalation, and planted T087
   costs an answer.
-- `reseed`'s docstring (`sequential.py:1079-1085`) is broken by the forced escalation (X2).
+- `reseed`'s docstring (`sequential.py:1079-1085`) is broken by the forced escalation (X2). Its
+  fix (no budget under `reseed=False`) waits on X16.
 - The `_ladder` docstring says `_better` "prefers a converged fit" (`sequential.py:559-561`). It
   prefers a non-diverged one (X5).
 - `reseed_factor` is not validated (`sequential.py:1030`; X9).
