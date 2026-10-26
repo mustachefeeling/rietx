@@ -370,15 +370,35 @@ the discontinuity threshold is gone: every step is listed in esds and none is ca
 - `measure_reseed.py` broke on `result.discontinuities` the moment C4 landed; a family run
   started before a schema change finishes on the old code (one process per family).
 
-*Generality.* GENERALITY_PLACEHOLDER
+*Generality.* The `generality-review` judge's sections, unedited, are in
+`2003-batch/generality-2026-10-26.md` (15 KB, kept out of this file, which successors read
+whole). Nine items, none `fails`:
+1. `SeriesEntry.seeded_from`, tier 3: holds (rows weak on the X17 failure case, a tier
+   disagreement with `batch.md` C2's "tier 1, a record", and `None` meaning "not recorded" too).
+2. `SeriesEntry.floored`, tier 3: holds (evidence should cite Ba₂FeSbSe₅, not Cr₂WO₆, which
+   seeds no successor; C8's injected-divergence test is owed).
+3. `fit:verify_steps`, caller: holds. 4. `NOISE_FLOOR_REL`, tier 1: holds.
+5. `SEQUENTIAL_DISCONTINUITY` and its constants deleted: holds (no agent run on the demotion).
+6. `fit:verify_discontinuities` deleted: holds. 7. `LinearInequality.violated`'s floor: holds
+   (`_ON_FACE`'s row text is stale).
+8. The interval gate: **weak**. Author: the swallow leaves no record; narrowing it, or a
+   finding naming the pattern, rides the next commit to `_chain` (Next 3).
+9. `_series_steps`: **weak**. Author: right on the above-fence drop, which `rows.json` ruled
+   out with the scan and the lane kept (the planted transition is masked, `_MASKED`); and on
+   the later-only esd, where the removed scan used the combined one. Both are C4 follow-ups,
+   Next 2.
 
 *Next*, in order:
 1. C1 and C3, now unblocked by X16: the Rwp fence becomes a reported ratio and a warm fit
    escalates only on diverged or raised (C1); `first_rung_factor=None` by default with its
    two defects fixed (C3), and X2's no-budget-under-`reseed=False`. Re-run planted
    `off_nobound` as C3's check: it is now the default it would become.
-2. C2's question 5 arm (an `error`-level kept attempt read as diverged) on tut05-broken and
-   CPD closing off, then C2's ranking fix (diverged below truncated).
+2. C4's follow-ups from the judge (items 8-9): drop the above-fence exclusion from
+   `_series_steps` as `rows.json` ruled, size a step over the combined esd √(σ₁²+σ₂²), and
+   record a failed interval rather than swallow it; then the two declined review findings
+   (`verify_steps` counting tied rows, a failed verify reading as not requested). Then C2's
+   question 5 arm (an `error`-level kept attempt read as diverged) on tut05-broken and CPD
+   closing off, and C2's ranking fix (diverged below truncated).
 3. C5, C6, C9's carry-invariance test, C10's joint hold row; each its own commit with its
    `_audit.py` row. Then goldens (task 8), tests (task 10) and the skill list (task 11: the
    seven renamed lines are in WP-2008's Inherited).
