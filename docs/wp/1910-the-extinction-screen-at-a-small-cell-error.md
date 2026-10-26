@@ -1,6 +1,6 @@
 # WP-1910 — the extinction screen at a small cell error, and the other centring
 
-Milestone: unscheduled · Status: 🔄 2026-10-26 — the default flip and the gate (PR #939), the margin scan's rows and the PNGs (PR #1178) merged; open: the default's confident misses, the contract's prose, point 2, the skill recipe
+Milestone: unscheduled · Status: 🔄 2026-10-26 — the default flip and the gate (PR #939), the margin scan's rows and the PNGs (PR #1178) merged; open: the second screen ruled for the default's confident misses, the contract's prose, point 2, the skill recipe
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-05 — a silent wrong answer on a path few fits run: at +0.06 % the screen refutes certified corundum's class and returns one whose members exclude it, nothing names the cell, and the skill's own recipe screens the unrefined index cell
@@ -256,6 +256,15 @@ and is not proposed here. No code is ported.
       Le Bail-refined cell (or states the contract), inside
       `tests/skill_caps.py`'s budget; a diagnostic code adds its row.
 - [x] Tests, with obs/calc/diff PNGs to `tests/output/`. *PR #1178.*
+- [ ] The default's confident misses (PR #1178's four strict xfails). *Ruled
+      2026-10-26: (c).* Screen again at the prefit's cell, held, from the
+      declared instrument, and report a finding when the two return different
+      decisive classes; a held screen with no decisive class is recorded, not
+      flagged, or PbSO₄'s eleven rows raise false alarms. On a disagreement
+      the answer carries both rankings and picks neither. Measure (b) (carry
+      the cell and background, refit widths and zero) on the same scan, and
+      build it too only if it fixes rows (c) can only flag. Corundum ×0.985
+      and the monoclinic ×0.9975 stay strict xfails: the prefit's cell is off.
 
 ## Acceptance
 
@@ -394,3 +403,10 @@ are out of its reach.
   stack with #1179 (counts in WP-1968's entry of today). *Next:* the
   maintainer's answer on the default, then the contract's prose after #1170
   and #1140, point 2, and the skill recipe.
+- **2026-10-26 (later)** — The maintainer answered #1178's question: (c),
+  with (b) measured beside it. The indexing rulebook's governing rule is
+  never one confident answer, with confidence from methods that fail
+  differently agreeing, so (a) would leave a standing breach and (c) is the
+  rulebook's own device. (b) changes a default and stays one screen. Posted
+  on #1178; the task above carries the detail. *Next:* that task, then the
+  contract's prose after #1170 and #1140, point 2, and the skill recipe.
