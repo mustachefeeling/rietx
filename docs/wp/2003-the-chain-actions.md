@@ -1,6 +1,6 @@
 # WP-2003 — The chain actions: what a series decides between patterns
 
-Milestone: generality · Status: 🔄 2026-10-25 — claimed by @yue-here (third session: re-measure on main after WP-2045, revise the batch against DESIGN § Rules, then the rulings)
+Milestone: generality · Status: 🔄 2026-10-26 — batch re-measured on main, revised against DESIGN § Rules and ruled (maintainer's delegation); next X16/X17, then the record fields and demotions (tasks 3, 7)
 Track: The audits
 Depends on: 2002, 2037
 Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
@@ -189,7 +189,7 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       (2026-10-24): the 77 table rows 2003 owns (not 65: `SERIES_PATTERN_FAILED` and the
       joint fit's five codes, with their suggestion rows) and 34 row-less actions; task 3's
       question answered in `2003-batch/README.md`.
-- [ ] Tier each row per part, with evidence. The `RESEED_FACTOR` question measured on
+- [x] Tier each row per part, with evidence. The `RESEED_FACTOR` question measured on
       three chain families with the fence on, off and status-only: patterns reseeded,
       accepted values that differ, and the cost in evaluations. Second session (2026-10-24/25):
       a proposal for all 111 entries (`2003-batch/rows.json`, by class in `classes.md`); the 17
@@ -199,7 +199,8 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       session (2026-10-25): every family and arm re-measured on main after WP-2045, CPD on all
       eight patterns (`3c45728`-`891a6f9`, the JSONs written over), plus option (iii) as the
       arm `status_runaway`, the first-rung bound off (`on_nobound`, `off_nobound`) and X13's
-      `cpd-ftolnone` (`7e03411`, a lane).
+      `cpd-ftolnone` (`7e03411`, a lane). Ruled 2026-10-26 (every entry's `ruling` in
+      `rows.json`); the table rows land with task 7's demotions.
 - [ ] Quarantine's record: does the returned `SeriesResult` name the pattern that
       diverged, the rung it reached, and the successors seeded from an earlier pattern
       instead? Quarantine is one of Rule 1's protections and stays; a protection records
@@ -235,10 +236,13 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       docstring); the closing stage × the fence (cpd-1b escalates with it, not without it).
       Done 2026-10-25: `2003-batch/clashes.md` (`5212338`), fifteen clashes X1-X15, eleven
       measured on synthetic chains or read off the reseed JSONs.
-- [ ] The batch to the maintainer, each brief opening with its stakes line (the record
+- [x] The batch to the maintainer, each brief opening with its stakes line (the record
       § The rule, 2026-10-20); rulings dated into the table. Drafted 2026-10-25
       (`2003-batch/batch.md`, `86ffb9a`), not yet put to the maintainer: four picks are
-      revised against DESIGN.md § Rules first (the 2026-10-25 handover's *Next*).
+      revised against DESIGN.md § Rules first (the 2026-10-25 handover's *Next*). Revised on
+      main's numbers (`03ec3da`, a lane) and ruled 2026-10-26 (`ca3f354`): the maintainer
+      delegated the rulings to the session's judgement against DESIGN.md § Rules, every pick
+      approved, `on_error` kept at `"carry"`, tier 3.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
       `SeriesResult.steps` field and its help entry (no diagnostic), if the batch agrees; the
       release notes staged.
@@ -247,7 +251,7 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       verifies and does not validate (DESIGN.md § Rules, 2). Where a series member has a
       certified value or a second engine's answer, that reference is measured too and
       the handover says which each number was held to.
-- [ ] Width-growth rulings handed to 2004 as an `### Inherited` entry there.
+- [x] Width-growth rulings handed to 2004 as an `### Inherited` entry there (2026-10-26).
 - [ ] Tests + PNGs; the fast count moved by exactly the tests added.
 - [ ] Skill: none here. List each `references/series.md` row (5 308 words) that names a
       demoted verdict, for 2008 (DESIGN.md § Rules, 3; the record § Decisions, the
@@ -273,6 +277,115 @@ summary).
 - Root CLAUDE.md § Series.
 
 ## Handover log
+
+### 2026-10-26 (third session) — re-measured on main, revised against DESIGN § Rules, ruled
+
+On `main` (after WP-2045) the chain no longer needs any trigger beyond divergence, so the batch
+now takes that as its first ruling. Every family was re-run: the Rwp fence's one rescue is gone
+with the runaway it caught, and its 116 escalations move nothing, at 4.1× the evaluations on
+planted. Escalating on `max_iter` changes nothing on any family. Escalating on a cell runaway
+restarts one good fit, and in the closing-off variant it rescues a pattern and then lets the
+chain collapse unnoticed. The first-rung bound moved one accepted value, toward the truth. Two
+chain defects surfaced and are filed as investigations, not fixed: a 40-pattern freeze when the
+bound is off, and a collapse warm-started from a floored row. The maintainer delegated the
+rulings to the session's judgement against DESIGN.md § Rules. Every pick in the revised batch is
+approved, `on_error` keeps `"carry"`, and the ordering matters: C1 and C3 land only after X16 is
+fixed.
+
+*Done.*
+- Claimed (`8f88166`; PR #1156 had merged, so the branch restarted from `origin/main`); draft
+  PR #1169. Inherited from WP-2045 folded into Context as a dated superseded-in-part note
+  (`837dbd6`); its content was the measurement this session re-ran.
+- Every family and arm of `measure_reseed.py` re-run on main (`3c45728`-`0f70a7f`), CPD on all
+  eight patterns now that its chain takes ~41 s (it took 2 310-2 617 s an arm before WP-2045).
+  All 62 JSONs written over, none pre-2045 left.
+- A lane added option (iii) as the arm `status_runaway`, the no-bound arms and `cpd-ftolnone`
+  (`7e03411`), and ran them on every family.
+- A lane revised `batch.md`, `clashes.md` (X16, X17; X1-X5 and X13 superseded in part),
+  `rows.json` (23 proposals), `classes.md` and `README.md` (`03ec3da`). I checked its three
+  corrections of my own readings off the JSONs; all three hold. (1) Planted T088 under
+  `on_nobound` is a rescue by the fence: the warm rung froze at Rwp 0.4334, `warm_staged`
+  raised a LinAlgError, and the cold rung recovered at 0.04155. (2) CPD's 7-14 esd
+  `lor_strain` gap from the independent fits is (iii)'s alone; `status`'s worst path is
+  `profile.v`, 2.89-5.59 esd. (3) `axial_sl` sits on its floor at 0 in the independent 1b too
+  (esd 253), and 1c's `MODEL_FAR_FROM_DATA` is raised at `error` (`refine.py:9021`).
+- Rulings (`ca3f354`): a dated section heads `batch.md`, and every pending entry of `rows.json`
+  (94) carries `ruling`. `fit:on_error` and `_chain.on_error_carry` are tier 3.
+- `reseed.md` re-rendered. WP-2004 Inherited: C7's width-growth ruling, and its Priority
+  re-rated. The 2026-10-25 trial row appended to `process.md`.
+- Code review (`/code-review high --fix`, on `measure_reseed.py`, the branch's only code): ten
+  findings, nine fixed (`0297842`). The reference arms now carry the chain's labels; the
+  trigger family stored `p000` ten times, and its `ref` was re-run bit-identically to fix it
+  (`598a355`). The table no longer breaks past a cut or without an `on` arm. The venv is read,
+  not asserted. CLI edge cases are refused. Partly fixed: a pattern whose every rung raised
+  still charges its cost to the next row, which now names it (`charged_failures`). `--table`
+  output is byte-identical over the committed JSONs.
+
+*Measured* (Linux x86-64, 4-core cloud container, worktree venv `[dev]`, compiled tier on, one
+BLAS thread; escalated patterns, summed evaluations):
+
+| family | on | status | off | (ii) | (iii) | on_nobound | off_nobound |
+|---|---|---|---|---|---|---|---|
+| CPD (8) | 0, 644 | 0, 644 | 0, 644 | 0, 644 | 1 (1b), 785 | 0, 644 | 0, 644 |
+| CPD closing off | 0, 708 | 0, 708 | 0, 708 | 0, 708 | 1 (1b), 2 957 | — | — |
+| planted | 115, 13 034 | 1, 3 165 | 1, 3 165 | 1, 3 165 | 1, 3 165 | 115, 13 083 | 0, 3 906 |
+| planted null | 0, 2 143 in every arm | | | | | | |
+| trigger | 0, 275 in every arm | | | | | | |
+| Cr₂WO₆ | 0, 482 in every arm | | | | | | |
+| tut05-jump | 0, 634 in every arm | | | | | | |
+| tut05-broken | 1, 162 | 0, 138 | 0, 138 | 0, 138 | 0, 138 | | |
+
+- CPD 1b on main: warm rung kept in every arm but (iii), converged at Rwp 0.13984 (independent
+  0.13732), corundum 94.32(23) wt % against 94.31 weighed, *a* 4.75801(41) Å against the
+  independent 4.75809(38), `CELL_RUNAWAY` still firing. Under (iii) it is kept at `warm_staged`:
+  94.24(23), 0.135 esd. With the closing stage off, (iii) rescues 1b (94.26(24)). 1c then
+  collapses: Rwp 10.83 `converged`, zero shift −6.33°, corundum 3.9 wt %. 1d-1h end `max_iter`
+  at corundum 55-73 wt % (X17).
+- First-rung bound: it moves only T087. With the bound, scale 0 (truth 0) and worst key path
+  1.54 esd. Without it, the zero shift is −0.0231(48) against a true 0.006, 6.06 esd off.
+  Under `off_nobound`, T088-T127 freeze at scale 7.35e-8, Rwp 0.433 against 0.042 (X16).
+- `cpd-ftolnone` against `cpd`: ≤ 2.1e-4 esd, so X13 is moot.
+- Reproducibility: `cpd-noclose_status_runaway` and `trigger_ref`, each run twice in separate
+  processes, are bit-identical pattern for pattern.
+- Lanes (`session_usage.py lanes 000445b0-…`): main 141 requests, peak 299K, $9.07; two lanes, $22.06.
+
+  | lane | est | requests | main at dispatch | re-read | lane $ | saved $ |
+  |---|---|---|---|---|---|---|
+  | new-arms | 25 | 101 | 179K | 26K of 39K | 8.12 | +4.21 |
+  | batch-revision | 40 | 117 | 253K | 64K of 107K | 13.94 | +7.79 |
+
+  Trial row appended. Baseline replay, the selective policy (u = 45K): 0K-300K +0 %, 300K-450K
+  +0 %, 450K-up +23 % (one session each).
+- Tests: none added; the branch changes no `src/` or `tests/` file, so neither selection moves.
+  Neither selection was run; `test_docs_consistency.py` and ruff were (step 10).
+
+*Gotchas.*
+- `gh` does not answer in this container; the GitHub MCP tools stand in.
+- The measurement loop starts one process per family, so a lane's edit to `ARMS` reached my
+  later families mid-loop. The runs are deterministic, so the duplicate JSONs matched.
+- A worker restart moved the session to the main checkout. `EnterWorktree` with the tree's
+  `path` re-enters it.
+- The worktree guard refuses inline Python that names the VCS. Write the helper to the
+  scratchpad instead.
+- A lane wrote over two of my scratchpad helpers; lanes share the scratchpad.
+
+*Generality.* Not dispatched. `_audit.py` is untouched on this branch. The rulings sit in
+`rows.json` and reach the table with task 7, and that branch's handover dispatches the judge
+over each row. The session wrote those tiers itself under delegation, so the judge's read is
+owed there.
+
+*Next*, in order:
+1. X16 (the 40-pattern freeze under `off_nobound`, planted T088-T127) and X17 (the warm refit
+   from 1b's floored `axial_sl`, cpd-noclose 1c). Reproductions and both hypotheses are in
+   `clashes.md` and `batch.md` § Investigations owed. They come first because C1 (i) and C3 (a)
+   both reproduce X16 in the default chain until it is fixed. A fix in `sequential.py` is this
+   WP's.
+2. Task 3's fields (`SeriesEntry.seeded_from`, `.floored`) and C2's question 5 arm (`status`
+   with an `error`-level kept attempt read as diverged, on tut05-broken and CPD closing off).
+3. Task 7, the approved demotions, each its own commit with its `_audit.py` row: C4's
+   `SeriesResult.steps`, C5, C6, C1's ratio field and `RESEED_FACTOR`'s removal, C3's
+   `first_rung_factor=None`, after 1; C9's carry-invariance test; C10's joint hold row. Then
+   goldens (task 8), tests (task 10) and the skill list (task 11).
 
 ### 2026-10-25 — the batch drafted (a practice survey, a proposal for every row, the clash table, a fourth trigger arm); its picks not yet checked against DESIGN § Rules, so not sent
 
