@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-26 — WP-2003 measured the double-zero aperture collapsing a warm-started CPD fit (Rwp 0.79-10.7 against 0.109); the single-zero column is still off its difference with no test
+Priority: P2 2026-10-26 — two measurements the same day: WP-2003's double-zero aperture collapsing a warm-started CPD fit (Rwp 0.79-10.7 against 0.109), and #1075's LM ending converged at S/L = H/L = 0 on lab_bragg_brentano from defaults while one TRF stage drops χ² by ~1 200 χ²_red·f²; the single-zero column is still off its difference with no test
 
 ## Goal
 
@@ -66,6 +66,27 @@ when U and V are both zero beside W on its floor. It is the only other
   X17 (`measure_reseed.py --family cpd-noclose --arm status_runaway`, and the probe it
   describes). A remedy is this WP's shape one rank out, WP-1938's rule: a floor or a lift where
   the column is live, and it moves every fit that frees an aperture from 0.
+
+- **2026-10-26 issue triage: #1075 repro 1, LM stops with both axial ratios at 0
+  on `lab_bragg_brentano` from the constructor's defaults, and calls it
+  converged.** Checked against the tree at c0e32ab29 (1.11.0.dev0, macOS arm64,
+  numpy), the issue's script with `auto_background(...).background`: Si, Cu Kα,
+  truth S/L 0.035, H/L 0.025, transparency 0.0005 (not refined by the plan),
+  seed 1. The fit ends `converged`, Rwp 0.0834, S/L = H/L = 0.0 ± 103.8,
+  `at_bound` True, `FLOOR_HIT` (plus `FLAT_DIRECTION`, `HIGH_CORRELATION`,
+  `RESOLUTION_UNCONSTRAINED`). One more LM stage moves nothing; one TRF stage
+  over the same free set reaches Rwp 0.0454 with 0.0329/0.0267, Δχ² −15 905 =
+  −1 198 χ²_red·f²; LM from 1e-4 stops at 8e-5. `profile_interval` on S/L
+  returns [0.0, 0.0] with `fit_is_minimum=True`. Since the issue's run on
+  `d885ade2` the bound flag has started firing, and the profile has stopped
+  noticing. Mechanism (the reporter's): the FCJ shift is quadratic in the
+  apertures, so both columns are ~1e-6 of the largest at 0, the same scale this
+  WP's matrix cut skips, and the way down is a joint move with zero,
+  displacement and the widths that Gauss–Newton cannot see from a vanishing
+  column. Without the transparency LM left 0 in 42 of 42 fits. This is the
+  driver's handling of a small column, which this WP's non-goals give to
+  WP-1953; 1953 is closed and its fix does not reach this case, so it lands
+  here. Re-rated P3 → P2.
 
 ## Non-goals
 

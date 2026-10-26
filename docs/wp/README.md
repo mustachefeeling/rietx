@@ -79,6 +79,9 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md) | A formula's volume window fits inorganic cells, and a hydrate parses | P2 | — ([1510](1510-what-the-chemist-knows-reaches-the-search.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [2048](2048-a-non-finite-step-ends-a-stage-rather-than-the-fit.md) | A non-finite step ends a stage rather than the fit | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2049](2049-a-frame-no-phase-is-seen-in-holds-the-instrument-too.md) | A frame no phase is seen in holds the instrument's peak terms too | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [2052](2052-a-fit-keeps-each-sites-multiplicity.md) | A fit keeps each site's multiplicity from start to answer | P2 | — ([1991](1991-a-site-and-its-own-image-are-one-atom.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [2054](2054-the-report-names-asymmetry-with-fcj-off.md) | The report names an asymmetric residual the model cannot draw | P2 | — ([1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md), [2004](2004-the-fitreport-reasons-for-the-caller.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [2060](2060-the-likelihood-interval-where-an-esd-cannot-be-read.md) | The likelihood interval where an esd cannot be read as one | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -495,6 +498,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1942](1942-a-soft-restraint-on-a-sum-across-phases.md) | A soft restraint on a sum of parameters across phases | ⬜ | P3 | — |
 | [1943](1943-the-pbso4-round-robin-as-an-acceptance-case.md) | The PbSO₄ round robin as an acceptance case | ⬜ | P3 | — |
 | [1973](1973-a-topas-spherical-harmonics-texture-reads-in.md) | A TOPAS spherical-harmonics texture reads in | ⬜ | P3 | [1960](1960-spherical-harmonics-texture.md), #131 |
+| [2057](2057-the-o2-form-factor-names-its-source.md) | The O²⁻ form factor names the fit it came from | ⬜ | P4 | — |
+| [2058](2058-the-pcr-reader-takes-npatt-and-jbt-10.md) | The FullProf `.pcr` reader takes three control flags, `Jbt ±10` and `NPATT` | ⬜ | P3 | — |
 
 ### <a id="unscheduled-the-fit-has-no-reference"></a>The fit has no reference
 
@@ -512,6 +517,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ✅ 2026-10-02 | — | — |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | ✅ 2026-10-23 | — | — |
 | [2032](2032-the-tof-readers-t1-follow-ups.md) | The TOF readers' T-1 follow-ups: a time map read as data, and names with no writer | ✅ 2026-10-23 | — | — ([1927](1927-tof-t1-the-axis-and-its-readers.md) soft) |
+| [2056](2056-a-low-angle-asymmetry-cw-neutron-cannot-calibrate.md) | A low-angle asymmetry the CW neutron lines cannot calibrate | ⬜ | P3 | — ([2054](2054-the-report-names-asymmetry-with-fcj-off.md) soft) |
+| [2061](2061-a-crystallite-has-a-shape.md) | A crystallite has a shape: hkl-dependent size broadening on the analytical profile | ⬜ | P3 | — ([1343](1343-the-moment-pays-for-the-width.md) soft) |
 
 ### <a id="unscheduled-what-fires-and-what-stays-silent"></a>What fires, and what stays silent
 
@@ -594,6 +601,11 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2049](2049-a-frame-no-phase-is-seen-in-holds-the-instrument-too.md) | A frame no phase is seen in holds the instrument's peak terms too | ⬜ | P2 | — |
 | [2050](2050-a-correlation-with-a-flat-direction-is-not-reported.md) | A correlation with a flat direction is not reported as one | ⬜ | P3 | — |
 | [2051](2051-compiled-per-evaluation-windows.md) | Windows resized at every evaluation, fast enough to measure | ✅ 2026-10-25 | — | [2047](2047-windows-follow-the-parameters-between-solves.md) |
+| [2052](2052-a-fit-keeps-each-sites-multiplicity.md) | A fit keeps each site's multiplicity from start to answer | ⬜ | P2 | — ([1991](1991-a-site-and-its-own-image-are-one-atom.md) soft) |
+| [2053](2053-a-split-site-the-data-cannot-tell-says-so.md) | A split site the data cannot tell from one elongated atom says so | ⬜ | P3 | — |
+| [2054](2054-the-report-names-asymmetry-with-fcj-off.md) | The report names an asymmetric residual the model cannot draw | ⬜ | P2 | — ([1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md), [2004](2004-the-fitreport-reasons-for-the-caller.md) soft) |
+| [2055](2055-a-picked-line-held-at-its-position-bound.md) | The picker holds a line shape the lab pattern does not have | ⬜ | P3 | — |
+| [2060](2060-the-likelihood-interval-where-an-esd-cannot-be-read.md) | The likelihood interval where an esd cannot be read as one | ⬜ | P2 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
@@ -630,6 +642,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1407](1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals | ✅ 2026-09-13 | — | — |
 | [1416](1416-read-xy-reads-the-files-shape.md) | `read_xy` reads the file's shape | 🛑 2026-09-24 | — | — |
+| [2059](2059-a-bruker-raw-v2-file-reads.md) | A Bruker RAW v2 file reads, checked against two descriptions and one real file | ⬜ | P3 | — |
 
 ### <a id="unscheduled-render-what-the-fit-already-knows"></a>Render what the fit already knows
 

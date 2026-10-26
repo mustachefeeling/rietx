@@ -45,6 +45,10 @@ Nothing changes for a caller who declares nothing.
   answer can move. A new diagnostic code needs its skill row and its
   `rietx._audit` row with a tier.
 
+### Inherited
+
+- 2026-10-26 issue triage: #1129 is the outside contributor's (mustachefeeling) claim on this WP, in PR #1140. Its plan proposes a hard exclusion only for the exact atom-count test, with the molecular Z′ < 1 case reported and left in. Checked against the tree at c0e32ab29: status ⬜, nothing merged.
+
 ## Non-goals
 
 - The search's volume window and its Z check (WP-2030).
