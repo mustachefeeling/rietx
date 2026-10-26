@@ -108,6 +108,10 @@ close, since the peak list feeds every engine.
   round-robin lists usable components go from 789 to 782. Both take
   `INDEXING_THRESHOLDS_VERSION` 1.10, and the second to merge renumbers.
 
+- 2026-10-26 issue triage: #1166 (the 24 usable components on their position bound, from
+  #993's round-2 review) is filed as WP-2055, because its likely fix is the profile the
+  picker holds (Kα2 weight, axial), outside this WP's Goal. Nothing here waits on it.
+
 ## Non-goals
 
 - The steep-flank envelope, and the 1σ floor's census (WP-1909).

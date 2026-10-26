@@ -3,7 +3,7 @@
 Milestone: unscheduled · Status: 🔄 2026-10-25 — the default flip and the reference-fit gate merged (PR #939); open: the margin scan, point 2, the skill recipe, the PNGs
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-05 — a silent wrong answer on a path few fits run: at +0.06 % the screen refutes certified corundum's class and returns one whose members exclude it, nothing names the cell, and the skill's own recipe screens the unrefined index cell
+Priority: P2 2026-10-26 — a silent wrong answer on a path few fits run: with the default cell refinement, certified corundum's class hangs on one forbidden position read at 2.8-3.1 σ against a 3 σ bar (#1172), and the margin scan, point 2 and the skill recipe remain
 
 ## Goal
 
@@ -226,6 +226,25 @@ and is not proposed here. No code is ported.
   carried a merge conflict on 2026-10-13. The undeclared-halo half (a changed
   null model for the absence test) stays open under the PR and sits inside
   this WP's Non-goal on loosening the absence test (WP-1077).
+
+- 2026-10-26 issue triage: #1172 (from @mustachefeeling, found while building PR #1170):
+  with the default `refine_cell=True`, corundum started at ×0.995 returns `R - - -`
+  confidently, the gate silent (`reference_rwp_net` 0.194). Checked against the tree at
+  c0e32ab29 (`[dev]`, macOS arm64): reproduced to the issue's digits. ×0.994 and ×0.995
+  return `R - - -`; ×0.99, ×0.993, ×0.996-×1.00 return `R - c -`, every refined cell within
+  0.01 % of the certified one. The refuting position is (3,0,3) at 72.004°, 1 of 6
+  testable. Σ(obs − calc) over its window against the propagated σ reads 2.79-3.06 at every
+  start and 2.90 at the certified one, against `k_sigma` 3.0. So this is not a cell-margin
+  failure: one forbidden position holds a real excess sitting on the threshold, and the
+  third decimal of the refined c decides which side. The certified-cell pin
+  (`test_corundum_returns_the_class_its_certificate_names`) is 0.10 σ from failing. What
+  the excess at 72.0° is (impurity, a Kβ or tube line) was not checked. Any fix touches the
+  absence test, which this WP's Non-goals fence (loosening it, WP-1077), so it needs the
+  maintainer's call first: a refutation resting only on positions within a margin of the
+  threshold could mark the class "marginal" and abstain between the two, or the per-class
+  bar could account for the number of testable positions (six windows at 3 σ each). Task 1's
+  scan should report the decisive position's ratio beside each class, never the class alone.
+  Probe scripts: the 2026-10-26 triage scratchpad, not kept.
 
 ## Non-goals
 

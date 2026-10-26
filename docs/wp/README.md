@@ -79,6 +79,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2048](2048-a-non-finite-step-ends-a-stage-rather-than-the-fit.md) | A non-finite step ends a stage rather than the fit | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2049](2049-a-frame-no-phase-is-seen-in-holds-the-instrument-too.md) | A frame no phase is seen in holds the instrument's peak terms too | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2052](2052-a-fit-keeps-each-sites-multiplicity.md) | A fit keeps each site's multiplicity from start to answer | P2 | — ([1991](1991-a-site-and-its-own-image-are-one-atom.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [2054](2054-the-report-names-asymmetry-with-fcj-off.md) | The report names an asymmetric residual the model cannot draw | P2 | — ([1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md), [2004](2004-the-fitreport-reasons-for-the-caller.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -512,6 +513,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1312](1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ✅ 2026-10-02 | — | — |
 | [1927](1927-tof-t1-the-axis-and-its-readers.md) | TOF T-1: the time-of-flight axis and its readers | ✅ 2026-10-23 | — | — |
 | [2032](2032-the-tof-readers-t1-follow-ups.md) | The TOF readers' T-1 follow-ups: a time map read as data, and names with no writer | ✅ 2026-10-23 | — | — ([1927](1927-tof-t1-the-axis-and-its-readers.md) soft) |
+| [2056](2056-a-low-angle-asymmetry-cw-neutron-cannot-calibrate.md) | A low-angle asymmetry the CW neutron lines cannot calibrate | ⬜ | P3 | — ([2054](2054-the-report-names-asymmetry-with-fcj-off.md) soft) |
 
 ### <a id="unscheduled-what-fires-and-what-stays-silent"></a>What fires, and what stays silent
 
@@ -596,6 +598,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2051](2051-compiled-per-evaluation-windows.md) | Windows resized at every evaluation, fast enough to measure | ✅ 2026-10-25 | — | [2047](2047-windows-follow-the-parameters-between-solves.md) |
 | [2052](2052-a-fit-keeps-each-sites-multiplicity.md) | A fit keeps each site's multiplicity from start to answer | ⬜ | P2 | — ([1991](1991-a-site-and-its-own-image-are-one-atom.md) soft) |
 | [2053](2053-a-split-site-the-data-cannot-tell-says-so.md) | A split site the data cannot tell from one elongated atom says so | ⬜ | P3 | — |
+| [2054](2054-the-report-names-asymmetry-with-fcj-off.md) | The report names an asymmetric residual the model cannot draw | ⬜ | P2 | — ([1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md), [2004](2004-the-fitreport-reasons-for-the-caller.md) soft) |
+| [2055](2055-a-picked-line-held-at-its-position-bound.md) | The picker holds a line shape the lab pattern does not have | ⬜ | P3 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
