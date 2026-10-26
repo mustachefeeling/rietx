@@ -14,7 +14,8 @@
   "class": "C1",
   "response": "warning",
   "responds": "read the named pattern's step from its neighbour as a cold fit's, not the chain's, before quoting a trajectory's cell or fraction across it",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_RESEED.suggestion",
@@ -28,7 +29,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_RWP_OUTLIER",
@@ -45,7 +47,8 @@
   "class": "C1",
   "response": "warning",
   "responds": "open the named pattern's own fit before quoting its cell, fraction or width: its best rung is still above the chain's fence",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_RWP_OUTLIER.suggestion",
@@ -59,7 +62,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with its code (revised 2026-10-25, batch.md)",
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_UNRECOVERED",
@@ -76,7 +80,8 @@
   "class": "C2",
   "response": "warning",
   "responds": "quote no cell, fraction or width from the named pattern: its fit diverged after every rung, seeded no successor and joins no median",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_UNRECOVERED.suggestion",
@@ -90,7 +95,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_CANCELLED",
@@ -202,7 +208,8 @@
   "class": "C4",
   "response": null,
   "responds": null,
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_DISCONTINUITY.suggestion",
@@ -216,7 +223,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "with the code",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PATH_DEPENDENT",
@@ -233,7 +241,8 @@
   "class": "C5",
   "response": "warning",
   "responds": "if kept: hold, restrain, or quote the two directions' spread before quoting the cell, coordinate or width named",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PATH_DEPENDENT.suggestion",
@@ -247,7 +256,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with the code",
-  "class": "C5"
+  "class": "C5",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PERSISTENT_FINDING",
@@ -264,7 +274,8 @@
   "class": "C6",
   "response": null,
   "responds": null,
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_PERSISTENT_FINDING.suggestion",
@@ -278,7 +289,8 @@
   "dissenter": "a refiner on a ramp whose impurity appears in the last 40 % of the patterns: the count is the sentence they act on and 'more than half' hides it",
   "applied": false,
   "decision": "with the code",
-  "class": "C6"
+  "class": "C6",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_WIDTH_GROWTH",
@@ -295,7 +307,8 @@
   "class": "C7",
   "response": "warning",
   "responds": "if kept: fit the onset pattern with the missing component before quoting this width, or the phase's scale and cell",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_WIDTH_GROWTH.suggestion",
@@ -309,7 +322,8 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "with the code",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_HOLD",
@@ -326,7 +340,8 @@
   "class": "C8",
   "response": "warning",
   "responds": "quote the named patterns' moment as held, never as a value with an esd, and read the trajectory from magnetic_trajectory()",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_HOLD.suggestion",
@@ -340,7 +355,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C8"
+  "class": "C8",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_ONSET",
@@ -357,7 +373,8 @@
   "class": "C8",
   "response": null,
   "responds": null,
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SEQUENTIAL_MOMENT_ONSET.suggestion",
@@ -371,7 +388,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "re-count its sites after the split (advise() rewrites one through model_copy)",
-  "class": "C8"
+  "class": "C8",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "SIZE_NORMALISED_ACROSS_WAVELENGTHS",
@@ -450,7 +468,8 @@
   "class": "C10",
   "response": "warning",
   "responds": "quote the equation's coefficients, not the target's value (a cell, a width), at the named patterns: there it is the equation's alone",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "PARAMETRIC_TARGET_UNSEEN.suggestion",
@@ -464,7 +483,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C10"
+  "class": "C10",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "PARAMETRIC_FORM_REJECTED",
@@ -481,7 +501,8 @@
   "class": "C10",
   "response": "warning",
   "responds": "quote no parametric coefficient's esd, nor the cell or width it predicts, until the next term or a narrower subset passes the form test",
-  "scope": null
+  "scope": null,
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "PARAMETRIC_FORM_REJECTED.suggestion",
@@ -495,7 +516,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": null,
-  "class": "C10"
+  "class": "C10",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "STAGE_FREED_NOTHING",
@@ -540,7 +562,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with _ladder",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.reseeded",
@@ -554,7 +577,8 @@
   "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
   "applied": false,
   "decision": "C1 2 (i): tier 3, the record of the kept action (revised 2026-10-25, batch.md)",
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.rwp_fence",
@@ -568,7 +592,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "C1 1 (b) (pick): demoted to the ratio field (revised 2026-10-25, batch.md)",
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.rungs_tried",
@@ -582,7 +607,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with _ladder",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.schemas.sequential.SeriesEntry.rungs_raised",
@@ -596,7 +622,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "with _ladder",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.RESEED_FACTOR",
@@ -610,7 +637,8 @@
   "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
   "applied": false,
   "decision": "C1 1 (b) and 2 (i) (pick): no default fence; escalate on diverged or raised only; (ii) max_iter and (iii) CELL_RUNAWAY measured on main and not adopted; lands in C3's order (X16) (revised 2026-10-25, batch.md)",
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.FIRST_RUNG_SAMPLES",
@@ -624,7 +652,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted; this constant stays inside the opt-in at tier 3, or becomes a second caller argument (revised 2026-10-25, batch.md)",
-  "class": "C3"
+  "class": "C3",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.FIRST_RUNG_FACTOR",
@@ -638,7 +667,8 @@
   "dissenter": "a refiner on a chain where one pattern's winning rung costs several times its neighbours' (planted T087, 9.8x)",
   "applied": false,
   "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted (revised 2026-10-25, batch.md)",
-  "class": "C3"
+  "class": "C3",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.DISCONTINUITY_FACTOR",
@@ -652,7 +682,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "remove; verify_discontinuities then refits the steps the caller names or the largest k with k the caller's",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.DISCONTINUITY_SIGMA",
@@ -666,7 +697,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "remove; verify_discontinuities then refits the steps the caller names or the largest k with k the caller's",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.MIN_POINTS_FOR_DISCONTINUITY",
@@ -680,7 +712,8 @@
   "dissenter": "the maintainer's own example: a jump may be a transition, a sample shift, a beam dump or a wrong model, and which depends on facts outside the pattern (WP Context; DESIGN.md § Rules, 1's third kind)",
   "applied": false,
   "decision": "remove; verify_discontinuities then refits the steps the caller names or the largest k with k the caller's",
-  "class": "C4"
+  "class": "C4",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.MIN_POINTS_FOR_PERSISTENCE",
@@ -694,7 +727,8 @@
   "dissenter": "a refiner on a ramp whose impurity appears in the last 40 % of the patterns: the count is the sentence they act on and 'more than half' hides it",
   "applied": false,
   "decision": "with the code; tier 3 if the code stays",
-  "class": "C6"
+  "class": "C6",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.NOISE_FLOOR_REL",
@@ -722,7 +756,8 @@
   "dissenter": "a refiner reading many paths over many patterns at 3 sigma, where chance flags are expected (n paths x m patterns comparisons), or one who reads a sub-3-sigma gap that repeats over every pattern as path dependence; the largest flags measured were axis relabellings, 81.5 sigma in Fddd (docs/skill/rietx/references/series.md:136-150)",
   "applied": false,
   "decision": "demote SEQUENTIAL_PATH_DEPENDENT to a field, or keep 3 sigma at tier 3 (no family measured)",
-  "class": "C5"
+  "class": "C5",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.WIDTH_GROWTH_FACTOR",
@@ -736,7 +771,8 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "hand the ruling to WP-2004's Inherited; bump nothing here",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.WIDTH_GROWTH_GOF_FACTOR",
@@ -750,7 +786,8 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "hand the ruling to WP-2004's Inherited; bump nothing here",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.WIDTH_GROWTH_SIGMA",
@@ -764,7 +801,8 @@
   "dissenter": "a refiner on an operando ramp whose strain grows for real while GoF rises for a second, independent reason (a phase appearing, a background change): two events, not a soak; the suggestion names only the missing component",
   "applied": false,
   "decision": "hand the ruling to WP-2004's Inherited; bump nothing here",
-  "class": "C7"
+  "class": "C7",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:carry",
@@ -778,7 +816,8 @@
   "dissenter": "GSAS-II's default: each histogram starts from its own values unless Copy2Next is ticked (checked), reachable here as carry=(); MAUD's and Profex's batches start from the file each row names",
   "applied": false,
   "decision": "C9 question 1 (pick): the warm start the caller's, the '*' default invariant once the every-entry-against-varied test lands; where it differs, tier 3 on those paths, the two programs its dissent; and the carry x width-twin-hold clash (X11) measured on QPA before the twin hold is touched (revised 2026-10-25, batch.md)",
-  "class": "C9"
+  "class": "C9",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:carry_hkl_intensities",
@@ -792,7 +831,8 @@
   "dissenter": "GSAS-II's default (no carry); EasyDiffraction collects parameter values only",
   "applied": false,
   "decision": "tier 3: needs its chain measured carried and not (Le Bail and Pawley chains, tests/test_sequential.py:2245, 2673)",
-  "class": "C9"
+  "class": "C9",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:backend",
@@ -807,7 +847,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:solver",
@@ -822,7 +863,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.refine_sequential:history",
@@ -837,7 +879,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:x",
@@ -851,7 +894,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "add an arm to test_a_series_observed_is_the_series_unobserved (tests/test_answer_invariant_defaults.py:171), labels with a label-blind compare since chain_answer carries labels; then invariant",
-  "class": "C11"
+  "class": "C11",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:x_label",
@@ -865,7 +909,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "add an arm to test_a_series_observed_is_the_series_unobserved (tests/test_answer_invariant_defaults.py:171), labels with a label-blind compare since chain_answer carries labels; then invariant",
-  "class": "C11"
+  "class": "C11",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:labels",
@@ -879,7 +924,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "add an arm to test_a_series_observed_is_the_series_unobserved (tests/test_answer_invariant_defaults.py:171), labels with a label-blind compare since chain_answer carries labels; then invariant",
-  "class": "C11"
+  "class": "C11",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:mode",
@@ -907,7 +953,8 @@
   "dissenter": "none found",
   "applied": false,
   "decision": "extend B7's approval to the series seat",
-  "class": "C9"
+  "class": "C9",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:refit",
@@ -921,7 +968,8 @@
   "dissenter": "on cost: trigger-series, where the staged plan is cheaper (1253 against 1603 nfev, WP-1127); rietx alone stages the first pattern",
   "applied": false,
   "decision": "confirm tier 2 (not applied: it sets the ladder's first rung, whose rungs C2 rules)",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:two_theta_limits",
@@ -950,7 +998,8 @@
   "applied": false,
   "decision": "re-read if C5 demotes SEQUENTIAL_PATH_DEPENDENT (the switch then fills a field)",
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:reseed",
@@ -964,7 +1013,8 @@
   "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287) (on the Rwp half only; none found for diverged or raised)",
   "applied": false,
   "decision": "tier 3, the ladder's switch, approved with C2; under C1 2 (i) it escalates a diverged or raised rung only; the forced-escalation breach (X2) is fixed after X16 (revised 2026-10-25, batch.md)",
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:reseed_factor",
@@ -978,7 +1028,8 @@
   "dissenter": "a refiner on a series whose Rwp rises for a lasting reason the model lacks (an unmodelled phase appearing, counts falling 4x): every later pattern climbs the whole ladder for nothing (planted on main: 114 patterns above the fence from T134, 13 034 evaluations against 3 165 (4.1x), no value moved past 7.2e-4 esd; WP-1469: +55 %, 18 of 18 flagged); and one reading Rwp against GoF, since Rwp tracks Rexp (the width screen's own reason, sequential.py:283-287)",
   "applied": false,
   "decision": "C1 1 (b) (pick): caller, no default; refused unless finite and positive (inf is accepted unchecked today, sequential.py:1028-1030, and also switches off the discontinuity scan's above-fence drop) (revised 2026-10-25, batch.md)",
-  "class": "C1"
+  "class": "C1",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:first_rung_factor",
@@ -992,7 +1043,8 @@
   "dissenter": "a refiner on a chain where one pattern's winning rung costs several times its neighbours' (planted T087, 9.8x)",
   "applied": false,
   "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted (revised 2026-10-25, batch.md)",
-  "class": "C3"
+  "class": "C3",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:verify_discontinuities",
@@ -1007,7 +1059,8 @@
   "applied": false,
   "decision": "re-read once SEQUENTIAL_DISCONTINUITY goes (C4: what picks the pairs)",
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:prepare",
@@ -1050,7 +1103,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:on_error",
@@ -1064,7 +1118,8 @@
   "dissenter": "a refiner who wants the batch to stop at the first failure so the model is fixed before 200 patterns are spent (GSAS-II's and MAUD's default); 'raise' keeps what converged on self (sequential.py:1622-1638)",
   "applied": false,
   "decision": "open, no pick (batch.md C2 question 4): 'carry' (today; tier 3, approved as the protection of a long batch, GSAS-II's and MAUD's stop named) or 'raise' (the default changes, 'carry' becomes the caller's); a default switching on an action with a named dissent cannot be tier 2 under 'a dissent counts' (revised 2026-10-25, batch.md)",
-  "class": "C2"
+  "class": "C2",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:events",
@@ -1079,7 +1134,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:cancel",
@@ -1094,7 +1150,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:progress",
@@ -1109,7 +1166,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:telemetry",
@@ -1124,7 +1182,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement.fit:label",
@@ -1139,7 +1198,8 @@
   "applied": false,
   "decision": null,
   "class": "C11",
-  "status": "tiered 2026-10-24"
+  "status": "tiered 2026-10-24",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._prefer",
@@ -1154,7 +1214,8 @@
   "applied": false,
   "decision": "C2: tier 1 for the full-cost order (question 3, pick: S, not Rwp; max_iter ties converged); diverged before truncated (question 2, pick) (revised 2026-10-25, batch.md)",
   "class": "C2",
-  "row_note": "no row of its own: SeriesEntry.rung records the attempt kept; the criterion is written into the ladder rows' evidence"
+  "row_note": "no row of its own: SeriesEntry.rung records the attempt kept; the criterion is written into the ladder rows' evidence",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._reseed_needed",
@@ -1169,7 +1230,8 @@
   "applied": false,
   "decision": "C1 2 (i) (pick): diverged only (a raised rung escalates at its own site); tier 3, kind 1, approved with C2's ladder; C2 question 5 asks whether an error-level kept attempt counts as diverged (revised 2026-10-25, batch.md)",
   "class": "C1",
-  "row_note": "no row of its own: what it decides is recorded by SeriesEntry.reseeded, rungs_tried and rwp_fence, whose rows carry its tier"
+  "row_note": "no row of its own: what it decides is recorded by SeriesEntry.reseeded, rungs_tried and rwp_fence, whose rows carry its tier",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._ladder",
@@ -1184,7 +1246,8 @@
   "applied": false,
   "decision": "approve the rungs, their order and the give-up point after the cold rung",
   "class": "C2",
-  "row_note": "no row of its own: SeriesEntry.rung, rungs_tried and rungs_raised record it and carry its tier; the middle rung's Rwp is recorded nowhere (rwp_of is local, sequential.py:1545)"
+  "row_note": "no row of its own: SeriesEntry.rung, rungs_tried and rungs_raised record it and carry its tier; the middle rung's Rwp is recorded nowhere (rwp_of is local, sequential.py:1545)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._first_rung_budget",
@@ -1199,7 +1262,8 @@
   "applied": false,
   "decision": "C3 (a) (pick): no bound unless the caller asks, both defects fixed for the opt-in (truncation read off the rung's own stages; cap and sample one quantity), no budget under reseed=False; lands after X16 is fixed, since no bound by default with C1 2 (i) is off_nobound on planted (revised 2026-10-25, batch.md)",
   "class": "C3",
-  "row_note": "no row of its own: rides fit:first_rung_factor's caller row; no field says a rung was truncated or what the budget was"
+  "row_note": "no row of its own: rides fit:first_rung_factor's caller row; no field says a rung was truncated or what the budget was",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._chain.quarantine",
@@ -1214,7 +1278,8 @@
   "applied": false,
   "decision": "approve as a protection; approve SeriesEntry.seeded_from as its record; and batch.md C2 question 5: an error-level kept attempt counted as diverged (pick, after one arm on tut05-broken and CPD closing off), since a converged 1c at Rwp 10.83 with MODEL_FAR_FROM_DATA seeded 1d-1h (clashes.md X17) (revised 2026-10-25, batch.md)",
   "class": "C2",
-  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.seeded_from (the index whose state seeded this pattern's warm rungs, None on a cold-only pattern), the row this action is keyed on; it lands with the ruling"
+  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.seeded_from (the index whose state seeded this pattern's warm rungs, None on a cold-only pattern), the row this action is keyed on; it lands with the ruling",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._chain.rwp_outlier_carve_out",
@@ -1229,7 +1294,8 @@
   "applied": false,
   "decision": "lapses under C1 1 (b) (pick), with no default fence to carve out of; under 1 (a), confirm; the scan half is ruled in C4 (revised 2026-10-25, batch.md)",
   "class": "C1",
-  "row_note": "no row of its own: SeriesEntry.rwp_fence and the above_fence property record it, and SEQUENTIAL_RWP_OUTLIER names it; the scan half leaves with SEQUENTIAL_DISCONTINUITY"
+  "row_note": "no row of its own: SeriesEntry.rwp_fence and the above_fence property record it, and SEQUENTIAL_RWP_OUTLIER names it; the scan half leaves with SEQUENTIAL_DISCONTINUITY",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._floor_unsupported_moments",
@@ -1244,7 +1310,8 @@
   "applied": false,
   "decision": "approve under the rare-feature clause; approve SeriesEntry.floored as its record",
   "class": "C8",
-  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.floored (the moment paths floored before this pattern's warm start), the row this action is keyed on; today only SEQUENTIAL_MOMENT_HOLD's message, cut at four labels"
+  "row_note": "needs the record field task 3 proposes: rietx.schemas.sequential.SeriesEntry.floored (the moment paths floored before this pattern's warm start), the row this action is keyed on; today only SEQUENTIAL_MOMENT_HOLD's message, cut at four labels",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._carry_into",
@@ -1259,7 +1326,8 @@
   "applied": false,
   "decision": "with carry (C9 question 1) (revised 2026-10-25, batch.md)",
   "class": "C9",
-  "row_note": "no row of its own: keyed on SeriesEntry.seeded_from once task 3 adds it (the quarantine's row), with carry's tier"
+  "row_note": "no row of its own: keyed on SeriesEntry.seeded_from once task 3 adds it (the quarantine's row), with carry's tier",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._reanchor_carried",
@@ -1274,7 +1342,8 @@
   "applied": false,
   "decision": null,
   "class": "C9",
-  "row_note": "no row: a correctness rebase, decides nothing"
+  "row_note": "no row: a correctness rebase, decides nothing",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._carry_variables",
@@ -1289,7 +1358,8 @@
   "applied": false,
   "decision": null,
   "class": "C9",
-  "row_note": "no row: no choice beyond carry's"
+  "row_note": "no row: no choice beyond carry's",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._collapse",
@@ -1304,7 +1374,8 @@
   "applied": false,
   "decision": "tier 3 for its details; the closing stage kept on the warm refit (C9 question 4 (a), pick); its seed=0.0 re-read with X17's investigation; its cost along a chain is WP-2036's (revised 2026-10-25, batch.md)",
   "class": "C9",
-  "row_note": "no row of its own: StageResult.name 'warm_refit' on the per-pattern results; refit's row carries the choice"
+  "row_note": "no row of its own: StageResult.name 'warm_refit' on the per-pattern results; refit's row carries the choice",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._verify_discontinuities",
@@ -1319,7 +1390,8 @@
   "applied": false,
   "decision": "what picks the pairs once the code goes (a caller's number keeps the switch caller)",
   "class": "C4",
-  "row_note": "no row of its own (caller, the switch's row is tiered); its ratio lives in Diagnostic.value on the code the WP removes, so it needs a home: a SeriesStep field (say SeriesStep.cold_ratio); and each cold refit pays the moment-angle interval unasked (gate with _auto_intervals = False)"
+  "row_note": "no row of its own (caller, the switch's row is tiered); its ratio lives in Diagnostic.value on the code the WP removes, so it needs a home: a SeriesStep field (say SeriesStep.cold_ratio); and each cold refit pays the moment-angle interval unasked (gate with _auto_intervals = False)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._chain.on_error_carry",
@@ -1334,7 +1406,8 @@
   "applied": false,
   "decision": "with fit:on_error (open) (revised 2026-10-25, batch.md)",
   "class": "C2",
-  "row_note": "no row of its own while SeriesResult is outside _audit.RECORD_SCHEMAS: fit:on_error carries its tier, SERIES_PATTERN_FAILED reports it, and SeriesEntry.seeded_from would say which pattern seeded the successor"
+  "row_note": "no row of its own while SeriesResult is outside _audit.RECORD_SCHEMAS: fit:on_error carries its tier, SERIES_PATTERN_FAILED reports it, and SeriesEntry.seeded_from would say which pattern seeded the successor",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._persistent_diagnostics.half",
@@ -1349,7 +1422,8 @@
   "applied": false,
   "decision": "with the code",
   "class": "C6",
-  "row_note": "row-less (an inline literal the walk cannot see); none needed if the field lands, a hand row (B14) if the code stays"
+  "row_note": "row-less (an inline literal the walk cannot see); none needed if the field lands, a hand row (B14) if the code stays",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.NOT_A_SERIES_FINDING",
@@ -1364,7 +1438,8 @@
   "applied": false,
   "decision": "with the code",
   "class": "C6",
-  "row_note": "row-less (a frozenset the walk cannot see); a hand row (B14) if the code stays, none if the field lands (its count is then one more row)"
+  "row_note": "row-less (a frozenset the walk cannot see); a hand row (B14) if the code stays, none if the field lands (its count is then one more row)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._WIDTH_SUFFIXES",
@@ -1379,7 +1454,8 @@
   "applied": false,
   "decision": null,
   "class": "C7",
-  "row_note": "row-less (a dict); its membership carries into the field if the code goes; a hand row (B14) otherwise"
+  "row_note": "row-less (a dict); its membership carries into the field if the code goes; a hand row (B14) otherwise",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential._relative_paths",
@@ -1394,7 +1470,8 @@
   "applied": false,
   "decision": null,
   "class": "C4",
-  "row_note": "no row: arithmetic inside the scans; its record SeriesResult.relative_paths and angle_paths sits outside _audit.RECORD_SCHEMAS"
+  "row_note": "no row: arithmetic inside the scans; its record SeriesResult.relative_paths and angle_paths sits outside _audit.RECORD_SCHEMAS",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.sequential.SequentialRefinement._fit_one.declared_wavelengths",
@@ -1409,7 +1486,8 @@
   "applied": false,
   "decision": null,
   "class": "C9",
-  "row_note": "no row: moves only a diagnostic's reference"
+  "row_note": "no row: moves only a diagnostic's reference",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_unsupported_phases_multi",
@@ -1424,7 +1502,8 @@
   "applied": false,
   "decision": "batch.md C10 question 2: (a) align with refine._answer_significance (pick, after one joint fixture where the two statistics disagree shows what moves) or (b) its own row, tier 3 with approval, B1's 3sigma on a second statistic; tier 3 on (b)'s wording until ruled (revised 2026-10-25, batch.md)",
   "class": "C10",
-  "row_note": "proposed: a row of its own (a hand row, B14), since StageResult.held's row names B1's statistic and the joint runner reads another; none once aligned"
+  "row_note": "proposed: a row of its own (a hand row, B14), since StageResult.held's row names B1's statistic and the joint runner reads another; none once aligned",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._rehold_multi",
@@ -1439,7 +1518,8 @@
   "applied": false,
   "decision": "batch.md C10 question 2: (a) align with refine._answer_significance (pick, after one joint fixture where the two statistics disagree shows what moves) or (b) its own row, tier 3 with approval, B1's 3sigma on a second statistic; tier 3 on (b)'s wording until ruled (revised 2026-10-25, batch.md)",
   "class": "C10",
-  "row_note": "proposed: a row of its own (a hand row, B14), since StageResult.held's row names B1's statistic and the joint runner reads another; none once aligned"
+  "row_note": "proposed: a row of its own (a hand row, B14), since StageResult.held's row names B1's statistic and the joint runner reads another; none once aligned",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_scale_b_ridges_multi",
@@ -1454,7 +1534,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no new row: StageResult.scale_b_held (tier 1) covers it"
+  "row_note": "no new row: StageResult.scale_b_held (tier 1) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_flat_moments_multi",
@@ -1469,7 +1550,8 @@
   "applied": false,
   "decision": "three inline tolerances (multi.py:796, 822, 856) are hand rows (B14)",
   "class": "C10",
-  "row_note": "no new row: StageResult.moment_flat_axes (tier 1) and moment_turned (tier 3, B2, approved 2026-10-19) covers it"
+  "row_note": "no new row: StageResult.moment_flat_axes (tier 1) and moment_turned (tier 3, B2, approved 2026-10-19) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._hold_width_twins_multi",
@@ -1484,7 +1566,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no new row: StageResult.width_twins_held (tier 3, approved 2026-10-23) covers it"
+  "row_note": "no new row: StageResult.width_twins_held (tier 3, approved 2026-10-23) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._reset_cell_runaway_multi",
@@ -1499,7 +1582,8 @@
   "applied": false,
   "decision": "a bug, not a tier: _cell_runaway_diagnostic(cell_runaway) at multi.py:1632 never folds refine._vars_driven_cell_escapes (refine.py:1704; folded at 4480, 4710), so a vars.X-driven escape in a joint fit is neither reset nor named",
   "class": "C10",
-  "row_note": "no new row: StageResult.cell_reset (tier 3, B8, approved 2026-10-19) covers it"
+  "row_note": "no new row: StageResult.cell_reset (tier 3, B8, approved 2026-10-19) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi.MultiHistogramRefinement._run_plan.seed",
@@ -1514,7 +1598,8 @@
   "applied": false,
   "decision": "the joint runner seeds no Stephens block, the single one does (Stage.strain_seed)",
   "class": "C10",
-  "row_note": "no new row: StageResult.seeded (tier 3, approved 2026-10-21) covers it"
+  "row_note": "no new row: StageResult.seeded (tier 3, approved 2026-10-21) covers it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._parametric_form_tests.at_bound_hold",
@@ -1529,7 +1614,8 @@
   "applied": false,
   "decision": "with B16's clash measurement",
   "class": "C10",
-  "row_note": "row-less: the form test records no list of what it held; propose ParametricFormTest.held if B16 keeps it"
+  "row_note": "row-less: the form test records no list of what it held; propose ParametricFormTest.held if B16 keeps it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi._joint_unmeasured_phases",
@@ -1544,7 +1630,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: HistogramResult sits outside _audit.RECORD_SCHEMAS"
+  "row_note": "no row: HistogramResult sits outside _audit.RECORD_SCHEMAS",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.optimize.least_squares._freeze_strain_cap_multi",
@@ -1559,7 +1646,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: no record, and the caps' constants are tier-1 rows; no test names it (add one)"
+  "row_note": "no row: no record, and the caps' constants are tier-1 rows; no test names it (add one)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.optimize.least_squares._freeze_cell_windows_multi",
@@ -1574,7 +1662,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no new row: the cell window's row covers it; no test names it"
+  "row_note": "no new row: the cell window's row covers it; no test names it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.params.multi.size_value_scales",
@@ -1589,7 +1678,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: the model's physics, not a choice; SIZE_NORMALISED_ACROSS_WAVELENGTHS (tier 1, applied) reports it"
+  "row_note": "no row: the model's physics, not a choice; SIZE_NORMALISED_ACROSS_WAVELENGTHS (tier 1, applied) reports it",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.params.multi.MultiParameterTable._rebuild_columns.bound_intersection",
@@ -1604,7 +1694,8 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: no choice"
+  "row_note": "no row: no choice",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.params.multi.SharingMap.is_shared",
@@ -1619,7 +1710,8 @@
   "applied": false,
   "decision": "add the seat or a hand row; confirm the citation is read before tier 2 is written",
   "class": "C10",
-  "row_note": "no row today: SharingMap is not a DEFAULT_SEATS seat; a hand row (B14) or a seat"
+  "row_note": "no row today: SharingMap is not a DEFAULT_SEATS seat; a hand row (B14) or a seat",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi.MultiHistogramRefinement.fit:weights",
@@ -1634,7 +1726,8 @@
   "applied": false,
   "decision": "add the seat or a hand row",
   "class": "C10",
-  "row_note": "no row today: not a DEFAULT_SEATS seat; a hand row (B14) or a seat"
+  "row_note": "no row today: not a DEFAULT_SEATS seat; a hand row (B14) or a seat",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  },
  {
   "name": "rietx.multi.MultiHistogramRefinement._ticks.extra_components",
@@ -1649,6 +1742,7 @@
   "applied": false,
   "decision": null,
   "class": "C10",
-  "row_note": "no row: a builder decides nothing; the risk is the member contract's (root CLAUDE.md: a third extra_components member audits this reader)"
+  "row_note": "no row: a builder decides nothing; the risk is the member contract's (root CLAUDE.md: a third extra_components member audits this reader)",
+  "ruling": "2026-10-26: the batch's pick approved; the maintainer delegated the rulings to the session's judgement against DESIGN.md § Rules"
  }
 ]

@@ -71,6 +71,17 @@ judgement ground and on demotion.
 | C10 Joint fit | 20 of 26 | Confirm 2002's rows cover six joint holds; the joint absent-phase hold's statistic | Covered; align the joint hold with B1's answer test; the form test's hold waits for X14 |
 | C11 Caller and invariant | 3 of 18 | Plain | `x`, `x_label`, `labels` invariant once their test arms land |
 
+**Rulings, 2026-10-26.** The maintainer delegated the rulings to the session's judgement
+against DESIGN.md § Rules ("check against our design guidelines and use your best judgment").
+Every pick below is approved as written, its conditions included: C1 lands after X16 is fixed
+(C3's order), C2's question 5 after its one arm, C3's (a) after X16, C9's `"*"` invariant once
+its test lands, C10's alignment after its joint fixture. The one open question, C2's 4, is
+ruled **`"carry"` stays the default, tier 3**: it reports the failure at `warning`, seeds
+nothing from it and keeps every finished pattern, while stopping spends nothing the caller
+asked to save; GSAS-II's and MAUD's stop is the named dissent, EasyDiffraction the precedent.
+Each entry's `ruling` field in `rows.json` carries the date; the table rows land with the
+demotions (WP task 7), each its own commit.
+
 ---
 
 ## C1. What sends a warm fit up the ladder
