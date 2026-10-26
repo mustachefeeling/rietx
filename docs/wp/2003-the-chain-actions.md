@@ -201,7 +201,7 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       arm `status_runaway`, the first-rung bound off (`on_nobound`, `off_nobound`) and X13's
       `cpd-ftolnone` (`7e03411`, a lane). Ruled 2026-10-26 (every entry's `ruling` in
       `rows.json`); the table rows land with task 7's demotions.
-- [ ] Quarantine's record: does the returned `SeriesResult` name the pattern that
+- [x] Quarantine's record: does the returned `SeriesResult` name the pattern that
       diverged, the rung it reached, and the successors seeded from an earlier pattern
       instead? Quarantine is one of Rule 1's protections and stays; a protection records
       each time it acts, so a missing field is added. The ladder's rungs and give-up point
@@ -220,7 +220,8 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       Fields landed 2026-10-26 (fourth session), tier 3 as ruled: `floored` names the kept
       attempt (empty when it started cold, X7), `SEQUENTIAL_UNRECOVERED` names where the
       successor started instead, `SEQUENTIAL_MOMENT_HOLD` reads `floored` and names every
-      pattern. The interval gate is still owed.
+      pattern. The interval gate landed with them: `_fit_one` declines it on every rung
+      and verify refit, and the chain attaches it once to the kept attempt.
 - [x] `FIRST_RUNG_FACTOR`'s invariance test (accepted values bit-identical with the bound
       on and off, on two chain families), replacing the comment's claim. 2026-10-24: the
       thermal ramp (`tests/test_sequential.py`) and the CPD chain (slow,

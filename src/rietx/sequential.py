@@ -163,6 +163,7 @@ from .schemas.structure import (
     MOMENT_FLOOR_MU_B,
     Structure,
 )
+from .strategy.parameter_interval import attach_stationary_intervals
 from .strategy.staged import RefinementPlan, Stage, resolve_plan
 
 #: Rwp above this multiple of the accepted-so-far **median** triggers a cold
@@ -1659,6 +1660,11 @@ class SequentialRefinement:
             if best is None:      # cancelled on the first attempt: no half-fits
                 stopped_at = k
                 break
+            if not cancelled:
+                # the interval the rungs declined (_fit_one), on the one kept:
+                # it moves no value, so the ladder's choice is unchanged, and it
+                # lands before the entry copies the rows
+                attach_stationary_intervals(best_ref, data, cancel=cancel)
             entry = _entry_from_result(k, names[k], xs[k], best)
             # WP-1329: the moment arm, per pattern, from the fit that produced
             # the values — the one place the compiled model and the fitted
@@ -1771,6 +1777,11 @@ class SequentialRefinement:
             ref = Refinement(structure, instrument, backend=self._backend,
                              solver=self._solver,
                              history=self._history_spec(label + history_suffix))
+        # A rung is a bet the ladder may discard, and a verify refit is read
+        # for one value: neither pays the moment angles' profile interval,
+        # 20-32 refits an angle.  The chain attaches it once, to the attempt
+        # it keeps (WP-2003, X10).
+        ref._auto_intervals = False
         # The wavelength is a property of the beamline, declared once for the
         # whole series — but ``_carry_into`` warm-starts pattern n from pattern
         # n-1's *refined* λ, so the ``Refinement`` just built would snapshot that
