@@ -20,6 +20,7 @@ position.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -1182,3 +1183,45 @@ def test_a_snapshot_reads_as_the_structure_it_was_taken_from(pbso4):
     _drift_y(ref, j, 0.2502)
     merged, _ = _merge(ref.structure)
     assert numbering_moves(before, merged) == numbering_moves(full, merged) != {}
+
+
+# ------------------------------------------------ round 6, item 8: FullProf's Occ column
+
+def _pcr_model_off_the_mirror(pbso4, tmp_path, y="0.2501"):
+    from rietx.io.projects.fullprof import read_fullprof_pcr, write_fullprof_pcr
+    written = tmp_path / "on.pcr"
+    write_fullprof_pcr(Structure(phases=[pbso4]), written)
+    edited = tmp_path / "off.pcr"
+    edited.write_text(_s2_off_the_mirror(written.read_text(encoding="utf-8"), y),
+                      encoding="utf-8")
+    return edited, read_fullprof_pcr(edited)
+
+
+def test_a_full_atom_written_at_half_of_m_over_M_merges_on_the_gate_itself(pbso4, tmp_path):
+    """S2 at Occ 0.5 on the Pnma mirror is a full atom (0.5 x 8/4 = 1): the gate is fed
+    that occupancy, so it merges on 1 x 2 > 1 and the fallback decides nothing."""
+    from rietx.io.projects.fullprof import occupancy_reading
+    _, model = _pcr_model_off_the_mirror(pbso4, tmp_path)
+    factor, decided = occupancy_reading(model.nuclear_phases[0])
+    assert decided == [] and factor > 0
+
+
+def test_where_only_the_column_decides_the_message_says_so_and_names_both_readings(
+        pbso4, tmp_path):
+    """Every Occ halved (the common factor FullProf leaves free): S2's gate reads
+    0.5 x 2 = 1 and keeps the site, the column agrees with itself only on the
+    mirror, and the fallback merges it, saying so and naming the split pair."""
+    from rietx.io.projects.fullprof import occupancy_reading
+    from rietx.io.projects.fullprof import to_structure as pcr_to_structure
+    edited, model = _pcr_model_off_the_mirror(pbso4, tmp_path)
+    for a in model.nuclear_phases[0].atoms:
+        a.values["occ"] = dataclasses.replace(a.values["occ"],
+                                              value=a.values["occ"].value * 0.5)
+    _, decided = occupancy_reading(model.nuclear_phases[0])
+    assert len(decided) == 1
+    found: list = []
+    phase = pcr_to_structure(model, diagnostics=found).phases[0]
+    assert _counts(phase)["S"] == 4
+    (d,) = [d for d in found if d.code == "SITE_TWINS_MERGED"]
+    assert "agrees with itself only" in d.message and "split pair" in d.message
+    assert "8 × 1 = 8" not in d.message
