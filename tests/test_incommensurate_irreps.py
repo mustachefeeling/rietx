@@ -497,3 +497,32 @@ def test_cafe4as3_extended_group_relates_what_g_k_leaves_free():
         g = inc.n1_superspace_group(inc.line_order_parameter(irr))
         assert any(o.rotation == ((-1, 0, 0), (0, -1, 0), (0, 0, -1)) and o.epsilon == -1
                    for o in g.operations)
+
+
+@pytest.mark.slow
+def test_every_internal_translation_the_isotropy_search_reads_divides_24(monkeypatch):
+    """The audit row for ``DELTA_GRID`` rests on this: the isotropy search
+    only tries δ on the 1/24 grid, so an isotropy group needing another δ would
+    be left out unannounced.  Every δ the search returns (after the gauge
+    shift, ε = −1 ones included) over these parents and lines has a
+    denominator dividing 24 — observed 1, 2, 3, 4, 6.  Not a proof for other
+    parents or lines."""
+    denominators = set()
+    real = inc._gauge_float
+
+    def recording(lop, stab):
+        out = real(lop, stab)
+        denominators.update(F(d).denominator for _, _, d in out)
+        return out
+
+    monkeypatch.setattr(inc, "_gauge_float", recording)
+    lines = [("P n m a", "(0,0,γ)"), ("P n m a", "(0,γ,0)"),
+             ("P 63/m m c", "(0,0,γ)"), ("P 63/m m c", "(1/3,1/3,γ)"),
+             ("C m c a", "(0,0,γ)"), ("I 41/a m d", "(0,0,γ)"),
+             ("R -3 m", "(0,0,γ)"), ("F d -3 m", "(0,0,γ)"),
+             ("P 31 2 1", "(0,0,γ)")]
+    for sg, q in lines:
+        for irr in inc.line_irreps(sg, q, [1 / math.sqrt(7)]):
+            inc.isotropy_superspace_groups(inc.line_order_parameter(irr))
+    assert {3, 4} <= denominators
+    assert all(inc.DELTA_GRID % d == 0 for d in denominators)

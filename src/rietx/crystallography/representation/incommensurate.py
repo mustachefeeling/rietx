@@ -57,13 +57,18 @@ from .irreps import (
 )
 from .order_parameter import ORDER_PARAMETER_KINDS
 
-#: Internal-translation grid of the isotropy search, 1/24: every internal
-#: translation a (3+1)D operation carries is a multiple of it (0, ½, ⅓, ¼, ⅙,
-#: and the M·v cross terms of centred and screw operations).
+#: Internal-translation grid of the isotropy search, 1/24.  The commensurate
+#: part of q takes components 0, ½, ⅓, ⅔, so the internal translations of a
+#: group's operations (0, ½, ⅓, ¼, ⅙, and the M·v cross terms of centred and
+#: screw operations, which can leave the grid in principle) are searched on 1/24
+#: only.  That no stabiliser needs another δ is measured, not derived:
+#: ``test_every_internal_translation_the_isotropy_search_reads_divides_24``.
 DELTA_GRID = 24
 
-#: Tolerance on the numerical linear algebra of the order-parameter space
-#: (fixed subspaces, eigenvalues read as phases).
+#: Relative rank cut of the SVD in :func:`_null` (the fixed subspaces of the
+#: order-parameter space): a singular value counts as zero below
+#: ``LINE_ATOL * max(1, s[0])``.  Nothing else reads it: the eigenvalue test of
+#: :func:`_true_stabiliser` and :func:`_frac` use their own 1e-7.
 LINE_ATOL = 1e-8
 
 
