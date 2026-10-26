@@ -45,6 +45,7 @@ from rietx.schemas.indexing import (
     PeakList,
     q_of_two_theta,
 )
+from tests.peak_pictures import draw_pick
 from tests.test_peak_fdr import LAM, RANGE, _si_lines, _silicon
 
 pytestmark = pytest.mark.xdist_group("peak_bounds")
@@ -56,7 +57,9 @@ def flat_si(tmp_path_factory):
     instrument the issue used, and ``pick_peaks_with_state``'s answer."""
     data = _silicon(tmp_path_factory.mktemp("si"), steep=False, hi=62.0)
     ins = rx.Instrument.debye_scherrer(wavelength=LAM)
-    pl, det, _ = pick_peaks_with_state(data, ins, two_theta_range=RANGE)
+    pl, det, fits = pick_peaks_with_state(data, ins, two_theta_range=RANGE)
+    draw_pick("bounds_flat_silicon", data, ins, pl, det, fits, truth=_si_lines(),
+              title="#916's flat reproducer on the default instrument: the bounds each fit ended on")
     return data, ins, pl, det
 
 
