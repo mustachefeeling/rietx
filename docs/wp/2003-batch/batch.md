@@ -807,7 +807,8 @@ reaches; neither mechanism is verified. The measurements are `clashes.md` X16 an
    `FROZEN_COMPILE_STALE` fires on 1c under `status` too, which did not collapse. C2's
    question 5 catches it. **Narrowed 2026-10-26**: the second reproduction ran. From the
    independent 1b, both apertures on 0, the warm 1c collapses with the closing stage off
-   (Rwp 10.724); with `axial_sl` lifted to 0.011 it recovers (0.10881). Reading (b) through
+   (Rwp 10.724) and with it on (0.791); with `axial_sl` lifted to 0.011 it recovers
+   (0.10881). The default chain is spared only because its kept 1b ends off the floor. Reading (b) through
    WP-1938's rule: a floor where the axial column is nearly flat (`clashes.md` X17). The fix
    is a real floor or lift for the apertures, owed in a WP of its own.
 
