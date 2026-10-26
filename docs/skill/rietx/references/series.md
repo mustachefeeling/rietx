@@ -105,7 +105,7 @@ What an operator must know, all measured:
   `constrain=lambda index, ref: ...` to `fit`/`refine_sequential` and call
   `ref.add_variable(...)` / `ref.tie_equal(...)` inside it, against that
   pattern's own table.  It fires once per **fit** and not once per pattern —
-  every escalation rung and the `verify_discontinuities` refit get it — so a
+  every escalation rung and the `verify_steps` refit get it — so a
   hook that counts its own calls counts fits.  The variable's *value* then
   rides the `carry` globs like any other path (`vars.<name>`) and warm-starts
   from the last **accepted** pattern, a quarantined one seeding no successor
@@ -182,7 +182,7 @@ What an operator must know, all measured:
   one lists.  *(Measured: issue #224's series C before WP-1333; the codes are
   WP-1333's.)*  Both safety checks are also worth pricing up front: on one
   series the backward pass was **43.9 %** of wall clock and the
-  `verify_discontinuities` refits **15.1 %**, so **59 % of the run bought
+  `verify_steps` refits **15.1 %**, so **59 % of the run bought
   assurance rather than answers** — the right trade for a trajectory you will
   publish, the wrong one for a screen.
 - **One pattern that cannot be fitted costs that pattern, not the chain.**  A
@@ -200,9 +200,9 @@ What an operator must know, all measured:
   resumed chain has a cold seam an uninterrupted one does not.  *(Measured:
   issue #224, 20 of 24 patterns lost to one raise before WP-1333; the ladder
   rescue is WP-1333's fixture test, not a re-run of that series.)*
-- **A flagged step can check itself.**  `verify_discontinuities=True` refits
-  each `SEQUENTIAL_DISCONTINUITY`'s two patterns **cold and independently** and
-  writes the cold step over the chain's step to the diagnostic's `value`, signed:
+- **A step can check itself.**  `verify_steps=k` refits the two patterns of
+  each of the *k* largest `series.steps` **cold and independently** and
+  writes the cold step over the chain's step to that step's `cold_ratio`, signed:
   near 1.0 the step is in the data, near 0 the chain made it, negative a cold
   pair that moved the other way.  Off by default because
   a cold fit is the full staged plan from the initial models; measured on a
@@ -421,7 +421,7 @@ The twelfth series code, `SEQUENTIAL_PERSISTENT_FINDING`, is an abstention, so i
 |---|---|
 | `SEQUENTIAL_RESEED` | Read this point of a series as evidence that the trajectory is continuous. With `SEQUENTIAL_RWP_OUTLIER` on the same pattern the cold rung was only the best of the rejected rungs, not a good fit |
 | `SEQUENTIAL_RWP_OUTLIER` | Read that point as a measurement before opening its fit. `value` = Rwp over `entry.rwp_fence`; every rung the chain tried left it above the fence (with `reseed=False` only the first, and the message says so). The message quotes GoF and Rexp against the last pattern inside the fence: GoF up is a model the pattern outgrew, GoF level with Rexp up is fewer counts. (Measured: #481, a blank frame fitted perfectly with its scales at their esds, GoF 1.00 against 1.06, Rexp 0.159 against 0.040.) It is not quarantined, so a run that stops is the median catching up with a lasting change (WP-1469) |
-| `SEQUENTIAL_DISCONTINUITY` | Report the jump as physics without opening that pattern's own fit; it is equally the signature of a chain failure. `fit(verify_discontinuities=True)` opens it for you: both patterns refitted cold and independently, and `value` is what that pair reproduces (1.0 in the data, 0 the chain's own); measured cost 5 % of a 68-pattern chain. The pair is `series.steps` (a `SeriesStep` per step, `path` and `indices`), not the prose. Steps into or out of an outlier or unrecovered pattern are not scanned |
+| `series.steps` | Report a large step as physics without opening that pattern's own fit; it is equally the signature of a chain failure, and no threshold says which. `fit(verify_steps=k)` opens the *k* largest for you: both patterns refitted cold and independently, and `cold_ratio` is what that pair reproduces (1.0 in the data, 0 the chain's own); measured cost 5 % of a 68-pattern chain. Each `SeriesStep` carries `path`, `indices` and `size_esd`. Steps into or out of an outlier or unrecovered pattern are not listed |
 | `SEQUENTIAL_PATH_DEPENDENT` | Quote that parameter's per-pattern esd as its uncertainty; the between-chain spread is larger and is the honest one |
 | `SEQUENTIAL_CANCELLED` | Read the shortened `entries` list as the series |
 | `SEQUENTIAL_UNRECOVERED` | Read that point's values as a measurement, or its failure as evidence about its neighbours: nothing was chained through it. A pattern that *converged* above the Rwp fence on every rung is `SEQUENTIAL_RWP_OUTLIER` instead, and is chained through |

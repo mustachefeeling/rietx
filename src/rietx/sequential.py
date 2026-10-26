@@ -1666,8 +1666,14 @@ class SequentialRefinement:
             if not cancelled:
                 # the interval the rungs declined (_fit_one), on the one kept:
                 # it moves no value, so the ladder's choice is unchanged, and it
-                # lands before the entry copies the rows
-                attach_stationary_intervals(best_ref, data, cancel=cancel)
+                # lands before the entry copies the rows.  Its failure costs the
+                # pattern nothing: the fit is finished, so an angle it did not
+                # reach keeps no interval and the finding says none was
+                # computed, as attach_stationary_intervals does per angle
+                try:
+                    attach_stationary_intervals(best_ref, data, cancel=cancel)
+                except Exception:   # noqa: BLE001 - the package's own extra
+                    pass
                 # a stop it read ends the walk here, as a cancel on a later
                 # rung does: the pattern is kept, and none starts after it
                 cancelled = cancel is not None and bool(cancel)
