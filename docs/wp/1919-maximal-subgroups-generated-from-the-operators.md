@@ -132,14 +132,25 @@ identification call.
 
 ## Tasks
 
-- [ ] **Decision (maintainer):** placement. Under the symmetry package
+- [x] **Decision (maintainer):** placement. Under the symmetry package
       WP-1419 creates, or under `crystallography/` now (#806 question 1).
-- [ ] **Decision (maintainer):** the (P, p) choice rule. A1-identical where
+      Decided 2026-10-26: `crystallography/representation/subgroups.py`.
+- [x] **Decision (maintainer):** the (P, p) choice rule. A1-identical where
       it can be reproduced, or a documented canonical choice (#806
-      question 2).
-- [ ] **Decision (maintainer):** exact `Fraction` arithmetic as the prototype
+      question 2). Decided 2026-10-26: the rule `distortion_candidates`
+      uses (r_parent = P·r_child + p, spglib's standard setting), with three
+      conditions. The operation check is exact, and `_standard_child` later
+      calls it, so the package keeps one standardiser. The splitting result
+      carries the (P, p) its labels belong to (a typed result, never a bare
+      dict). The docs say the (P, p) is spglib's and can move with spglib or
+      moyo. Tests compare up to the affine normaliser.
+- [x] **Decision (maintainer):** exact `Fraction` arithmetic as the prototype
       has it, or an integer implementation the reporter estimates at about
-      10× faster (#806 question 4).
+      10× faster (#806 question 4). Decided 2026-10-26: exact `Fraction`. The
+      `slow` test is the index ≤ 4 acceptance sweep, parametrised per group;
+      the index ≤ 9 sweep is a benchmark script outside the suite. Before the
+      code, the PR names the reference set the Tests task calls "stated":
+      the groups, the published entries and the tolerance (DESIGN Rule 4).
 - [ ] t-subgroups from the point group's maximal subgroups, with conjugacy
 - [ ] k-subgroups: maximal P-invariant sublattices per prime, complements
       over F_p, conjugacy classes
