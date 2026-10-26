@@ -1,6 +1,6 @@
 # WP-2003 — The chain actions: what a series decides between patterns
 
-Milestone: generality · Status: 🔄 2026-10-26 — claimed by @yue-here (fourth session: X16, X17, then tasks 3 and 7)
+Milestone: generality · Status: 🔄 2026-10-26 — X16 fixed (an LM-driver tolerance), task 3 and C4 landed, X17 handed to WP-1955; next C1 and C3 (unblocked), C2 question 5, C5-C10
 Track: The audits
 Depends on: 2002, 2037
 Priority: P2 2026-10-24 — 2037 closed, so its clause 1 and the response column this WP's first demotion takes are in place; the maintainer's next after 2037; the seam the maintainer's own example (a series discontinuity) lives in
@@ -288,6 +288,101 @@ summary).
 - Root CLAUDE.md § Series.
 
 ## Handover log
+
+### 2026-10-26 (fourth session) — X16 fixed in the LM driver, X17 traced to a zero aperture, the quarantine's record, C4 demoted
+
+The 40-pattern freeze (X16) was not a chain defect. It was a one-line tolerance bug in the
+least-squares driver that any single fit could hit: once both Lorentzian width coefficients
+sat at zero, the driver read every width limit as already broken, dropped them all, and the
+next stage drove the width negative. That is fixed, and it moves no number in any default
+configuration: every family and arm re-measured is bit-identical except the planted ramp
+with the first-rung bound off, where the 40 frozen patterns now recover. X17's collapse has a
+cause too: a warm start from a pattern whose two axial apertures both sit on their floor of
+zero collapses the next fit, with or without the closing stage, and the default chain
+escapes only because its own neighbour lands just off that floor. That needs a floor where
+the parameter is live, which changes every fit freeing an aperture, so it is handed to
+WP-1955 rather than fixed here. A series now records where each warm start came from and
+which moments were floored, a discarded rung no longer pays the moment-angle interval, and
+the discontinuity threshold is gone: every step is listed in esds and none is called a jump.
+
+*Done.*
+- Claimed (`158eace`; PR #1169 had merged, so the branch restarted from `origin/main`),
+  draft PR #1183. `### Inherited` was empty; the findings checked were today's.
+- **X16** (`0bd7823`). `optimize/lm.py` `LinearInequality.violated` judged "on the face"
+  against the block's largest |slack| alone; the guards it names floor that scale at 1. A
+  probe warm-started T088 from T087's state one part at a time from T086: X alone, Y alone or
+  V alone recovered it. A builder log found T087's second solve starting at X = 3e-20,
+  Y = −6e-19 and building no Γ_L row. Two regression tests, each confirmed to fail with the
+  floor reverted. `clashes.md` X16 and `batch.md` investigation 8 rewritten (`4be3f98`).
+- **Task 3** (`038ee92`, `f4785d3`): `SeriesEntry.seeded_from` and `.floored` (tier 3, the
+  rulings' rows, help entries, manual rows); `SEQUENTIAL_UNRECOVERED` names where the
+  successor started; `SEQUENTIAL_MOMENT_HOLD` reads `floored`; `_fit_one` sets
+  `_auto_intervals = False` and the chain attaches the interval to the kept attempt (X10).
+- **X17** narrowed (`d4e7196`, `e4bfdce`): `clashes.md` X17, `batch.md` investigation 9,
+  handed to WP-1955.
+- **C4** (`4bd5ab9`, a lane, below): `SEQUENTIAL_DISCONTINUITY`, its suggestion and three
+  constants removed; `SeriesResult.steps` (every step in esds of the later fit, largest
+  first, `None` last); `verify_steps: int` (question 2, option (ii)); the cold ratio on
+  `SeriesStep.cold_ratio`; the plot shades verified steps only; an old document's
+  `discontinuities` key dropped at read; schema 0.60 annotated; release note staged. Checked
+  here: the lane's selection re-run green, its core read by range.
+- Code review (`/code-review high --fix`, the branch): seven findings, five fixed
+  (`c9c59b3`, `82eb24d`). Fixed: the backward chain's successor named in walk order, no step
+  across a failed pattern, a cancel read after the interval, the hold message capped at four
+  again (it now points at `SeriesEntry.floored`), an unexpected raise in the interval no
+  longer ends the series, and the skill's seven lines naming the removed keyword or code
+  renamed (an agent following them got a `TypeError`). Declined: `verify_steps=k` counts
+  rows, so a cubic cell's tied a, b, c take three of k for one pair (the path guide asserts
+  it; a "distinct pairs" count is a choice for C4's next touch); a requested verify step that
+  could not be re-measured reads `cold_ratio=None`, the same as one not requested (needs a
+  field).
+- `measure_reseed.py` records the ten largest `steps` in place of the flagged pairs; every
+  family re-measured on the fix (`aa40cdc`, `ae876a0`, `c0f4151`-`20c3047`).
+
+*Measured* (Linux x86-64, 4-core cloud container, worktree venv `[dev]`, one BLAS thread).
+- The X16 fix against the committed JSONs (`6eb010a0`), every family and arm: planted
+  `off_nobound` T088-T127 recover (moved up to 434 esd; T088 Rwp 0.04155 against 0.43341),
+  later patterns ≤ 5.5e-4 esd; `on_nobound` ≤ 0.172 esd (T087's scale); `ref` 0.007 esd at
+  T087. Every other arm of all nine families bit-identical, `cpd-noclose_status_runaway`
+  included. Arms new to the record (no-bound arms on cr2wo6, tut05, cpd-ftolnone): written,
+  no prior to compare.
+- X17 probe (closing stage off unless named; from an independent 1b, Rwp 0.13932, S/L and
+  H/L both 0): 1c warm 10.724 (S/L 64.8, corundum 3.7 wt %); closing on 0.79140 (S/L 4284,
+  fluorite 0.0 wt %); S/L lifted to 0.011, 0.10881 in 39 evaluations (independent 0.10901).
+- Fast suite on the X16 fix alone: 11 842 passed, 284 skipped, 32 xfailed, 31:27, nothing
+  else running (one BLAS thread; the first attempt with BLAS threads unset reached 37 % in
+  30 min and was killed).
+- FAST_FINAL_PLACEHOLDER
+- Lanes (`session_usage.py lanes 5442497d-…`): main 217 requests, peak 471K, $22.77; one
+  lane $15.38.
+
+  | lane | est | requests | main at dispatch | re-read | lane $ | saved $ |
+  |---|---|---|---|---|---|---|
+  | C4-steps | 40 | 165 | 416K | 1K of 2K | 15.38 | +8.03 |
+
+  Trial row appended. Baseline replay, the selective policy (u = 1K): 0K-300K +0 %,
+  300K-450K +0 %, 450K-up +36 % (two sessions).
+
+*Gotchas.*
+- One BLAS thread per worker is not optional on this container: the fast suite took 31 min
+  with it and reached 37 % in 30 min without (`OPENBLAS_NUM_THREADS=1`).
+- `planted` runs with the compiled tier off (`numpy_path`); a probe of it must say so.
+- `measure_reseed.py` broke on `result.discontinuities` the moment C4 landed; a family run
+  started before a schema change finishes on the old code (one process per family).
+
+*Generality.* GENERALITY_PLACEHOLDER
+
+*Next*, in order:
+1. C1 and C3, now unblocked by X16: the Rwp fence becomes a reported ratio and a warm fit
+   escalates only on diverged or raised (C1); `first_rung_factor=None` by default with its
+   two defects fixed (C3), and X2's no-budget-under-`reseed=False`. Re-run planted
+   `off_nobound` as C3's check: it is now the default it would become.
+2. C2's question 5 arm (an `error`-level kept attempt read as diverged) on tut05-broken and
+   CPD closing off, then C2's ranking fix (diverged below truncated).
+3. C5, C6, C9's carry-invariance test, C10's joint hold row; each its own commit with its
+   `_audit.py` row. Then goldens (task 8), tests (task 10) and the skill list (task 11: the
+   seven renamed lines are in WP-2008's Inherited).
+4. The two declined review findings on `verify_steps` when C4 is next touched.
 
 ### 2026-10-26 (third session) — re-measured on main, revised against DESIGN § Rules, ruled
 
