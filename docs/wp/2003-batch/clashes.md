@@ -46,7 +46,7 @@ the reported esd (Bérar-Lelann f included) unless it says "plain". Wall clock i
 | X14 | B16 (bound test) × the joint parametric form test | One way | No | Unmeasured | C10 | Measurement owed above `BVLS_MAX_COLUMNS`, where the joint fit leaves the exact active set |
 | X15 | Ladder × path dependence | Yes | No (no measured `direction="both"` family escalates) | Unmeasured | C5, C1 | Unmeasured. The C5 field should carry each direction's `rung` beside each gap |
 | X16 | First-rung bound × the absent-phase hold under `reseed=False` (planted) | Yes (the bound's forced escalation decides T088's start) | Yes: planted `off` against `off_nobound` and `on_nobound`, on `main` | Yes: T088-T127, the scale 40-61 esd from truth, Rwp ×10 | C3, C1, C2 | Fixed 2026-10-26 (`0bd7823`): the LM driver dropped every Γ_L row of a block on its face; neither hypothesis. C3's (a) and X2's fix unblocked |
-| X17 | Option (iii) × the collapsed warm refit from a floored row (CPD closing off) | Yes ((iii) decides 1c's start) | Yes: `cpd-noclose_status_runaway`, on `main` | Yes: 1c-1h, corundum 3.9-73 wt % against 5.0-55.1 weighed | C1, C2, C9 | Investigation owed. (iii) not adopted (C1); an `error`-level attempt counted as diverged would catch it (C2 question 5) |
+| X17 | Option (iii) × the collapsed warm refit from a floored row (CPD closing off) | Yes ((iii) decides 1c's start) | Yes: `cpd-noclose_status_runaway`, on `main` | Yes: 1c-1h, corundum 3.9-73 wt % against 5.0-55.1 weighed | C1, C2, C9 | Narrowed 2026-10-26: a warm refit from 1b's floored apertures (S/L = H/L = 0) collapses with the closing stage off, (iii) or not; lifted to 0.011 it recovers. A floor fix owed (WP-1938's rule), not this WP's. C2 question 5 still catches it |
 
 ---
 
@@ -751,7 +751,25 @@ floor, and 1c-1h converge.
 **What would have caught it.** The fence (1c at Rwp 10.83); option (ii) catches 1d-1h but not
 1c; an `error`-level kept attempt read as diverged (`batch.md` C2, question 5) catches 1c.
 
-**Mechanism.** Unknown. Two readings, neither verified. (a) `_collapse` hands the warm refit
+**Narrowed 2026-10-26 (fourth session): the floored apertures alone do it; option (iii) is not
+needed.** Re-run on the X16 fix, `cpd-noclose_status_runaway` is bit-identical (`values_sha`
+on all eight patterns), so X16's mechanism is not this one. Probe (scratch, `[dev]`, closing
+stage off throughout): an independent 1b from `seeded_start(1)` under `qpa_plan()` converges
+at Rwp 0.13932 with **both** `axial_sl` and `axial_hl` on their floors at 0. A collapsed warm
+refit of 1c from that state collapses exactly as the chain did: Rwp 10.724 `converged`,
+`axial_sl` 64.8, corundum 3.7 wt %, `MODEL_FAR_FROM_DATA`, `STAGE_WINDOWS_STALE`. The same
+start with `axial_sl` lifted to 0.011 (`status`'s kept value) converges in 39 evaluations at
+Rwp 0.10881 against the independent 1c's 0.10901, `axial_sl` 0.0432. So any chain whose kept
+1b reaches the independent answer, both apertures on 0, collapses at 1c with the closing stage
+off. The reading is (b) through WP-1938's rule ("a bound must be a value where the model and
+its columns are defined"): at S/L = H/L = 0 the axial column is nearly flat (1b's esd 251),
+the first LM step from there is tens of units, and the windows sized at compile from
+`AXIAL_SIZING_FLOOR` (`model/forward.py`, `compile_model`) are stale for the rest of the
+solve. The closing stage recompiles at the answer, which is why the default chain recovers.
+Not fixed here: the remedy is a real floor or a lift for the two apertures, a WP-1938-shaped
+change to `schemas/instrument.py` and `compile_model` that moves every fit freeing them.
+
+**Mechanism (as written 2026-10-25).** Unknown. Two readings, neither verified. (a) `_collapse` hands the warm refit
 `seed=0.0` (`sequential.py:506`), which leaves the floored row where it is. (b) The windows are
 compiled at `axial_sl` 0 and the parameter walks to 34.8 inside one solve, with no closing stage
 to recompile at the answer. `MODEL_FAR_FROM_DATA`'s docstring names that frozen-window signature
