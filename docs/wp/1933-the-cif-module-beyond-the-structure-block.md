@@ -202,6 +202,8 @@ and alert lists are in 1319's Context.
   'spacegroup'`, so the floor is stale. The proprietary-database counts the
   issue quotes (3 C2/m entries, 97, 5, 135, 7) cannot be checked here.
 
+- 2026-10-26 issue triage: #1063's empty-`data_global` case (an empty or `_audit_*`-only leading block makes `structure_from_cif` refuse a FullProf mCIF as 'not a CIF') is placed in WP-1918's Inherited. C-e's `block=` should skip a block with no structure tags, so build the two together or let C-e generalise WP-1918's rule. Checked against the tree at c0e32ab29.
+
 ## Non-goals
 
 - **Not C-a, C-b or C-c**: [1319](1319-structure-interchange.md). **Not C-f**:
