@@ -61,6 +61,8 @@ thousandths of an electron. No intensity, fit or golden moves.
 
 ### Inherited
 
+- 2026-10-26 issue triage, after filing: both papers are in the maintainer's Zotero. Waasmaier & Kirfel (1995) fit O¹⁻ (it appears in their error table) and print no O²⁻ row. Rez, Rez & Grant (1994) compute O²⁻ by Dirac–Fock inside a Watson sphere of radius 1.40 Å (their Table 1); their Table 6 gives the O²⁻ fit over s ≤ 6 Å⁻¹ with Σaⱼ = 9.98. Their full tabulation, Table 2, is not printed in the paper. So the DABAX README's "O1-" means O²⁻, and the citation is "W&K's fit to Rez, Rez & Grant (1994), Watson sphere 1.40 Å". The task to fetch the papers is done; the coefficient check against Table 2 is not possible from the paper.
+
 ## Non-goals
 
 - Replacing the O²⁻ curve with another model (Tokonami 1965, a Watson-sphere

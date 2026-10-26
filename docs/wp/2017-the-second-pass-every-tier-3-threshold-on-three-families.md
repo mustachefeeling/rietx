@@ -85,6 +85,8 @@ LaMnO₃). A family is a specimen type with its own instrument, not a pattern.
 
 - 2026-10-26 issue triage: #1052 (mustachefeeling, 2026-10-19) offers three held-out families for the milestone's close, and says the reporter will run them at the open and the close: Zr₆(BDC)₃(Fum)₃ on Diamond I11 (Tollitt et al. 2021, Angew. Chem. 60, 26939; pattern deposited CC BY 3.0), HfIn on a lab Empyrean, Cu Kα₁/Kα₂, flat plate (Oliynyk et al. 2018, Inorg. Chem. 57, 7966; not deposited, kept local by the reporter), and CrCl₂(pyrimidine) on ILL D1B at 1.5 K and 30 K, k ≠ 0 (Pitcairn et al. 2023, JACS 145, 1783; data doi:10.17639/nott.7257). Checked against the tree at c0e32ab29: none of the three is in `tests/data/README.md`, and the milestone's named held-out family is still only the Nd₂Ru₂O₇ pair (`11a68d96e`, 2026-10-19). Until the maintainer rules on #1052, do not use any of the three as second-pass evidence here: a public download makes the MOF and the magnet easy to reach for, and using one would end its use as held-out evidence.
 
+- Decided 2026-10-26 (maintainer, #1052): all three offered families are adopted as held-out beside Nd₂Ru₂O₇ (`docs/milestones/generality.md` § Acceptance). So none of them is audit evidence in this pass, permanently rather than while the issue is open.
+
 ## Non-goals
 
 - New actions or new thresholds. A measurement that suggests one goes to the maintainer.

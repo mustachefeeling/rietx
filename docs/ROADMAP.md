@@ -611,4 +611,4 @@ scope creep. Each item names what fenced it.
   kernel and a ceiling ≈2.5-3× ([v0.4 record](milestones/v0.4.md)); notebook
   widgets.
 - **Not at any version:** 2D image integration (pyFAI's job — the package
-  takes 1D patterns) and single-crystal refinement.
+  takes 1D patterns) and single-crystal refinement alone; joined to a powder pattern, v2+ (#1068).

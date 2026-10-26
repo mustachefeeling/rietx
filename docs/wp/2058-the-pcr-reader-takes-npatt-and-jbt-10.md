@@ -93,6 +93,8 @@ bounds, or a report only.
 
 ### Inherited
 
+- Decided 2026-10-26 (maintainer, #1068): stand-alone single-crystal refinement stays "not at any version"; an intensity list joined to a powder pattern is fenced to v2+ (ROADMAP § v2+). So `Cry ≠ 0` stays a refusal here.
+
 ## Non-goals
 
 - TOF patterns (`Job = −1`, `Job = 3`): #193, fenced v2+.
