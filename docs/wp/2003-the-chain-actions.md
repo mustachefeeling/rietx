@@ -217,6 +217,10 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       pattern) and `SeriesEntry.floored` (the moment paths floored before its warm start,
       from `_chain`'s local `floored`). Each is an action row a name new to the table
       cannot enter at `unaudited`, so they land with the quarantine's ruling in the batch.
+      Fields landed 2026-10-26 (fourth session), tier 3 as ruled: `floored` names the kept
+      attempt (empty when it started cold, X7), `SEQUENTIAL_UNRECOVERED` names where the
+      successor started instead, `SEQUENTIAL_MOMENT_HOLD` reads `floored` and names every
+      pattern. The interval gate is still owed.
 - [x] `FIRST_RUNG_FACTOR`'s invariance test (accepted values bit-identical with the bound
       on and off, on two chain families), replacing the comment's claim. 2026-10-24: the
       thermal ramp (`tests/test_sequential.py`) and the CPD chain (slow,

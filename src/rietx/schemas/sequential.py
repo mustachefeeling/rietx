@@ -184,6 +184,27 @@ class SeriesEntry(Base):
     #: the field: no fence judged it.  Written by
     #: ``SequentialRefinement._chain``.
     rwp_fence: float | None = None
+    #: The series index of the pattern whose fitted state seeded this
+    #: pattern's warm rungs (WP-2003): the last pattern accepted before it in
+    #: the walk.  That is not the pattern walked just before it when that one
+    #: was quarantined (WP-1051) or, under ``on_error="carry"``, raised on
+    #: every rung, and this field is the only place the substitution is
+    #: recorded.  It says where the warm rungs started whichever rung was
+    #: kept; :attr:`rung` and :attr:`reseeded` say whether that start produced
+    #: the values.  ``None`` where no warm start existed — the first pattern
+    #: walked, the first after an ``on_error="skip"`` failure — and in a
+    #: document written before the field.  Written by
+    #: ``SequentialRefinement._chain``.
+    seeded_from: int | None = None
+    #: The moment modulus paths floored before **the kept attempt** started
+    #: (WP-1329's hold along the series): a modulus the pattern it was
+    #: warm-started from did not support, scaled to ``MOMENT_FLOOR_MU_B`` with
+    #: its direction kept.  Empty when the kept attempt started cold, since a
+    #: cold rung starts from the initial models and never saw the floor
+    #: (WP-2003, X7), on every chain without a moment, and in a document
+    #: written before the field.  ``SEQUENTIAL_MOMENT_HOLD`` reads it.  Written
+    #: by ``SequentialRefinement._chain``.
+    floored: list[str] = Field(default_factory=list)
 
     #: Where this pattern's own history lives (one tree per pattern — a tree is
     #: pinned to one pattern by its data fingerprint).

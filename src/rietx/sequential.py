@@ -1306,7 +1306,7 @@ class SequentialRefinement:
         self.result_ = None
         self.backward_ = None
         self.forward_ = None
-        entries, results, trees, models, failures, _, floored = self._chain(
+        entries, results, trees, models, failures, _ = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, constrain,
             on_result, stream=stream, cancel=cancel,
@@ -1326,7 +1326,7 @@ class SequentialRefinement:
 
         before = _inside_before(entries, direction)
         diagnostics = [d for e in entries
-                       for d in (_reseed_diagnostics(e) + _unrecovered_diagnostics(e)
+                       for d in (_reseed_diagnostics(e) + _unrecovered_diagnostics(e, entries)
                                  + _rwp_outlier_diagnostics(e, before.get(e.index)))]
         diagnostics += [_series_pattern_failed_diagnostic(f) for f in failures]
         cancelled = cancel is not None and bool(cancel)
@@ -1363,7 +1363,7 @@ class SequentialRefinement:
         # the moment along the chain: the hold, and the onset it locates.
         # Empty on any series whose entries carry no moment row at all, which
         # is every non-magnetic one (WP-1329).
-        diagnostics += _moment_diagnostics(series, floored)
+        diagnostics += _moment_diagnostics(series)
 
         if direction == "both" and cancelled:
             # a cancelled forward chain gets no verification pass: the
@@ -1382,8 +1382,8 @@ class SequentialRefinement:
             self.forward_ = series.model_copy(update={
                 "direction": "forward", "diagnostics": list(diagnostics)})
             try:
-                (back_entries, _, _, _, back_failures, back_stop,
-                 back_floored) = self._chain(
+                (back_entries, _, _, _, back_failures,
+                 back_stop) = self._chain(
                     list(reversed(order)), patterns, names, xs, mode, base_plan,
                     ladder, two_theta_limits, reseed, reseed_factor, prepare,
                     constrain, None, history_suffix=".backward",
@@ -1412,7 +1412,7 @@ class SequentialRefinement:
                                 angle_paths=sorted(angles))
             diagnostics += [_series_pattern_failed_diagnostic(f, pass_name="backward")
                             for f in back_failures]
-            back.diagnostics = _moment_diagnostics(back, back_floored)
+            back.diagnostics = _moment_diagnostics(back)
             if cancel is not None and bool(cancel):
                 diagnostics.append(
                     _cancelled_diagnostic(len(back_entries), len(patterns),
@@ -1486,25 +1486,23 @@ class SequentialRefinement:
 
         Returns entries, results, trees, models and failures in series order,
         ``stopped_at``: the series index of the pattern in flight when a
-        cancel ended the walk, ``None`` when it ran to the end; and the floored
-        carries, ``{label: [modulus path, …]}`` for every pattern whose warm
-        start received a moment at its floor (WP-1329's hold).
+        cancel ended the walk, ``None`` when it ran to the end.  Which pattern
+        seeded each warm start, and which moments it floored first, ride on
+        the entries (``seeded_from``, ``floored``).
         """
         entries: dict[int, SeriesEntry] = {}
         results: dict[int, RefinementResult] = {}
         trees: dict[int, RefinementTree | None] = {}
         models: dict[int, tuple[Structure, Instrument]] = {}
         failures: dict[int, SeriesFailure] = {}
-        #: pattern index → modulus paths whose warm start **this** pattern
-        #: received at the floor rather than at its predecessor's unsupported
-        #: value (WP-1329's hold).  Keyed by the pattern that was reseeded,
-        #: because that is the pattern whose starting point a reader is being
-        #: told about; ``pending_floor`` carries it one step through the walk,
-        #: so a quarantined pattern in between cannot make it look as though
-        #: the reseed came from its neighbour.
-        floored: dict[int, list[str]] = {}
+        #: modulus paths the next warm start receives at the floor rather than
+        #: at ``previous``'s unsupported value (WP-1329's hold).  Set where
+        #: ``previous`` is, so a quarantined pattern in between cannot make it
+        #: look as though the reseed came from its neighbour.
         pending_floor: list[str] = []
         previous: tuple[Structure, Instrument] | None = None
+        #: the series index ``previous`` was fitted on: ``SeriesEntry.seeded_from``
+        previous_index: int | None = None
         previous_hkl: list = []
         #: the last accepted pattern's named-variable values, by bare name.
         #: Beside ``previous_hkl`` and for its reason: a variable lives outside
@@ -1531,8 +1529,7 @@ class SequentialRefinement:
         for position, k in enumerate(order):
             data = patterns[k]
             warm = previous is not None
-            if warm and pending_floor:
-                floored[k] = list(pending_floor)
+            start_floor = list(pending_floor) if warm else []
             stamp = {"series_index": k, "series_label": names[k],
                      "series_n": n, "series_pass": pass_name}
             attempts = ladder if warm else [("cold", base_plan, False)]
@@ -1646,6 +1643,7 @@ class SequentialRefinement:
                     # never returned is not evidence the *next* one's warm
                     # state is trustworthy either.
                     previous = None
+                    previous_index = None
                     previous_hkl = []
                     previous_tag = (None, None)
                     # and no floored moment either: the next pattern is cold
@@ -1672,6 +1670,9 @@ class SequentialRefinement:
             entry.rung = best_rung
             entry.rungs_tried = list(tried)
             entry.rungs_raised = dict(raised)
+            entry.seeded_from = previous_index if warm else None
+            # the floor reached the kept attempt only if that attempt was warm
+            entry.floored = start_floor if best_rung != "cold" else []
             if len(tried) > 1:
                 entry.rwp_warm = rwp_of.get(tried[0])
                 # only the *cold* rung breaks the chain — a staged refit from
@@ -1709,6 +1710,7 @@ class SequentialRefinement:
                 carried, pending_floor = _floor_unsupported_moments(
                     models[k][0], entry.magnetic)
                 previous = (carried, models[k][1])
+                previous_index = k
                 previous_hkl = _extract_reflections(best_ref._model)
                 previous_vars = {name: prm.value
                                  for name, prm in best_ref._variables.items()}
@@ -1746,8 +1748,7 @@ class SequentialRefinement:
         keys = sorted(entries)
         return ([entries[k] for k in keys], [results[k] for k in keys],
                 [trees[k] for k in keys], [models[k] for k in keys],
-                [failures[k] for k in sorted(failures)], stopped_at,
-                {names[k]: v for k, v in floored.items()})
+                [failures[k] for k in sorted(failures)], stopped_at)
 
     def _fit_one(self, data: PatternData, label: str,
                  previous: tuple[Structure, Instrument] | None,
@@ -2129,8 +2130,13 @@ def _rwp_outlier_diagnostics(entry: SeriesEntry,
     )]
 
 
-def _unrecovered_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
+def _unrecovered_diagnostics(entry: SeriesEntry,
+                             walk: Sequence[SeriesEntry] = ()) -> list[Diagnostic]:
     """A pattern no rung could rescue: quarantined, and said out loud (WP-1051).
+
+    ``walk`` is the chain's entries in walk order.  The entry after this one
+    is the successor the quarantine re-routed, and the message names where it
+    started instead, read off its ``seeded_from`` (WP-2003).
 
     Derived from the entry rather than recorded when it happened, like every
     other fence here, so a :class:`SeriesResult` reloaded from JSON reports the
@@ -2148,9 +2154,23 @@ def _unrecovered_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
         message=(f"Pattern {entry.index} ({entry.label}) diverged and was still "
                  f"diverged after every rung the chain tried ({tried}). It "
                  f"seeded no successor and its Rwp was left out of the series "
-                 f"median."),
+                 f"median.{_rerouted(entry, walk)}"),
         suggestion="Fit this pattern on its own to find out why.",
     )]
+
+
+def _rerouted(entry: SeriesEntry, walk: Sequence[SeriesEntry]) -> str:
+    """Where the successor of quarantined ``entry`` started instead, or ''."""
+    after = [e for i, e in enumerate(walk) if i and walk[i - 1] is entry]
+    if not after:
+        return ""
+    nxt = after[0]
+    if nxt.seeded_from is None:
+        return f" Pattern {nxt.index} ({nxt.label}) started cold instead."
+    source = next((e for e in walk if e.index == nxt.seeded_from), None)
+    label = f" ({source.label})" if source is not None else ""
+    return (f" Pattern {nxt.index} ({nxt.label}) warm-started from pattern "
+            f"{nxt.seeded_from}{label} instead.")
 
 
 def _cancelled_diagnostic(n_done: int, n_total: int, *,
@@ -2627,8 +2647,7 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
     return out
 
 
-def _moment_diagnostics(series: SeriesResult,
-                        floored: dict[str, list[str]]) -> list[Diagnostic]:
+def _moment_diagnostics(series: SeriesResult) -> list[Diagnostic]:
     """``SEQUENTIAL_MOMENT_HOLD`` and ``SEQUENTIAL_MOMENT_ONSET``, per site.
 
     Both read the per-pattern verdicts on
@@ -2656,7 +2675,7 @@ def _moment_diagnostics(series: SeriesResult,
         blind = [lab for lab, m in zip(traj.labels, measured, strict=True)
                  if not m]
         name = traj.atom or site
-        reseeded = [label for label, paths in floored.items() if site in paths]
+        reseeded = [e.label for e in series.entries if site in e.floored]
         if n_held or blind:
             message = (
                 f"{name}: the moment is unsupported on {n_held} of {n} pattern(s) "
@@ -2672,8 +2691,7 @@ def _moment_diagnostics(series: SeriesResult,
                 message += (
                     f" The modulus was reseeded to its floor "
                     f"({MOMENT_FLOOR_MU_B:g} μ_B) on {len(reseeded)} successor "
-                    f"pattern(s) ({', '.join(sorted(reseeded)[:4])}"
-                    f"{' …' if len(reseeded) > 4 else ''}) instead of "
+                    f"pattern(s) ({', '.join(reseeded)}) instead of "
                     f"warm-starting from a value the pattern before did not "
                     f"support.")
             out.append(Diagnostic(

@@ -1187,6 +1187,31 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.sequential.SeriesEntry.rwp_fence", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.rungs_tried", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.rungs_raised", "action"),
+    Row("rietx.schemas.sequential.SeriesEntry.seeded_from", "action", tier=3, ambiguity=1,
+        evidence=("WP-1051's quarantine (sequential.py _chain): a diverged kept attempt seeds no "
+                  "successor, joins no median and supplies no first-rung sample, so the next "
+                  "pattern warm-starts from the last accepted one; fires in no measured "
+                  "family (WP-2003 2003-batch/reseed.md), shown on the injected divergence "
+                  "(tests/test_sequential.py). Practice: EasyDiffraction moves the start values "
+                  "only on a successful fit; GSAS-II and MAUD end the chain (docs/practice.md). "
+                  "This field records where each warm start came from (WP-2003 task 3)"),
+        grounds=("Rule 1's protection: no competent refiner wants a diverged fit seeding its "
+                 "successors (generality.md § The rule, fourth review); the field is its "
+                 "record, the substitution having been visible only through history notes "
+                 "under history=True (WP-2003 batch C2)."),
+        approved="2026-10-26"),
+    Row("rietx.schemas.sequential.SeriesEntry.floored", "action", tier=3, ambiguity=1,
+        evidence=("WP-1329, WP-1301's hold along the series (sequential.py "
+                  "_floor_unsupported_moments): an unsupported modulus is scaled to "
+                  "MOMENT_FLOOR_MU_B before it seeds the successor, direction kept, the entry's "
+                  "own value untouched; one synthetic magnetic ramp "
+                  "(tests/test_magnetic_series.py) and the real Cr2WO6 4 K/150 K pair, which "
+                  "fires SEQUENTIAL_MOMENT_HOLD in every reseed arm. Recorded on the kept "
+                  "attempt, so a floored pattern refitted cold is not counted (WP-2003 X7)"),
+        grounds=("Rare feature, judged on the judgement ground alone: a modulus the pattern did "
+                 "not support is no measurement to warm-start from, as the absent-phase hold's "
+                 "cell is not (WP-2003 batch C8)."),
+        approved="2026-10-26"),
     Row("rietx.schemas.results.RefinementResult.absorption", "action", tier="caller", ambiguity=1,
         evidence=("opt-in: Geometry.mu_r/mu_t or capillary_radius_mm/thickness_mm, default None "
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "

@@ -5559,6 +5559,25 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "been accepted, so no fence judged it."
         ),
     ),
+    "SeriesEntry.seeded_from": HelpEntry(
+        title="Warm start from",
+        description=(
+            "The index of the pattern whose fitted state this pattern's warm rungs "
+            "started from: the last pattern accepted before it in the walk. A pattern "
+            "that stayed diverged after every rung is skipped, so its successor names "
+            "the pattern before it. It says where the warm start came from even when "
+            "the kept attempt is the cold rung. `None` where there was no warm start."
+        ),
+    ),
+    "SeriesEntry.floored": HelpEntry(
+        title="Moments floored",
+        description=(
+            "The moment modulus paths this pattern's kept attempt received at the "
+            "floor, because the pattern it warm-started from did not support them. "
+            "Empty when the kept attempt started cold and on a series with no moment. "
+            "`SEQUENTIAL_MOMENT_HOLD` names these patterns."
+        ),
+    ),
     "SeriesEntry.node_id": HelpEntry(
         title="Pattern history node",
         description=(

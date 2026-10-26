@@ -1248,6 +1248,10 @@ def test_an_unrecovered_pattern_seeds_nothing_and_joins_no_median(
     assert unrecovered[0].level == "warning"
     assert unrecovered[0].where == ["p001"]
     assert "seeded no successor" in unrecovered[0].message
+    # the re-routing is on the record, with history off as with it (WP-2003)
+    assert [e.seeded_from for e in series] == [None, 0, 0]
+    assert ("Pattern 2 (p002) warm-started from pattern 0 (p000) instead."
+            in unrecovered[0].message)
 
     # the median never saw it: pattern 2 fitted once, against a median of 0.10
     assert series[2].rungs_tried == ["warm"]
