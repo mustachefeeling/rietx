@@ -1685,7 +1685,7 @@ class GuiSession:
                 raise GuiError(
                     f"a series needs at least two patterns; {len(setup.members)} "
                     "staged. One pattern is a fit — use Run — and the fences a "
-                    "series exists for (reseed, discontinuity, path dependence) "
+                    "series exists for (reseed, path dependence) and its steps "
                     "all compare a pattern with its neighbours.",
                     code="NO_SERIES", status=409, where=["patterns"])
             plan = self._effective_plan(body.get("plan"))

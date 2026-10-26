@@ -8,8 +8,8 @@
   "transition": 186
  },
  "surfaced": {
-  "background": "SEQUENTIAL_DISCONTINUITY instrument.background.c0 (49, 50)",
-  "bad": "SEQUENTIAL_DISCONTINUITY phases.0.scale (86, 87)",
+  "background": "largest step instrument.background.c0 (49, 50)",
+  "bad": "largest step phases.0.scale (86, 87)",
   "second_phase": "SEQUENTIAL_RWP_OUTLIER run from 134",
   "transition": null
  },
@@ -132,9 +132,24 @@
   ],
   "steps": [
    [
+    "phases.0.cell.a",
+    72,
+    73
+   ],
+   [
     "phases.0.scale",
     86,
     87
+   ],
+   [
+    "instrument.zero_shift",
+    73,
+    74
+   ],
+   [
+    "instrument.profile.w",
+    52,
+    53
    ],
    [
     "instrument.background.c0",
@@ -169,14 +184,6 @@
    87
   ],
   "codes": [
-   [
-    "SEQUENTIAL_DISCONTINUITY",
-    "instrument.background.c0"
-   ],
-   [
-    "SEQUENTIAL_DISCONTINUITY",
-    "phases.0.scale"
-   ],
    [
     "SEQUENTIAL_RESEED",
     "T149"

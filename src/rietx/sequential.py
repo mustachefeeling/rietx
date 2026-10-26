@@ -30,17 +30,21 @@ none of which alters a fitted value:
 ``SEQUENTIAL_RWP_OUTLIER``
     every rung came back above the Rwp fence, so the kept fit is not like its
     neighbours (WP-1469); the pattern is not quarantined, and the steps either
-    side of it are left out of the discontinuity scan.
-``SEQUENTIAL_DISCONTINUITY``
-    a step much larger than the local trend — the science (a phase transition)
-    or a chain failure, and the diagnostic says both.  ``fit(...,
-    verify_discontinuities=True)`` re-measures each one by refitting its two
-    patterns cold and independently, and records what that pair reproduces as
-    the diagnostic's ``value`` (WP-1305).
+    side of it are left out of ``SeriesResult.steps``.
 ``SEQUENTIAL_PATH_DEPENDENT``
     with ``direction="both"``, the forward and backward chains disagree by more
     than their esds allow: that parameter's trajectory is an artefact of the
     ordering, not a measurement.
+
+**A step is a record, never a fence** (WP-2003).  ``SeriesResult.steps``
+lists every refined path's change between consecutive patterns in esds of the
+later fit, largest first, with no threshold: a jump may be a transition, a
+sample shift, a beam dump or a wrong model, and only the sample's history can
+say which, so the package names none (the ``SEQUENTIAL_DISCONTINUITY`` scan it
+replaces did, from a 5×-median-and-3σ threshold no measurement set).
+``fit(..., verify_steps=k)`` re-measures the k largest by refitting each
+pair's two patterns cold and independently, and writes what the pair
+reproduces as ``SeriesStep.cold_ratio`` (WP-1305's check).
 
 Two more belong to the magnetic arm (WP-1329), and they are fences of exactly
 the same kind — a series through an ordering transition is a series whose
@@ -90,11 +94,10 @@ trigger has to satisfy.  *Guard findings* (``HIGH_CORRELATION``, at-bounds) fire
 legitimately on perfectly converged patterns: a correlated pair is a property of
 the model and the data, and no rung of this ladder changes either — it would
 re-fit every pattern of the series, at triple cost, to reach the same minimum.
-*A discontinuity* is a post-hoc property of the whole trajectory (the median
-absolute step is not defined until the series has been walked, and needs
-:data:`MIN_POINTS_FOR_DISCONTINUITY` of it), so making it a trigger would mean
-re-walking a finished chain — a different algorithm, with no guaranteed
-fixpoint.  What the two accepted triggers share: each is a property of *this
+*A discontinuity* is a post-hoc property of the whole trajectory (what counts
+as a large step is not defined until the series has been walked), so making it
+a trigger would mean re-walking a finished chain — a different algorithm, with
+no guaranteed fixpoint.  What the two accepted triggers share: each is a property of *this
 pattern's own fit*, readable the moment it finishes, and each is something a
 different starting point could plausibly fix.
 
@@ -126,9 +129,10 @@ exist partly so a sequential trajectory is never mistaken for one.
 from __future__ import annotations
 
 import fnmatch
+import numbers
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -174,10 +178,10 @@ RESEED_FACTOR = 1.25
 #: Converged first rungs needed before the chain bounds anything (WP-1127).
 #: One sample is not a spread, and the running maximum of a *short* sample is
 #: set by whichever pattern happened to be cheapest.  The same reasoning as
-#: :data:`MIN_POINTS_FOR_DISCONTINUITY` one fence over, and it was measured the
-#: expensive way: at one sample the bound went 2 × 8 = 16 evaluations on the
-#: thermal-ramp chain and its third pattern legitimately wanted **17**, a
-#: one-evaluation margin that darwin cleared and Linux did not.
+#: :data:`MIN_POINTS_FOR_PERSISTENCE`, and it was measured the expensive way:
+#: at one sample the bound went 2 × 8 = 16 evaluations on the thermal-ramp
+#: chain and its third pattern legitimately wanted **17**, a one-evaluation
+#: margin that darwin cleared and Linux did not.
 FIRST_RUNG_SAMPLES = 3
 
 #: Headroom over the most expensive first rung the chain has already
@@ -220,16 +224,8 @@ FIRST_RUNG_SAMPLES = 3
 #: bound bites no winner.
 FIRST_RUNG_FACTOR = 3.0
 
-#: A step is called a discontinuity when it exceeds this multiple of the median
-#: absolute step of the same parameter over the series *and* is significant
-#: against the two points' combined esds.  Both tests are needed: in a real
-#: in-situ ramp with small esds every step is many σ (so σ alone flags
-#: everything), while in a flat series the median step is ~0 (so the ratio
-#: alone flags noise).
-DISCONTINUITY_FACTOR = 5.0
-DISCONTINUITY_SIGMA = 3.0
-
-#: Both fences below are *ratio* tests, and a ratio is meaningless once its
+#: The path-dependence fence below and :attr:`SeriesStep.size_esd` are both
+#: *ratios*, and a ratio is meaningless once its
 #: denominator is floating-point noise.  A parameter the data do not constrain
 #: at all is where this bites, and before WP-1938 a coefficient sitting on its
 #: floor was one: its slope there went to zero, so its esd collapsed
@@ -239,21 +235,17 @@ DISCONTINUITY_SIGMA = 3.0
 #: forward/backward chains "disagreed" at 1e16 σ over 1e-60 and 1e-74.  So a
 #: step or a between-chain difference is also required to be this large a
 #: fraction of the parameter's own magnitude (and never below 1e-9 absolute):
-#: below that the trajectory is a constant, whatever the ratios say.
+#: below that the trajectory is a constant, whatever the ratios say, and a
+#: step's ``size_esd`` is 0 (``_series_steps``).
 NOISE_FLOOR_REL = 1e-9
 
 #: Forward and backward chains are called to disagree at this many combined σ.
 PATH_DEPENDENCE_SIGMA = 3.0
 
-#: A trajectory needs at least this many points before the robust step scale
-#: (the median absolute step) means anything.
-MIN_POINTS_FOR_DISCONTINUITY = 5
-
 #: A series needs at least this many patterns before "in most of them" is a
-#: statement about the series rather than about two or three fits.  The same
-#: number as :data:`MIN_POINTS_FOR_DISCONTINUITY` and for the same reason: below
-#: it the per-entry diagnostics are the whole story and a summary of three
-#: things is not a summary.
+#: statement about the series rather than about two or three fits: below it
+#: the per-entry diagnostics are the whole story and a summary of three things
+#: is not a summary.
 MIN_POINTS_FOR_PERSISTENCE = 5
 
 #: Per-pattern codes :func:`_persistent_diagnostics` never aggregates, because
@@ -402,7 +394,7 @@ class _SeriesStream(EventStream):
     place in **series** order, not in walk order, so a backward chain's frames
     carry the same index as the forward chain's for the same pattern, and
     ``series_pass`` is what distinguishes them — ``"forward"``, ``"backward"``,
-    or ``"verify"`` for a post-walk discontinuity refit (WP-1305), a new *value*
+    or ``"verify"`` for a post-walk ``verify_steps`` refit (WP-1305), a new *value*
     of an existing key and so not a schema move either.
     """
 
@@ -1033,7 +1025,7 @@ class SequentialRefinement:
             reseed: bool = True,
             reseed_factor: float = RESEED_FACTOR,
             first_rung_factor: float | None = FIRST_RUNG_FACTOR,
-            verify_discontinuities: bool = False,
+            verify_steps: int = 0,
             prepare: Callable[[int, PatternData, Structure, Instrument],
                               None] | None = None,
             constrain: Callable[[int, Refinement], None] | None = None,
@@ -1111,23 +1103,26 @@ class SequentialRefinement:
             :func:`_prefer` refuses to keep the truncated attempt over it.
             Inert under ``refit="stages"``, where the first rung is the answer
             plan rather than a bet.
-        verify_discontinuities:
-            Re-measure every ``SEQUENTIAL_DISCONTINUITY`` by refitting its two
-            patterns **cold and independently** — no warm start, no neighbour —
-            and record what that pair reproduces as the diagnostic's ``value``:
-            the cold step over the chain's, **signed**.  Near 1.0 the step is in
-            the data; near 0 the chain made it; negative is a pair that moved
-            the other way, which is neither.  It is the check the diagnostic's
-            own suggestion asks the reader for, run automatically.
+        verify_steps:
+            How many of ``SeriesResult.steps`` to re-measure, an ``int`` ≥ 0:
+            the ``verify_steps`` first rows, which are the largest in esds, each
+            have their two patterns refitted **cold and independently** — no
+            warm start, no neighbour — and what that pair reproduces is written
+            as the row's ``cold_ratio``: the cold step over the chain's,
+            **signed**.  Near 1.0 the step is in the data; near 0 the chain
+            made it; negative is a pair that moved the other way, which is
+            neither.  The count is the caller's (WP-2003): nothing here decides
+            which steps are worth the check, and a bool is refused, since
+            ``verify_discontinuities=True`` meant the pairs a removed threshold
+            flagged.
 
-            **Off by default because it is not cheap**, and the flag exists so
+            **Off by default because it is not cheap**, and the count exists so
             the cost is the caller's decision rather than a surprise: a cold fit
             is the full staged plan from the initial models, roughly triple a
-            warm one, and a series flagging s steps pays up to 2s of them (once
-            per pattern, since two flagged paths at the same step share a
-            refit).  Measured on the 68-pattern thermal ramp, four flagged
-            steps over four patterns, the check adds ~5 %: WP-1305's handover
-            has the ranges.
+            warm one, and k steps pay up to 2k of them (once per pattern, since
+            two paths stepping between the same pair share a refit).  Measured
+            on the 68-pattern thermal ramp, four steps over four patterns, the
+            check adds ~5 %: WP-1305's handover has the ranges.
 
             It is a **post-walk check and never a ladder trigger** — the module
             docstring says why one cannot be: the refits are separate
@@ -1174,7 +1169,7 @@ class SequentialRefinement:
             spelling that means the same thing on every pattern.
 
             Every rung of the ladder is a fresh ``Refinement`` and gets the
-            hook, as does the cold refit `verify_discontinuities` runs — a
+            hook, as do the cold refits `verify_steps` runs — a
             verification fit that dropped the constraint would not be
             comparing like with like.  The hook is the caller's code and runs
             outside every guard, so a raise in it ends the series, the way a
@@ -1241,6 +1236,7 @@ class SequentialRefinement:
             raise ValueError(f"direction must be one of {DIRECTIONS}")
         if on_error not in ON_ERROR_POLICIES:
             raise ValueError(f"on_error must be one of {ON_ERROR_POLICIES}")
+        _check_verify_steps(verify_steps)
         if x is not None and len(x) != len(patterns):
             raise ValueError(f"x has {len(x)} entries for {len(patterns)} patterns")
         names = _labels_for(patterns, labels)
@@ -1282,7 +1278,7 @@ class SequentialRefinement:
                 patterns, names, xs, order, mode, base_plan, ladder,
                 two_theta_limits, reseed, reseed_factor, prepare, constrain,
                 on_result, stream, cancel, direction, x_label,
-                first_rung_factor, verify_discontinuities, recorder, on_error)
+                first_rung_factor, verify_steps, recorder, on_error)
         except BaseException:
             if recorder is not None:
                 recorder.close("failed")
@@ -1294,7 +1290,7 @@ class SequentialRefinement:
     def _run(self, patterns, names, xs, order, mode, base_plan, ladder,
              two_theta_limits, reseed, reseed_factor, prepare, constrain,
              on_result, stream, cancel, direction, x_label, first_rung_factor,
-             verify_discontinuities, recorder, on_error: str = "raise"):
+             verify_steps, recorder, on_error: str = "raise"):
         """The chain, split out of :meth:`fit` so the recorder has one exit.
 
         Exactly :meth:`fit`'s body from the first ``_chain`` call onwards, moved
@@ -1314,7 +1310,7 @@ class SequentialRefinement:
             pass_name="backward" if direction == "backward" else "forward",
             first_rung_factor=first_rung_factor, on_error=on_error)
         # The reported chain is final here, so it is published *before* any
-        # pass that starts new fits — the discontinuity verification and the
+        # pass that starts new fits — the ``verify_steps`` refits and the
         # backward chain — since nothing either does can take it.  Issue
         # #224's series C is the case — all 125 forward patterns in hand, and
         # a raise in the backward pass that, under on_error="raise",
@@ -1347,16 +1343,16 @@ class SequentialRefinement:
         # (``SeriesResult.moved_paths``) skips and wraps what the fences do
         series.relative_paths = sorted(relative)
         series.angle_paths = sorted(angles)
-        steps = _discontinuity_steps(series, relative, angles)
-        diagnostics += [s.diagnostic for s in steps]
-        series.discontinuities = [s.record for s in steps]
-        # WP-1305 (c): the check the diagnostic asks the reader for, run here.
-        # A cancelled chain gets none — it starts new fits, and a chain that
+        # every step, largest first, and no threshold (WP-2003)
+        series.steps = _series_steps(series, relative, angles)
+        # WP-1305 (c): the cold re-measurement, on the caller's k largest.  A
+        # cancelled chain gets none — it starts new fits, and a chain that
         # stopped early is not the trajectory the steps were measured on.
-        if verify_discontinuities and steps and not cancelled:
-            self._verify_discontinuities(
-                steps, patterns, names, mode, base_plan, two_theta_limits,
-                prepare, constrain, stream=stream, cancel=cancel)
+        if verify_steps and series.steps and not cancelled:
+            self._verify_steps(
+                series.steps[:verify_steps], patterns, names, mode, base_plan,
+                two_theta_limits, prepare, constrain, stream=stream,
+                cancel=cancel)
         # what the per-pattern diagnostics could not say: "42 of 68" (WP-1110)
         diagnostics += _persistent_diagnostics(series)
         # and a width that grew while the fit got worse (WP-1465)
@@ -1414,6 +1410,9 @@ class SequentialRefinement:
             diagnostics += [_series_pattern_failed_diagnostic(f, pass_name="backward")
                             for f in back_failures]
             back.diagnostics = _moment_diagnostics(back)
+            # the reverse chain's own steps, measured as the reported chain's
+            # are; never verified, as the reverse chain is itself the check
+            back.steps = _series_steps(back, relative, angles)
             if cancel is not None and bool(cancel):
                 diagnostics.append(
                     _cancelled_diagnostic(len(back_entries), len(patterns),
@@ -1825,24 +1824,30 @@ class SequentialRefinement:
         _link_history(ref, position, label, previous_tag)
         return ref, result
 
-    def _verify_discontinuities(self, steps: list[_FlaggedStep], patterns,
-                                names, mode, base_plan, two_theta_limits,
-                                prepare, constrain, *,
-                                stream: EventStream | None = None,
-                                cancel=None) -> None:
-        """Refit each flagged step's two patterns cold, and record the ratio.
+    def _verify_steps(self, steps: list[SeriesStep], patterns,
+                      names, mode, base_plan, two_theta_limits,
+                      prepare, constrain, *,
+                      stream: EventStream | None = None,
+                      cancel=None) -> None:
+        """Refit each given step's two patterns cold, and record the ratio.
 
-        The measurement the ramp agent ran by hand: a step that survives two
-        *independent* fits is in the specimen, and one that does not was made
-        by the chain.  Both fits go through :meth:`_fit_one` with no
-        ``previous``, which is exactly the ``"cold"`` rung — the same plan from
-        the same initial models — so the comparison is against a fit the runner
-        already knows how to produce rather than a special one written here.
+        ``steps`` are the first ``verify_steps`` rows of
+        ``SeriesResult.steps`` (WP-2003; until then the pairs
+        ``SEQUENTIAL_DISCONTINUITY`` flagged), and each gets its
+        :attr:`~rietx.schemas.sequential.SeriesStep.cold_ratio` written in
+        place.  The measurement the ramp agent ran by hand: a step that
+        survives two *independent* fits is in the specimen, and one that does
+        not was made by the chain.  Both fits go through :meth:`_fit_one` with
+        no ``previous``, which is exactly the ``"cold"`` rung — the same plan
+        from the same initial models — so the comparison is against a fit the
+        runner already knows how to produce rather than a special one written
+        here.
 
-        Each pattern is refitted **once** however many of its parameters were
-        flagged, and the diagnostic is left alone when a cold fit does not
-        determine the path (a held phase, a stage that returned nothing for
-        it): a ratio needs both ends, and an absent one is not a zero.
+        Each pattern is refitted **once** however many of the given steps
+        touch it, and ``cold_ratio`` is left ``None`` when a cold fit raised or
+        does not determine the path (a held phase, a stage that returned
+        nothing for it), or the chain's step is exactly 0: a ratio needs both
+        ends, and an absent one is not a zero.
 
         ``prepare`` and ``constrain`` are threaded through for the same reason
         the plan and the models are: a cold refit that dropped the caller's own
@@ -1850,11 +1855,10 @@ class SequentialRefinement:
         compares the step against a fit nobody asked for.
 
         ``cancel`` is the chain's own token, threaded through because these are
-        ordinary fits and up to ``2s`` of them: a caller who can stop the walk
-        must be able to stop the check.  A cancel here leaves every diagnostic
-        it had not reached exactly as the walk wrote it — ``value`` absent, the
-        absent-for-cause state — so a stopped check reports nothing about a
-        step rather than a half-measured something.
+        ordinary fits and up to ``2k`` of them: a caller who can stop the walk
+        must be able to stop the check.  A cancel here leaves every row it had
+        not reached at ``cold_ratio=None``, so a stopped check reports nothing
+        about a step rather than a half-measured something.
         """
         cold: dict[int, RefinementResult | _PatternRaised] = {}
 
@@ -1878,43 +1882,28 @@ class SequentialRefinement:
         for s in steps:
             if cancel is not None and bool(cancel):
                 return
-            # the record's own pair, by SeriesEntry.index — the position in
+            # the row's own pair, by SeriesEntry.index — the position in
             # ``patterns`` — rather than looked up again from its labels
-            (a, b), path, d = s.record.indices, s.record.path, s.diagnostic
+            (a, b), path = s.indices, s.path
             try:
                 va = _value_of(refit(a), path)
                 vb = _value_of(refit(b), path)
             except RefinementCancelled:
                 return
-            except _PatternRaised as exc:
+            except _PatternRaised:
                 # A check the caller asked for is not worth the finished
-                # series it is checking (WP-1333): the step stays unmeasured,
-                # ``value`` absent, and the message says why.
-                d.message += (f" An independent cold refit raised "
-                              f"{exc.original!r}, so the step could not be "
-                              f"re-measured.")
+                # series it is checking (WP-1333): the step stays unmeasured.
                 continue
-            if va is None or vb is None or not s.record.step:
-                d.message += (" An independent cold refit of both patterns "
-                              "does not determine this parameter, so the step "
-                              "could not be re-measured.")
+            if va is None or vb is None or not s.step:
                 continue
             # signed, both sides: a cold pair stepping as far the *other* way
             # is not a reproduction, and two magnitudes divided would call it
             # one (see SeriesStep.step)
             cold_step = vb - va
             if path in angles:
-                # measured as the fence measured the step it re-measures (#604)
+                # measured as the chain's step was measured (#604)
                 cold_step = float(_angle_difference(cold_step))
-            d.value = cold_step / s.record.step
-            d.message += (f" Refitted cold and independently, the two patterns "
-                          f"step by {cold_step:.4g}, {d.value:.2f}× the "
-                          f"chain's.")
-            d.suggestion += (" That check has been run. A ratio near 1.0 "
-                             "means the step is in the data, and one near 0 "
-                             "means the chain made it. A negative ratio is a "
-                             "cold pair that moved the other way. That is "
-                             "neither.")
+            s.cold_ratio = cold_step / s.step
 
     def _history_spec(self, label: str):
         """Per-pattern history target: a file under the given directory.
@@ -2133,7 +2122,7 @@ def _rwp_outlier_diagnostics(entry: SeriesEntry,
                     " The ladder was not climbed, so a cold start may still "
                     "bring this fit near its neighbours'.")
                  + " The steps into and out of this pattern are left out of "
-                 "the discontinuity scan."),
+                 "series.steps."),
         suggestion=("Open this pattern's own fit before reading its values."
                     if climbed else
                     "Refit with reseed on, then open this pattern's own fit "
@@ -2324,22 +2313,25 @@ def _noise_floor(*values) -> float:
     return NOISE_FLOOR_REL * max(1.0, magnitude)
 
 
-@dataclass(frozen=True)
-class _FlaggedStep:
-    """One flagged step: its public record and the diagnostic it explains.
+def _check_verify_steps(verify_steps: object) -> None:
+    """Refuse a ``verify_steps`` that is not a count (WP-2003).
 
-    The diagnostic says it in prose; ``record`` (a
-    :class:`~rietx.schemas.sequential.SeriesStep`, on
-    ``SeriesResult.discontinuities``) says *which two patterns* and *how big*,
-    so :meth:`SequentialRefinement._verify_discontinuities` re-measures the
-    same step, and the plot shades it, rather than either re-deriving which
-    one was meant (the one-authority rule: the flagging code is the only place
-    that knows which pair it flagged).  Until WP-1469 the pair was private
-    here, and a caller found it by parsing the message (issue #481).
+    A bool is refused by name before the integer test it would pass:
+    ``verify_discontinuities=True`` meant "the pairs the removed
+    ``SEQUENTIAL_DISCONTINUITY`` scan flagged", and read as ``1`` it would
+    quietly refit a single pair nobody chose.
     """
-
-    record: SeriesStep
-    diagnostic: Diagnostic
+    if isinstance(verify_steps, bool):
+        raise TypeError(
+            f"verify_steps takes a count, not {verify_steps!r}: it replaced "
+            "verify_discontinuities, whose True meant the pairs a removed "
+            "threshold flagged. Pass how many of series.steps, largest first, "
+            "to refit cold (0 for none)")
+    if not isinstance(verify_steps, numbers.Integral):
+        raise TypeError(f"verify_steps takes an int count of steps to refit "
+                        f"cold, not {type(verify_steps).__name__}")
+    if verify_steps < 0:
+        raise ValueError(f"verify_steps must be 0 or more, not {verify_steps}")
 
 
 def _relative_paths(structure: Structure, instrument: Instrument) -> frozenset[str]:
@@ -2350,8 +2342,9 @@ def _relative_paths(structure: Structure, instrument: Instrument) -> frozenset[s
     answer (WP-1333).  A rigid body's rotation DOFs too
     (:attr:`ParameterTable.anchored_rotation_paths`, WP-1805), which a commit
     zeroes, so they read the step a fit's last stage took.  The one list every
-    judgement across patterns skips — both fences here, and the GUI's
-    disagreement column, which must abstain where they do.  Taken from the
+    judgement across patterns skips — the path-dependence fence and
+    ``SeriesResult.steps`` here, and the GUI's disagreement column, which must
+    abstain where they do.  Taken from the
     models the chain was handed, since nothing in a ``SeriesEntry`` says a
     path is relative.
     """
@@ -2363,8 +2356,9 @@ def _angle_paths(structure: Structure, instrument: Instrument) -> frozenset[str]
     """The moment angle DOFs (:attr:`ParameterTable.angle_dof_paths`).
 
     Their differences across fits are taken modulo a turn
-    (:func:`_angle_difference`), by both fences here and by the GUI's
-    disagreement column, which must measure what they measure.  Taken from
+    (:func:`_angle_difference`), by the path-dependence fence and
+    ``SeriesResult.steps`` here and by the GUI's disagreement column, which
+    must measure what they measure.  Taken from
     the models the chain was handed, as :func:`_relative_paths` is.
     """
     return ParameterTable(structure, instrument).angle_dof_paths
@@ -2381,98 +2375,92 @@ def _angle_difference(delta: np.ndarray) -> np.ndarray:
     return np.pi - np.mod(np.pi - d, 2.0 * np.pi)
 
 
-def _discontinuity_steps(series: SeriesResult,
-                         relative: frozenset[str] = frozenset(),
-                         angles: frozenset[str] = frozenset()
-                         ) -> list[_FlaggedStep]:
-    """Steps far larger than the same parameter's typical step in this series.
+def _series_steps(series: SeriesResult,
+                  relative: frozenset[str] = frozenset(),
+                  angles: frozenset[str] = frozenset()) -> list[SeriesStep]:
+    """Every refined path's step between consecutive patterns, largest first.
 
-    The one authority: every caller takes the diagnostics off these (there is
-    no second function returning only the diagnostics, which would be a second
-    name for one fact).
+    The one writer of ``SeriesResult.steps`` (WP-2003), and the arithmetic of
+    the ``SEQUENTIAL_DISCONTINUITY`` scan it replaced with the thresholds taken
+    out: no median, no σ leg, no minimum length.  What a step is (a
+    transition, a sample shift, a beam dump, a wrong model) depends on the
+    sample's history, which nothing here can see, so every step is listed and
+    none is called a jump.
 
-    Reported, never smoothed: a jump is either the science (a transition) or a
-    chain failure, and nothing here can tell them apart — so the diagnostic
-    names both and the trajectory is left exactly as fitted.
+    A step's size is its signed change over the **later** pattern's esd
+    (``size_esd``), ``None`` where that esd is ``None`` or not positive — a
+    missing esd is a direction the data did not measure, and a step against
+    it has no size rather than an infinite one.  A step under the
+    trajectory's noise floor (:data:`NOISE_FLOOR_REL`) has size 0: the
+    trajectory is a constant there, and a collapsed esd would otherwise rank
+    floating-point noise first.  Sorted by ``|size_esd|``, largest first,
+    ``None`` after every number, ties in path then series order.
 
     ``relative`` names the paths whose value is measured from where each fit
-    began (:attr:`ParameterTable.anchored_dof_paths`), and they are not judged.
+    began (:attr:`ParameterTable.anchored_dof_paths`), and they get no row.
     Since WP-1333 a chain starts each pattern where its predecessor ended, so a
     coordinate DOF's trajectory is the step each pattern took rather than a
-    position, and its first step (from the model, not from a neighbour) read
-    as a jump on every clean series.  The coordinate rows it drives are
-    absolute, carry the same esd, and are judged instead.
+    position.  The coordinate rows it drives are absolute, carry the same esd,
+    and are listed instead.
 
     ``angles`` names the moment angle DOFs (:func:`_angle_paths`), whose step
     is taken modulo a turn: the chart they are reported in has a cut, and a
     moment sitting on it steps by 2π in value while it does not move (#604).
 
-    **A step into or out of a pattern the fence rejected is not scanned**
+    **A step into or out of a pattern the fence rejected is not a row**
     (WP-1469): a ``"diverged"`` entry (``SEQUENTIAL_UNRECOVERED``) or one
     whose best rung is still above the fence (``SEQUENTIAL_RWP_OUTLIER``).
     Each already has its own code naming the pattern, and a step against it
-    cannot be read apart from that code.  Scanned, it took the path's one
-    flag: on issue #481's ramp a blank frame's cell, fitted to noise, stepped
-    33× the median, the verification confirmed it at 1.00 because both cold
-    fits reproduce the same noise, and the planted step behind it went
-    unreported.  The steps are dropped, **never bridged**: a bridge over a run
-    of such patterns spans that many of the series' steps and reads as one
-    step of that many medians — a clean ramp flagged "8×" across seven
-    patterns whose counts had fallen (measured).
+    cannot be read apart from that code: on issue #481's ramp a blank frame's
+    cell, fitted to noise, stepped 33× its median, and a cold refit confirmed
+    it at 1.00 because both cold fits reproduce the same noise.  The steps
+    are dropped, **never bridged**: a bridge over a run of such patterns spans
+    that many of the series' steps and reads as one step.
+
+    **A row is between consecutive entries, so no gap is bridged either.**  A
+    pattern the path is absent from (its phase held, WP-1301) leaves no point
+    in the trajectory, and the scan before WP-2003 paired the points either
+    side of it: on tutorial 05's 5 % jump the cell's largest step read
+    600 K → 800 K across a held 700 K pattern, and on the planted series' blank
+    frame (WP-1965) the cell's largest step spanned the frame.
     """
-    if len(series) < MIN_POINTS_FOR_DISCONTINUITY:
-        return []
     rejected = {i for i, e in enumerate(series.entries)
                 if e.status == "diverged" or e.above_fence}
-    out: list[_FlaggedStep] = []
+    out: list[SeriesStep] = []
     for path in series.paths(varied_only=False):
         if path in relative:
             continue
         traj = series.trajectory(path)
-        kept = [pos not in rejected for pos in traj.positions]
-        if sum(kept) < MIN_POINTS_FOR_DISCONTINUITY:
+        if len(traj) < 2:
             continue
-        xv, value, sd = traj.arrays()
+        kept = np.asarray([pos not in rejected for pos in traj.positions])
+        _xv, value, sd = traj.arrays()
         signed = np.diff(value)
         if path in angles:
             signed = _angle_difference(signed)
-        step = np.abs(signed)
-        judged = np.asarray(kept[:-1]) & np.asarray(kept[1:])
-        if not judged.any():
-            continue
-        scale = float(np.median(step[judged]))
-        if not np.isfinite(scale) or scale <= _noise_floor(value[kept]):
-            continue
-        # a missing esd is a direction the data did not measure, so its σ is
-        # infinite and no step against it is significant.  Read as 0 it was
-        # perfectly measured, and since WP-1929 a moment angle at a direction
-        # the symmetry fixes has none: its powder-twin flip of π read "59×".
-        combined = np.sqrt(np.nan_to_num(sd[:-1], nan=np.inf) ** 2
-                           + np.nan_to_num(sd[1:], nan=np.inf) ** 2)
-        big = judged & (step > DISCONTINUITY_FACTOR * scale) & (
-            step > DISCONTINUITY_SIGMA * combined)
-        if not big.any():
-            continue
-        # ``where``, never ``step * big``: a rejected pattern's value may be
-        # non-finite, and NaN × False is NaN, which argmax would pick
-        k = int(np.argmax(np.where(big, step, -np.inf)))
-        pair = (series.entries[traj.positions[k]],
-                series.entries[traj.positions[k + 1]])
-        out.append(_FlaggedStep(
-            record=SeriesStep(
+        floor = _noise_floor(value[kept]) if kept.any() else 0.0
+        # consecutive *entries* only: a pattern the path is absent from (a
+        # held cell) is not in the trajectory at all, and the two points
+        # either side of it are two steps apart, not one
+        pos = np.asarray(traj.positions)
+        adjacent = np.diff(pos) == 1
+        for k in np.flatnonzero(kept[:-1] & kept[1:] & adjacent):
+            step = float(signed[k])
+            esd = float(sd[k + 1])
+            if not (np.isfinite(step) and np.isfinite(esd) and esd > 0.0):
+                size = None
+            elif abs(step) <= floor:
+                size = 0.0
+            else:
+                size = step / esd
+            out.append(SeriesStep(
                 path=path, labels=(traj.labels[k], traj.labels[k + 1]),
-                indices=(pair[0].index, pair[1].index),
-                step=float(signed[k])),
-            diagnostic=Diagnostic(
-                level="info", code="SEQUENTIAL_DISCONTINUITY", where=[path],
-                message=(f"{path} steps by {step[k]:.4g} between "
-                         f"{traj.labels[k]} and {traj.labels[k + 1]} "
-                         f"({traj.x_label} {xv[k]:g} → {xv[k + 1]:g}), "
-                         f"{step[k] / scale:.0f}× its median step over the "
-                         f"series."),
-                suggestion=("Check this pattern's own fit before reading the "
-                            "jump as physics."),
-            )))
+                indices=(series.entries[traj.positions[k]].index,
+                         series.entries[traj.positions[k + 1]].index),
+                step=step, size_esd=size))
+    # stable, so equal sizes keep path order, then series order
+    out.sort(key=lambda s: (s.size_esd is None,
+                            0.0 if s.size_esd is None else -abs(s.size_esd)))
     return out
 
 
@@ -2577,7 +2565,7 @@ def _width_growth_diagnostics(series: SeriesResult) -> list[Diagnostic]:
     ``vary`` and ``paths(varied_only=True)`` would lose it.
     Quarantined (``"diverged"``) entries are skipped, as they are by every
     other fence here.  An entry above the Rwp fence (``SEQUENTIAL_RWP_OUTLIER``)
-    is **read**, although the discontinuity scan leaves it out: a phase
+    is **read**, although ``SeriesResult.steps`` leaves it out: a phase
     standing in for a missing one is what lifts a pattern over that fence, and
     every soaked pattern of the fixture in ``tests/test_sequential.py`` is
     above it (WP-1469), so skipping them would leave the finding nothing to
@@ -2992,7 +2980,7 @@ def _path_dependence_diagnostics(forward: SeriesResult,
     path the two chains share no measured pattern for is not judged here at
     all.
 
-    ``relative`` paths are not compared, for :func:`_discontinuity_steps`'
+    ``relative`` paths are not compared, for :func:`_series_steps`'
     reason and more sharply: the two chains start a pattern from opposite
     neighbours, so a coordinate DOF's value — the step from that start — has
     opposite signs in the two by construction.  Compared, it named the DOF

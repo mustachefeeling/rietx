@@ -19,9 +19,12 @@ result does not carry yet is a **strict** xfail, so the test goes red the day
 something makes it visible and the marker can come off.
 
 Measured at 24 patterns over seeds 0-7 and at 248 over seeds 0-4: every
-event's outcome below holds on every seed, and seed 0 is the one pinned.  The
-null is clean at 24 patterns on all eight seeds; at 248 it is clean on seed 0
-only (the strict xfail at the end says why).
+event's outcome below holds on every seed, and seed 0 is the one pinned.
+Since WP-2003 a step is read by rank, the largest its path took
+(:func:`tests.planted_series.largest_steps`), never against a threshold;
+re-measured then at 24 patterns on seeds 0-7 and at 248 on seed 0.  The null
+is clean at 24 patterns on all eight seeds; at 248 on seeds 0, 2, 3 and 4
+(the strict xfail at the end says why not 1).
 """
 
 import json
@@ -32,6 +35,7 @@ import pytest
 from rietx.model import compiled
 from tests.planted_series import (
     EVENTS,
+    TABLE_PATHS,
     default_events,
     generate,
     null_series,
@@ -44,9 +48,8 @@ from tests.planted_series import (
 
 pytestmark = pytest.mark.xdist_group("planted-series")
 
-#: long enough for every event to sit five patterns from the next, and for
-#: the discontinuity scan's five-point minimum on each side; ~6 s for the
-#: three fits on an arm64 Mac
+#: long enough for every event to sit five patterns from the next; ~6 s for
+#: the three fits on an arm64 Mac
 LENGTH = 24
 SEED = 0
 EVENT_AT = default_events(LENGTH)
@@ -55,14 +58,13 @@ DATA = Path(__file__).parent / "data" / "planted_series"
 #: series-level codes that mark an event; ``SEQUENTIAL_PERSISTENT_FINDING``
 #: describes the model rather than a point of the series and is not one
 EVENT_CODES = {"SEQUENTIAL_RWP_OUTLIER", "SEQUENTIAL_RESEED",
-               "SEQUENTIAL_UNRECOVERED", "SEQUENTIAL_DISCONTINUITY",
-               "SEQUENTIAL_WIDTH_GROWTH"}
+               "SEQUENTIAL_UNRECOVERED", "SEQUENTIAL_WIDTH_GROWTH"}
 
 _MASKED = ("the transition falls inside the second phase's run of patterns "
            "above the Rwp fence, and nothing in the result marks it: no run "
-           "starts there, and the discontinuity scan skips every step into or "
-           "out of a pattern above the fence, so the cubic cell's jump is not "
-           "scanned.  Only the RWP_OUTLIER ratio (a value, not a code) doubles "
+           "starts there, and SeriesResult.steps has no row into or out of a "
+           "pattern above the fence, so the cubic cell's jump is not a step "
+           "there.  Only the RWP_OUTLIER ratio (a value, not a code) doubles "
            "there.  Planted alone, the transition is carried "
            "(test_the_transition_alone_starts_a_run_above_the_fence)")
 
@@ -101,29 +103,38 @@ def test_the_generator_and_the_refit_declare_the_numpy_path():
 
 
 def test_the_null_series_raises_no_event_signal(null):
+    """Every path still has a largest step (WP-2003: the field lists every
+    step and calls none a jump), and none of them lands on an event's index:
+    measured on seeds 0-7 at this length."""
     sig = signals(null)
-    assert sig["above_fence"] == sig["steps"] == sig["reseeded"] == []
+    assert sig["above_fence"] == sig["reseeded"] == []
+    assert [path for path, *_ in sig["steps"]] == list(TABLE_PATHS)
     assert sig["unrecovered"] == sig["phase_unconstrained"] == []
     assert not {code for code, _ in sig["codes"]} & EVENT_CODES
     assert {k: surfaced(null, k, i) for k, i in EVENT_AT.items()} == dict.fromkeys(
         EVENTS)
 
 
-def test_the_background_step_is_a_flagged_step_on_its_constant(planted):
+def test_the_background_step_is_the_largest_step_of_its_constant(planted):
     at = EVENT_AT["background"]
     assert surfaced(planted, "background", at) == (
-        f"SEQUENTIAL_DISCONTINUITY instrument.background.c0 ({at - 1}, {at})")
+        f"largest step instrument.background.c0 ({at - 1}, {at})")
 
 
 def test_the_blank_frame_is_a_step_in_the_scale_and_an_unconstrained_phase(planted):
     """Not an Rwp outlier: with the Bragg signal gone a background-dominated
     frame's Rwp is 1.1-1.2× its neighbours', under the 1.25 fence.  What marks
-    it is the scale stepping to zero and back, and the frame's own
-    ``PHASE_UNCONSTRAINED``."""
+    it is the scale stepping to zero and back — the scale's two largest steps
+    — and the frame's own ``PHASE_UNCONSTRAINED``."""
     at = EVENT_AT["bad"]
     found = surfaced(planted, "bad", at)
     assert found is not None
-    assert found.startswith("SEQUENTIAL_DISCONTINUITY phases.0.scale")
+    assert found.startswith("largest step phases.0.scale")
+    scale = [s.indices for s in planted.steps if s.path == "phases.0.scale"]
+    assert set(scale[:2]) == {(at - 1, at), (at, at + 1)}
+    # the held cell has no point at the frame, and no row spans it
+    assert not [s for s in planted.steps
+                if s.path.startswith("phases.0.cell.") and s.indices == (at - 1, at + 1)]
     assert signals(planted)["phase_unconstrained"] == [at]
 
 
@@ -171,7 +182,7 @@ def test_the_committed_output_carries_the_same_mapping():
     assert all(record["surfaced"][k] for k in ("background", "bad", "second_phase"))
     null_record = json.loads((DATA / "null_signals.json").read_text(encoding="utf-8"))
     assert null_record["events"] == {}
-    assert null_record["signals"]["above_fence"] == null_record["signals"]["steps"] == []
+    assert null_record["signals"]["above_fence"] == []
 
 
 @pytest.mark.slow
@@ -195,18 +206,21 @@ def test_the_full_length_series_reproduces_its_committed_signals():
 
 
 _LOOK_ELSEWHERE = (
-    "SEQUENTIAL_DISCONTINUITY's bar (5x the path's median step and 3 combined "
-    "esds) is per step, so on a clean chain its false flags grow with the "
-    "number of steps times paths: at 248 patterns the null raised 1, 1, 4 and "
-    "3 flagged steps on seeds 1-4 (scale, U, V, W, zero shift, background "
-    "constant; 5-7x the median, every fit warm with GoF near 1), and none on "
-    "seed 0, the one committed; at 24 patterns, none on seeds 0-7")
+    "a largest step is a rank, one per path, so on a clean chain it lands "
+    "somewhere and can land on an event's index by chance: at 248 patterns "
+    "the null's scale stepped most at 87->88 on seed 1, the blank frame's "
+    "index (WP-2003, measured on Linux; seeds 0, 2, 3 and 4 surface nothing, "
+    "and at 24 patterns none of seeds 0-7 does).  Under the threshold it "
+    "replaced, false flags grew with steps times paths instead (1, 1, 4 and 3 "
+    "on seeds 1-4)")
 
 
 @pytest.mark.slow
 @pytest.mark.xfail(strict=True, reason=_LOOK_ELSEWHERE)
-def test_a_full_length_null_raises_no_step_on_any_seed():
+def test_a_full_length_null_surfaces_no_event_on_any_seed():
     """60-100 s: five 248-pattern null chains."""
-    flagged = {seed: signals(refine(null_series(248, seed=seed)))["steps"]
-               for seed in range(5)}
-    assert flagged == dict.fromkeys(range(5), [])
+    at = default_events(248)
+    for seed in range(5):
+        result = refine(null_series(248, seed=seed))
+        assert {k: surfaced(result, k, i) for k, i in at.items()} == dict.fromkeys(
+            EVENTS), seed

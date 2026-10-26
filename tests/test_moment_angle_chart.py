@@ -40,8 +40,8 @@ from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Moment, Phase
 from rietx.sequential import (
     _angle_difference,
     _angle_paths,
-    _discontinuity_steps,
     _path_dependence_diagnostics,
+    _series_steps,
 )
 
 BASE = "phases.0.atoms.0"
@@ -282,38 +282,39 @@ def _series(path, values, sd=0.01) -> SeriesResult:
 ON_THE_CUT = [3.130, 3.136, 3.133, 3.139, -3.140, -3.137, -3.140]
 
 
-def test_a_series_sitting_on_the_cut_is_not_a_discontinuity():
+def test_a_series_sitting_on_the_cut_takes_no_large_step():
     series = _series(AZIMUTH_2D, ON_THE_CUT)
-    # the defect, as the fence read it before #604
-    assert [s.record.path for s in _discontinuity_steps(series)] == [AZIMUTH_2D]
-    assert _discontinuity_steps(series, angles=frozenset({AZIMUTH_2D})) == []
+    # the defect, as the scan read it before #604: a 2π step in value
+    assert abs(_series_steps(series)[0].step) > 6.0
+    wrapped = _series_steps(series, angles=frozenset({AZIMUTH_2D}))
+    assert max(abs(s.step) for s in wrapped) < 0.02
 
 
-def test_a_real_rotation_across_the_cut_still_fires_with_its_own_size():
+def test_a_real_rotation_across_the_cut_still_steps_by_its_own_size():
     """The positive arm: 1 rad of rotation through φ = π reads as −5.28 in
     value, and is reported as the +1.0 it is."""
     values = [3.00, 3.01, 3.02, 3.02 + 1.0 - 2 * np.pi, 4.03 - 2 * np.pi,
               4.02 - 2 * np.pi, 4.03 - 2 * np.pi]
-    (s,) = _discontinuity_steps(_series(AZIMUTH_2D, values),
-                                angles=frozenset({AZIMUTH_2D}))
-    assert s.record.labels == ("p2", "p3")
-    assert s.record.step == pytest.approx(1.0, abs=1e-9)
+    s = _series_steps(_series(AZIMUTH_2D, values),
+                      angles=frozenset({AZIMUTH_2D}))[0]
+    assert s.labels == ("p2", "p3")
+    assert s.step == pytest.approx(1.0, abs=1e-9)
 
 
-def test_a_spin_flip_is_the_largest_step_an_angle_can_take_and_fires():
+def test_a_spin_flip_is_the_largest_step_an_angle_can_take():
     values = [0.10, 0.11, 0.10, 0.10 + np.pi, 0.11 + np.pi, 0.10 + np.pi, 3.25]
-    (s,) = _discontinuity_steps(_series(AZIMUTH_2D, values),
-                                angles=frozenset({AZIMUTH_2D}))
-    assert s.record.labels == ("p2", "p3")
-    assert abs(s.record.step) == pytest.approx(np.pi, abs=1e-9)
+    s = _series_steps(_series(AZIMUTH_2D, values),
+                      angles=frozenset({AZIMUTH_2D}))[0]
+    assert s.labels == ("p2", "p3")
+    assert abs(s.step) == pytest.approx(np.pi, abs=1e-9)
 
 
-def test_a_two_pi_step_on_a_parameter_that_is_not_an_angle_still_fires():
+def test_a_two_pi_step_on_a_parameter_that_is_not_an_angle_is_not_wrapped():
     values = [v + (2 * np.pi if k >= 3 else 0.0)
               for k, v in enumerate([4.0, 4.001, 4.002, 4.003, 4.004, 4.005, 4.006])]
-    (s,) = _discontinuity_steps(_series("phases.0.cell.a", values, sd=1e-4),
-                                angles=frozenset({AZIMUTH_2D}))
-    assert s.record.step == pytest.approx(2 * np.pi + 0.001, abs=1e-9)
+    s = _series_steps(_series("phases.0.cell.a", values, sd=1e-4),
+                      angles=frozenset({AZIMUTH_2D}))[0]
+    assert s.step == pytest.approx(2 * np.pi + 0.001, abs=1e-9)
 
 
 def test_two_chains_either_side_of_the_cut_are_not_path_dependent():

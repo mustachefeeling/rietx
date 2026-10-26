@@ -250,7 +250,13 @@ opt-in switch, so it is tiered in the batch before it lands (the judge's item 5,
       approved, `on_error` kept at `"carry"`, tier 3.
 - [ ] Approved demotions, each its own commit; `SEQUENTIAL_DISCONTINUITY` replaced by the
       `SeriesResult.steps` field and its help entry (no diagnostic), if the batch agrees; the
-      release notes staged.
+      release notes staged. C4 landed 2026-10-26 (fourth session, a lane): the code, its
+      suggestion and three constants gone, `SeriesResult.steps` (every step in esds of the
+      later fit, largest first) and `verify_steps: int` (C4 question 2, option (ii), the
+      caller's *k*) in place of `verify_discontinuities`, schema 0.60 annotated, release note
+      staged. The GUI's series panel still reads the route's `discontinuous` key, now true
+      only for a verified step (`gui/src/lib/series.ts:65`, `Series.svelte:613`): plotting
+      `steps` there is owed. C1, C3, C5, C6, C9, C10 owed.
 - [ ] Goldens re-pinned only if no further from reference. A series golden's first
       reference is the cold-fit chain, rietx's own result on the same data, so it
       verifies and does not validate (DESIGN.md § Rules, 2). Where a series member has a
