@@ -93,6 +93,27 @@ identification call.
   the tree at 7d9be3cb: no subgroup code there; the only maximal-subgroup code
   is `strategy/magnetic.py:1106` `_maximal_subgroups`, maximal among the
   classes at the winner's k.
+- **2026-10-26, from the issue triage (#806): the reporter proposed answers to
+  the three decisions and offered to build the WP from the prototype.** Their
+  last comment (13:59) supersedes the two before it, which are one text posted
+  twice. (1) Placement: `crystallography/representation/subgroups.py`. (2) The
+  (P, p) rule: the one `distortion_candidates` already uses, so one group never
+  gets two (P, p) in the package: r_parent = P·r_child + p, the standard setting
+  spglib returns, each operation checked against the group. Tests compare up to
+  the affine normaliser, and Wyckoff labels are stated as belonging to that
+  (P, p). (3) Exact `Fraction` arithmetic first, with the 230-group sweep as a
+  `slow` test. A fourth consumer: the active-modes work on #286 wants to rank a
+  parent's subgroups down to the child cell, which means walking down from the
+  maximal ones. Checked against the tree at `6eb010a0f`. `representation/` holds
+  `distortion.py` (#950), `irreps.py`, `modes.py` and `order_parameter.py`, and
+  no subgroup code. The (P, p) rule is `magnetic/isotropy.py`'s
+  `_standard_child`, which `distortion_candidates` calls, not a function in
+  `representation/`. Its operation check is in floats: P and p are
+  rationalised with `limit_denominator(48)` and compared to 1e-6. It is not
+  the exact check this WP's Goal names. `Fraction` is the arithmetic of
+  `wyckoff._nullspace_int` and of `magnetic/isotropy.py`. The prototype's
+  13 CPU-minutes and 23 s are the reporter's and were not re-run. The decisions
+  stay open until the maintainer answers.
 
 ## Non-goals
 
