@@ -999,3 +999,69 @@ def test_the_bound_is_attained_on_the_cubic_three_fold_and_refused_beyond_it():
         else:
             with pytest.raises(ValueError, match="RIGID_BODY_NOT_INVARIANT"):
                 _try_template(phase, template)
+
+
+# --------------------------------------------- round 3: a place, not a pair
+def _p3_body_phase(o: float) -> Phase:
+    """P 3 with C1 0.15 Å off the 3-fold axis (its three images 0.26 Å apart)
+    and C2 far from it, both at occupancy ``o``."""
+    P = Parameter
+    cell = Cell(a=P(value=7.0), b=P(value=7.0), c=P(value=9.0), alpha=P(value=90.0),
+                beta=P(value=90.0), gamma=P(value=120.0))
+    return Phase(name="p3", space_group="P 3", cell=cell, atoms=[
+        Atom(label="C1", species="C", x=P(value=0.025), y=P(value=0.0), z=P(value=0.3),
+             occ=P(value=o)),
+        Atom(label="C2", species="C", x=P(value=0.35), y=P(value=0.15), z=P(value=0.3),
+             occ=P(value=o))])
+
+
+def test_the_overlap_refusal_sums_a_three_fold_place_not_a_pair():
+    """Round 3 item 1: at occupancy 1/2 every pair of C1's three images sums to
+    1, so a pairwise exemption let the place through while it holds 1.5 atoms.
+    The sum over the place refuses 1/2 and builds 1/3 with C 2 per cell."""
+    over = _p3_body_phase(0.5)
+    with pytest.raises(ValueError, match="RIGID_BODY_IMAGE_OVERLAP"):
+        ParameterTable(_with_body(over, body_from_atoms(over, ["C1", "C2"], "B")), LAB)
+    third = _p3_body_phase(1.0 / 3.0)
+    ParameterTable(_with_body(third, body_from_atoms(third, ["C1", "C2"], "B")), LAB)
+    assert _counts(third) == {"C": 2.0}
+
+
+# ---------------------------------- round 3: centring commutes with the site
+def _centred_misses(phase: Phase, template: np.ndarray, centre_on) -> float:
+    """The worst image miss of ``template`` after shifting it by ``centre_on``."""
+    pts = template - centre_on
+    return max(float(np.linalg.norm(pts - w @ p, axis=1).min())
+               for w in _site_ops(phase) for p in pts)
+
+
+@pytest.mark.parametrize("space_group,cell", [s for s in SITES if s[0] in ("P 3", "P 6")])
+def test_the_default_centring_keeps_the_typed_precision_bound_on_a_site(space_group, cell):
+    """Round 3 item 2: the plain centroid moves every point by its rounding
+    error ε̄, which adds (I − W)·ε̄ to each miss.  A template whose points sit
+    at corner errors (seeded search, 2.0e-3 Å on P 3, 2.4e-3 on P 6) misses by more than
+    ``RIGID_BODY_INVARIANCE_TOL`` once centred on the plain mean (asserted, so
+    the case stays a corner), and ``add_body``'s default ``centre=True``
+    accepts it by centring on the centroid's fixed part."""
+    phase = _site_phase(space_group, cell)
+    ops = _site_ops(phase)
+    exact = _two_orbits(ops, np.array([1.3, -0.7, 2.1]), Q_POINT)
+    corners = H * np.array([[a, b, c] for a in (-1, 1) for b in (-1, 1)
+                            for c in (-1, 1)], dtype=np.float64)
+    rng = np.random.default_rng(1)
+    worst = (0.0, None)
+    for _ in range(3000):
+        k = rng.integers(0, 8, len(exact))
+        if rng.random() < 0.5:  # the worst cases are mostly one corner, a few another
+            k = np.full(len(exact), rng.integers(0, 8))
+            k[rng.integers(0, len(exact), rng.integers(1, 3))] = rng.integers(0, 8)
+        typed = exact + corners[k]
+        miss = _centred_misses(phase, typed, typed.mean(axis=0))
+        if miss > worst[0]:
+            worst = (miss, typed)
+    assert worst[0] > RIGID_BODY_INVARIANCE_TOL
+    n = len(worst[1])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        add_body(phase, "B", [f"A{k}" for k in range(n)], ["C"] * n, worst[1],
+                 (0.0, 0.0, 0.0))

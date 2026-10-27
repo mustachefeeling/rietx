@@ -114,7 +114,10 @@ def add_body(phase: Phase, name: str, labels: Sequence[str],
 
     ``template`` is (n, 3) Cartesian Å, or a ``fragments.Fragment`` (its
     ``xyz``); with ``centre`` it is shifted to its centroid first, so ``origin``
-    (fractional) is where the body's centroid goes.  ``orientation`` is a unit
+    (fractional) is where the body's centroid goes.  On a special position the
+    centroid is first projected onto the site's fixed space, so the shift
+    commutes with the site operations and a template typed to three decimals
+    keeps the miss ``RIGID_BODY_INVARIANCE_TOL`` bounds.  ``orientation`` is a unit
     quaternion (w, x, y, z), stored canonical.  ``torsions`` (WP-1808) are
     declared on the body and applied before the pose.  The new atoms take
     ``biso`` and ``occ`` and are written at the positions the body gives them.
@@ -132,7 +135,7 @@ def add_body(phase: Phase, name: str, labels: Sequence[str],
             f"add_body {name!r}: {len(labels)} labels, {len(species)} species "
             f"and a template of shape {pts.shape} do not agree")
     if centre:
-        pts = pts - pts.mean(axis=0)
+        pts = pts - _site_fixed_part(phase, origin, pts.mean(axis=0))
     q = rotation.canonical_quaternion(np.asarray(orientation, dtype=np.float64)
                                       / np.linalg.norm(orientation))
     body = RigidBody(
@@ -175,6 +178,26 @@ def add_body(phase: Phase, name: str, labels: Sequence[str],
     return Phase.model_validate({
         **phase.model_dump(), "atoms": [a.model_dump() for a in atoms],
         "rigid_bodies": [*phase.model_dump()["rigid_bodies"], body.model_dump()]})
+
+
+def _site_fixed_part(phase: Phase, origin, v: np.ndarray) -> np.ndarray:
+    """``v`` (Cartesian Å) projected onto the fixed space of the origin's site group.
+
+    The mean of the site's Cartesian W_g, so ``v`` itself at a general origin.
+    Centring a typed template on its plain centroid moves every point by the
+    centroid's rounding error ε̄, which a site operation does not fix and which
+    adds (I − W)·ε̄ to each miss; the fixed part of the centroid is W-invariant
+    and adds nothing (WP-1807, #1005 round 3).
+    """
+    from .symmetry import resolve_group, site_orbit
+
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
+    orbit = site_orbit(sg, np.asarray(origin, dtype=np.float64))
+    if len(orbit.stabilizer_ops) == 1:
+        return v
+    m, minv = _frames(phase.cell.lengths_angles())
+    proj = sum(m @ r.astype(np.float64) @ minv for r in orbit.stabilizer)
+    return (proj / len(orbit.stabilizer)) @ v
 
 
 def _site_representatives(phase: Phase, name: str, labels, species, body,

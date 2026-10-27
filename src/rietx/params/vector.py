@@ -1747,9 +1747,10 @@ class ParameterTable:
         the molecule: #876's SO₄ moved 0.03 off the Pnma mirror built with its
         S 0.32 Å from its own image and 8 S, 32 O in a cell of 4 and 16.
         Exempt when either atom has a ``disorder_group``, which declares the
-        overlap, or when the two occupancies sum to 1 or less: two half atoms
-        in one place are a disorder model, while a sum over 1 is #876's double
-        count.  Minimum image over the 27 neighbouring cells.
+        overlap, or when the occupancies of everything in one place (the atom
+        and every distinct image within the limit of it) sum to 1 or less: two
+        half atoms on a mirror, or three thirds on a 3-fold axis, are a
+        disorder model, while a sum over 1 is #876's double count.  Minimum image over the 27 neighbouring cells.
         """
         import gemmi
 
@@ -1771,23 +1772,29 @@ class ParameterTable:
         radius = np.array([float(gemmi.Element(e).covalent_r) for e in elements])
         shifts = np.array([(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1)
                            for k in (-1, 0, 1)], dtype=np.float64)
-        targets = xyz[live]
+        # a place is a body atom j's position: j itself plus every distinct
+        # image of a body atom landing within the limit of it; its occupancy
+        # is their sum, which is what the cell counts there (a pair would let
+        # three images of a 3-fold site through at 1/2 each)
+        owns = {i: {int(g) for g in site_orbit(sg, xyz[i]).stabilizer_ops} for i in live}
         hits = []
-        for i in live:
-            own = {int(g) for g in site_orbit(sg, xyz[i]).stabilizer_ops}
-            for g in range(len(ops)):
-                if g in own:
-                    continue
-                image = rot[g] @ xyz[i] + tran[g]
-                d = image[None, None, :] - targets[:, None, :]
-                d = d - np.round(d) + shifts[None, :, :]
-                dist = np.sqrt(((d @ m.T) ** 2).sum(axis=2)).min(axis=1)
-                for k, j in enumerate(live):
-                    if occ[i] + occ[j] <= 1.0 + 1e-9:
+        for j in live:
+            members, found = {}, []
+            for i in live:
+                for g in range(len(ops)):
+                    if g in owns[i]:
                         continue
+                    image = rot[g] @ xyz[i] + tran[g]
+                    d = image - xyz[j]
+                    d = d - np.round(d) + shifts
+                    dist = float(np.sqrt(((d @ m.T) ** 2).sum(axis=1)).min())
                     limit = RIGID_BODY_OVERLAP_FACTOR * (radius[i] + radius[j])
-                    if dist[k] < limit:
-                        hits.append((float(dist[k]), i, j, g, limit))
+                    if dist < limit:
+                        key = (i, *np.round(image - np.floor(image), 3) % 1.0)
+                        members[key] = occ[i]
+                        found.append((dist, i, j, g, limit))
+            if found and occ[j] + sum(members.values()) > 1.0 + 1e-9:
+                hits.extend(found)
         if not hits:
             return
         dist, i, j, g, limit = min(hits)
