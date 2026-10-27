@@ -3298,7 +3298,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "one (`?` or `.`) or no positive entry, so it cannot be read as w = 1/σ². "
             "The reader fell back to the Poisson σ = √max(y, 1), as it does for a file "
             "with no weights, and did not repair the column: it drops the whole column, "
-            "not just the bad entries, even where most weights are positive. The message "
+            "not only the bad entries, even where most weights are positive. The message "
             "counts the negative and the missing entries separately; the code's value is "
             "their sum (0 when the column holds no positive weight and no bad entry). "
             "If the file's counting time varies across the scan, the Poisson σ is not "
