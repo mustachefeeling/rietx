@@ -181,8 +181,10 @@ its sunk background. Pawley's Rwp ties the doubled cell to the truth
 decomposition of a lattice containing the truth's fits at least as well.
 **So the rival/truth Rwp gap the acceptance rows pinned (> 2×) was the
 stall.** Two rows assert it (`test_acceptance_indexing.py`: magnetite's,
-now inverted to < 1.05×, and the calibrated LaB6's a·√2 rivals, which are
-not sublattices of the truth's everywhere and were left to the suite's run).
+now inverted to < 1.05×, and the calibrated LaB6's a·√2 rivals). The second
+stands under Pawley: an a·√2 cubic cell misses the truth's lines whose index
+sum doubled is not a sum of three squares, (321) among them, so its fit is
+worse for the lattice's sake and still reads over twice the truth's Rwp.
 
 *No peak list* (`absent_source="fitted_background"`, reached only by a
 direct call): Pawley's honest background reads more absences on wrong
@@ -300,12 +302,22 @@ it; corundum's 12 misses "at most 11" by one. That bar was Pawley's own
       maintainer's dated approval.
 - [ ] Re-measure `MEASURED_VALIDATION_SECONDS` under Pawley, and run
       `python -m tests.bethanechol_benchmark` alone against `main`'s count of
-      validated candidates (the large monoclinic cost case).
-- [ ] Tests: `test_le_bail_validation_separates_the_failure_modes` (its +1 %
+      validated candidates (the large monoclinic cost case). *Half done
+      2026-10-27:* re-timed (§ Cost), value kept with a comment. The
+      benchmark was not run: it needs two runs of tens of minutes alone on a
+      machine other sessions kept loading, it records no `main` count to
+      compare with, and under its `preset="full"` every checked candidate is
+      validated whatever the fit costs. The risk § Cost names is under
+      `quick`, so the measurement owed is `index_pattern` under `quick` on a
+      large pattern (NAC, a bethanechol set) in both modes, quiet machine.
+- [x] Tests: `test_le_bail_validation_separates_the_failure_modes` (its +1 %
       row asserts 0 missing, which is Le Bail's blindness; Pawley reads
       19-30), the magnetite acceptance row's regenerated negative background,
       `tests/test_acceptance_indexing.py` green; obs/calc/diff PNGs to
-      `tests/output/`.
+      `tests/output/`. Acceptance 44 passed, 0 skipped, 0 failed (20 min,
+      `[dev]`, arm64, other sessions intermittently loading the machine);
+      the calibrated LaB6 row's a·√2 rivals still read > 2× the truth's Rwp
+      under Pawley, so that assertion stands.
 - [x] Skill and docs: the `INDEX_IMPURITY_LINES` row in
       `docs/skill/rietx/references/diagnostics-indexing.md` if its meaning
       moves, `docs/manual/using/indexing.md` (now `docs/docs/reference/indexing.md`
