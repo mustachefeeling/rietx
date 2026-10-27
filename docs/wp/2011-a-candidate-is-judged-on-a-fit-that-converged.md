@@ -219,7 +219,33 @@ no candidate on this tree, so nothing of it was validated. On corundum's c/2
 subcell candidates one Le Bail pass ran away (Rwp 5.5-6.2, one at
 `max_iter`) where Pawley reached 0.38. On 10-18, idle, NAC's 837 cost 3.1×
 and 1823 cost 4.1×, so the load inflates Pawley's large fits more than Le
-Bail's; `probe7_idle_cost.py` re-times them alone.
+Bail's. `probe7_idle_cost.py` re-timed them; the machine was quiet (load 5)
+for its first run only, and that run's wrapper timed Pawley in both columns
+(fixed in `81f8e37e`), so its early readings are Pawley's quiet costs:
+NAC's 837 reflections 5.3-5.5 s, and the 1668 of its primitive description
+25.0-25.5 s in two repeats before the load came back (the third took 109 s,
+and the FAP and corundum readings after it are loaded too). The corrected
+run met load 23-56:
+
+| case | refl. | Le Bail s | Pawley s |
+|---|---|---|---|
+| NAC, I | 837 | 5.7-10.3 | 15.7-22.7 |
+| NAC, P | 1668 | 4.1-7.6 | 32.9-88.6 |
+| FAP | 216 | 0.85-0.87 | 0.64-0.69 |
+| corundum | 85 | 0.20-0.21 | 0.24 |
+
+So on a quiet machine Pawley costs about 3× at 837 reflections (Le Bail
+1.8 s on 10-18) and about 5× at 1668, and a shared machine multiplies that
+again. **What this means for a user**: under `preset="full"` a large
+synchrotron pattern's validation takes longer and still completes. Under the
+default `quick` preset each validation fit draws a slice of a whole-run
+ceiling, and a slice that expires leaves its candidate `not_validated`,
+which caps the grade at `medium`. So on a large low-symmetry pattern under
+`quick`, Pawley can validate fewer candidates than Le Bail did. Not
+measured: that needs `index_pattern` under `quick` on a large pattern in
+both modes, on a quiet machine. The bethanechol benchmark runs `full` and
+cannot see it. `MEASURED_VALIDATION_SECONDS` keeps its value (0.6, 44.0),
+which brackets the quiet NAC fits; its comment says so.
 
 **The provisional go (Claude, 2026-10-27, maintainer away).** Criterion: on
 the path the indexer runs, does the Pawley fit answer the forward question

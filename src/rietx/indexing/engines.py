@@ -2410,6 +2410,13 @@ MODELLED_ENGINES: frozenset[str] = frozenset({"dichotomy", "svd", "trial_error"}
 #: carries it as an explicitly uncertain range instead of folding a guess into
 #: the worst case.  It is also why the term matters at all: on the FAP tutorial
 #: pattern validation was 74 s of an 84 s run — eight fits, none budgeted.
+#: **Measured for Le Bail, kept for Pawley** (WP-2011).  The Pawley fit costs
+#: about the same on the lab patterns and 3-5× more on 11-BM NAC: 5.4 s
+#: for its 837 reflections and 25 s for the 1668 of its primitive
+#: description, on a quiet machine.  Under another session's load that last
+#: fit took 33-107 s against Le Bail's 4-9 s, so on a shared machine the top
+#: of this range is not a bound.  The 44 s fit was cpd-1a's, and that
+#: pattern returns no candidate on the WP-2011 tree.
 MEASURED_VALIDATION_SECONDS: tuple[float, float] = (0.6, 44.0)
 
 #: Measured wall clock of a whole **unbounded** (``preset="full"``) run on the
