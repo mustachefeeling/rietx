@@ -1239,12 +1239,7 @@ class LeBailValidation(Base):
     also reintroduce the blind spot it exists to close: a converged fit of a
     bigger cell fits at least as well.
 
-    The fit is **single-phase**, and that is a measured constraint rather than a
-    simplification (WP-1028): ``CompiledModel.lebail_update`` partitions
-    ``max(y_obs − y_bkg, 0)`` per phase with nothing to arbitrate two phases
-    claiming the same channel, so two phases inflate one another without bound
-    (measured Rwp 742–9 281 % against 7.5–24.8 % for one).  A candidate is
-    therefore never validated against a multi-phase hypothesis.
+    The fit is **single-phase**, since a candidate is one lattice.
     """
 
     rwp: float

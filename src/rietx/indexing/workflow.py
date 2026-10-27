@@ -3,8 +3,8 @@ validation it drives.
 
 ``index_pattern`` runs the engines, deduplicates their candidates as reduced
 cells, enumerates geometrical ambiguities, validates the survivors by a
-whole-pattern Pawley fit, and gates confidence on **agreement**.  Its API cannot express a confident
-wrong singleton: it returns an
+whole-pattern Pawley fit, and gates confidence on **agreement**.  Its API
+cannot express a confident wrong singleton: it returns an
 :class:`~rietx.schemas.indexing.IndexingResult`, which has no ``.cell``, and the
 only route to one cell is ``best_or_none()``.
 
@@ -451,10 +451,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     (A still older revision argued Le Bail was the *constrained* fit and therefore
     the discriminating one; WP-1043 carries that retraction.)
 
-    Single-phase by construction, since a candidate is one lattice.  The Le Bail
-    partition also had nothing to arbitrate two phases claiming one channel
-    (WP-1028: Rwp 742-9 281 % against 7.5-24.8 % for one phase), so a candidate
-    has never been validated against a multi-phase hypothesis.
+    Single-phase by construction, since a candidate is one lattice.
 
     A fit that *raises* comes back as ``status="failed"`` with an infinite Rwp
     rather than as an exception: a candidate the physics refuses is evidence
