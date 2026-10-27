@@ -32,6 +32,7 @@ from contextvars import ContextVar
 
 import numpy as np
 
+from ..schemas.indexing import _MODE_NAMES
 from .plots import PALETTES, _palette
 
 # The roles, in PALETTES per ground: ``index_obs`` and ``index_calc`` for
@@ -326,7 +327,7 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
 
 def plot_validation(validation, result=None, *, path: str | None = None,
                     dpi: int = 150, title: str | None = None, style: str = "light"):
-    """The Le Bail validation fit, with both detector lists marked.
+    """The whole-pattern validation fit, with both detector lists marked.
 
     ``result`` is the :class:`~rietx.schemas.results.RefinementResult` from
     ``validate_by_lebail(..., with_result=True)``.  Without it only the detector
@@ -334,7 +335,7 @@ def plot_validation(validation, result=None, *, path: str | None = None,
     opt-in return exists.
 
     Read it the way :mod:`rietx.indexing.workflow`'s table says to read the
-    numbers: Rwp is decisive on a **wrong metric** and nearly silent on an
+    numbers: Rwp is decisive on a **wrong metric** and silent on an
     **oversized** one, so the amber marks (predicted, nothing there) and the
     purple ones (observed, nothing predicted) are not decoration — they are the
     two failures the fit statistic cannot separate.
@@ -373,7 +374,8 @@ def plot_validation(validation, result=None, *, path: str | None = None,
             2, 1, figsize=(11, 6.4), dpi=dpi, FigureClass=_figure_class(), sharex=True,
             gridspec_kw={"height_ratios": [3, 1]})
         ax.plot(tt, y_obs, ".", ms=2.0, color=hue["index_obs"], label="observed", zorder=2)
-        ax.plot(tt, y_calc, "-", lw=1.0, color=hue["index_calc"], label="Le Bail", zorder=3)
+        ax.plot(tt, y_calc, "-", lw=1.0, color=hue["index_calc"],
+                label=_MODE_NAMES[validation.mode], zorder=3)
         ax.plot(tt, y_bkg, "--", lw=0.8, color=hue["index_bkg"], label="background", zorder=1)
 
         span = float(y_obs.max() - min(y_obs.min(), 0.0))
@@ -511,7 +513,7 @@ def _compose_indexing(result, peaks, *, data, instrument, candidate, n,
 
 
 def _validation_title(validation) -> str:
-    return (f"Le Bail validation of {validation.space_group}: "
+    return (f"{_MODE_NAMES[validation.mode]} validation of {validation.space_group}: "
             f"Rwp={validation.rwp:.4f}, GoF={validation.gof:.2f}, "
             f"{validation.predicted_but_absent}/{validation.n_reflections} "
             f"predicted but absent, {validation.unmatched_observed} unmatched "

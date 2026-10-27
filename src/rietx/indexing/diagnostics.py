@@ -32,6 +32,7 @@ from ..crystallography.atomic_volume import VOLUME_SCATTER, formula_unit_volume
 from ..model.profiles.fcj import fcj_live
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
+    _MODE_NAMES,
     INDEX_REFUTING_CAVEATS,
     MAX_RELATIVE_SIGMA_Q,
     PEAK_MIN_USABLE_LINES,
@@ -767,7 +768,7 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
             level="warning", code="INDEX_IMPURITY_LINES",
             message=(f"{lebail.unmatched_observed} observed peak(s) have no "
                      "calculated reflection nearby after a whole-pattern "
-                     f"{'Pawley' if lebail.mode == 'pawley' else 'Le Bail'} "
+                     f"{_MODE_NAMES[lebail.mode]} "
                      "fit of this cell."),
             where=where + ([f"strongest region near {tt[0]:.3f}°" ] if tt else []),
             suggestion=("If a handful of lines remain, subtract the solved "
