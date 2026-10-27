@@ -1,6 +1,6 @@
 # WP-1968 — the picker offers no line the data cannot support
 
-Milestone: unscheduled · Status: 🔄 2026-10-25 — #947, #948, #1048 and #993 merged; open: the PNG task
+Milestone: unscheduled · Status: 🔄 2026-10-26 — every task landed (#947, #948, #1048, #993, and the PNGs as #1179); the close is owed
 Track: What fires, and what stays silent
 Depends on: 1909 soft (the 1σ floor this bar succeeds, and its census)
 Priority: P2 2026-10-14 — a defect that fires wrongly: off-lattice components reach every engine as usable lines, and every benchmark harness filters them by hand
@@ -108,6 +108,10 @@ close, since the peak list feeds every engine.
   round-robin lists usable components go from 789 to 782. Both take
   `INDEXING_THRESHOLDS_VERSION` 1.10, and the second to merge renumbers.
 
+- 2026-10-26 issue triage: #1166 (the 24 usable components on their position bound, from
+  #993's round-2 review) is filed as WP-2055, because its likely fix is the profile the
+  picker holds (Kα2 weight, axial), outside this WP's Goal. Nothing here waits on it.
+
 ## Non-goals
 
 - The steep-flank envelope, and the 1σ floor's census (WP-1909).
@@ -126,8 +130,8 @@ close, since the peak list feeds every engine.
       flags in the list, and leave them out of the search's driven set, as
       the issue's (c) asks. *PR #1048, `weak_line` only; why
       `position_at_bound` stays driven is in the 2026-10-21 entry.*
-- [ ] Tests, with obs/calc/diff PNGs to `tests/output/`, and
-      `tests/test_acceptance_indexing.py` green.
+- [x] Tests, with obs/calc/diff PNGs to `tests/output/`, and
+      `tests/test_acceptance_indexing.py` green. *PR #1179.*
 - [x] Skill: the new flags' and code's `help.py` entries (both PRs add
       them), which is where an agent reads a flag; a `references/` row only
       where a flag needs a judgement the entry cannot carry.
@@ -156,6 +160,26 @@ name.
   a survey (Sparrow's criterion).
 
 ## Handover log
+
+- **2026-10-26** — PR #1179 (the PNG task, by @mustachefeeling) merged as
+  `6ecf7fa3`. `tests/peak_pictures.draw_pick` draws what `pick_peaks` fitted:
+  each group's fitted profile over the frozen envelope, through
+  `peakfit.group_profile`, never a refit. Under it go (obs − calc)/σ and one
+  tick row per flag (`weak_line`, `unresolved_split`, `width_capped`,
+  `position_at_bound`). Five arms of `test_peak_fdr.py`,
+  `test_peak_resolvability.py` and `test_peak_bounds.py` switch to
+  `pick_peaks_with_state` and leave `tests/output/peaks_*.png`. No assertion
+  moves. Read by eye at review: on #728's steep arm the flank components sit
+  in the capped, split and at-bound rows, and every silicon line keeps one
+  unflagged component. Two nits went to the review as follow-ups: `zoom` has
+  no caller, and a usable peak with a flag outside the four rows is counted
+  as both "unflagged" and "other". Gated in a stack with #1178 on `main`
+  `c0e32ab2` (tree `1b644447`, which `main` equals after both merges). The
+  fast suite gave 11 937 passed, 199 skipped, 32 xfailed, and the whole
+  `-m slow` suite gave 417 passed, 14 skipped, 15 xfailed,
+  `test_acceptance_indexing.py` among them (macOS arm64, `[dev,jax]`,
+  Python 3.12.10, alone). *Next:* the close (the milestone record's line
+  and ✅); #934 is the maintainer's to close.
 
 - **2026-10-25** — PR #993 (#934 (c), by @mustachefeeling) merged at round 6,
   landing in `fe4cbcc3` through #939's head. `pick_peaks` names every bound

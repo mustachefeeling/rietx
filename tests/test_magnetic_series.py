@@ -762,7 +762,7 @@ def _verdicts(flags) -> SeriesResult:
 
 def _agreement(forward_flags, backward_flags):
     forward, back = _verdicts(forward_flags), _verdicts(backward_flags)
-    rows = _with_onset_agreement(_moment_diagnostics(forward, {}), forward,
+    rows = _with_onset_agreement(_moment_diagnostics(forward), forward,
                                  back)
     return [d for d in rows if d.code == "SEQUENTIAL_MOMENT_ONSET"]
 
@@ -903,7 +903,7 @@ def _early(flags) -> SeriesResult:
 
 
 def _fold(forward: SeriesResult, back: SeriesResult):
-    rows = _with_onset_agreement(_moment_diagnostics(forward, {}), forward,
+    rows = _with_onset_agreement(_moment_diagnostics(forward), forward,
                                  back)
     return [d for d in rows if d.code == "SEQUENTIAL_MOMENT_ONSET"]
 
@@ -958,7 +958,7 @@ def test_an_interleaved_forward_row_keeps_its_own_advice(backward_flags):
     the fold has nothing to replace there: with the same interleaved verdicts
     on both chains, "the pattern one chain supports and the other holds" does
     not exist (review round 3, item 3)."""
-    (forward_row,) = [d for d in _moment_diagnostics(_verdicts(_INTERLEAVED), {})
+    (forward_row,) = [d for d in _moment_diagnostics(_verdicts(_INTERLEAVED))
                       if d.code == "SEQUENTIAL_MOMENT_ONSET"]
     assert forward_row.suggestion.startswith(_OPEN_THE_SWITCHES)
     (row,) = _agreement(_INTERLEAVED, backward_flags)
@@ -1084,6 +1084,14 @@ def test_an_unsupported_pattern_reseeds_its_successor_to_the_floor():
                 if d.code == "SEQUENTIAL_MOMENT_HOLD")
     assert "reseeded to its floor" in hold.message
     assert "successor pattern(s)" in hold.message
+    # the record the message is read from (WP-2003): each floored entry names
+    # the modulus it received at the floor, and every warm start its source
+    floored = [e for e in series.entries if e.floored]
+    assert floored
+    assert all(e.rung != "cold" for e in floored)
+    assert all(e.label in hold.message for e in floored)
+    assert all(hold.where[0] in e.floored for e in floored)
+    assert [e.seeded_from for e in series.entries] == [None, 0, 1, 2]
     # the unsupported values are the fit's own, above the floor, with their esds
     # still on the evidence row even though the trajectory withholds them
     for entry, ok in zip(series.entries, traj.supported, strict=True):

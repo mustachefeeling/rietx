@@ -430,3 +430,49 @@ def test_an_angle_a_named_variable_drives_leaves_the_covariance():
     assert rows[f"{MN1}.dof0"].stderr == pytest.approx(0.00152, rel=0.05)
     assert rows[f"{MN2}.dof0"].stderr == pytest.approx(0.00112, rel=0.05)
     assert rows["vars.m1"].stderr == rows[f"{MN1}.dof0"].stderr
+
+
+def test_a_chain_pays_the_interval_once_a_pattern_on_the_attempt_it_keeps(
+        monkeypatch):
+    """A rung the ladder discards pays no profile interval (WP-2003, X10).
+
+    Every rung and every verify refit was a plain ``Refinement``, so each paid
+    the moment angles' interval, 20-32 refits an angle, on a result the chain
+    then threw away.  ``_fit_one`` now declines it and the chain hands the
+    attempt it keeps to the same ``attach_stationary_intervals`` a plain fit
+    calls.  A fence of 1e-6 sends pattern 1 up all three rungs, and the
+    interval is still asked for twice, once a pattern, each time of the fit
+    the entry reports.  Stubbed: the interval itself is
+    ``test_a_left_out_angle_carries_its_interval_and_the_history_gains_no_node``'s,
+    and run for real it is 60 s of this test's 70.
+    """
+    import rietx.sequential as seq
+
+    T = _solve()
+    mag = _magnetic()
+    instrument = T.neutron()
+
+    def pattern(seed):
+        return T.simulate(T.two_site(
+            m1=Moment.from_values(_vec(3.5, 0.0), "Mn3+"), m2=None, magnetic=mag),
+            instrument, seed=seed)
+
+    start = rx.Structure(phases=[T.two_site(
+        m1=Moment.from_values(_vec(3.3, 0.04, 0.03), "Mn3+", vary=True),
+        m2=None, magnetic=mag)])
+    import rietx.strategy.parameter_interval as pi
+
+    asked: list = []
+    by_a_fit: list = []
+    monkeypatch.setattr(seq, "attach_stationary_intervals",
+                        lambda ref, data, *, cancel=None: asked.append(ref.result_))
+    # where Refinement.fit looks it up, so a rung that paid would show here
+    monkeypatch.setattr(pi, "attach_stationary_intervals",
+                        lambda ref, data, *, cancel=None: by_a_fit.append(ref))
+    series = rx.SequentialRefinement(start, instrument).fit(
+        [pattern(2), pattern(3)], plan=_plan(), reseed_factor=1e-6)
+    assert series[1].rungs_tried == ["warm", "warm_staged", "cold"]
+    assert by_a_fit == []
+    assert [r.statistics.rwp for r in asked] == [e.statistics.rwp for e in series]
+    # and each kept attempt has angles left out for the interval to be about
+    assert all(any(t.zeroed for t in r.stages[-1].moment_angle_tests) for r in asked)

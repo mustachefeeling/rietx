@@ -391,12 +391,16 @@ sharpens its own row here.
   competent refiner would act, rank where the data can rank, otherwise report the number
   with its meaning; and the rule that rewards a firing code is rewritten.
 - **A held-out family moved no number away from its reference** (every audit, checked at
-  close). One or two families named at 2002's open and used as evidence by no audit; at
+  close). Families named at 2002's open and used as evidence by no audit; at
   close the standards' acceptance protocol is run on them and every number with a
   reference is no further from it than at the open. The one row that measures generality
   rather than the audit (fourth review). Named at 2002's open (2026-10-19): the Nd₂Ru₂O₇
   pair (`tests/data/mg090*`, 11-BM X-ray and NCNR BT-1 neutron, a published joint
-  refinement), WP-2002 § The batch giving the reason.
+  refinement), WP-2002 § The batch giving the reason. Added 2026-10-26 (#1052, decided by
+  the maintainer): Zr₆(BDC)₃(Fum)₃ on Diamond I11, HfIn on a lab Bragg–Brentano instrument
+  and CrCl₂(pyrimidine) on ILL D1B, each with a peer-reviewed refinement; the reporter runs
+  them, the open baseline on the tree at 2002's open commit. WP-2017 keeps them out of audit
+  evidence.
 - **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
   demoted class the harness is run once (twice where the explanation is reworked),
   registered first and approved per session, and
