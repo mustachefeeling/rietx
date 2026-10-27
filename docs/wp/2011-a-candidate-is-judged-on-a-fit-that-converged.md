@@ -360,6 +360,208 @@ validates no fewer candidates than on `main`.
 
 ## Handover log
 
+- **2026-10-27** — The indexer now checks each candidate cell with a Pawley
+  fit instead of one Le Bail pass. It was built provisionally while the
+  maintainer was away, so the go, the names and the Pawley constants' grounds
+  are still theirs to rule on. On the path the indexer runs, no true cell
+  leaves a peak width on its lower bound any more. The count of observed
+  lines with no reflection falls on true cells (zircon 44 → 11, FAP 13 → 5,
+  corundum 21 → 12), so `INDEX_IMPURITY_LINES` fires less often on a correct
+  cell, and tutorial 03 no longer has to explain one away. Two things moved
+  the other way. A cell that predicts every reflection of the truth now reads
+  about the truth's Rwp, so Rwp never separates a supercell; the old gap was
+  the stalled fit's. And a large synchrotron pattern validates 3-5× slower on
+  a quiet machine (11-BM NAC). Whether that leaves candidates unvalidated
+  under the default `quick` preset is the one thing not measured.
+
+  *Done.* `validate_by_lebail` runs `mode="pawley"` (`workflow.VALIDATION_MODE`)
+  and writes `LeBailValidation.mode` (schema 0.60, thresholds 1.12; default
+  `"lebail"` for older records). Docstrings, the module's detector table, the
+  diagnostics' Rwp advice, `help.py` (incl. `lebail_cycles`, which said Pawley
+  ignores the setting that seeds it), the CLI, the manual
+  (`reference/indexing.md`, `indexing-evidence.md`, `cli.md`,
+  `start/first-fit.md`), the skill rows, the GUI toggle label (dist rebuilt,
+  vitest 590 passed), `plot_validation`'s labels, tutorial 03 and its
+  notebook, the indexing rulebook and the 1.11 staged notes. Tests: the +1 %
+  row now expects absences; new `test_the_validation_fits_a_supercell_as_well_as_its_parent`
+  and `test_the_validation_record_names_its_fit_on_every_path`; the magnetite
+  acceptance row regenerates Le Bail's bought background by an explicit Le Bail
+  fit and pins Pawley's as positive, and its rival Rwp bar inverts to < 1.05×.
+  WP-2062 filed at the maintainer's request (Pawley as the structure-free
+  default, site by site), with the seven-program practice survey saved to
+  `docs/practice.md`.
+
+  *Measured* (all in § Re-measured 2026-10-27 above; macOS arm64, Python
+  3.12.10, `[dev]` venv). Fast selection on the tree merged with `main` at
+  `2cf63737`: 11 869 passed, 272 skipped, 32 xfailed, 0 failed (6:56, quiet
+  machine). Against this morning's run on the bare branch (11 864 passed,
+  272 skipped) the +5 is this branch's one later test plus WP-2034's two
+  parametrised tests (four cases); skips unchanged. The two added tests cost
+  0.46 s together (`tests.added_test_times`, local junit). Indexing acceptance
+  on the bare branch: 44 passed, 0 skipped, 0 failed (20:22, other sessions
+  loading the machine intermittently). Full suite on the same merged tree:
+  12 280 passed, 283 skipped, 47 xfailed, 0 failed (29:02; no other suite
+  running at its start, Spotlight indexing on three cores).
+
+  *Review.* `/code-review high --fix` found 9 items, none a wrong result:
+  help, CLI and docstring text still naming Le Bail, and
+  `INDEX_PREDICTED_BUT_ABSENT`'s help quoting the stalled fit's 0.379 against
+  0.216. It fixed 7 (`6d90765c`). Declined: re-deriving
+  `VALIDATION_RESERVE_FRACTION` (needs the `quick` measurement below), and
+  projecting `mode` into `CandidateEvidence` (a public field; it belongs with
+  the maintainer's names decision).
+
+  *Gotchas.* (1) Probe 7's first run timed Pawley in both columns, because
+  after the switch the validation passes `"pawley"` and the wrapper rewrote
+  only `"lebail"` (fixed `81f8e37e`); probes 5 and 6 imported the module
+  before the switch. (2) Pawley's large fits slow down far more than Le
+  Bail's on a shared machine (NAC's 1668 reflections: 25 s quiet, 33-107 s
+  loaded, against Le Bail's 4-9 s), so quote no Pawley seconds without the
+  load. (3) Le Bail itself improved on this tree since 10-18 (FAP 76 → 13
+  unmatched, no floor); something on `main` moved it and this session did
+  not separate what. (4) The bethanechol benchmark runs `preset="full"`,
+  where every checked candidate validates whatever it costs, so it cannot
+  see the `quick` risk.
+
+  *Generality* (the `generality-review` agent, unedited; the author's answer
+  under each verdict short of *holds*):
+
+  #### Item 1: the validation fit's mode, Le Bail → Pawley (`rietx.indexing.workflow.VALIDATION_MODE = "pawley"`)
+
+  **holds.** The case for acting is stronger. A candidate judged on a fit that stalled with a width on its floor is judged on an artefact, and the measurements show it. The cost case is real but not measured: under the default `quick` preset a slower fit can leave more candidates unvalidated.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "Pawley rather than Le Bail, because one Le Bail pass does not converge" (`workflow.py`, `validate_by_lebail` docstring) | Every `index_pattern` call given data now judges each shortlisted cell by a Pawley fit. No argument lets the caller choose: `VALIDATION_MODE` is a module string. The fit moves four things: `rwp`, `unmatched_observed` (observed peaks with no calculated reflection nearby, which raises `INDEX_IMPURITY_LINES`), `status`, and fit time. `index_pattern` always passes its peak list (`workflow.py:1070-1073`). So the absent-line count comes from the line screen (the candidate-independent check PR #941 added) and never from this fit. The fit therefore reaches the confidence gate only two ways. A `failed` or `diverged` status becomes `validation_failed`, which refutes the cell (`consensus.py:644-645`). A time slice that runs out leaves `not_validated`, which caps the grade at `medium` (`workflow.py:1078-1083`). | stated in part. The author never names these two routes to the gate. |
+  | 2. Kind of ambiguity | **none given**. No row exists, and the WP gives only a criterion: "does the Pawley fit answer the forward question … better?" (WP § Re-measured, "The provisional go") | There are two parts. (a) "Judge a cell on a converged fit" is kind 1: I found no competent refiner who would judge a cell on a fit stopped with `w` on its floor. (b) "Pawley rather than a converged Le Bail" is a method default inside an existing action. The programs differ on it. | **none given** (finding) |
+  | 3. Case against | WP § Re-measured, Cost: "on a large low-symmetry pattern under `quick`, Pawley can validate fewer candidates than Le Bail did. Not measured." Also: "the Rwp cue a reader saw on supercells is gone." | **Dissenters:** FullProf has Le Bail only. RIETAN-FP and MAUD steer Le Bail first. Kariuki et al. (1999) chose Le Bail to test cell hypotheses because it was faster (`docs/practice.md` § Structure-free fitting). All of them re-extract the intensities every cycle, so they dissent in favour of a *converged* Le Bail, not rietx's one pass. The author measured rietx's converged Le Bail (5 and 10 passes) as no better and slower. The WP itself warns the defect may be rietx's Le Bail rather than the method (WP-2062's decision 0, WP lines 133-135). A per-iteration Le Bail built there would reopen the choice on cost alone. **Cost:** on a quiet machine Pawley took 3× as long at 837 reflections and 5× at 1668 (WP § Cost). The `quick` effect on `not_validated` counts is unmeasured, and the bethanechol benchmark was not run. The lost supercell Rwp cue is no cost: it came from the stall. | real dissent, answered only against rietx's Le Bail. Cost unmeasured. |
+  | 4. Case for | "no true cell leaves a width on its floor, the impurity count on true cells falls (zircon 44 → 11, FAP 13 → 5, corundum 21 → 12; brucite +2), and a nested rival's count becomes right" (WP, The provisional go) | Borne out by the tables. On synthetic LaB6 the Pawley background sits within 2 counts of the true 29.7 on every candidate. Le Bail's sinks to 19.1 under the a·√5 cell. Under magnetite's primitive rival, the Le Bail background is −7.3 counts with 25 unmatched peaks. Pawley gives +13.8 and 2, and the true F cell's count of 4 is what the rival should read. Doing nothing costs a true cell a spurious `INDEX_IMPURITY_LINES`. Tutorial 03 had to explain one away; under Pawley its candidate validates at Rwp 0.044 with 0 unmatched. | strong |
+  | 5. Tier | "TOPAS defaults to Pawley … GSAS-II … defaults to neither" (WP § Practice, citing `docs/practice.md`) | I checked only `docs/practice.md`, in this repository. That survey read TOPAS from a public copy of Technical Reference v5 §8 p.84, "not re-read by the lead". Pawley is inside the range of practice: TOPAS's default, MAUD's second step, and BGMN's Pawley-type mode. Tier 2 for the method default. The action "validate at all" is the existing row `rietx.indexing.workflow.index_pattern:validate` (`_audit.py:3597`), still `unaudited` and on `UNAUDITED_BASELINE`. No row records the mode. | tier 2 on the survey's word. The table cannot see it. |
+  | 6. Families and reference | The nine true cells and four wrong cells (WP tables) | **True cells:** four laboratory/instrument families. NIST SRM 660c (NIST lab, Cu). 11-BM NAC (APS synchrotron). FAP (the GSAS-II tutorial lab pattern). The CPD round robin's pure phases: one Philips instrument and six materials (corundum, brucite, zincite, zircon, fluorite, magnetite). **Wrong cells:** synthetic LaB6 from rietx's own generator, plus one real family (CPD magnetite). **References:** the synthetic background (29.7) is a known truth. The magnetite rival's expected count of 4 follows from lattice containment. The true-cell unmatched counts have no independent reference, since their level belongs to the specimen (WP-1041). So "falls" gives a direction, not a distance to a reference. **Stated failures:** corundum at 12 misses the author's own bar of 11. Brucite goes 9 → 11. Without a peak list, NAC goes 0 → 20 false absences. Rwp numbers appear but carry none of the weight, which Rule 4 requires. | holds for true cells. Real wrong-cell evidence is one family. |
+  | 7. What records that it fired | `LeBailValidation.mode` (diff, `schemas/indexing.py`) | `mode="pawley"` on every validation record. The summary line prints "Pawley Rwp". The `INDEX_IMPURITY_LINES` message names the mode. `INDEXING_THRESHOLDS_VERSION` carries a 1.12 note. | holds |
+
+  What would change the verdict: `index_pattern` under `quick` on a large pattern (NAC, a bethanechol set), on a quiet machine, in both modes, counting `not_validated` and `validation_failed`. A second possibility is WP-2062 landing a per-iteration Le Bail that converges like Pawley at lower cost.
+
+  *Author:* agreed on both gaps; the `quick` measurement is this entry's next action (2), and the two routes to the gate are now named here.
+
+  #### Item 2a: `rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC` (0.5)
+
+  **weak.** The case for keeping the value is plausible but unmeasured. The written ground "Opt-in Pawley mode" is now false. It was already false before this branch, because the indexer's peak picker reads this constant on the default path.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "Re-ground them (the validation reads Rwp and the unmatched count, and neither depends on how an overlapped group is split) or re-tier them" (WP Tasks, the third Decision) | It sets which reflections count as "strongly overlapped". Those groups get the equal-split restraint and the `PAWLEY_OVERLAP_UNRESOLVED` flag. Since this branch that happens in every validation fit. **Before this branch too:** `indexing/pick.py` (`_unresolved` :492-497, `flag_duplicate_lines` :517, :565) and `indexing/peaks.py:42, :308` import it. There it decides which picked components are flagged duplicate or unresolved, on `index_pattern`'s default peak-picking path. | the ground is wrong on two default paths, not one |
+  | 2. Kind of ambiguity | Not stated; a constant row needs none | The split inside an unresolved group is kind 3: the data cannot settle it. The package regularises the split and flags it. The validation does not read the split. | consistent |
+  | 3. Case against | none given | GSAS-II ties only reflections overlapped exactly by symmetry (\|Δd\|/d < 1e-4) and leaves near-overlaps free. TOPAS states no rule (`docs/practice.md`). That is a named dissent from restraining at 0.5 FWHM. Within 0.5 FWHM the data still weakly prefer a split, so the soft restraint can move the profile, and with it Rwp, by a small amount. Nobody measured how much. The picker's use, which shapes the line list the search sees, is not measured here either. | dissent exists. Effect unmeasured. |
+  | 4. Case for | the mechanism in the Tasks quote | The restraint rows sum to zero, so the group's total intensity stays free (`forward.py:3268-3271`). Rwp and `unmatched_observed` depend mostly on that total. RIETAN-FP's hybrid step sets reflections within `RWID` × FWHM equal, a precedent for an FWHM-fraction rule. The survey does not give `RWID`'s default. | plausible by mechanism. **none given** as measurement. |
+  | 5. Tier | tier 3, "second pass owed", approved 2026-10-19 under B12 (a dated ruling batch) (`_audit.py:1876-1882`) | Tier 2 is reachable only if RIETAN-FP's `RWID` default is checked; I could not find it in this repository. The rare-feature clause does not apply: Pawley now runs on every indexing call. | tier 3 stands. Its ground does not. |
+  | 6. Families | "LaB6 only (synchrotron and Cu) … never swept" (`_audit.py:1877-1878`) | One family. The mechanical ground asks for three. | fails the mechanical ground |
+  | 7. What records that it fired | — | `PAWLEY_OVERLAP_UNRESOLVED` is info level on the `RefinementResult`. `validate_by_lebail` copies none of the fit's diagnostics into `LeBailValidation` (`workflow.py:548-556`), so on the indexer's path nothing records it. | nothing records it on this path |
+
+  What the row needs: grounds naming both default paths (the picker, already; the validation, since WP-2011). It also needs either a sweep (0.25 and 1.0) reading `rwp`, `unmatched_observed` and `status` on the nine true cells and four wrong cells, or the judgement ground answered for a default path. What would change the verdict: that sweep showing the three readings do not move.
+
+  *Author:* agreed; the row is not edited (a tier-3 ground is the maintainer's), and the picker's prior use is recorded in § Tasks.
+
+  #### Item 2b: `rietx.model.forward.PAWLEY_OVERLAP_LAMBDA` (1.0)
+
+  **weak.** The case for keeping it rests on a sound mechanism with no measurement on the path it now sits on.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | as 2a | The weight of the equal-split restraint, scaled by each group's mean intensity. It now applies in every validation fit. | as stated |
+  | 2. Kind | Not stated | As 2a: it regularises a split the data cannot settle. | consistent |
+  | 3. Case against | none given | No surveyed program uses an equal-split soft weight. GSAS-II's only intensity penalty (on negative intensities) has weight 0 by default (`docs/practice.md`). The effect on the validation's readings is unmeasured. | dissent by absence. Unmeasured. |
+  | 4. Case for | "the weight acts only on directions the data do not constrain, and the group sum stays free" (`_audit.py:1887-1888`) | True by construction (`forward.py:3300-3307`). Each penalty term is of order (relative split error)², about 1 unit of χ² at a 100 % error, small against a pattern's data χ². That is my own estimate, not a measurement. | plausible. **none given** as measurement. |
+  | 5. Tier | tier 3, approved 2026-10-19 | No tier-2 source found. | tier 3. The ground needs rewording. |
+  | 6. Families | "synthetic LaB6 and FAP only; second pass owed" (`_audit.py:1886`) | Two families at most, one of them synthetic. | fails the mechanical ground |
+  | 7. What records that it fired | — | As 2a: nothing reaches the indexing record. | nothing records it |
+
+  What would change the verdict: λ at 0.1 and 10 leaving the validation's `rwp`, `unmatched_observed` and `status` unchanged on the same thirteen cells.
+
+  *Author:* agreed; as 2a, left to the maintainer's ruling with the sweep named.
+
+  #### Item 2c: `rietx.model.forward.PAWLEY_OFF_DATA_SCALE_FLOOR` (1.0)
+
+  **cannot tell.** Of the three constants, this one can most plausibly move the gate on the indexer's path. Neither side has measurements there.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | as 2a | The smallest allowed width of the ridge that pulls toward zero the intensities of reflections centred past the end of the scan. Every validation fit generates reflections 0.5° past the scan (`REFLECTION_MARGIN_DEG`), so the ridge acts in every one. The floor binds only where the phase's largest on-data intensity is under 1 (`forward.py:3312`). | as stated |
+  | 2. Kind | Not stated | Holding the ridge at all is kind 1: nobody wants an off-data intensity running to 1e8. The floor's value is rietx's own. | — |
+  | 3. Case against | none given | The indexer takes data on any scale, so the floor can bind here. A pattern exported normalised to a maximum of 1, or as count rates, plausibly has Pawley intensities under 1. I could not establish the intensity units from the code I read. Where the floor binds, the ridge is looser than designed. The docstring's failure without a ridge was solves ending at up to 769× the Rwp (`forward.py:3283-3285`). On this path that means `status`, and a `diverged` status becomes the refuting `validation_failed`. | an untested case on a default path |
+  | 4. Case for | "acts only on reflections outside the data, whose intensity nothing constrains" (`_audit.py:1873-1874`) | True, and on ordinary count data the floor never binds. | holds on count data |
+  | 5. Tier | tier 3, "no stated source" (`_audit.py:1869-1871`) | `docs/practice.md` lists no program with an off-data ridge. GSAS-II, MAUD and BGMN only bound intensities. | tier 3 |
+  | 6. Families | "WP-1459 (outside PR #453)" | One synthetic fluorapatite case (issue #440). | fails the mechanical ground |
+  | 7. What records that it fired | — | `PAWLEY_OFF_DATA_RIDGED` (info) stays on the fit's `RefinementResult`, which the indexer discards. | nothing records it on this path |
+
+  What the row needs: the same re-grounding as 2a. What would change the verdict: the nine true cells validated with the pattern divided by its maximum, showing whether the floor binds and whether `status` or `unmatched_observed` moves.
+
+  *Author:* agreed; the scaled-pattern check (every true cell divided by its maximum) belongs beside the `quick` measurement in next action (2).
+
+  #### Item 3a: the `INDEX_MULTIPLE_SOLUTIONS` suggestion (`diagnostics.py`) and its row in `abstention.md`
+
+  **holds.** The case for the new wording is stronger, since the old text pointed readers at an artefact. It should name the field that answers its own condition.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "Compare their figure-of-merit panels, and their lebail.rwp where neither lattice contains the other" (`diagnostics.py`, `index_diagnostics`) | Advice only. When two candidates both reach `high`, the reader compares Rwp only for a pair that is not nested. | as stated |
+  | 2. Kind | The code row is `unaudited` (`_audit.py:654`). The suggestion row's site count of 1 is unchanged. | Kind 2: rival cells ranked by evidence, and the reader picks. | consistent |
+  | 3. Case against | none given | (a) The condition needs the reader to know whether one lattice contains the other, and the text names no field that says so. `supercell_checks`' `relation` does (`diagnostics-indexing.md`'s `INDEX_SUPERCELL_REFUTED` row). Rule 4 asks that the next call need no rerun. (b) "Contains" reads backwards to a crystallographer. In real space a supercell's lattice, or a decentred P description of an F lattice, is *contained in* its parent's. What contains is its set of reflections. (c) `diagnostics-indexing.md` (§ around line 337) calls the whole-profile numbers "never a thing to score on". That tension predates the branch, and the branch narrows it. | wording and a missing field |
+  | 4. Case for | "a containing cell fits at least as well" (`abstention.md` row) | This is arithmetic: a converged fit with a free intensity at every position the parent has cannot fit worse. Measured at 0.164/0.164 for doubled LaB6 (synthetic) and 0.174/0.180 for magnetite's P rival (CPD). For non-nested pairs Rwp still separates: the +1 % metric reads 0.503 against 0.164, and the calibrated LaB6 a·√2 rivals read over 2× (acceptance suite). TOPAS's indexing GUI refines each solution and reports Rwp (`docs/practice.md`, not checked by me). | strong |
+  | 5. Tier | — | The containment rule is tier 1 (arithmetic, given a converged fit). Comparing rival cells' Rwp is TOPAS practice, on the survey's word. | tier 1 and 2 |
+  | 6. Families | — | Arithmetic needs none. Two families illustrate it (synthetic LaB6, CPD magnetite). | holds |
+  | 7. What records that it fired | — | The `INDEX_MULTIPLE_SOLUTIONS` code. | holds |
+
+  What would change the verdict: a converged fit where a nested cell reads a clearly worse Rwp than its parent, which would make the condition wrong rather than just unclear.
+
+  *Author:* fixed in `2c828657`: "where neither cell predicts every reflection of the other (supercell_checks says)", in the diagnostic, the help entry and the skill row.
+
+  #### Item 3b: the `INDEX_PREDICTED_BUT_ABSENT` suggestion (`diagnostics.py`, `candidate_diagnostics`)
+
+  **holds.** The case for the change is stronger: the old text quoted an Rwp gap that the stalled fit made. The new sentence slightly overstates.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "lebail.rwp cannot separate them: a converged fit of a cell that contains another's lattice matches its Rwp (0.164 against 0.164 for a doubled LaB6 cell)" | Advice only. It tells the reader not to use Rwp to set an oversized cell against the smaller cell. | as stated |
+  | 2. Kind | Code row: tier 3, ambiguity 2, approved 2026-10-21 (`_audit.py:657-668`) | The suggestion changes the advice, not the code's capping action. | consistent |
+  | 3. Case against | none given | (a) "Matches" is too strong. The magnetite rival reads *lower* (0.174 against 0.180). "Fits at least as well", the workflow docstring's own wording, is accurate. (b) The 0.164 pair is rietx's synthetic fixture, and the text does not say so. (c) The same backwards reading of "contains" as 3a. (d) An oversized cell that does not contain the truth's reflections is separated by Rwp (LaB6 a·√5: 0.233 against 0.164). The opening clause, "the smaller cell that indexes the same lines", limits the advice to the nested case, so this holds. | wording |
+  | 4. Case for | the old text's numbers were the stall's (WP § Re-measured: "So the rival/truth Rwp gap the acceptance rows pinned (> 2×) was the stall") | Keeping "Read the count beside lebail.rwp … 0.379 against 0.216" would steer readers to an artefact. The new text agrees with the skill row "Do not check this with Rwp" (`diagnostics-indexing.md:21`). | strong |
+  | 5. Tier | — | Tier 1 (arithmetic). | holds |
+  | 6. Families | — | One synthetic family quoted; CPD magnetite agrees. | holds for arithmetic |
+  | 7. What records that it fired | — | The `INDEX_PREDICTED_BUT_ABSENT` code. | holds |
+
+  What would change the verdict: none expected. The fixes are wording: "at least as well", "synthetic", and containment stated as reflection sets.
+
+  *Author:* all three wording fixes made in `2c828657`, here and at every other site that used the phrase.
+
+  #### Item 4: `rietx.schemas.indexing.LeBailValidation.mode`
+
+  **holds as neither an action row nor an `OTHER_RECORD_FIELDS` entry.** The case against an action row is stronger, because the field is provenance. That leaves item 1's action with no row anywhere, which the maintainer should place.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "A record written before then carries no key and was a Le Bail fit, which is what the default reads" (field comment, `schemas/indexing.py`) | It decides nothing. It records which decomposition ran. Its default decides only how an old record reads. | as stated |
+  | 2. Kind | — | Not applicable. It is the record of item 1's action. | — |
+  | 3. Case against an action row | none given | Every record written by this release reads `"pawley"`, so the field never varies within a release. It is provenance, like `RefinementResult.mode`, which is listed in `OTHER_RECORD_FIELDS` (`_audit.py:452`). The indexing schemas are not in `RECORD_SCHEMAS` (`_audit.py:225-230`). Adding `LeBailValidation` would force its ~15 other fields into rows or `OTHER_RECORD_FIELDS`, a scope change for WP-2007's audit (the work package that owns the indexing rows), not for this branch. | strong |
+  | 4. Case for an action row | none given | generality.md § The rule: "a kept action leaves a record field". Item 1 is an automatic action the table cannot see, and this field is the only place a row could be keyed. Without one, a later change of `VALIDATION_MODE` fails no audit test. | real, but a row here is the wrong seat |
+  | 5. The default and its writer | Writer: `validate_by_lebail` (author's dispatch) | Both production constructors pass `mode=VALIDATION_MODE` (`workflow.py:516`, `:556`). The `"lebail"` default is reached only by records written before schema 0.60, where it is true. That meets WP-1076's rule (a field's empty state must not read as an answer nobody computed). No test reads a keyless old record and asserts `"lebail"`, or asserts the failed path's mode. Only the success path is pinned (`test_indexing_consensus.py:833`, `test_acceptance_indexing.py:1655`). | holds. Two pins are missing. |
+  | 6. Families | — | Not applicable. | — |
+  | 7. What records that it fired | — | The field itself. | holds |
+
+  What would change the verdict: a maintainer ruling to bring the indexing schemas into `RECORD_SCHEMAS`. Otherwise, record item 1 in the evidence of `rietx.indexing.workflow.index_pattern:validate` when WP-2007 audits that row.
+
+  *Author:* both pins added in `2c828657` (`test_the_validation_record_names_its_fit_on_every_path`); the row's seat is left to WP-2007, and a forward note goes there.
+
+  *Next.* (1) The maintainer's three rulings in § Tasks: the go, the names
+  and the Pawley constants' grounds. The first decides whether this PR
+  merges at all. (2) Measure `index_pattern` under `quick` on a large
+  pattern (NAC, a bethanechol set) in both modes on a quiet machine,
+  counting `not_validated` and `validation_failed`. It decides whether the
+  go needs a fallback for large patterns, or whether WP-2062's decision 0 (a
+  Le Bail that re-extracts every iteration) should come first. (3) The
+  bethanechol benchmark, only if the maintainer still wants the `full`
+  count. (4) WP-2062's five decisions, decision 0 first.
+
 - **2026-10-19** — created, not started. A session asked why the indexer and
   the tutorials use Le Bail rather than Pawley, measured both in the indexer's
   check (§ Context), and @yue-here chose to switch the check to Pawley after
