@@ -1,6 +1,6 @@
 # WP-2011 — a candidate is judged on a fit that converged
 
-Milestone: unscheduled · Status: 🔄 2026-10-27 — claimed by @yue-here (Claude session)
+Milestone: unscheduled · Status: 🔄 2026-10-27 — switch built provisionally in draft PR #1191; the go, the names and the Pawley constants' grounds wait on the maintainer
 Track: What fires, and what stays silent
 Depends on: 1956 (PR #941 takes the missing count off this fit and edits the same two functions)
 Priority: P2 2026-10-27 — `INDEX_IMPURITY_LINES` fires on a true cell's stalled fit, and notebook 03 works around it; #941 landed for WP-1956 on 2026-10-25, the condition the P3 rung waited on
@@ -178,7 +178,8 @@ magnetite rival indexes every line the true F cell does, so its unmatched
 count should equal the truth's 4: Pawley's 2 is near it, Le Bail's 25 is
 its sunk background. Pawley's Rwp ties the doubled cell to the truth
 (0.164 both) and puts the P rival at 0.174 against 0.180: a converged
-decomposition of a lattice containing the truth's fits at least as well.
+decomposition of a cell predicting every reflection of the truth's fits at
+least as well.
 **So the rival/truth Rwp gap the acceptance rows pinned (> 2×) was the
 stall.** Two rows assert it (`test_acceptance_indexing.py`: magnetite's,
 now inverted to < 1.05×, and the calibrated LaB6's a·√2 rivals). The second
@@ -299,7 +300,13 @@ it; corundum's 12 misses "at most 11" by one. That bar was Pawley's own
       longer holds. Re-ground them (the validation reads Rwp and the
       unmatched count, and neither depends on how an overlapped group is
       split) or re-tier them. Not edited here: a tier-3 ground needs the
-      maintainer's dated approval.
+      maintainer's dated approval. The generality review (2026-10-27, in the
+      handover entry) adds that `PAWLEY_OVERLAP_FWHM_FRAC` was already on a
+      default path before this branch: the peak picker reads it
+      (`indexing/pick.py:492-565`, `indexing/peaks.py:42, 308`). It rated
+      the first two **weak** (mechanism plausible, no sweep on the
+      validation's readings) and the off-data floor **cannot tell** (it may
+      bind on a pattern scaled to a maximum of 1).
 - [ ] Re-measure `MEASURED_VALIDATION_SECONDS` under Pawley, and run
       `python -m tests.bethanechol_benchmark` alone against `main`'s count of
       validated candidates (the large monoclinic cost case). *Half done

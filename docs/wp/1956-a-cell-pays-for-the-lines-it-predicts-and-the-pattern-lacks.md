@@ -102,6 +102,16 @@ engine or the ranking. Indexing is provisional by declaration
 
 ### Inherited
 
+- **2026-10-27, from WP-2011: on the no-peak-list path the fitted-background
+  count moved with the fit's mode.** The Pawley background no longer sinks
+  under a wrong cell, so the count reads more absences there (LaB6 with its
+  cell 1 % long 0 → 14 of 28, a×√5 59 → 167, magnetite's P rival 0 → 3), and
+  NAC's true cell reads 20, its weak real reflections, where Le Bail read 0
+  (WP-2011 § Re-measured 2026-10-27). With a peak list the line screen's count
+  is unchanged in every row. Tutorial 03's candidate now validates at Rwp
+  0.044 with 0 unmatched; the 125-against-200 background in the entry below
+  was the Le Bail fit's and was not re-measured under Pawley.
+
 - **2026-10-24, from WP-2041: the detector also goes blind on the *correct* cell, and
   that grade is `high`.** Tutorial 03's synthetic aragonite (P m c n, flat 200-count
   background, `examples/tutorials/03_peaks_indexing_lebail.py`) indexes at `high` over
