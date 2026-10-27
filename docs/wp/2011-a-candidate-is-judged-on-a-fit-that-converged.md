@@ -169,10 +169,13 @@ that needs settling. No paper compares the two as cell validators.
       19-30), the magnetite acceptance row's regenerated negative background,
       `tests/test_acceptance_indexing.py` green; obs/calc/diff PNGs to
       `tests/output/`.
-- [ ] Skill and docs: the `INDEX_IMPURITY_LINES` row in
+- [x] Skill and docs: the `INDEX_IMPURITY_LINES` row in
       `docs/skill/rietx/references/diagnostics-indexing.md` if its meaning
-      moves, `docs/manual/using/indexing.md`, and notebook 03's sentence about the quick fit's
-      poor Rwp (edit `examples/tutorials/03_*.py`, never the `.ipynb`).
+      moves, `docs/manual/using/indexing.md` (now `docs/docs/reference/indexing.md`
+      and `indexing-evidence.md`), and notebook 03's sentence about the quick fit's
+      poor Rwp (edit `examples/tutorials/03_*.py`, never the `.ipynb`). The
+      notebook's candidate now validates at Rwp 0.044 with 0 unmatched peaks,
+      so its `INDEX_IMPURITY_LINES` paragraph went.
 
 ## Acceptance
 
