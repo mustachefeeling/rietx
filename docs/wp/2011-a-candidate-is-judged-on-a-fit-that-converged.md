@@ -196,6 +196,28 @@ validates it at Rwp 0.044 with 0 unmatched, where the tutorial's own two
 Le Bail passes reach 0.053. The `INDEX_IMPURITY_LINES` the notebook used to
 explain away no longer fires.
 
+*Cost* (`probe6_cost.py`: the acceptance suite's searches, `preset="full"`,
+with every candidate the indexer validated timed under both modes, order
+alternating; machine load 50-100 from another session's suite, so ratios
+only):
+
+| dataset | fits | reflections | Pawley / Le Bail, median (range) |
+|---|---|---|---|
+| corundum | 4 | 43-122 | 0.91 (0.23-1.11) |
+| zincite | 3 | 36-84 | 0.89 (0.86-1.19) |
+| zircon | 3 | 98-197 | 1.24 (1.23-2.37) |
+| FAP | 3 | 216-364 | 0.97 (0.77-4.02) |
+| SRM 660c | 10 | 30-71 | 1.04 (0.92-1.54) |
+| magnetite | 2 | 52-163 | 1.00 (0.98-1.03) |
+| NAC | 2 | 837, 1668 | 2.6, 12.6 (19.4 s against 7.5; 107 s against 8.5) |
+
+cpd-1a, whose one 44 s fit set `MEASURED_VALIDATION_SECONDS`' top, returned
+no candidate on this tree, so nothing of it was validated. On corundum's c/2
+subcell candidates one Le Bail pass ran away (Rwp 5.5-6.2, one at
+`max_iter`) where Pawley reached 0.38. On 10-18, idle, NAC's 837 cost 3.1×
+and 1823 cost 4.1×, so the load inflates Pawley's large fits more than Le
+Bail's; `probe7_idle_cost.py` re-times them alone.
+
 **The provisional go (Claude, 2026-10-27, maintainer away).** Criterion: on
 the path the indexer runs, does the Pawley fit answer the forward question
 (is there a reflection under every observed peak) better? Evidence above:
