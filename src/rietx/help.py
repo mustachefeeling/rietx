@@ -4826,7 +4826,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         anchor="reference/indexing.html#three-engines-and-why-the-default-is-all-of-them",
     ),
     "validate_candidates": HelpEntry(
-        title="Le Bail validation",
+        title="Whole-profile validation",
         description=(
             "Whole-profile validation of the top candidates. Turning it off caps every "
             "candidate at medium confidence, because the figure-of-merit panel cannot "
