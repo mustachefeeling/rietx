@@ -1160,6 +1160,10 @@ def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
     existed.  An assumed intensity may no more reorder a search than an assumed σ
     may refuse one.
 
+    A line flagged :data:`~rietx.schemas.indexing.PEAK_NEVER_DRIVEN_FLAGS`
+    (``residue_misfit``) is held out the same way but is not brought back
+    below :data:`DRIVEN_MIN_LINES`.
+
     **A line flagged** :data:`~rietx.schemas.indexing.PEAK_UNDRIVEN_FLAGS`
     **is scored and never driven** (#934 (c)): it stays in ``usable()``, so the
     panel still counts it and a cell may still explain it, but it is drawn into

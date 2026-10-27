@@ -2793,17 +2793,19 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "`index_residue` fitted the named cell to the pattern by Le Bail, subtracted "
             "its peaks, picked the remainder at that fit's widths and indexed it. Picks "
-            "standing on more of the subtracted profile than their own height were "
-            "dropped as that fit's misfit, and `where` lists them. When that fit needed "
+            "standing on more of the subtracted profile than their own height are "
+            "flagged `residue_misfit` as that fit's misfit, and `where` lists them; they "
+            "stay usable lines, so the grade counts them as unindexed, and they never "
+            "drive the search. When that fit needed "
             "widths more than three times the list's own, the cell does not describe the "
             "pattern and nothing was picked; the message says so. A candidate here is a "
             "second phase only if it earns a grade of its own. A residue too short to "
             "search abstains, which is the answer on a single-phase pattern (SRM 660c and "
             "synthetic Si left no usable residue line). Refine both phases together "
             "before you quote either cell. The misfit cut, one height of subtracted "
-            "profile (`RESIDUE_MISFIT_RATIO`), was measured on synthetic Si + MgO only, "
-            "untested beyond it; a second phase's line under a stronger first-phase line "
-            "is dropped with the misfit."
+            "profile (`RESIDUE_MISFIT_RATIO`), was measured on two synthetic pairs "
+            "(Si + MgO, Si + NaCl), untested beyond them; a second phase's line under a "
+            "stronger first-phase line is flagged with the misfit, scored but not driving."
         ),
     ),
     "INDEX_MULTIPLE_SOLUTIONS": HelpEntry(

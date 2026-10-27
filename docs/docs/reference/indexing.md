@@ -194,7 +194,7 @@ It fits the first cell (or the one you name with `candidate=`) by the same Le Ba
 A pick standing on more of the subtracted profile than its own height is flagged `residue_misfit`: it counts as a line no candidate explains, and so lowers the grade, but never drives the search.
 A single-phase pattern therefore leaves nothing to search: on SRM 660c every pick is such a line, and the second result abstains.
 A cell whose Le Bail fit needs widths more than three times the list's own to describe the pattern does not fit it, so nothing is picked from its residue and the result says why; a list passed in as positions has assumed widths, so this test is skipped for it.
-On a synthetic Si pattern with MgO at 0.3 of its scale, the second result holds MgO's cell second, behind a body-centred cell with √2 times MgO's edge, which the flagged lines favour.
+On a synthetic Si pattern with MgO at 0.3 of its scale, the second result holds MgO's cell third, behind the face-centred cell with 2 times MgO's edge and the body-centred cell with √2 times its edge, which the flagged lines let into the first twenty.
 Read a second result's candidate on its own grade, and refine both phases together before quoting either cell, because each was validated alone.
 
 #### Priors from a structural analogue
