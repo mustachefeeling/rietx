@@ -126,6 +126,10 @@ source. `VOLUME_RATIO_BOUNDS` (WP-2006's walk) and `Z_INTEGER_TOLERANCE` and
 `src/rietx/_audit.py`. A value changed here updates its row, and a name new
 to the table arrives tiered (CI's `tests/audit_delta.py`).
 
+### Inherited
+
+- 2026-10-26 issue triage: #1121 is the outside contributor's (mustachefeeling) claim on this WP; part 1 is in PR #1123. The issue thread holds the measured three-option table (ceiling only, Jenkins 1999 ion volumes, keep with a warning) against 21 known cells and the maintainer's 2026-10-24 reply rejecting Jenkins and the carbon-only floor. Checked against the tree at c0e32ab29: status ⬜, nothing merged.
+
 ## Non-goals
 
 - Replacing Hofmann's table for organic and metal-organic formulas, where the

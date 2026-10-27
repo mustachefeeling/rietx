@@ -160,9 +160,10 @@ _CURVATURE_GATE = 100.0
 _CURVATURE_STEP = float(np.finfo(np.float64).eps) ** 0.25
 
 #: a row whose slack is under 0 by less than this fraction of its block's
-#: largest |slack| is on its face, not violated (:meth:`LinearInequality.violated`):
-#: the guards' own tolerance (``strategy.staged.STEPHENS_CONE_TOL``,
-#: ``RESOLUTION_CONE_TOL``), read the same way, against the largest value.
+#: largest |slack|, floored at 1 in the row's units, is on its face, not
+#: violated (:meth:`LinearInequality.violated`): the guards' own tolerance
+#: (``strategy.staged.STEPHENS_CONE_TOL``, ``RESOLUTION_CONE_TOL``), read the
+#: same way, against the largest value or 1.
 _ON_FACE = 1e-9
 #: relative amount by which the box-only step may cross a linear-inequality row
 #: and still be taken, measured against the row's own scale
@@ -245,7 +246,9 @@ class LinearInequality:
 
     def violated(self, theta: np.ndarray) -> np.ndarray:
         """Rows below their face by more than :data:`_ON_FACE` of the
-        block's largest |slack|, the guards' own reading of "on the face".
+        block's largest |slack| or of 1, whichever is larger: the guards' own
+        reading of "on the face" (``check_resolution_positive``,
+        ``check_stephens_positive``).
 
         A row an exact step left on its face reads a rounding either side of
         it, and a strict test would call half of those violated.  The
@@ -253,9 +256,20 @@ class LinearInequality:
         ended on the cone handed the next stage no cone at all: brucite +
         Stephens left it at −1.5e-11 against a largest σ²(M) of 6.3e6, and
         the stages after it took 19 of 43 reflections out of the cone.
+
+        The floor of 1 is for a block whose *every* row is on its face, where
+        the largest |slack| is itself a rounding and the test was strict
+        again.  Γ_L = X/cosθ + Y·tanθ is that block once X sits on its floor
+        at 0 and Y follows to 0: a stage left them at 4e-22 and −4e-21, every
+        row read violated, and the next stage, built with no row, walked Y to
+        −0.0137 with Γ_L negative at every reflection.  On the planted
+        cooling ramp under ``reseed=False`` with no first-rung bound, the 40
+        patterns warm-started from there each converged at Rwp 0.433 against
+        0.042 (WP-2003, X16).
         """
         slack = self.slack(theta)
-        return slack < -_ON_FACE * float(np.max(np.abs(slack), initial=0.0))
+        scale = max(float(np.max(np.abs(slack), initial=0.0)), 1.0)
+        return slack < -_ON_FACE * scale
 
     def slack(self, theta: np.ndarray) -> np.ndarray:
         return self.T @ theta + self.c

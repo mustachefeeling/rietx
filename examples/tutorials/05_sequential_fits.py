@@ -293,9 +293,17 @@ series_jump = rx.refine_sequential(
 series_jump
 
 # %% [markdown]
-# [`SEQUENTIAL_DISCONTINUITY`](https://rietx.org/docs/stable/reference/diagnostics-series.html#sequential-discontinuity) marks the step, once for each of a, b and c, because the cubic cell ties b and c to a.
-# It cannot tell a real change from a failed fit, so check the pattern's own fit before reading the jump as physics.
-# [Check a step against two independent fits](https://rietx.org/docs/stable/guides/path.html#check-a-step-against-two-independent-fits) shows the check rietx runs for you.
+# The trajectory block names the largest step in [`series_jump.steps`](https://rietx.org/docs/stable/reference/series.html#steps-between-patterns).
+# That list holds every parameter's step between neighbouring patterns, in esds of the later fit, largest first.
+# The cubic cell ties b and c to a, so the three step together.
+
+# %%
+series_jump.steps[:3]
+
+# %% [markdown]
+# rietx calls no step a jump.
+# A large one may be a phase transition, a sample shift, a beam dump or a failed fit, and only the sample's history can say which, so check the pattern's own fit before reading it as physics.
+# [Check a step against two independent fits](https://rietx.org/docs/stable/guides/path.html#check-a-step-against-two-independent-fits) shows the check rietx runs for you, `verify_steps=k`.
 #
 # Here the 700 K fit found the larger cell.
 

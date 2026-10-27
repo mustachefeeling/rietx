@@ -35,8 +35,9 @@ Differentiability invariants honoured here (see docs/DESIGN.md):
 
 from __future__ import annotations
 
+import functools
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -153,6 +154,7 @@ from .profiles.fcj import (
     fcj_extent_deg,
     fcj_live,
     fcj_node_count,
+    fcj_node_counts,
     fcj_offsets_weights,
     fcj_offsets_weights_batch,
 )
@@ -266,6 +268,36 @@ def window_fwhm_mult(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
         hi = np.where(too_wide, mid, hi)
         lo = np.where(too_wide, lo, mid)
     return hi
+
+
+@functools.lru_cache(maxsize=16)
+def _fwhm_mult_table(tol: float) -> tuple[np.ndarray, np.ndarray]:
+    # a uniform grid for η near 1, a geometric one for the knee at η ~ tol,
+    # where k turns from the Gaussian value to η/(π·tol) (WP-2051)
+    eta = np.unique(np.concatenate([np.linspace(0.0, 1.0, 4097),
+                                    np.geomspace(1e-9, 1.0, 4096)]))
+    k = window_fwhm_mult(eta, tol)
+    eta.flags.writeable = k.flags.writeable = False
+    return eta, k
+
+
+def window_fwhm_mult_interp(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
+    """:func:`window_fwhm_mult` read off a table built once per ``tol``.
+
+    For :func:`window_sizing` (:func:`rewindow`), which sizes at every call it
+    gets and spent 70-88 % of its time in the bisection: 60 steps of a few
+    numpy calls each, so ~0.36 ms per phase and emission line whatever the
+    reflection count (WP-2051).  Linear interpolation on the table's 8192
+    nodes is within 1.2e-5 of the bisection's k, relative, at tolerances
+    0.02, 1e-3 and 5e-5 (40 000 η, measured 2026-10-25).  ``compile_model``
+    keeps the bisection, so no compiled window moves.  ``np.interp`` holds
+    the end values outside [0, 1], which is the bisection's clip.
+    """
+    tol = WINDOW_AREA_TOL if tol is None else tol
+    grid, k = _fwhm_mult_table(float(tol))
+    return np.interp(np.asarray(eta, dtype=np.float64), grid, k)
+
+
 #: quadrature nodes are sized as if the axial S/L, H/L were at least this
 #: large.  Applied **by value** whenever either is positive, so that
 #: ``predict()`` at given values does not depend on which parameters are free
@@ -275,7 +307,8 @@ def window_fwhm_mult(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
 AXIAL_SIZING_FLOOR = 0.02
 
 #: How far outside the fitted range, in °2θ, a reflection is still generated
-#: (``compile_model``).  A peak centred just outside the range still puts its
+#: (``compile_model``, and the satellite report arm, through
+#: :func:`generation_window`).  A peak centred just outside the range still puts its
 #: tail inside it, and the reflection list is frozen for the stage while the
 #: zero and the geometry move.  The margin is on top of the geometry's own
 #: shift at the values the stage compiles from, which the window follows
@@ -471,6 +504,22 @@ def accumulate_planes(n_points: int, parts) -> np.ndarray:
     idx = flats_i[0] if len(flats_i) == 1 else np.concatenate(flats_i)
     w = flats_w[0] if len(flats_w) == 1 else np.concatenate(flats_w)
     return np.bincount(idx, weights=w, minlength=n_points)
+
+
+def _window_bounds(tt: np.ndarray, pos: np.ndarray, half: np.ndarray,
+                   valid: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Each peak's window ``[i0, i1)`` on the grid ``tt``, empty where not ``valid``.
+
+    The one rule ``compile_model`` and :func:`rewindow` both size by, so the
+    two cannot drift apart.
+    """
+    pos_v = np.where(valid, pos, 0.0)
+    half_v = np.where(valid, half, 0.0)
+    i0 = np.searchsorted(tt, pos_v - half_v, side="left")
+    i1 = np.searchsorted(tt, pos_v + half_v, side="right")
+    i0[~valid] = 0
+    i1[~valid] = 0
+    return i0, i1
 
 
 def _batch_layout(win: np.ndarray, fcj_n: np.ndarray, tt: np.ndarray
@@ -880,6 +929,10 @@ class CompiledModel:
     # FitReport reads it to know which precision it was handed
     # (``report._reading_models``).
     window_area_tol: float | None = None
+    # The absolute capture slack every window half-width carries, as
+    # ``compile_model`` resolved it (``WINDOW_MIN_DEG`` unless a stage set
+    # ``window_slack_deg``), so ``rewindow`` sizes by the compile's rule.
+    window_slack_deg: float = WINDOW_MIN_DEG
     # The origin restraint of a ``Phase.floating_origin = "centroid"`` phase
     # (WP-1912, Flack & Schwarzenbach 1988; ``model.origin``): one row per
     # direction this solve's free set can slide the phase along.  ``None``
@@ -1077,6 +1130,21 @@ class CompiledModel:
                 values[f"instrument.geometry.{CAPILLARY_OFFSETS[1]}"],
                 self.radius_mm)
         return shift
+
+    def generation_window(self, values: dict[str, float]) -> tuple[float, float]:
+        """:func:`generation_window` at ``values``: the Bragg 2θ to enumerate over.
+
+        The window :func:`compile_model` froze this model's reflection list
+        over, re-taken at ``values`` (zero, geometry shift and line
+        wavelengths), for a builder that enumerates its own list at the
+        current state: the satellite report arm's lattice, satellite and
+        centring-forbidden positions.  Returned at ``min(line_lambdas)``.
+        """
+        return generation_window(
+            self.tt_min, self.tt_max, values["instrument.zero_shift"],
+            self.line_lambdas(values),
+            lambda theta, tt_bragg: self._position_shift_deg(theta, tt_bragg,
+                                                             values))
 
     def apparent_two_theta(self, tt_bragg: np.ndarray,
                            values: dict[str, float]) -> np.ndarray:
@@ -1659,11 +1727,23 @@ class CompiledModel:
         Evaluate-only, and never in the hot loop — nothing in the residual
         needs a combined width.
         """
+        return self.peak_gamma_eta(w1, w2)[0]
+
+    def peak_gamma_eta(self, w1: np.ndarray, w2: np.ndarray
+                       ) -> tuple[np.ndarray, np.ndarray]:
+        """TCHZ (Γ, η) from a :meth:`phase_peaks` width pair, under either shape.
+
+        :meth:`peak_fwhm`'s reading with the mixing parameter beside it, for a
+        consumer that sizes a window by ``compile_model``'s rule
+        (:func:`rewindow`).  Evaluate-only, like :meth:`peak_fwhm`.
+        """
         if self.shape == "voigt":
             gam_g = np.asarray(w1, dtype=np.float64) * GAUSS_FWHM_TO_SIGMA
             gam_l = 2.0 * np.asarray(w2, dtype=np.float64)
-            return np.asarray(tch_gamma_eta(gam_g, gam_l)[0], dtype=np.float64)
-        return np.asarray(w1, dtype=np.float64)
+            gamma, eta = tch_gamma_eta(gam_g, gam_l)
+            return (np.asarray(gamma, dtype=np.float64),
+                    np.asarray(eta, dtype=np.float64))
+        return np.asarray(w1, dtype=np.float64), np.asarray(w2, dtype=np.float64)
 
     def _profile(self, x: np.ndarray, w1: np.ndarray, w2: np.ndarray) -> np.ndarray:
         """Unit-area profile of the active shape at offsets ``x``."""
@@ -3665,6 +3745,51 @@ def _compile_extra_peaks(instrument, tt: np.ndarray, lams: list[float],
 SCALE_PATH = "instrument.background.scale"
 
 
+def generation_window(tt_min: float, tt_max: float, zero: float, lambdas,
+                      shift) -> tuple[float, float]:
+    """The Bragg 2θ window to enumerate reflections over, at ``min(lambdas)``.
+
+    Returns ``(two_theta_min, two_theta_max)`` for a generator called at the
+    shortest wavelength.  A reflection is wanted if **any** line draws it
+    inside ``[tt_min, tt_max]``.  The shortest line sits lowest, so the
+    enumeration runs at λ_min, and the low cutoff is set in the *longest*
+    line's frame and translated (same d, so sin θ ∝ λ): a Kα1 image below the
+    range whose Kα2 partner lies inside is kept.
+
+    The window is in Bragg angle and a peak is drawn at the Bragg angle plus
+    the zero and the geometry's own shift, so it is widened by the geometry's
+    shift beyond the zero over the fitted range: by the largest one at the low
+    edge and by the smallest one at the high edge, and never narrowed, so a
+    geometry with no shift keeps the window it always had, bit for bit.  A
+    fixed margin alone left a reflection whose drawn peak sits inside the range
+    ungenerated once the shift passed it (WP-1908).  On top of that it adds
+    :data:`REFLECTION_MARGIN_DEG`, and it caps at backscatter, since
+    d_min = λ/(2·sin θ_max) folds back past 180° and a window widened beyond it
+    would generate *fewer* reflections, not more.
+
+    ``shift(theta, tt_bragg)`` is the zero plus the geometry's shift at Bragg
+    angle ``tt_bragg``, in °2θ.  :func:`compile_model` passes its compile-time
+    estimate, and :meth:`CompiledModel.generation_window` the model's own
+    :meth:`~CompiledModel.apparent_two_theta` shift at given values, so the
+    satellite report arm (``report/satellites``) enumerates over the same
+    window as the model it reports on.  The arm kept its own copy until
+    WP-2034: no margin, a 179° cap and the low cutoff in the shortest line's
+    frame, so on a Cu Kα doublet a satellite whose Kα2 image alone lies in
+    range was never enumerated.  Every caller filters on the drawn position
+    afterwards, so a superset is harmless and a subset is the defect.
+    """
+    grid = np.linspace(tt_min, tt_max, 33)
+    extra = np.asarray(shift(0.5 * grid, grid), dtype=np.float64) - zero
+    extra = extra[np.isfinite(extra)]
+    widen_lo = max(float(extra.max()), 0.0) if extra.size else 0.0
+    widen_hi = max(-float(extra.min()), 0.0) if extra.size else 0.0
+    lo_eff = max(tt_min - zero - REFLECTION_MARGIN_DEG - widen_lo, 0.1)
+    hi_eff = min(tt_max - zero + REFLECTION_MARGIN_DEG + widen_hi, 180.0)
+    sin_lo = np.sin(np.radians(lo_eff / 2.0)) * min(lambdas) / max(lambdas)
+    gen_min = max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05)
+    return gen_min, hi_eff
+
+
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
@@ -3811,27 +3936,10 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                     tt_bragg, a, b, geom.goniometer_radius_mm)
         return shift
 
-    # a reflection is kept if *any* line lands in range: the min-λ line sits
-    # lowest, so generate with λ_min and translate the low-2θ cutoff from the
-    # max-λ line's frame (same d ⇒ sinθ ∝ λ).  The window is in Bragg angle and
-    # a peak is drawn at the Bragg angle plus the zero and the geometry's shift,
-    # so it is widened by the geometry's shift beyond the zero over the fitted
-    # range: by the largest one at the low edge and by the smallest one at the
-    # high edge, and never narrowed, so a geometry with no shift keeps the
-    # window it always had, bit for bit.  A fixed margin alone left a
-    # reflection whose drawn peak sits inside the range ungenerated once the
-    # shift passed it (WP-1908).
-    _grid = np.linspace(tt_min, tt_max, 33)
-    _extra = np.asarray(_shift_est(0.5 * _grid, _grid), dtype=np.float64) - zero
-    _extra = _extra[np.isfinite(_extra)]
-    widen_lo = max(float(_extra.max()), 0.0) if _extra.size else 0.0
-    widen_hi = max(-float(_extra.min()), 0.0) if _extra.size else 0.0
-    # capped at backscatter: d_min = λ/(2·sin θ_max) folds back past 180°, so
-    # a window widened beyond it would generate *fewer* reflections, not more
-    lo_eff = max(tt_min - zero - REFLECTION_MARGIN_DEG - widen_lo, 0.1)
-    hi_eff = min(tt_max - zero + REFLECTION_MARGIN_DEG + widen_hi, 180.0)
-    sin_lo = np.sin(np.radians(lo_eff / 2.0)) * lam_gen / max(lams)
-    gen_min = max(2.0 * np.degrees(np.arcsin(min(sin_lo, 1.0))), 0.05)
+    # a reflection is kept if *any* line draws it in range, over the window
+    # the satellite report arm shares (``generation_window``, WP-2034), here at
+    # the geometry's shift at the values the stage compiles from (WP-1908)
+    gen_min, hi_eff = generation_window(tt_min, tt_max, zero, lams, _shift_est)
 
     # Anomalous scattering: f′ + i·f″ per species, frozen for the stage.  The
     # source owns it (it is a property of the wavelength, not the structure),
@@ -3981,12 +4089,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                 if fcj_on:
                     half = half + fcj_extent_deg(pos, sl_eff, hl_eff)
                 valid = np.isfinite(pos)
-                pos_v = np.where(valid, pos, 0.0)
-                half_v = np.where(valid, half, 0.0)
-                i0 = np.searchsorted(tt, pos_v - half_v, side="left")
-                i1 = np.searchsorted(tt, pos_v + half_v, side="right")
-                i0[~valid] = 0
-                i1[~valid] = 0
+                i0, i1 = _window_bounds(tt, pos, half, valid)
                 win[il, :, 0], win[il, :, 1] = i0, i1
                 if fcj_on:
                     for k in range(n):
@@ -4217,7 +4320,94 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         pawley=pawley, restraints=restraints,
         restraint_weight_scale=float(restraint_weight_scale),
         window_area_tol=float(window_area_tol),
+        window_slack_deg=float(WINDOW_MIN_DEG if window_slack_deg is None
+                               else window_slack_deg),
     )
+
+
+def window_sizing(model: CompiledModel, values: dict[str, float]
+                  ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Each phase's (windows, FCJ node counts, half-widths) sized at ``values``.
+
+    ``compile_model``'s rule: a half-width of k(η)·Γ plus the slack, plus the
+    FCJ extent while the aberration acts.  It reads the peaks the forward
+    model draws at ``values`` (``phase_peaks``) where the compile reads its
+    own width estimate, so the two agree to that estimate's ~1 % and not to
+    the bit; k(η) comes off :func:`window_fwhm_mult_interp`'s table.  The
+    arrays have the compile's shapes, so a caller can compare them with
+    ``CompiledPhase.win`` and ``.fcj_n`` before building anything.  The
+    half-widths, (lines, reflections) in degrees and NaN where a peak is not
+    finite, are the continuous edges the windows round to points.
+    """
+    tol = model.window_area_tol
+    sl = float(values.get("instrument.geometry.axial_sl", 0.0))
+    hl = float(values.get("instrument.geometry.axial_hl", 0.0))
+    # the compile's floor (#774), read off the model where the compile read
+    # the plan: a model holding nodes was sized with the axial term live
+    if sl > 0.0 or hl > 0.0 or any(cp.fcj_n.any() for cp in model.phases):
+        sl, hl = max(sl, AXIAL_SIZING_FLOOR), max(hl, AXIAL_SIZING_FLOOR)
+    fcj_on = fcj_live(sl, hl)
+    closing = tol <= CLOSING_WINDOW_TOL or tol < WINDOW_AREA_TOL
+    tt = np.asarray(model.tt, dtype=np.float64)
+    out = []
+    for ip, cp in enumerate(model.phases):
+        win = np.zeros_like(cp.win)
+        fcj_n = np.zeros_like(cp.fcj_n)
+        halves = np.full(cp.win.shape[:2], np.nan)
+        for il, (pos, w1, w2, _) in enumerate(model.phase_peaks(ip, values)):
+            pos = np.asarray(pos, dtype=np.float64)
+            gamma, eta = model.peak_gamma_eta(w1, w2)
+            half = window_fwhm_mult_interp(eta, tol) * gamma + model.window_slack_deg
+            if fcj_on:
+                half = half + fcj_extent_deg(pos, sl, hl)
+            valid = np.isfinite(pos) & np.isfinite(half)
+            i0, i1 = _window_bounds(tt, pos, half, valid)
+            win[il, :, 0], win[il, :, 1] = i0, i1
+            halves[il] = np.where(valid, half, np.nan)
+            if fcj_on:
+                live = valid & (i1 > i0)
+                fcj_n[il, live] = fcj_node_counts(pos[live], gamma[live], sl, hl,
+                                                  closing=closing)
+        out.append((win, fcj_n, halves))
+    return out
+
+
+def rewindow(model: CompiledModel, values: dict[str, float]) -> CompiledModel:
+    """``model`` with its windows and FCJ node counts sized at ``values``
+    (:func:`window_sizing`).
+
+    Everything else is the compile's: the reflection list, the sites and
+    every frozen correction.  The magnetic family and the extra peaks keep
+    their windows.
+
+    The copy is a new frozen model.  A solve running on ``model`` never sees
+    it, so frozen-per-stage discreteness holds (WP-2047, where a stage asks
+    what its frozen windows drop at its answer: ``window_loss``).
+    """
+    tt = np.asarray(model.tt, dtype=np.float64)
+    phases = [replace(cp, win=win, fcj_n=fcj_n, batch=_batch_layout(win, fcj_n, tt),
+                      fcj_cache={} if (fcj_n.any() or cp.fcj_cache is not None) else None,
+                      scalar_cache={})
+              for cp, (win, fcj_n, _) in zip(model.phases, window_sizing(model, values))]
+    return replace(model, phases=phases)
+
+
+def window_loss(model: CompiledModel, values: dict[str, float]) -> float | None:
+    """The share of the Bragg intensity ``model``'s frozen windows drop at
+    ``values``, against windows sized there (``rewindow``).
+
+    Negative where the peaks narrowed, and ``None`` with no Bragg intensity
+    to compare.  A stage whose loss passes its own ``window_area_tol`` ends
+    on frozen windows dropping more than the compile allows each peak
+    (WP-2047: 1.73 % at most on the four acceptance protocols' stages at the
+    2 % tolerance, 73-99 % on the hostile series' runaway).
+    """
+    fresh = np.asarray(rewindow(model, values).bragg_component(values),
+                       dtype=np.float64).sum()
+    if not fresh > 0.0:
+        return None
+    frozen = np.asarray(model.bragg_component(values), dtype=np.float64).sum()
+    return float(1.0 - frozen / fresh)
 
 
 def _overlap_groups(tt: np.ndarray, fwhm: np.ndarray) -> list[list[int]]:

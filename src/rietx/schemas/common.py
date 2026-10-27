@@ -565,6 +565,19 @@ from .._nearmiss import did_you_mean
 #: only by ``index_residue`` on a pick standing on the subtracted phase's
 #: profile.  Additive: no existing list carries it, and an older build refuses
 #: a list that does.
+#: Also in 0.60 (WP-2047): ``StageResult.window_loss`` and
+#: ``NodeMetrics.window_loss``, the share of the Bragg intensity a stage's
+#: frozen windows dropped at its answer.  Additive and defaulted to ``None``,
+#: "nobody looked", the 0.25 → 0.26 rule; all three runners write it on every
+#: stage, and ``Refinement._record`` on every stage node.
+#: Also in 0.60 (WP-2003): ``SeriesEntry.seeded_from`` and ``SeriesEntry.floored``,
+#: where each warm start came from and which moments reached it at their floor,
+#: additive and defaulted to ``None`` and the empty list; and
+#: ``SeriesResult.discontinuities`` replaced by ``SeriesResult.steps``, with
+#: ``SeriesStep.size_esd`` and ``.cold_ratio``.  Not additive: the flagged pairs
+#: cannot be rebuilt as every step, so a document's ``discontinuities`` key is
+#: dropped at read (``SeriesResult``'s ``mode="before"`` validator) and its
+#: ``steps`` reads ``None``, "not recorded".
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

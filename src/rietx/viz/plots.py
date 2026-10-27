@@ -1475,9 +1475,12 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     ``stderr`` column is ``None`` throughout, and a zero-height bar would read
     as an infinitely precise residual), so those panels draw the curve alone.
     Patterns the reseed guard refitted cold are ringed rather than dropped, and
-    a discontinuity the series flagged is marked between its two points — the
-    plot shows the same fences the diagnostics carry, so a trajectory is never
-    read as smoother than it was measured to be.
+    a step re-measured cold (``fit(verify_steps=k)``, a ``SeriesStep`` carrying
+    a ``cold_ratio``) is shaded between its two points — the plot shows what
+    the series measured, so a trajectory is never read as smoother than it
+    was.  An unverified step is not shaded: ``SeriesResult.steps`` lists every
+    step and calls none a jump (WP-2003), so shading by size would draw a
+    threshold the package does not hold.
 
     A pattern the escalation ladder could not rescue (``SEQUENTIAL_UNRECOVERED``,
     WP-1051) is crossed out instead of ringed, and that difference is the whole
@@ -1505,12 +1508,12 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     if not paths:
         raise ValueError("plot_trajectory needs at least one parameter path")
 
-    jumps = {d.where[0] for d in series.diagnostics
-             if d.code == "SEQUENTIAL_DISCONTINUITY" and d.where}
-    # the pair each flag names, read off its record (WP-1469) — re-deriving it
-    # here as the largest step shaded a different step whenever the scan had
-    # left a pattern out, or the largest step failed the σ leg
-    flagged = {s.path: s.labels for s in (series.discontinuities or [])}
+    # the pairs re-measured cold, read off their records (WP-2003): one path
+    # may carry several, the caller's k taking the largest wherever they are
+    verified: dict[str, list[tuple[str, str]]] = {}
+    for s in series.steps or []:
+        if s.cold_ratio is not None:
+            verified.setdefault(s.path, []).append(s.labels)
     unstable = {d.where[0] for d in series.diagnostics
                 if d.code == "SEQUENTIAL_PATH_DEPENDENT" and d.where}
     reseeded = {e.label for e in series.entries if e.reseeded}
@@ -1574,16 +1577,11 @@ def plot_trajectory(series, paths, *, path: str | None = None,
                     if label in outliers:
                         ax.plot(x[i], value[i], "s", ms=11, mfc="none",
                                 mec=hue["outlier"], mew=1.4)
-                if name in flagged:
-                    first, last = flagged[name]
+                for first, last in verified.get(name, []):
                     if first in traj.labels and last in traj.labels:
                         ax.axvspan(x[traj.labels.index(first)],
                                    x[traj.labels.index(last)],
                                    color=hue["reseeded"], alpha=0.10, lw=0)
-                elif name in jumps and len(x) > 1 and series.discontinuities is None:
-                    # a document written before the record: what older versions drew
-                    k = int(np.argmax(np.abs(np.diff(value))))
-                    ax.axvspan(x[k], x[k + 1], color=hue["reseeded"], alpha=0.10, lw=0)
             flag = "  [path-dependent]" if name in unstable else ""
             ax.set_ylabel(name.split(".")[-1] if len(name) > 24 else name, fontsize=8)
             ax.set_title(f"{name}{flag}", fontsize=9, loc="left")

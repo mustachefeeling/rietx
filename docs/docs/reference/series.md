@@ -107,7 +107,7 @@ The temperature also appears in its `label`, since the scans of a reel are other
 | `direction` | `"forward"` | `"forward"`, `"backward"` or `"both"` ([Forward and backward chains](#forward-and-backward-chains)) |
 | `reseed`, `reseed_factor` | `True`, 1.25 | the fence that rejects a bad warm start, and how far above the median Rwp it fires ([Restart ladder](#restart-ladder)) |
 | `first_rung_factor` | 3.0 | how much the first attempt may spend, as a multiple of the dearest first attempt this chain has converged; `None` removes the bound |
-| `verify_discontinuities` | `False` | refit each flagged step's two patterns cold and independently ([Discontinuity check](#discontinuity-check)) |
+| `verify_steps` | 0 | how many of the largest steps to re-measure, each by refitting its two patterns cold and independently ([Steps between patterns](#steps-between-patterns)) |
 | `prepare` | `None` | `(index, data, structure, instrument) -> None`, called on the warmed models before each pattern's fit |
 | `constrain` | `None` | `(index, ref) -> None`, called on each pattern's `Refinement` before its fit, where a tie, a named variable or a hold is declared |
 | `on_result` | `None` | `(index, result) -> None`, called with each pattern's full result as it finishes |
@@ -132,7 +132,7 @@ The degree of freedom a plan frees (`phases.*.atoms.*.dof.*`) is rebuilt at zero
 A glob naming either the coordinate or its degree of freedom moves every coordinate the site ties to it, and the atom stays on its special position.
 The degree of freedom's value is measured from where its fit began, which in a chain is the previous pattern's answer, so its trajectory is each pattern's step.
 Chart the coordinate rows instead.
-They carry the same esd, and the discontinuity and path-dependence checks judge them.
+They carry the same esd, `SeriesResult.steps` lists their steps, and the path-dependence check judges them.
 
 A Le Bail or Pawley pattern's per-hkl intensities are not parameters, so no glob reaches them.
 `SequentialRefinement.carry_hkl_intensities` decides whether they cross.
@@ -166,7 +166,7 @@ result = series.fit(patterns, constrain=constrain)
 
 Each pattern has its own parameter table, and `tie_equal` resolves its globs against the live one.
 Declaring the constraint again on each pattern makes it mean the same thing on all of them.
-So the function runs once per fit, and a pattern can be fitted several times: every attempt of the restart ladder calls it, and so does the cold refit of the discontinuity check.
+So the function runs once per fit, and a pattern can be fitted several times: every attempt of the restart ladder calls it, and so does each cold refit `verify_steps` runs.
 A raise inside it ends the series, as a raise in `prepare` does.
 
 A held path drops out of that pattern's `SeriesEntry.parameters` and out of the trajectory, because a held value is your input and not a measurement.
@@ -197,7 +197,7 @@ The curves stay on `SequentialRefinement.results_`.
 | `SeriesResult.backward` | under `"both"`, the reverse chain's own `SeriesResult`; else `None` |
 | `SeriesResult.x_label` | the axis name |
 | `SeriesResult.diagnostics` | the series diagnostics ([Series diagnostics](#series-diagnostics)) |
-| `SeriesResult.discontinuities` | one `SeriesStep` per `SEQUENTIAL_DISCONTINUITY`, in the same order; `None` in a document written before the field existed |
+| `SeriesResult.steps` | one `SeriesStep` per step of every refined path between consecutive patterns, largest in esds first ([Steps between patterns](#steps-between-patterns)); `None` in a document written before the field existed |
 | `SeriesResult.relative_paths`, `SeriesResult.angle_paths` | the paths whose value is a step from where each fit began, and the angle paths ([Paths to plot](#paths-to-plot)) |
 | `SeriesResult.failures`, `SeriesResult.n_failed` | the patterns on which every attempt raised, and how many ([Restart ladder](#restart-ladder)) |
 | `SeriesResult.provenance` | package version, timestamp and settings, as for a single fit |
@@ -235,6 +235,8 @@ A series is where one unread warning multiplies: in the in-situ run this diagnos
 | `SeriesEntry.rungs_raised` | the attempts among those whose fit raised, each with `repr` of the exception |
 | `SeriesEntry.rwp_fence` | the Rwp limit the fence set at this pattern: `reseed_factor` times the median Rwp of the patterns accepted before it; `None` where no median existed, on the first pattern walked or after every earlier pattern was quarantined |
 | `SeriesEntry.above_fence` | the kept attempt is still above `rwp_fence`, so `SEQUENTIAL_RWP_OUTLIER` names it |
+| `SeriesEntry.seeded_from` | the index of the pattern whose fitted state seeded this pattern's warm rungs: the last one accepted before it in the walk, which skips a quarantined pattern; `None` where there was no warm start |
+| `SeriesEntry.floored` | the moment modulus paths that reached the kept attempt at their floor, because the pattern it warm-started from did not support them; empty when the kept attempt started cold |
 | `SeriesEntry.node_id`, `SeriesEntry.tree_id` | where this pattern's history lives |
 
 `SeriesEntry.value` and `SeriesEntry.stderr` look a path up in the entry's parameters and return `None` when it is absent.
@@ -300,7 +302,7 @@ The plots and the GUI call it.
 `SeriesResult.is_derived_path` says whether a display path names one of those four derived curves.
 
 `SeriesResult.plot` plots one or more trajectories against the series axis, and `style="dark"` draws it for a dark page.
-It rings a point refitted from the starting models, crosses a `SEQUENTIAL_UNRECOVERED` point, boxes a `SEQUENTIAL_RWP_OUTLIER` point, shades a flagged discontinuity's pair, and tags the title of a path-dependent trajectory.
+It rings a point refitted from the starting models, crosses a `SEQUENTIAL_UNRECOVERED` point, boxes a `SEQUENTIAL_RWP_OUTLIER` point, shades the pair of each step re-measured cold, and tags the title of a path-dependent trajectory.
 
 ### Paths to plot
 
@@ -451,7 +453,6 @@ These diagnostics fence that, and none of them alters a fitted value.
 | `SEQUENTIAL_RESEED` | the warm start was rejected and the pattern was refitted cold |
 | `SEQUENTIAL_UNRECOVERED` | the pattern diverged on every attempt; it seeded no successor and joined no median |
 | `SEQUENTIAL_RWP_OUTLIER` | every attempt left the pattern above the Rwp fence (with `reseed=False`, only the first, and the message says so); the message quotes its GoF and R<sub>exp</sub> against the last pattern inside the fence |
-| `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend, from the science or from a chain failure |
 | `SEQUENTIAL_PATH_DEPENDENT` | under `direction="both"`, forward and backward disagree by more than their esds allow |
 | `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | under `direction="both"`, the comparison did not run, or ran on fewer patterns or paths than the series has |
 | `SEQUENTIAL_WIDTH_GROWTH` | a phase width reached 3× the first value the series measured above three esds, by more than three combined esds, while GoF reached 2× its own at the same pattern; a width that grows at a flat GoF is real broadening and fires nothing |
@@ -468,41 +469,44 @@ Its threshold is half the series: above it the finding describes the series, and
 It needs a series of `rietx.sequential.MIN_POINTS_FOR_PERSISTENCE` patterns, five, and takes the worst level among the occurrences it counts.
 A code about how a pattern was measured, listed in `rietx.sequential.NOT_A_SERIES_FINDING`, is never counted.
 
-### Discontinuity check
+### Steps between patterns
 
-[`SEQUENTIAL_DISCONTINUITY`](diagnostics-series.md#sequential_discontinuity) fires at `info` on a step more than five times the path's median absolute step and more than three combined esds, in a trajectory of five points or more.
-It names both readings, the science or a chain failure, and asks you to open that pattern's own fit.
-`verify_discontinuities=True` runs that check.
-Each flagged step's two patterns are refitted cold and independently, with no warm start and no neighbour.
-The diagnostic's `value` is then the cold step over the chain's ([How to check a series for path dependence](../guides/path.md)).
+`SeriesResult.steps` lists every refined path's change between consecutive patterns, one `SeriesStep` each.
+`SeriesStep.path` names the parameter, `SeriesStep.labels` and `SeriesStep.indices` name the pair, earlier first, and `SeriesStep.step` is the signed change, later minus earlier.
+`SeriesStep.size_esd` is that step over the later pattern's esd, and `None` where the later fit measured none.
+The list is sorted by the size's magnitude, largest first, with the `None` rows last.
+The summary prints the first row in its trajectory block.
 
-<!-- api-doc: no-exec — it refines a whole series and then refits the flagged steps -->
+No step is called a jump, and no diagnostic fires on one.
+A step may be a phase transition, a sample shift, a beam dump or a wrong model, and only the sample's history can say which.
+A symmetry-mode refinement across the step is what separates a transition from the rest.
+Until 1.11 the `SEQUENTIAL_DISCONTINUITY` diagnostic flagged a step over five times the path's median and three combined esds; no measurement set either number, so the list replaced it.
+
+`verify_steps=k` re-measures the k largest steps.
+Each step's two patterns are refitted cold and independently, with no warm start and no neighbour, and `SeriesStep.cold_ratio` is the cold step over the chain's ([How to check a series for path dependence](../guides/path.md)).
+
+<!-- api-doc: no-exec — it refines a whole series and then refits the largest steps -->
 ```python
 result = rx.refine_sequential(patterns, structure, instrument, x=temperatures,
-                              verify_discontinuities=True)
+                              verify_steps=3)
 ```
 
 Near 1 the step is in the data.
 Near 0 the chain made it, because the two patterns agree when nothing carried an error between them.
 The ratio is signed, so a cold pair that stepped the other way reads about −1.
+`cold_ratio` stays `None` on a step the check did not reach, and on one whose cold pair raised or did not determine the path.
 The refits are separate `Refinement` runs writing their own `<label>.verify` histories, and no fitted value, `rung` or median moves because of one.
+`verify_steps` takes a count; `True` is refused, and so is a negative number.
 
 It is off by default.
-A cold fit runs the full staged plan from the starting models, and a series flagging s steps runs up to 2s of them, once per pattern, since two paths flagged at the same step share a refit.
-On a 68-pattern thermal ramp flagging four steps over four patterns, the chain took 11.6-12.0 s and the chain with the check 12.1-12.2 s, 5 % more.
-The time scales with the patterns flagged, not with the series length.
+A cold fit runs the full staged plan from the starting models, and k steps run up to 2k of them, once per pattern, since two paths stepping between the same pair share a refit.
+On a 68-pattern thermal ramp with four steps over four patterns, the chain took 11.6-12.0 s and the chain with the check 12.1-12.2 s, 5 % more.
+The time scales with the patterns refitted, not with the series length.
 
-`SeriesResult.discontinuities` holds one `SeriesStep` per flagged step, in the diagnostics' order.
-`SeriesStep.path` is the diagnostic's `where[0]`.
-`SeriesStep.labels` and `SeriesStep.indices` name the pair, earlier first, and `SeriesStep.step` is the signed change, later minus earlier.
-The check refits this pair, and the trajectory plot shades it.
-
-Each path carries at most one flag, the largest step that passes both tests.
-A step into or out of a pattern the fence rejected, `SEQUENTIAL_UNRECOVERED` or `SEQUENTIAL_RWP_OUTLIER`, is left out of the scan, because the pattern already has its own code.
-Otherwise its step takes the flag.
-In a 24-pattern ramp with one blank frame, the blank's cell was fitted to noise and stepped 33 times the median.
-The check confirmed that step at 1.00, because two cold fits reproduce the same noise, and the real step five patterns later went unreported.
-The steps are dropped, never bridged, because a bridge over several rejected patterns spans that many steps, and on a clean ramp it read as an 8× jump.
+A step into or out of a pattern the fence rejected, `SEQUENTIAL_UNRECOVERED` or `SEQUENTIAL_RWP_OUTLIER`, is left out of the list, because the pattern already has its own code.
+In a 24-pattern ramp with one blank frame, the blank's cell was fitted to noise and stepped 33 times the median, and a cold refit confirmed that step at 1.00, because two cold fits reproduce the same noise.
+The steps are dropped, never bridged, because a bridge over several rejected patterns spans that many steps.
+A path whose value is a step from where its fit began, in `SeriesResult.relative_paths`, has no rows, and a moment angle's step is taken modulo a turn.
 
 ### Restart ladder
 
@@ -516,7 +520,7 @@ Throwing a warm start away roughly triples the work, and before the middle attem
 What triggers the ladder is divergence, or an Rwp above `reseed_factor` times the median of the accepted patterns.
 Each trigger is a property of this pattern's own fit, readable the moment it finishes, and something a different start could plausibly fix.
 A guard finding such as `HIGH_CORRELATION` is neither, since it fires on converged patterns and no attempt changes the model or data behind it.
-A discontinuity is a property of the finished trajectory, so making it a trigger would mean walking a finished chain again.
+A step's size is a property of the finished trajectory, so making it a trigger would mean walking a finished chain again.
 
 The first attempt is bounded, because it is a bet rather than the answer.
 Its budget is `first_rung_factor` times the dearest first attempt this chain has already converged, and it applies once three have.
@@ -573,7 +577,7 @@ It flagged no cell parameter and no scale.
 The σ multiples in those messages are ratios to a fitted esd.
 A parameter near zero with an esd near zero reports a spread of thousands of σ with no physical size, so read the two values the message quotes.
 The trajectory the messages compare against is `SeriesResult.backward`, the reverse chain's own `SeriesResult`, and `SequentialRefinement.backward_` is the same object.
-Its own `backward`, `provenance` and `discontinuities` are `None`, and its `diagnostics` hold only the moment diagnostics.
+Its own `backward` and `provenance` are `None`, its `steps` are its own and never re-measured cold, and its `diagnostics` hold only the moment diagnostics.
 The comparison and every other series diagnostic are on the forward result.
 
 No `SEQUENTIAL_PATH_DEPENDENT` finding is also what a comparison that never happened would give, so a comparison that did not run says so.
@@ -590,7 +594,7 @@ The backward chain is a second complete set of fits, and `result.backward.n_iter
 
 `events=` and `cancel=` act per pattern.
 Every event a pattern's fit emits is forwarded with its place in the series stamped into the event's `data`: `series_index`, `series_label`, `series_n` and `series_pass`, plus `series_rung` and `series_cold` on a restart.
-`series_pass` is `"forward"`, `"backward"` or `"verify"`, the last for the discontinuity check's refits.
+`series_pass` is `"forward"`, `"backward"` or `"verify"`, the last for the refits `verify_steps` runs.
 These are added fields on existing kinds, so no event kind is new and the event schema version does not move ([Events](refinement.md#events)).
 Read `data` with `.get`, and "pattern k of N" off `fit_start`.
 `progress=` stamps each line with the pattern's place ([Progress lines](result.md#progress-lines)), and `label=` names the whole series' run directory ([Recording and run names](refinement.md#recording-and-run-names)).

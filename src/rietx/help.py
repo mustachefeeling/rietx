@@ -3535,6 +3535,20 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         ),
         anchor="theory/profiles.html#the-instrument-sample-width-split",
     ),
+    "PHASE_HELD_IN_PATTERNS": HelpEntry(
+        title="A phase was held in some patterns of a joint fit",
+        description=(
+            "In a joint fit where a phase's structure or scale is per pattern, the "
+            "last stage held them in the patterns that cannot see the phase. The "
+            "message counts those patterns, and the held rows are named in where. In "
+            "those patterns the structure rows keep the values the stage started from "
+            "and carry no esd, and a held scale keeps the value handed in, so the "
+            "pattern measures no fraction of the phase. The patterns that see the "
+            "phase refine their own. This "
+            "records what the fit did and asks for nothing. PHASE_UNCONSTRAINED "
+            "covers a phase that no pattern sees."
+        ),
+    ),
     "PHASE_UNCONSTRAINED": HelpEntry(
         title="The data cannot see this phase",
         description=(
@@ -3851,16 +3865,6 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "point is not the end of the ramp. Run the series again to extend it."
         ),
     ),
-    "SEQUENTIAL_DISCONTINUITY": HelpEntry(
-        title="A parameter jumps between two patterns",
-        description=(
-            "A parameter changes between neighbouring patterns by far more than its "
-            "typical step in the series. Either the specimen changed there, as in a "
-            "transition or a new phase, or the chain failed and carried the error "
-            "forward. The trajectory is left as fitted. Check the fits on either side, "
-            "or refit the pair independently with `verify_discontinuities=True`."
-        ),
-    ),
     "SEQUENTIAL_MOMENT_HOLD": HelpEntry(
         title="A magnetic moment is indistinguishable from none",
         description=(
@@ -4083,6 +4087,22 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "stays silent, because some models lack a component. Correct the name, or "
             "use a wildcard if the stage should reach a component that only some models "
             "declare."
+        ),
+    ),
+    "STAGE_WINDOWS_STALE": HelpEntry(
+        title="A stage's peaks outgrew the windows it was solved on",
+        description=(
+            "Each stage computes every peak over a window of points, sized when the "
+            "stage starts. A peak that moves or broadens while the stage solves spills "
+            "past its window, and the model loses that part of its intensity. The stage "
+            "can then fit the loss rather than the data, and still report that it "
+            "converged. This fires when the windows drop more of the intensity, at the "
+            "stage's answer, than each window is allowed to drop. It reports only the "
+            "stages whose answer reaches the result: the last one, and the one before "
+            "a plan's closing stage. An earlier stage records its loss too, and every "
+            "stage after it refits its answer on fresh windows. Treat the result as "
+            "unconfirmed, and refit from starting values nearer the data. On the case "
+            "measured, a further stage from the stage's answer ran further away."
         ),
     ),
     "STEPHENS_STRAIN_NOT_POSITIVE": HelpEntry(
@@ -5246,6 +5266,20 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "needs to reproduce the result's curves."
         ),
     ),
+    "StageResult.window_loss": HelpEntry(
+        title="Intensity outside stale windows",
+        description=(
+            "The share of the Bragg intensity this stage's profile windows dropped at "
+            "its answer, against windows sized there. The windows are sized where the "
+            "stage starts, so a peak that moved or broadened spills past them. "
+            "Negative where the peaks narrowed. Above the stage's window fraction it "
+            "feeds `STAGE_WINDOWS_STALE` on the last stage and the one before a closing "
+            "stage; an earlier stage records it without a warning, since the stages "
+            "after it refit its answer. Magnetic windows and extra peaks are not "
+            "measured. `None` means nobody looked. A joint fit records its worst "
+            "histogram."
+        ),
+    ),
     "StageResult.n_constraint_truncations": HelpEntry(
         title="Steps held on a constraint",
         description=(
@@ -5544,6 +5578,25 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "been accepted, so no fence judged it."
         ),
     ),
+    "SeriesEntry.seeded_from": HelpEntry(
+        title="Warm start from",
+        description=(
+            "The index of the pattern whose fitted state this pattern's warm rungs "
+            "started from: the last pattern accepted before it in the walk. A pattern "
+            "that stayed diverged after every rung is skipped, so its successor names "
+            "the pattern before it. It says where the warm start came from even when "
+            "the kept attempt is the cold rung. `None` where there was no warm start."
+        ),
+    ),
+    "SeriesEntry.floored": HelpEntry(
+        title="Moments floored",
+        description=(
+            "The moment modulus paths this pattern's kept attempt received at the "
+            "floor, because the pattern it warm-started from did not support them. "
+            "Empty when the kept attempt started cold and on a series with no moment. "
+            "`SEQUENTIAL_MOMENT_HOLD` names these patterns."
+        ),
+    ),
     "SeriesEntry.node_id": HelpEntry(
         title="Pattern history node",
         description=(
@@ -5603,18 +5656,25 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
     "SeriesResult.diagnostics": HelpEntry(
         title="Series findings",
         description=(
-            "Findings about the series as a whole, such as path dependence, "
-            "discontinuities, reseeds and patterns that failed. Each pattern's own "
-            "findings stay on its entry."
+            "Findings about the series as a whole, such as path dependence, reseeds "
+            "and patterns that failed. Each pattern's own findings stay on its entry, "
+            "and the steps between patterns are `steps`, not findings."
         ),
     ),
-    "SeriesResult.discontinuities": HelpEntry(
-        title="Flagged steps",
+    "SeriesResult.steps": HelpEntry(
+        title="Steps between patterns",
         description=(
-            "Every `SEQUENTIAL_DISCONTINUITY` finding as fields, in the same order: the "
-            "parameter, the two patterns it stepped between and the signed step. An "
-            "empty list is a series that flagged nothing; `None` means a document "
-            "written before the field."
+            "Every parameter's change between consecutive patterns, in esds of the "
+            "later fit, largest first: the path, the two patterns, the signed step and "
+            "its size in esds, which is `None` where the later fit measured no esd. A "
+            "step may be a phase transition, a sample shift, a beam dump or a wrong "
+            "model, and only the sample history can say which; rietx enforces no "
+            "threshold on it. A symmetry-mode refinement across the step is what "
+            "separates a transition from the rest. `fit(verify_steps=k)` refits the "
+            "two patterns of the k largest cold and independently and records "
+            "`cold_ratio`: near 1 the step is in the data, near 0 the chain made it. "
+            "Steps into or out of a rejected pattern are left out; `None` means a "
+            "document written before the field."
         ),
     ),
     "SeriesResult.relative_paths": HelpEntry(

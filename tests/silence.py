@@ -359,6 +359,134 @@ def _net_background_silent() -> list:
     return _net_read(0.0)
 
 
+# ------------------------------------------------------------ the series and joint fit
+
+
+def _parametric_range(w_slope: float) -> list:
+    """``multi._parametric_range_diagnostics`` on a three-histogram table whose
+    equation sets Caglioti W = 1e-3 + ``w_slope``·u over the ramp, never fitted
+    (``tests/test_parametric_series.py``'s fixture)."""
+    from rietx.multi import _parametric_range_diagnostics
+    from rietx.params.multi import MultiParameterTable
+    from tests.test_parametric_series import (
+        _coords,
+        _equation,
+        _lab6_instruments,
+        perturbed_inputs,
+    )
+
+    s, _ = perturbed_inputs()
+    mt = MultiParameterTable(s, _lab6_instruments(3), coordinates=_coords(300.0, 400.0, 500.0),
+                             parametric=[_equation(name="w", target="instrument.profile.w")])
+    for t in mt.tables:
+        t.entries[t._paths["vars.w_1"]].value = w_slope
+        t.refresh_ties()
+    return _parametric_range_diagnostics(mt)
+
+
+def _parametric_range_fires() -> list:
+    """A slope that drives W negative at the top of the ramp, under its floor."""
+    return _parametric_range(-2e-3)
+
+
+def _parametric_range_silent() -> list:
+    """The declared start, and a slope that keeps W positive over the ramp."""
+    return _parametric_range(0.0) + _parametric_range(-2e-4)
+
+
+def _short_series(*, cancel_after_first: bool) -> list:
+    """Two cheap patterns of ``tests/test_sequential.py``'s ramp, the chain
+    cancelled once the first pattern's fit ends where ``cancel_after_first``,
+    and otherwise carrying a token nobody sets (a recorded fit's shape)."""
+    from rietx.optimize.cancel import CancelToken
+    from rietx.sequential import SequentialRefinement
+    from tests.test_sequential import _CHEAP, A0, RAMP, _simulate, _start_models
+
+    patterns = [_simulate(A0 * (1 + RAMP * i), seed=700 + i) for i in range(2)]
+    structure, ins = _start_models()
+    token = CancelToken()
+
+    def watch(event):
+        if (cancel_after_first and event["kind"] == "fit_end"
+                and event["data"]["series_index"] == 0):
+            token.cancel()
+
+    series = SequentialRefinement(structure, ins).fit(
+        patterns, plan=_CHEAP, events=watch, cancel=token)
+    return series.diagnostics
+
+
+def _cancelled_fires() -> list:
+    """The chain stopped after one of two patterns."""
+    return _short_series(cancel_after_first=True)
+
+
+def _cancelled_silent() -> list:
+    """The same chain run to completion with its token unset."""
+    return _short_series(cancel_after_first=False)
+
+
+def _failed_series(fails) -> list:
+    """Three patterns of ``tests/test_series_error_policy.py``'s chain, its
+    middle pattern raising on the fits ``fails(n)`` selects (``n`` counting that
+    pattern's fits from 1 across rungs), every other fit run for real."""
+    import sys
+    from unittest import mock
+
+    import rietx.refine  # noqa: F401  (registers the module; see that test's fixture)
+    from tests.test_refine_synthetic import TRUE_A
+    from tests.test_series_error_policy import _make_pattern, _series
+
+    patterns = [_make_pattern(TRUE_A + 0.0003 * i, noise_seed=100 + i) for i in range(3)]
+    refine_mod = sys.modules["rietx.refine"]
+    orig_fit = refine_mod.Refinement.fit
+    calls = {"n": 0}
+
+    def patched_fit(self, data, *args, **kwargs):
+        if data is patterns[1]:
+            calls["n"] += 1
+            if fails(calls["n"]):
+                raise ValueError("a stand-in for issue #224's refused enumeration")
+        return orig_fit(self, data, *args, **kwargs)
+
+    with mock.patch.object(refine_mod.Refinement, "fit", patched_fit):
+        return _series().fit(patterns, on_error="carry").diagnostics
+
+
+def _pattern_failed_fires() -> list:
+    """Every rung of the middle pattern raised."""
+    return _failed_series(lambda n: True)
+
+
+def _pattern_failed_silent() -> list:
+    """Its warm rungs raised and the cold rung rescued it: a raise the ladder
+    recovered is ``SEQUENTIAL_RESEED``'s, not a failed pattern."""
+    return _failed_series(lambda n: n <= 2)
+
+
+def _windows_stale(axial_to: float | None) -> list:
+    """The synthetic LaB₆ compiled at ``axial_sl`` 0.03, then measured at
+    ``axial_to`` (``None``: where it compiled), through the record."""
+    from rietx.model.forward import WINDOW_AREA_TOL, compile_model, window_loss
+    from rietx.params.vector import ParameterTable
+    from rietx.refine import _window_loss_diagnostics
+    from rietx.schemas.results import StageResult
+    from tests.test_refine_synthetic import perturbed_models, synthesize
+
+    structure, ins = perturbed_models()
+    ins.geometry.axial_sl.value = ins.geometry.axial_hl.value = 0.03
+    model = compile_model(structure, ins, synthesize(),
+                          window_area_tol=WINDOW_AREA_TOL, moving_paths=set())
+    t = ParameterTable(structure, ins)
+    if axial_to is not None:
+        t.entries[t._paths["instrument.geometry.axial_sl"]].value = axial_to
+        t.refresh_ties()
+    loss = window_loss(model, t.decode(t.x0()))
+    return _window_loss_diagnostics([StageResult(
+        name="s", status="converged", n_iterations=1, cost_initial=1.0,
+        cost_final=1.0, window_loss=loss)])
+
+
 SILENCE: dict[str, Pair] = {
     "CIF_SITE_LISTED_TWICE": Pair(
         _listed_twice_fires, _listed_twice_silent, "tests/test_cif_sites_coincide.py"),
@@ -375,6 +503,8 @@ SILENCE: dict[str, Pair] = {
         _instprm_geometry_fires, _instprm_geometry_silent, "tests/test_gsas2_instprm.py"),
     "GSAS_PRM_PROFILE_SET_DEFAULTED": Pair(
         _profile_set_fires, _profile_set_silent, "tests/test_gsas_prm.py"),
+    "PARAMETRIC_OUT_OF_RANGE": Pair(
+        _parametric_range_fires, _parametric_range_silent, "tests/test_parametric_series.py"),
     "PATTERN_NET_HAS_BACKGROUND": Pair(
         _net_background_fires, _net_background_silent, "tests/test_readers.py"),
     "PATTERN_UNDERSAMPLED": Pair(
@@ -382,8 +512,15 @@ SILENCE: dict[str, Pair] = {
     "RESOLUTION_UNCONSTRAINED": Pair(
         _resolution_fires, _resolution_silent,
         "strategy.staged.check_resolution_supported (no test pinned it before)"),
+    "SEQUENTIAL_CANCELLED": Pair(
+        _cancelled_fires, _cancelled_silent, "tests/test_sequential.py"),
+    "SERIES_PATTERN_FAILED": Pair(
+        _pattern_failed_fires, _pattern_failed_silent, "tests/test_series_error_policy.py"),
     "SITE_SNAPPED_TO_SPECIAL_POSITION": Pair(
         _snap_fires, _snap_silent, "tests/test_cif_stated_columns.py"),
+    "STAGE_WINDOWS_STALE": Pair(
+        functools.partial(_windows_stale, 0.3), functools.partial(_windows_stale, None),
+        "tests/test_window_loss.py"),
 }
 
 

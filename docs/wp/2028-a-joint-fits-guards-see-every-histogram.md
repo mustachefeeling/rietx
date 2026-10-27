@@ -1,6 +1,6 @@
 # WP-2028 — a joint fit's guards see every histogram
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-26 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7 and 8 open
 Track: What fires, and what stays silent
 Depends on: — (1341 closed: it built the joint report this WP completes; 1325
 soft: its parametric codes and per-pattern holds are what tasks 3 and 6
@@ -141,16 +141,16 @@ that caveat until 1421 lands.
 
 ## Tasks
 
-- [ ] Specimen guards over every histogram: `_top_diagnostics` runs the ADP
+- [x] Specimen guards over every histogram: `_top_diagnostics` runs the ADP
       and both Biso checks on each histogram's table and model, one finding
       per path, a per-histogram path named with its histogram; the three
       `GUARD_SCOPES` reasons say so. Test: a negative Biso set in histogram 1
       alone, through a `SharingMap(per_histogram=…)` override, fires.
-- [ ] The joint `CELL_RUNAWAY` names the coefficient: a twin of
+- [x] The joint `CELL_RUNAWAY` names the coefficient: a twin of
       `refine._vars_driven_cell_escapes` in the joint reset. Test: a
       parametric cell driven out of its window is named with its `vars.`
       path.
-- [ ] A per-pattern hold is reported: a finding naming the phase and the
+- [x] A per-pattern hold is reported: a finding naming the phase and the
       patterns where its per-histogram structure was held, agreeing with
       `PARAMETRIC_TARGET_UNSEEN` rather than repeating it for parametric
       targets. Update the `_phase_support_diagnostics` scope reason.
@@ -158,11 +158,11 @@ that caveat until 1421 lands.
       named in Context, then take it (and how histograms combine) or write
       why not where `_joint_unsupported_phases` declares the choice. Record
       what moves, including `PARAMETRIC_FORM_REJECTED`'s pattern set.
-- [ ] The view keeps `tick_hkl` and `phase_agreement`: `for_histogram`
+- [x] The view keeps `tick_hkl` and `phase_agreement`: `for_histogram`
       copies both from `HistogramResult`, the joint top level passes
       histogram 0's `tick_hkl` beside its ticks, and the caveat at
       `docs/docs/reference/joint.md:251` goes.
-- [ ] Fit-level findings in each histogram's report: the findings that name
+- [x] Fit-level findings in each histogram's report: the findings that name
       histogram h (`STAGE_FREED_NOTHING` with `value == h`, the patterns
       `PARAMETRIC_TARGET_UNSEEN` lists) sit beside it, and the FIT ones
       (`SCALE_B_INSEPARABLE`, `PARAMETRIC_OUT_OF_RANGE`,
@@ -177,10 +177,12 @@ that caveat until 1421 lands.
       why there is none in that scope reason (Context item 8). Re-point the four
       comments naming WP-1341 as owner (`multi.py:237`, `:411`, `:1920`, `:1923`)
       to this WP or to the decision taken.
-- [ ] Tests in `tests/test_joint_report.py` and
-      `tests/test_multi_diagnostics.py`, each landed with its feature.
-- [ ] Skill: `watching.md` 9d.10 and `surprises.md` 8.30 (1341's rows) say
-      what the joint report now shows; each new code gets its reference row.
+- [x] Tests in `tests/test_joint_report.py`, each landed with its feature.
+      `tests/test_multi_diagnostics.py` is untouched: its scope-table tests
+      pass unchanged, and the new code's scope row is held by them.
+- [x] Skill: `surprises.md` 8.30 (1341's row) says what the joint report now
+      shows, and the new code has its `diagnostics.md` row. `watching.md`
+      9d.10 is unchanged: it says nothing the PR contradicts.
 
 ## Acceptance
 
@@ -199,6 +201,7 @@ shows the findings that name histogram h.
 
 ## References
 
+- #1124: taken by @mustachefeeling, with the plan this WP's handover follows.
 - Issues #252 and #803 (closed by WP-1341), #481 (WP-1523's blank frame).
 - WP-1341 (the joint report), WP-1325 (parametric series, per-pattern holds),
   WP-1344 (`DIAGNOSTIC_SCOPES`), WP-1414 (`STAGE_FREED_NOTHING`), WP-1523 (the
@@ -206,6 +209,23 @@ shows the findings that name histogram h.
   WP-2001 and WP-2004 (the tier rule).
 
 ## Handover log
+
+- **2026-10-26** — tasks 1-3, 5 and 6 merged from outside as PR #1128
+  (`1ba6c216`), after four review rounds. A joint fit's structure guards now
+  read every pattern, its `CELL_RUNAWAY` names a driving `vars.` coefficient,
+  `PHASE_HELD_IN_PATTERNS` records a per-pattern hold of a phase's structure
+  or scale, and `for_histogram(h)` keeps its ticks' hkl, the phase agreement
+  and the findings that name pattern h. *Gated*: #1136 and #1128 stacked onto
+  main `c0d701cd` as `669ab69a`; `[dev,jax]` venv, macOS arm64, Python 3.12,
+  nothing else running; fast selection 11 914 passed, 199 skipped, 28 xfailed;
+  the whole `-m slow` suite 419 passed, 12 skipped, 15 xfailed. #1128's head
+  took one sync commit (`a4196dcb`, the WP index after #1136), and main after
+  the merge is identical to the gated tree. *Gotchas*: a finding's path in a
+  joint result now reads `hist.<h>.` for a per-pattern parameter, which the
+  1.11.0 Upgrading list carries; the contributor's entries below are in
+  oldest-first order, against the template. *Next*: task 4's choice (the joint
+  support screen against WP-1523's z, measured above but not wired), task 7's
+  census, task 8. The claim issue #1124 stays open for them.
 
 - **2026-10-23** — created by WP-1341's close, on the maintainer's decision
   that day to close 1341 and forward its open items to one new WP. It holds
@@ -216,3 +236,73 @@ shows the findings that name histogram h.
   compile, 1335 the report's cost, 2004 fences joint-fit code out, and 1325
   had forwarded its joint items to 1341. Each line number in Context was
   checked against the `wp-closeouts` tree that day.
+
+- **2026-10-23** — built tasks 1-3, 5 and 6 as planned on #1124 (taken by
+  @mustachefeeling); task 4 measured and not wired; 7 and 8 left open with
+  their findings below. Each built task has a test in
+  `tests/test_joint_report.py` § WP-2028 that fails on `main` `12f459e5` and
+  passes here: 10 of the 13 new items fail on `main`, and the other three are
+  controls that pass on both. *Done*: (1) `_specimen_once` asks the ADP and
+  both Biso guards of every histogram's table and model, one finding per path
+  as the joint result spells it. On `main` a negative B set in histogram 1
+  alone through `SharingMap(per_histogram=["phases.0.atoms.*.biso"])` fired
+  nothing, and one in histogram 0 alone fired under the bare path. Here each
+  fires as `hist.<h>.phases.0.atoms.0.biso` in the histogram that holds it; a
+  shared negative B is one bare finding, as before. (2)
+  `_vars_driven_cell_escapes_multi`, the joint twin of
+  `refine._vars_driven_cell_escapes`, feeds the joint `CELL_RUNAWAY`: a
+  parametric cell walked 30 % along `vars.a_0` is named with `vars.a_0` and
+  both histograms' `hist.<h>.phases.0.cell.a`, "not put back". On `main` no
+  `CELL_RUNAWAY` fired. (3) `PHASE_HELD_IN_PATTERNS` (info, tier 1): one
+  finding per phase whose `hist.<h>.` structure the answer's support hold
+  kept, `value` the pattern count, read off `StageResult.held`; parametric
+  targets, the ridge and moment holds left to their own codes. (5)
+  `for_histogram` copies `tick_hkl` and `phase_agreement`, and the joint top
+  level passes histogram 0's `tick_hkl`. (6) `for_histogram(h).diagnostics`
+  adds the top-level findings whose `where` names a `hist.<h>.` row,
+  `STAGE_FREED_NOTHING` with `value == h`, and once each the fit-wide
+  `SCALE_B_INSEPARABLE`, `PARAMETRIC_OUT_OF_RANGE`, `PARAMETRIC_FORM_REJECTED`
+  and `STAGE_PATH_UNKNOWN` (`schemas.results.FINDINGS_IN_EVERY_VIEW`).
+  `FitReport` carries no diagnostics on either path, so the view `report(h)`
+  reads is where they sit. Whether a row with `equations` quotes
+  `parametric_value()` beside it is not decided here. *Measured, task 4*
+  (`.venv` `[dev]`, macOS arm64, readings at each fit's answer; screen /
+  WP-1523's z on histogram h alone / WP-1523's z on the joint covariance's
+  marginal): the LaB6 pair 1026.8 / 1024.7 / 1024.7 and 867.5 / 866.0 / 866.0;
+  #481's seen frame 0 beside the blank seed-107 frame, per-histogram phase,
+  blank histogram 3.73 / 1.60 / 1.60, so the screen refines the blank
+  pattern's own cell where either WP-1523 reading would hold it; two blank
+  frames (7 and seed 107) sharing a cell, 2.60 / 1.33 / 1.33 and 3.71 / 1.58 /
+  1.58, so the joint fit refines the shared cell against noise with no
+  `PHASE_UNCONSTRAINED` (max screen 3.71), where quadrature of the singles
+  reads 2.06 and the max joint marginal 1.58, both unseen. The ZrMo₂O₈ ramp
+  is not held on the Mac that measured this and was not fetched, so what
+  moves in `PARAMETRIC_FORM_REJECTED`'s pattern set is not measured.
+  *Open*: task 4's choice, task 7's census (listed in the PR; `_ticks` lacks
+  the single path's magnetic tick row, issue #278, and was not folded since
+  that moves a joint result's ticks), task 8.
+
+- **2026-10-24** — review round 1 on #1128 (items 1-6): a phase held in every
+  pattern is left to `PHASE_UNCONSTRAINED`; the ridge exclusion reuses
+  `refine._DISPLACEMENT_PATH` (so `adp.k` columns count); an ADP site is
+  scoped by the columns that move it (`adp.k` and `u11`..`u23`), and
+  `_parameters` reads a tied row's shared-ness off its tie sources
+  (`_row_shared`); `OCCUPANCY_ABOVE_ONE` is asked of every histogram
+  (`_occupancy_once`); the Upgrading sentence names the `hist.<h>.` path
+  change; the audit row's ambiguity is 1 with the `phase_support_sigma`
+  evidence. Item 7 (rebase onto #1103, and who names the patterns where only a
+  scale was held) waits for #1103 to merge. Follow-ups left: shared helpers
+  for `_merge_unresolved` and `_specimen_path`, a test crossing
+  `FINDINGS_IN_EVERY_VIEW` with `DIAGNOSTIC_HELP`, and the Lindemann bound's
+  histogram.
+
+- **2026-10-25** — review round 2 on #1128 (item 7): rebased onto main after
+  #1103 merged (one conflict class: `docs/releases/1.10.0.md`, whose Upgrading
+  section is now a list, so the `hist.<h>.` sentence is an entry there).
+  Checked the scale-only hold: with a pattern holding a phase's scale under
+  #1103 and another pattern seeing the phase, `PHASE_UNCONSTRAINED` is silent
+  and `_per_pattern_hold_diagnostics` dropped `.scale` rows, so nothing named
+  the pattern. It now counts a `hist.h.phases.i.scale` row as a hold in
+  pattern h, one finding per phase with its structure rows, its message
+  saying the scale is the value handed in; a phase held in every pattern, and
+  a shared scale, stay `PHASE_UNCONSTRAINED`'s, which names its histograms.

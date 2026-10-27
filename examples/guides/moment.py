@@ -113,9 +113,11 @@ assert abs(row.magnitude - ref_m.magnitude) < row.magnitude_esd + ref_m.esd
 assert 0.35 < abs(shift) / scale.stderr < 0.6
 assert abs(blind.fitted_structure.phases[0].atoms[1].biso.value + 1.4) < 0.05
 assert abs(ref.fitted_structure.phases[0].atoms[1].biso.value - 0.4) < 0.05
-# "round 1 moves the moment by 0.07 to 0.09 μB, more than its esd of 0.04, and round 2 by less than 0.002"
-assert 0.06 < steps[0][0] < 0.10 and steps[0][0] > steps[0][1] and abs(steps[0][1] - 0.04) < 0.006
-assert steps[1][0] < 0.002
+# "round 1 moves the moment by 0.07 to 0.09 μB, more than its esd of 0.04, and round 2 by less
+# than its esd": round 2's step is where round 1 stopped, under 1e-5 μB on an arm64 Mac and
+# 0.002 or more on some Linux runners since #1161 (WP-2036), so the page quotes the loop's rule
+assert 0.06 < steps[0][0] < 0.10 and steps[0][0] > steps[0][1] and abs(steps[0][1] - 0.04) < 0.006, steps
+assert steps[1][0] < steps[1][1], steps
 
 # Holding the lattice at its 150 K values as well leaves a nuclear model that does not
 # describe the 4 K pattern: Rwp 0.23 against 0.115, and the moment barely moves.

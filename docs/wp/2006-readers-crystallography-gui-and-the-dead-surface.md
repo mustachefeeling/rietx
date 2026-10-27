@@ -61,6 +61,8 @@ promise stages every break).
 
 - **From WP-2002 (2026-10-19, PR #1050).** 2002 tiers `MAGNETIC_ION_ASSUMED` and `LANDE_G_ASSUMED` on both raise sites. Its batch class B15 proposes splitting `crystallography/magnetic/form_factor.py`'s assumed-ion table by element: Ce, Eu, Sm and Yb tier 1 (Sm in question), the other lanthanides tier 2 with a citation, and U, Np and Pu demoted. GSAS-II 5.8.4 maps bare U to U³⁺ where rietx picks U⁴⁺ (`atmdata.py:1706-1709`, checked). Read 2002's ruling before tiering that table.
 
+- 2026-10-26 issue triage: #1058 is the outside contributor's (mustachefeeling) claim on this WP. Part 1 (the walk and the inventory) landed as PR #1101; the tiers wait on the gate ruling after WP-2004, as the status line says. Checked against the tree at c0e32ab29.
+
 ## Non-goals
 
 - `indexing/`: 2007 (its own rulebook, 48 codes, 76 constants, the benchmark).

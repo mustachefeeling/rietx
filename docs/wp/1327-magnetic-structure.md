@@ -349,6 +349,38 @@ rule above applies to the form factors.
   propagation vector `k` and add no qualifier.** Root CLAUDE.md § Conventions
   carries the rule that keeps it free. The same note is in 1326, 1328, 1329 and 1418.
 
+- **2026-10-26 issue triage: #1081, a supercell statement's child copies are tied
+  only in their moments, so a fit freeing Biso leaves the declared group.**
+  `anti_translation_ties` (`crystallography/magnetic/supercell.py:1007`) emits
+  moment ties across pure (anti)translations only, and `ParameterTable` derives
+  no Biso, occupancy or coordinate tie from `Phase.magnetic_symmetry`. The
+  operation that relates the copies is inversion composed with the lost parent
+  translation (−x,−y,−z+½ with time reversal), which the child's nuclear group
+  does not contain, so the docstring's "already in one nuclear orbit" does not
+  hold for a supercell statement. `nuclear_group="magnetic"` does not help: its
+  nuclear part drops the primed operations. Checked against the tree at
+  c0e32ab29: on the issue's synthetic P4/mmm k = (0,0,½) set (124.360 child,
+  truth Biso Mn 0.4, O 0.6), one stage freeing scale, background, moments (with
+  the anti-translation ties) and every Biso returns Mn1_1/Mn1_2 Biso 1.059 and
+  −0.180 Å², O 0.680 and 0.551, Rwp 0.049992 against 0.050007 tied, from an
+  exactly symmetric start; the next `Refinement` refuses it
+  (`check_group_is_structure_symmetry`). `solve_magnetic` itself kept the copies
+  equal on this data. The issue recommends deriving these ties in
+  `ParameterTable` from the magnetic group read as nuclear operations (equal
+  Biso and occupancy, affine-tied coordinates), the one authority for symmetry
+  ties; GSAS-II gets the same effect by building the nuclear and magnetic sums
+  from one `SGData['SGOps']` list, the magnetic group's
+  (`GSASIIstrMath.py:1180`, `:1530`, 5.8.4, read 2026-10-26). **Sibling, same
+  fold:** WP-2002's closing stage breaks an anti-translation tie on a moment
+  azimuth. On the 11.56 child with the ties applied, the tied `dof1` reads
+  2.45706 rad against its tie's 2.44240 (0.84°), and the next `Refinement`
+  refuses the moment; with `closing_window_tol=None` the tie holds exactly, and
+  `_auto_intervals = False` does not change it. Scripts:
+  the triage lane's `repro_1081*.py`. The docstring of
+  `check_group_is_structure_symmetry` ("a refined phase is not a statement and
+  must still validate") and `Refinement.__init__` calling it on a refined phase
+  disagree; whichever option lands decides which one is right.
+
 ## Non-goals
 
 - Determining a magnetic structure: representation analysis, k-SUBGROUPSMAG,
