@@ -1,6 +1,6 @@
 # WP-2010 — Every feature names what verifies it and what validates it
 
-Milestone: generality · Status: ⬜
+Milestone: generality · Status: 🔄 2026-10-27 — ruled and reframed; the reporter (#1051) builds it
 Track: The audits
 Depends on: —
 Priority: P3 2026-10-18 — outside the gate after 2004, so it waits on nothing; the magnetic report wording moves with it
@@ -184,28 +184,58 @@ confirm the new test goes red naming it.
 
 ## Handover log
 
+- **2026-10-27** — a ruling session, no code.
+
+  The word "validated" now means one thing in rietx: a refined number was compared with
+  a measurement that did not come from a refinement, such as a certified cell or a
+  weighed mixture, and the comparison is reported as a mismatch with its uncertainties,
+  saying whether the developers had tuned on that data. Agreement with another program
+  or with a published refinement only shows the code computes what it claims. The label
+  that says which state a feature is in is for the developers; a user or an agent picks
+  a feature from the sample and the data, and the only place the fact reaches them is a
+  sentence in the fit report beside a number that has no outside check. The WP's job
+  therefore changed from labelling 43 features to establishing that each is verified at
+  all, since fifteen have no acceptance test behind them.
+
+  *Done.* DESIGN.md § Rules, 2 rewritten as three paragraphs; its north star and Rule
+  4's new-topic test narrowed with it; five loose uses of *validate* in DESIGN.md, one in
+  the root CLAUDE.md, the audit table's docstring and the generality-review checklist
+  moved to *verify*. `generality.md`: the two acceptance rows, three lines of § The
+  rule, the § Decisions pointer, and a dated decision carrying the measurements. WP-2017:
+  the Nd₂Ru₂O₇ line and the "for good" line brought to the ruling. This file: the four
+  decisions dated into § Context, the tasks reframed.
+
+  *Measured* (darwin arm64, `[dev]`, tree feae4c75e; the script and the full
+  classification were in the session's scratchpad and are re-derivable from
+  `_audit.ROWS` and `validation_matrix.CLAIMS`): 1240 audit rows, 66 citing an
+  acceptance dataset, 55 sensitivity or invariance checks, 11 selected on development
+  data, 3 by referent distance (all on `qarr`); 143 claims, 24 validating under the old
+  tiers on 7 datasets, 5 families, 4 instruments; 139 tier-3 rows, a physics feature
+  carrying at most one, the background picker 13, the staged plan 15. Oberkampf & Roy
+  chapters 2 and 10 to 13 read in full by a subagent, page-cited in § References.
+
+  *Review.* An adversarial fresh-context read of the drafts found sixteen defects; the
+  material ones were that `capabilities()` carrying referent kinds would be the verdict
+  in machine form, that "four predictions" counted features where the matrix has six to
+  seven claims, that Nd₂Ru₂O₇'s three claims are predictions the ruling retiers, that
+  the instrument count was 3 where the datasets span 4, that the development-data
+  selection is 11 of 66 by Rule 2's own definition, that the #1052 comparison runs under
+  a different protocol and so measures drift rather than verifying, and that "spent"
+  reverses the 2026-10-26 "for good" and had to say so. All applied.
+
+  *Gotchas.* The north star sentence changed one phrase ("independent referent" for
+  "published reference") and reply 1052 reverses a public statement of the maintainer's;
+  both are flagged for the maintainer's read. The replies to #1051 and #1052 are drafted
+  and not posted. Left out on purpose: leave-one-family-out machinery for WP-2017
+  (domain spread outranks blindness on five families), and making the existing suites
+  blind.
+
+  *Next*, in order: the maintainer reads the diff and approves or edits the two replies,
+  which then go to #1051 and #1052; the reporter rebuilds the list of the 15 unclaimed
+  features as the WP's first commit, which decides how much verification work the WP
+  holds; the ceria round robin is filed as the microstructure referent.
 - **2026-10-18** — created, from the cascade of DESIGN.md's rules into the generality
   milestone. No open WP owns a feature-level audit against Rule 2: 1918 and 1933 validate
   files on read, and 1464 screens batches. Filed in this milestone and outside its gate
   after 2004, because the gate tests whether rietx's decisions are warranted, and this
   WP's premise is already measured by the counts above.
-- **2026-10-27** — a ruling session, no code. Measured the development-data risk
-  (§ Context) and had Oberkampf & Roy chapters 2 and 10 to 13 read in full by a
-  subagent, page-cited. The maintainer ruled the four decisions above. DESIGN.md
-  § Rules, 2 rewritten as three paragraphs, its north star and Rule 4's new-topic test
-  narrowed with it, and five loose uses of *validate* in DESIGN.md, one in the root
-  CLAUDE.md, the audit table's docstring and the generality-review checklist moved to
-  *verify*; `generality.md`'s two acceptance rows, three lines of § The rule and the
-  § Decisions pointer rewritten, with a dated decision; WP-2017's two Nd₂Ru₂O₇ and
-  held-out lines brought to the ruling; this file reframed from a label to a
-  verification audit plus a report sentence. An adversarial fresh-context review of the
-  drafts found sixteen defects, of which the material ones were: `capabilities()`
-  carrying referent kinds would be the verdict in machine form; "four predictions"
-  counted features where the matrix has six to seven claims; Nd₂Ru₂O₇'s three claims
-  are predictions that the ruling retiers; the instrument count was 3 where the datasets
-  span 4; the development-data selection is 11 of 66 by Rule 2's own definition, with 3
-  by referent distance; the #1052 comparison runs under a different protocol and so
-  measures drift rather than verifying; "spent" reverses the 2026-10-26 "for good" and
-  had to say so. All applied. Replies to #1051 and #1052 drafted, not posted. Left out on
-  purpose: leave-one-family-out machinery for WP-2017 (domain spread outranks blindness
-  on five families), and making the existing suites blind.
