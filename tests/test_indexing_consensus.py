@@ -860,6 +860,29 @@ def test_the_validation_fits_a_supercell_as_well_as_its_parent(lab6_pattern):
         doubled.rwp, truth.rwp)
 
 
+def test_the_validation_record_names_its_fit_on_every_path(lab6_pattern,
+                                                            monkeypatch):
+    """``LeBailValidation.mode``'s two writers and its default (WP-2011).
+
+    A record from before schema 0.60 has no key and was a Le Bail fit, so the
+    default reads ``"lebail"``; both writers in ``validate_by_lebail`` name
+    the fit that ran, the failed path included.
+    """
+    from rietx.refine import Refinement
+    from rietx.schemas.indexing import LeBailValidation
+
+    old = LeBailValidation.model_validate(
+        {"rwp": 0.2, "gof": 1.5, "space_group": "P m -3 m", "n_reflections": 28})
+    assert old.mode == "lebail"
+
+    def raises(self, *a, **kw):
+        raise ValueError("a fit the physics refuses")
+
+    monkeypatch.setattr(Refinement, "fit", raises)
+    failed = validate_by_lebail(_candidate(TRUE_A), lab6_pattern, _instrument())
+    assert failed.status == "failed" and failed.mode == "pawley"
+
+
 def test_layer0_unmatched_calc_cannot_serve_as_the_absent_detector(lab6_pattern):
     """The plan's own mechanism, measured false and pinned so it is not retried.
 

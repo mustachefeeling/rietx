@@ -483,7 +483,7 @@ A predicted line is absent when it is resolved from every picked line, the peak-
 
 `LeBailValidation.rwp` is not a panel member.
 It costs a refinement, so it is computed for a shortlist rather than for every candidate, and reading it as a rank would bring back the blind spot it exists to close.
-A converged fit of a cell that contains another cell's lattice fits at least as well as that cell, so `rwp` separates a wrong metric and never an oversized or decentred cell.
+A converged fit of a cell that predicts every reflection of another cell fits at least as well as that cell, so `rwp` separates a wrong metric and never an oversized or decentred cell.
 On a laboratory magnetite pattern the wrong primitive description reads 0.174 against the true cell's 0.180.
 Read `predicted_but_absent` as "this cell predicts lines the pattern lacks", never as "this cell is too big".
 It counts against the lattice group, so a space-group extinction (a glide plane, a screw axis) shows in the count on a correct cell, and the extinction screen afterwards separates the two ([The extinction symbol](extinction.md)).

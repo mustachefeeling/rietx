@@ -2783,9 +2783,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Two or more candidate lattices each satisfy the full confidence gate. The "
             "evidence does not choose between them, so no single cell is returned. "
             "Naming one would be a guess with a confidence attached. Compare their "
-            "figures of merit, and their validation fits where neither lattice contains "
-            "the other, since a containing cell fits at least as well. Extend the 2θ "
-            "range, because one high-angle reflection often separates them."
+            "figures of merit, and their validation fits where neither cell predicts "
+            "every reflection of the other (a candidate's `supercell_checks` says), since "
+            "such a cell fits at least as well. Extend the 2θ range, because one "
+            "high-angle reflection often separates them."
         ),
     ),
     "INDEX_NOT_VALIDATED": HelpEntry(
@@ -2821,9 +2822,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "corundum, 2 on the round-robin magnetite and PbSO₄, against 7 to 79 for "
             "the wrong cells tested (Si's cubic I √2·a₀ 11–12, cubic P 2a₀ 76–79); "
             "measured on those patterns, untested beyond them. Do not check it with "
-            "Rwp: a converged fit of a cell that contains another's lattice matches "
-            "its Rwp (0.164 against 0.164 for a doubled LaB6 cell). Without a peak "
-            "list the "
+            "Rwp: a converged fit of a cell that predicts every reflection of another "
+            "fits at least as well (0.164 against 0.164 for a doubled cell on rietx's "
+            "synthetic LaB6 pattern). Without a peak list the "
             "count is the fitted background's, over the whole range. Compare the "
             "smaller cell that indexes the same lines, and run the extinction screen "
             "before you reject this one."

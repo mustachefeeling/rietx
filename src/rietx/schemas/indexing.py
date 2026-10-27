@@ -198,7 +198,7 @@ from .structure import Cell
 #: X-ray histogram at a 0.1-0.2 % cell went from an abstention to ``P c - n``.
 #: Also 1.12 (WP-2011): the whole-pattern validation fits by Pawley, so every
 #: candidate's ``lebail.rwp`` and ``unmatched_observed`` move, and a cell that
-#: contains another's lattice now reads the same Rwp rather than a higher one.
+#: predicts every reflection of another now reads that cell's Rwp or lower.
 INDEXING_THRESHOLDS_VERSION = "1.12"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is

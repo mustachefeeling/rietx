@@ -734,8 +734,9 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
                         "the pairwise supercell check against it is what "
                         "refutes, this count only caps. lebail.rwp cannot "
                         "separate them: a converged fit of a cell that "
-                        "contains another's lattice matches its Rwp (0.164 "
-                        "against 0.164 for a doubled LaB6 cell).")))
+                        "predicts every reflection of another fits at least "
+                        "as well (0.164 against 0.164 for a doubled cell on "
+                        "rietx's synthetic LaB6 pattern).")))
 
     refuting = [c for c in cand.supercell_checks or [] if c.verdict == "refuted"]
     if refuting:
@@ -845,7 +846,8 @@ def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
             where=[f"{c.system} {c.centring}, V = {c.volume:.1f} Å³"
                    for c in high],
             suggestion=("Compare their figure-of-merit panels, and their "
-                        "lebail.rwp where neither lattice contains the other, "
+                        "lebail.rwp where neither cell predicts every "
+                        "reflection of the other (supercell_checks says), "
                         "and extend the 2θ range to reach a high-angle "
                         "reflection that separates them.")))
 

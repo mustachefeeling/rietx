@@ -441,7 +441,8 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     ~450 reflections, several times more on 11-BM NAC's 837
     (:data:`~rietx.indexing.engines.MEASURED_VALIDATION_SECONDS`).
 
-    **So ``rwp`` cannot separate a lattice from one that contains it.**  A
+    **So ``rwp`` cannot separate a cell from a supercell or decentred
+    description of it.**  A
     converged decomposition of a supercell or a decentred cell has a free
     intensity at every position the parent has, so it fits at least as well:
     magnetite's primitive rival reads 0.174 against the true F cell's 0.180.
