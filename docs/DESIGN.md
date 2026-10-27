@@ -88,7 +88,7 @@ number. A sentence that nobody would use to make a choice does not belong here.
    referent exists, the equation, its source and its code are stated plainly, the topic
    is recorded not yet validated until one arrives, and a result that reports a number
    from such a topic says so beside the number, the one place the fact reaches a reader
-   of results. That state is separate from *provisional*, which rietx keeps for an API
+   of results (the writer is WP-2010's). That state is separate from *provisional*, which rietx keeps for an API
    that may still change (PEP 411's sense). The validation record is for the
    developers. An agent or a user chooses a feature by the sample and the data, and
    whether the package has validated the feature should not move that choice, so the

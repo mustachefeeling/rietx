@@ -388,9 +388,10 @@ sharpens its own row here.
   partitions the help vocabulary and the Theory headings both ways. Each feature names the
   tests that verify it and, where one exists, the independent referent that validates it,
   with the measured mismatch, its domain and whether the data was development data; a
-  feature no test verifies is verified or fenced before the close; the four predictions
-  referenced to the package's own arithmetic or another code are retiered as
-  verification. The record is the validation matrix's and its generated page, kept for
+  feature no test verifies is verified or fenced before the close; the prediction claims
+  referenced to the package's own arithmetic or another code (six to seven of nine, over
+  four features) are retiered as verification. The record is the validation matrix's and
+  its generated page, kept for
   developers, and a result that reports a number from a topic with no referent says so
   in its report (ruled 2026-10-27).
 - **The rulebooks state Rule 1's three outcomes** (2001, 2009): act and record where every
