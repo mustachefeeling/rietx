@@ -212,7 +212,16 @@ confirm the new test goes red naming it.
   data, 3 by referent distance (all on `qarr`); 143 claims, 24 validating under the old
   tiers on 7 datasets, 5 families, 4 instruments; 139 tier-3 rows, a physics feature
   carrying at most one, the background picker 13, the staged plan 15. Oberkampf & Roy
-  chapters 2 and 10 to 13 read in full by a subagent, page-cited in § References.
+  chapters 2 and 10 to 13 read in full by a subagent, page-cited in § References. Fast
+  selection on the final tree (darwin arm64, `[dev]`, alone): 11862 passed, 272 skipped,
+  32 xfailed, 1 failed, 6:15; no test added. The failure is
+  `test_display.py::test_a_plot_in_a_kernel_shows_once_and_leaves_the_backend_alone`,
+  which launches the user's `python3` Jupyter kernel spec, and on this machine that spec
+  points at a deleted venv; it fails alone and before this branch, and CI's kernel is its
+  own. `/code-review high` found one slip (the acceptance row counted predictions by
+  feature) and one sentence declared with no writer, both fixed; it declined the
+  `prediction` tier text, which the retier task owns. No audit row changed
+  (`tests.audit_delta`), so no generality judge was dispatched.
 
   *Review.* An adversarial fresh-context read of the drafts found sixteen defects; the
   material ones were that `capabilities()` carrying referent kinds would be the verdict
