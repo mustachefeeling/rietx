@@ -2186,7 +2186,7 @@ def candidates_truncated_diagnostic(n_merged: int, n_reported: int,
     every system it searched, because attributing the cut to one of them would
     be a guess.
 
-    Info, not a warning.  A bounded reported list is the design (a Le Bail
+    Info, not a warning.  A bounded reported list is the design (a whole-pattern
     validation is priced per candidate), and this exists because a cap that
     says nothing reads as "everything was considered" — the no-silent-caps rule
     one rank up.  Since WP-1046 the layer that truncates is also the layer
@@ -2311,7 +2311,7 @@ DEFAULT_SEARCH_PRESET = "quick"
 #: is the one the gate already reads conservatively when unasked.  Scheduling
 #: within the ceiling, never a change to it: the run still ends at
 #: ``total_budget_seconds``, the search merely stops early enough that
-#: "validated by Le Bail" is part of the first click's answer rather than the
+#: "validated by a whole-pattern fit" is part of the first click's answer rather than the
 #: rerun's.  No reserve when nothing will validate (``validate=False`` or no
 #: pattern): the search keeps every second.
 VALIDATION_RESERVE_FRACTION = 0.08
@@ -2452,7 +2452,7 @@ class CeilingEstimate:
     enforce, so their sum is a bound that holds by construction, on any
     machine.  The validation term is the weak one and wears no arithmetic
     clothes: ``validation_seconds_each`` is a measured range
-    (:data:`MEASURED_VALIDATION_SECONDS`), because a Le Bail fit has no budget
+    (:data:`MEASURED_VALIDATION_SECONDS`), because a validation fit has no budget
     of its own and its cost is a property of the data.  ``typical_seconds``
     (:data:`MEASURED_TYPICAL_SECONDS`) is why the worst case should not be read
     as an ETA: searches finish their systems early far more often than not.
@@ -2491,7 +2491,7 @@ def estimate_ceiling(spec: SearchSpec | None = None, *,
     ceiling — the ``quick`` default's whole-run ceiling cuts across it), the
     dominant-zone probe adds up to ``len(ladder)`` rungs of
     ``min(budget_seconds, probe_seconds)`` for each low-DOF system, and
-    validation runs one Le Bail fit per checked candidate (worst case
+    validation runs one whole-pattern fit per checked candidate (worst case
     ``max_candidates`` — :func:`~rietx.indexing.consensus.checked_indices`
     is the top few plus every all-engine candidate, which the cap bounds).
     """

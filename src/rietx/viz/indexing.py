@@ -12,7 +12,7 @@ does (WP-1972):
 * :func:`plot_candidates` — the ranked answers as tick rows against the observed
   lines, which is the only view in which "indexes everything and predicts a
   forest" looks like what it is.
-* :func:`plot_validation` — the Le Bail fit behind the gate, with **both**
+* :func:`plot_validation` — the validation fit behind the gate, with **both**
   detector lists marked, because they catch different failures
   (:mod:`rietx.indexing.workflow`).
 
@@ -446,7 +446,7 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
     * ``"candidates"`` — when the result carries any: the ranked tick rows,
       matched in the **window the search used**, reconstructed from the
       result's own provenance notes (:func:`_window_from_result`).
-    * ``"validation"`` — the Le Bail panel for ``candidates[candidate]``.
+    * ``"validation"`` — the validation-fit panel for ``candidates[candidate]``.
       Pass ``validation=(LeBailValidation, RefinementResult)`` from
       ``validate_by_lebail(..., with_result=True)`` to draw a fit already in
       hand; or pass ``data`` **and** ``instrument`` to run that fit here; or
@@ -462,7 +462,7 @@ def plot_indexing(result, peaks, *, data=None, instrument=None,
     """
     from ..schemas.pattern import require_two_theta
 
-    _palette(style)  # refused before a Le Bail fit is spent on it
+    _palette(style)  # refused before a validation fit is spent on it
     if data is not None or instrument is not None:
         require_two_theta(data, "plot_indexing()", instrument=instrument)
     token = _COMPOSING.set(True)

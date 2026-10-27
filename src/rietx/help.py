@@ -2706,7 +2706,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "The search found more distinct lattices than the list reports, so "
             "lower-ranked cells are left out. The limit exists because each reported "
-            "candidate costs a Le Bail fit. An engine that returned a full pool may also "
+            "candidate costs a validation fit. An engine that returned a full pool may also "
             "have held more. The omitted cells were never judged and rejected. Raise "
             "`max_candidates` to see further down the ranking."
         ),
@@ -2783,8 +2783,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Two or more candidate lattices each satisfy the full confidence gate. The "
             "evidence does not choose between them, so no single cell is returned. "
             "Naming one would be a guess with a confidence attached. Compare their "
-            "figures of merit and Le Bail fits, and extend the 2θ range, because one "
-            "high-angle reflection often separates them."
+            "figures of merit, and their validation fits where neither lattice contains "
+            "the other, since a containing cell fits at least as well. Extend the 2θ "
+            "range, because one high-angle reflection often separates them."
         ),
     ),
     "INDEX_NOT_VALIDATED": HelpEntry(
@@ -2820,8 +2821,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "corundum, 2 on the round-robin magnetite and PbSO₄, against 7 to 79 for "
             "the wrong cells tested (Si's cubic I √2·a₀ 11–12, cubic P 2a₀ 76–79); "
             "measured on those patterns, untested beyond them. Do not check it with "
-            "Rwp: an oversized cell scored 0.379 against a correct 0.216, a "
-            "gap smaller than the spread between specimens. Without a peak list the "
+            "Rwp: a converged fit of a cell that contains another's lattice matches "
+            "its Rwp (0.164 against 0.164 for a doubled LaB6 cell). Without a peak "
+            "list the "
             "count is the fitted background's, over the whole range. Compare the "
             "smaller cell that indexes the same lines, and run the extinction screen "
             "before you reject this one."
@@ -2920,9 +2922,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         ),
     ),
     "INDEX_VALIDATION_FAILED": HelpEntry(
-        title="The Le Bail check of a candidate failed",
+        title="The validation fit of a candidate failed",
         description=(
-            "The whole-pattern Le Bail fit that validates this candidate raised an "
+            "The whole-pattern fit that validates this candidate raised an "
             "error, so nothing was measured for it. The candidate is neither supported "
             "nor refuted. A mis-declared instrument profile, or a wavelength on an "
             "absorption edge, fails every candidate alike. Check those first."
@@ -4776,7 +4778,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         description=(
             "How many candidates the final list holds after the engines are merged and "
             "ranked. It also sets the validation cost, since every reported candidate "
-            "needs a Le Bail fit. Each engine hands five times this number to the "
+            "needs a validation fit. Each engine hands five times this number to the "
             "merge, so the cap never decides a rank."
         ),
         default="12",
@@ -4841,8 +4843,8 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
         title="Candidates checked in depth",
         description=(
             "How many candidates get the per-candidate checks: the ambiguity search and "
-            "the Le Bail fit. Empty takes the package default plus every candidate that "
-            "the confidence gate could promote."
+            "the whole-pattern validation fit. Empty takes the package default plus "
+            "every candidate that the confidence gate could promote."
         ),
         typical="empty",
         anchor="reference/indexing.html#the-whole-profile-test",
