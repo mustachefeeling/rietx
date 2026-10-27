@@ -21,7 +21,7 @@ kinds {cite}`wondratschek2011` (Lemma 1.2.8.1.3):
 - klassengleiche (k), with the point group P kept and the lattice
   reduced to a sublattice L′ < L that P maps onto itself.
 
-## The k-subgroups over F_p
+## The k-subgroups over a prime field
 
 H is a maximal k-subgroup exactly when no P-invariant lattice lies strictly
 between L′ and L. Then $pL \subseteq L'$ for one prime p, and L/L′ is an
@@ -88,7 +88,7 @@ W' = \mathsf{P}^{-1} W \mathsf{P}, \quad
 
 {source}`rietx.crystallography.representation.subgroups.MaximalSubgroup`
 
-{cite}`wondratschekaroyo2011` (eqs. 2.1.3.3–2.1.3.9): the columns of P are the
+{cite}`wondratschekaroyo2011` (equations 2.1.3.3–2.1.3.9): the columns of P are the
 subgroup's conventional axes in the parent's fractions and p is its origin in
 the parent cell, the convention the displacive mode basis uses
 ({ref}`ch-representation-analysis`). The standard setting is the one spglib returns for

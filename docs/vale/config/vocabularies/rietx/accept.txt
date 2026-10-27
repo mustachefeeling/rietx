@@ -63,6 +63,7 @@ Colab
 [cC]omponentwise
 [cC]onfigurational
 [cC]ongruences
+[cC]onjugacy
 Conograph
 [cC]ontainments
 [cC]ontrapositive
@@ -116,6 +117,7 @@ Dreele
 Ewald
 [eE]xponentials
 Faddeeva
+Fddd
 [fF]erritic
 [fF]ilesystem
 [fF]luorapatite
@@ -163,6 +165,7 @@ Kass
 Kessler
 Kirfel
 Kissel
+[kK]lassengleiche
 Kleeberg
 Kovalev
 Landé
@@ -215,6 +218,7 @@ Negro
 Niggli
 [nN]m
 [nN]onbonding
+[nN]ormaliser
 [nN]ormals
 [nN]uclide
 [nN]uclides
@@ -226,6 +230,7 @@ Niggli
 [oO]ctahedron
 Olds
 [oO]perando
+[oO]rientational
 [oO]rthonormal
 [oO]rthorhombic
 [oO]xygens
@@ -311,6 +316,7 @@ Stoe
 [sS]ubcommand
 [sS]ubcommands
 [sS]ublattice
+[sS]ubspaces
 [sS]ubtree
 Suortti
 [sS]upercell
@@ -330,6 +336,8 @@ TOPAS
 [tT]orsion
 [tT]orsions
 [tT]raceback
+[tT]ranslational
+[tT]ranslationengleiche
 [tT]riclinic
 [tT]rigonal
 [tT]rirutile
