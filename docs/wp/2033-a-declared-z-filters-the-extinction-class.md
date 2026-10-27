@@ -139,8 +139,8 @@ extinction screen answers as on `main`.
   `exclusion_reasons` (which `admits` now reads), and `crystallography`
   gains `site_classes.holds` and `atomic_volume.formula_counts`. One
   `_audit` row is added, `N_A_CM3_PER_A3` at tier 1. There is no new
-  diagnostic code, and `INDEXING_THRESHOLDS_VERSION` stays at 1.11 with an
-  "Also in 1.11" note.
+  diagnostic code, and `INDEXING_THRESHOLDS_VERSION` stays at 1.12 with an
+  "Also 1.12" note.
   *ITA*: 32 groups, one per crystal class, 247 positions. Letters,
   multiplicities and site symmetries all agree with the derivation, read
   from the held Vol. A 5th-ed. page images; the pages are cited in

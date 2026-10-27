@@ -26,7 +26,15 @@ import pytest
 
 from rietx import determine_extinction_symbol
 from rietx.indexing.diagnostics import extinction_diagnostics
-from rietx.indexing.extinction import admits, is_polar, laue_classes
+from rietx.indexing.extinction import (
+    DENSITY_Z_TOLERANCE,
+    N_A_CM3_PER_A3,
+    admits,
+    declared_z,
+    density_zs,
+    is_polar,
+    laue_classes,
+)
 from rietx.schemas.indexing import (
     ExtinctionCandidate,
     ExtinctionPrior,
@@ -233,6 +241,9 @@ NACL_CELL = (5.6402,) * 3 + (90.0,) * 3
 NACL_ATOMS = (("Na", 0.0, 0.0, 0.0), ("Cl", 0.5, 0.5, 0.5))
 #: X-ray density of NaCl at that cell: 4 × 58.443 g/mol / (N_A × 179.43 Å³)
 NACL_DENSITY = 2.163
+#: the handbook's measured density of NaCl (CRC Handbook of Chemistry and
+#: Physics, physical constants of inorganic compounds), g/cm³
+NACL_MEASURED = 2.165
 
 
 def _cubic_screen(space_group, cell, atoms, centring, **kw):
@@ -337,21 +348,29 @@ def test_z_prime_below_one_names_the_site_symmetry_and_removes_nothing():
     assert "Z′ = 3/2" in special_site_note(
         gemmi.find_spacegroup_by_name("P 1 21/m 1"), 6)
     # no special position at all: no formula unit sits whole on one site
-    assert "no special position" in special_site_note(
+    assert "no sum" in special_site_note(
         gemmi.find_spacegroup_by_name("P 21 21 21"), 2)
+    # Yue's #1140 item 7: P 2₁/m at Z = 3 leaves a remainder of 3, which the
+    # 2-fold positions cannot make; the note must not list them as if they did
+    odd = special_site_note(gemmi.find_spacegroup_by_name("P 1 21/m 1"), 3)
+    assert "no sum" in odd and "m (2e)" not in odd
+    # Z = 5 is odd, and every orbit of this group is even
+    assert "no sum" in special_site_note(gemmi.find_spacegroup_by_name("P 1 21/m 1"), 5)
 
 
 @pytest.fixture(scope="module")
 def p21_z_screens():
     """#935's case: the P 2₁ specimen at its own Z = 2, and at a wrong Z = 1."""
     return (_screen("P 1 21 1", restrict={"z": 2, "formula": "SiO"}),
+            _screen("P 1 21 1", restrict={"z": 1, "formula": "SiO",
+                                          "ordered": True}),
             _screen("P 1 21 1", restrict={"z": 1, "formula": "SiO"}))
 
 
 def test_935_a_p21_specimen_at_z2_keeps_p21m_and_says_what_it_needs(
         p21_screens, p21_z_screens):
     plain, _ = p21_screens
-    declared, _ = p21_z_screens
+    declared = p21_z_screens[0]
     best = declared.best_or_none()
     assert best is not None and best.symbol == "P 1 21 1"
     assert best.space_groups == ["P 1 21 1", "P 1 21/m 1"]
@@ -369,25 +388,43 @@ def test_935_a_p21_specimen_at_z2_keeps_p21m_and_says_what_it_needs(
                (b.symbol, b.delta_bic, b.n_testable, b.refuted)
 
 
-def test_a_z_the_data_contradict_ends_in_an_abstention(p21_z_screens):
-    _, wrong = p21_z_screens
+def test_a_z_the_data_contradict_ends_in_an_abstention_when_declared_ordered(
+        p21_z_screens):
+    wrong = p21_z_screens[1]
     lead = wrong.candidates[0]
     assert lead.symbol == "P 1 21 1" and lead.space_groups == []
     assert lead.excluded_groups == ["P 1 21 1", "P 1 21/m 1"]
     assert "Si 1" in lead.exclusion_reasons["P 1 21 1"]
+    assert "ordered" in lead.exclusion_reasons["P 1 21 1"]
     assert wrong.best_or_none() is None
     assert _note(wrong).level == "warning"
+
+
+def test_the_same_wrong_z_is_a_statement_when_the_model_is_not_declared_ordered(
+        p21_z_screens):
+    """#1140 item 3: a count the orbits cannot hold removes nothing by default,
+    since a disordered model shares a site; the group stays and says why."""
+    stated = p21_z_screens[2]
+    best = stated.best_or_none()
+    assert best is not None and best.symbol == "P 1 21 1"
+    assert best.excluded_groups == [] and best.exclusion_reasons == {}
+    assert "Si 1" in best.count_notes["P 1 21 1"]
+    assert any("kept though Si 1" in w and "ordered=True" in w
+               for w in _note(stated).where)
 
 
 @pytest.fixture(scope="module")
 def tetrahedrite_screens():
     args = ("I -4 3 m", TETRAHEDRITE_CELL, TETRAHEDRITE_ATOMS, "I")
     return (_cubic_screen(*args),
+            _cubic_screen(*args, restrict=ExtinctionPrior(
+                z=2, formula="Cu12Sb4S13", ordered=True)),
             _cubic_screen(*args, restrict=ExtinctionPrior(z=2, formula="Cu12Sb4S13")))
 
 
-def test_an_ionic_z_removes_the_group_whose_orbits_cannot_hold_it(tetrahedrite_screens):
-    plain, declared = tetrahedrite_screens
+def test_an_ionic_z_removes_the_group_whose_orbits_cannot_hold_it_when_ordered(
+        tetrahedrite_screens):
+    plain, declared, _ = tetrahedrite_screens
     best = plain.best_or_none()
     assert best is not None and best.symbol == "I - - -"
     assert "I 21 3" in best.space_groups
@@ -399,7 +436,8 @@ def test_an_ionic_z_removes_the_group_whose_orbits_cannot_hold_it(tetrahedrite_s
     assert "S 26" in best.exclusion_reasons["I 21 3"]
     note = _note(declared)
     assert note.level == "info"
-    assert any(w.startswith("I - - -: excluded I 21 3 (z=2: S 26") for w in note.where)
+    assert any(w.startswith("I - - -: excluded I 21 3 (z=2, ordered: S 26")
+               for w in note.where)
     # every kept member needs special positions at Z = 2: one line, not five
     assert len(best.special_positions) == 5
     assert [w for w in note.where if "special positions" in w] == [
@@ -408,6 +446,16 @@ def test_an_ionic_z_removes_the_group_whose_orbits_cannot_hold_it(tetrahedrite_s
     for a, b in zip(plain.candidates, declared.candidates, strict=True):
         assert (a.symbol, a.delta_bic, a.n_testable, a.refuted) == \
                (b.symbol, b.delta_bic, b.n_testable, b.refuted)
+
+
+def test_an_ionic_z_only_states_the_failed_count_by_default(tetrahedrite_screens):
+    plain, _, stated = tetrahedrite_screens
+    best = stated.best_or_none()
+    assert best is not None and best.excluded_groups == []
+    assert best.space_groups == plain.best_or_none().space_groups
+    assert list(best.count_notes) == ["I 21 3"]
+    assert "S 26" in best.count_notes["I 21 3"]
+    assert any("I 21 3 kept though S 26" in w for w in _note(stated).where)
 
 
 @pytest.fixture(scope="module")
@@ -421,7 +469,17 @@ def nacl_screens():
                                                 "formula": "NaCl"}),
         "disagree": _cubic_screen(*args, restrict={"z": 2, "density": NACL_DENSITY,
                                                     "formula": "NaCl"}),
-        "wrong": _cubic_screen(*args, restrict={"z": 1, "formula": "NaCl"}),
+        "wrong": _cubic_screen(*args, restrict={"z": 1, "formula": "NaCl",
+                                                 "ordered": True}),
+        "wrong_stated": _cubic_screen(*args, restrict={"z": 1, "formula": "NaCl"}),
+        # a handbook density, not the X-ray one: 2.165 g/cm3 (CRC Handbook of
+        # Chemistry and Physics, inorganic compounds), good to the 1 % a
+        # pycnometer is, against the computed 2.163
+        "measured": _cubic_screen(*args, restrict={"density": NACL_MEASURED,
+                                                    "formula": "NaCl"}),
+        # an unphysical density, only to put Z where two whole numbers fit
+        "ambiguous": _cubic_screen(*args, restrict={"density": 25 * NACL_DENSITY,
+                                                     "formula": "NaCl"}),
     }
 
 
@@ -449,17 +507,91 @@ def test_a_density_that_contradicts_the_declared_z_abstains(nacl_screens):
     assert "density" in ambiguous.message
 
 
-def test_a_wrong_z_on_rock_salt_empties_every_class_and_abstains(nacl_screens):
+def test_a_wrong_z_on_rock_salt_empties_every_class_and_abstains_when_ordered(
+        nacl_screens):
     screen = nacl_screens["wrong"]
     assert all(not c.space_groups for c in screen.candidates)
     assert screen.best_or_none() is None
     assert _note(screen).level == "warning"
+    stated = nacl_screens["wrong_stated"]
+    assert stated.best_or_none() is not None
+    assert not any(c.excluded_groups for c in stated.candidates)
+
+
+def test_a_measured_density_gives_z_within_its_own_tolerance(nacl_screens):
+    """#1140 item 2: a handbook density, not the one computed from the cell
+    and the formula, which only checks the arithmetic."""
+    screen = nacl_screens["measured"]
+    assert screen.z == 4 and not screen.density_contradicts_z()
+    assert abs(screen.z_from_density / 4 - 1.0) < DENSITY_Z_TOLERANCE
+    assert screen.best_or_none() is not None
+    # the old 8 % would have taken a density 5 % off; 1 % does not
+    off = declared_z(ExtinctionPrior(density=NACL_MEASURED * 1.05, formula="NaCl"),
+                     179.43)
+    assert off[0] is None and off[1] == pytest.approx(4.2, abs=0.01)
+
+
+def test_a_density_names_a_whole_z_above_the_old_eight_percent_edge():
+    """#1140 item 1: at Z = 12 the 8 % window held 12 and 13, and at 24 it held
+    23 to 26; the measured-density window names the one Z."""
+    for z in (12, 16, 24, 40):
+        v = 100.0
+        rho = z * 58.443 / (N_A_CM3_PER_A3 * v)       # the NaCl formula weight
+        got, z_rho = declared_z(ExtinctionPrior(density=rho, formula="NaCl"), v)
+        assert got == z and z_rho == pytest.approx(z, rel=1e-3), z
+        assert density_zs(z_rho) == [z]
+
+
+def test_a_density_that_fits_several_whole_z_is_ambiguous_not_contradicted(
+        nacl_screens):
+    screen = nacl_screens["ambiguous"]
+    assert screen.z is None and len(screen.z_candidates) > 1
+    assert not screen.density_contradicts_z()
+    # nothing is filtered, and the screen does not abstain on its account
+    assert all(not c.excluded_groups for c in screen.candidates)
+    assert screen.best_or_none() is not None
+    note = _note(screen)
+    assert "fits Z =" in note.message and "abstains" not in note.message
+    assert not any("density" in d.message for d in screen.diagnostics
+                   if d.code == "EXTINCTION_SYMBOL_AMBIGUOUS")
+
+
+def test_a_screen_that_computed_no_z_does_not_say_the_density_contradicts_it():
+    """#1140 item 4: the early returns of ``determine_extinction_symbol`` come
+    before ``declared_z``; a density that was never evaluated contradicts
+    nothing."""
+    prior = ExtinctionPrior(density=2.16, formula="NaCl")
+    assert not ExtinctionScreen(prior=prior).density_contradicts_z()
+    assert ExtinctionScreen(prior=prior, z_from_density=4.7).density_contradicts_z()
+    assert not ExtinctionScreen(prior=prior, z_from_density=100.0,
+                                z_candidates=[100, 101]).density_contradicts_z()
+
+
+def test_disordered_cuau_keeps_its_true_group_unless_declared_ordered():
+    """#1140 item 3: CuAu written with whole counts at Z = 2 fails the orbit
+    count on every group of the fcc class, and its true Fm-3m must survive."""
+    args = ("F m -3 m", (3.96,) * 3 + (90.0,) * 3, (("Cu", 0.0, 0.0, 0.0),), "F")
+    kept = _cubic_screen(*args, restrict={"z": 2, "formula": "CuAu"})
+    best = kept.best_or_none()
+    assert best is not None and "F m -3 m" in best.space_groups
+    assert best.excluded_groups == [] and "F m -3 m" in best.count_notes
+    dropped = _cubic_screen(*args, restrict={"z": 2, "formula": "CuAu",
+                                              "ordered": True})
+    assert dropped.best_or_none() is None
+    assert all(not c.space_groups for c in dropped.candidates if not c.refuted)
+
+
+def test_ordered_is_declared_with_a_formula():
+    with pytest.raises(ValueError, match="formula"):
+        ExtinctionPrior(ordered=True)
+    assert ExtinctionPrior(z=2, formula="SiO", ordered=True).declared()["ordered"] is True
 
 
 def test_nothing_declared_moves_no_screen(nacl_screens, tetrahedrite_screens):
     """With no Z and no density the new fields stay empty on every screen."""
     for screen in (nacl_screens["plain"], tetrahedrite_screens[0]):
         assert screen.prior is None and screen.z is None
-        assert screen.z_from_density is None
+        assert screen.z_from_density is None and screen.z_candidates == []
         assert all(not c.excluded_groups and not c.exclusion_reasons
-                   and not c.special_positions for c in screen.candidates)
+                   and not c.special_positions and not c.count_notes
+                   for c in screen.candidates)

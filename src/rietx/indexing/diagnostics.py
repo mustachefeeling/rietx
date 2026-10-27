@@ -1118,9 +1118,11 @@ def _prior_diagnostic(screen, alive, top) -> Diagnostic:
     either the declaration doing work the data could not, or the data
     contradicting it — and the reader must see which before acting.  Also a
     ``warning`` when a declared density does not give the Z on this cell.
-    Each removed group is named with the facts it fails, and each member of
-    the answer's class kept at a Z′ that is not whole with the special
-    positions it needs.
+    Each removed group is named with the facts it fails, each member of the
+    answer's class kept at a Z′ that is not whole with the special positions it
+    needs, and each kept member whose orbits cannot hold the declared count with
+    that statement.  A density that fits several whole Z is said to, and only
+    declares nothing.
     """
     prior = screen.prior
     declared = ", ".join(f"{k}={v}" for k, v in prior.declared().items())
@@ -1138,6 +1140,12 @@ def _prior_diagnostic(screen, alive, top) -> Diagnostic:
                       if prior.z is not None else "not one whole number")
                    + ", so no group was filtered by Z and best_or_none() "
                      "abstains; " + message)
+    elif prior.density is not None and screen.z is None and screen.z_candidates:
+        message = (f"the declared density and formula put "
+                   f"{screen.z_from_density:.2f} formula units in this cell, "
+                   f"which fits Z = {', '.join(map(str, screen.z_candidates))} "
+                   "within the density's tolerance, so no group was filtered "
+                   "by Z (declare z to filter); " + message)
     if emptied:
         message += f", emptying {', '.join(emptied)}"
     if first_emptied and top.space_groups:
@@ -1160,7 +1168,7 @@ def _prior_diagnostic(screen, alive, top) -> Diagnostic:
         message=message + ".  A filter on the members, never evidence: no ΔBIC "
                           "moved and every class was fitted",
         where=[f"{c.symbol}: excluded {_named(c)}" for c in removed]
-        + _special_lines(top, screen.z),
+        + _special_lines(top, screen.z) + _count_lines(top),
         suggestion=("check the declaration before the answer: a class it "
                     "emptied that leads on the data is either chemistry doing "
                     "what a powder cannot, or a wrong declaration (a racemate "
@@ -1181,6 +1189,14 @@ def _special_lines(top, z) -> list[str]:
         return [f"{top.symbol}: every member holds Z = {z} only with formula "
                 "units on special positions (special_positions names them)"]
     return [f"{top.symbol}: {note}" for note in notes.values()]
+
+
+def _count_lines(top) -> list[str]:
+    """What the declared Z says of the answer's class members whose orbits
+    cannot hold some element's count: kept, a disordered model may share a site."""
+    return [f"{top.symbol}: {g} kept though {why} (a disordered model shares "
+            "a site; ExtinctionPrior(ordered=True) removes it)"
+            for g, why in top.count_notes.items()]
 
 
 def _cell_str(cell) -> str:

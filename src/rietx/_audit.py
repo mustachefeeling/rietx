@@ -1647,6 +1647,13 @@ ROWS: tuple[Row, ...] = (
         grounds="Kept on both grounds, ruled 2026-10-21 (PR #939).",
         approved="2026-10-21"),
     Row("rietx.indexing.extinction._MODULI", "constant", value=(2, 3, 4, 6)),
+    Row("rietx.indexing.extinction.DENSITY_Z_TOLERANCE", "constant", tier=2,
+        evidence="Ruled by the maintainer on PR #1140 (2026-10-27): a measured density is "
+                 "good to about 1 % (pycnometric or flotation), so that is the error of Z "
+                 "= rho*V*N_A/M, the cell volume being far better known.  Tested against "
+                 "a handbook density of NaCl (2.165 g/cm3, CRC Handbook of Chemistry and "
+                 "Physics), not the density computed from the same cell (WP-2033).",
+        value=0.01),
     Row("rietx.indexing.extinction.N_A_CM3_PER_A3", "constant", tier=1,
         evidence="Physics: Avogadro's number, exact in the SI since 2019 (CODATA 2018, "
                  "6.02214076e23 /mol), times 1e-24 cm3 per A3, so Z = rho*V*N_A/M with rho "

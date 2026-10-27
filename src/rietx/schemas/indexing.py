@@ -2161,8 +2161,16 @@ class ExtinctionPrior(Base):
     it removed; it never enters a ΔBIC, every class is still fitted, and a class
     it empties stays in the ranking, so a declaration the data contradict is
     visible rather than silently obeyed.  A density that does not give the
-    declared ``z`` (or, alone, any one whole number) on the screened cell
-    filters nothing and makes the screen abstain.
+    declared ``z`` (or, alone, any whole number) on the screened cell
+    filters nothing and makes the screen abstain; one that fits several whole
+    numbers (above Z ≈ 50) only filters nothing.
+
+    **A count its orbits cannot hold is a statement, not a removal, unless the
+    model is declared ordered.**  A disordered alloy written with whole counts
+    (CuAu, Cu₃Au) puts its atoms on a shared site and its true group fails the
+    count, which a competent refiner would not remove.  So by default the
+    screen keeps the group and names the failure
+    (``ExtinctionCandidate.count_notes``); ``ordered=True`` removes it.
     """
 
     #: only Sohncke groups (proper rotations, screws and translations): an
@@ -2183,6 +2191,10 @@ class ExtinctionPrior(Base):
     #: the formula unit as a chemist writes it (``"Cu12Sb4S13"``, brackets and
     #: ``·`` adducts allowed); a fractional count declares a shared site
     formula: str | None = None
+    #: every site is one element at full occupancy (no mixed or partial
+    #: sites): only then does a group whose orbits cannot hold the declared
+    #: content get **removed**, instead of named in ``count_notes``
+    ordered: bool | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> "ExtinctionPrior":
@@ -2202,6 +2214,9 @@ class ExtinctionPrior(Base):
             from ..crystallography.atomic_volume import formula_counts
 
             formula_counts(self.formula)       # a symbol that is no element raises
+        if self.ordered and self.formula is None:
+            raise ValueError("ordered=True removes groups by the declared "
+                             "content: declare the formula with a z or a density")
         return self
 
     def declared(self) -> dict[str, bool | int | float | str]:
@@ -2210,7 +2225,8 @@ class ExtinctionPrior(Base):
                                   ("centrosymmetric", self.centrosymmetric),
                                   ("polar", self.polar), ("z", self.z),
                                   ("density", self.density),
-                                  ("formula", self.formula)) if v is not None}
+                                  ("formula", self.formula),
+                                  ("ordered", self.ordered)) if v is not None}
 
 
 class ExtinctionCandidate(Base):
@@ -2258,6 +2274,12 @@ class ExtinctionCandidate(Base):
     #: formula unit then sits on.  A statement, never an exclusion — a molecule
     #: there must carry the site's symmetry, which nothing declared says
     special_positions: dict[str, str] = Field(default_factory=dict)
+    #: for each admitted member whose orbits cannot hold some element's atoms
+    #: per cell at the declared Z (``"Cu 2 per cell is no sum of its orbits
+    #: …"``): kept, since a disordered model can share a site, and removed only
+    #: under ``ExtinctionPrior.ordered`` (then in :attr:`exclusion_reasons`).
+    #: Filled for the classes the data leave standing
+    count_notes: dict[str, str] = Field(default_factory=dict)
     #: :attr:`space_groups` grouped by Laue class (gemmi's symbol).  More than
     #: one key means the members differ in which reflections are *equivalent*
     #: — the intensity partition inside an overlapped multiplet — and not in any
@@ -2374,6 +2396,10 @@ class ExtinctionScreen(Base):
     #: Z the declared density and formula give on :attr:`cell`, not rounded;
     #: ``None`` without a declared density
     z_from_density: float | None = None
+    #: every whole Z within the density's tolerance of :attr:`z_from_density`,
+    #: when no ``z`` is declared; more than one is an ambiguity (a measured
+    #: density at Z ≳ 50), none a contradiction
+    z_candidates: list[int] = Field(default_factory=list)
     #: ``"converged"``; ``"failed"`` (no reference fit, nothing ranked);
     #: ``"unreliable"`` (ranked, but the reference fit left more of the net
     #: signal unexplained than any absence test can be read against, so
@@ -2385,12 +2411,16 @@ class ExtinctionScreen(Base):
     def density_contradicts_z(self) -> bool:
         """Did a declared density fail to give the Z on the screened cell?
 
-        True when :attr:`prior` declares a density and :attr:`z` is ``None``:
-        the density gives another Z than the declared one, or, with none
-        declared, no single whole number.
+        True when :attr:`prior` declares a density, one was computed
+        (:attr:`z_from_density`), and it names no Z: it is outside the
+        tolerance of the declared ``z``, or, with none declared, of every
+        whole number.  A density that fits *several* whole numbers is an
+        ambiguity, not a contradiction, and is False; so is a screen that never
+        computed one (cancelled, failed, or no reflections).
         """
         return (self.prior is not None and self.prior.density is not None
-                and self.z is None)
+                and self.z_from_density is not None and self.z is None
+                and (self.prior.z is not None or not self.z_candidates))
 
     def best_or_none(self) -> ExtinctionCandidate | None:
         """The one extinction class, or None.
@@ -2409,8 +2439,9 @@ class ExtinctionScreen(Base):
         returned and the margin is taken to the next such class — that is the
         declaration used — but a class it emptied that the data prefer by the
         decisive margin makes this abstain: the data contradict the declaration.
-        So does a declared density that gives no Z, or another Z than the one
-        declared, on the screened cell (:attr:`z` is then ``None``).
+        So does a declared density that gives another Z than the one declared,
+        or no whole Z, on the screened cell (:meth:`density_contradicts_z`); a
+        density that fits several whole Z does not.
 
         A returned class still lists every space group it admits.  There is no
         accessor anywhere in this module that yields one space group from the

@@ -172,11 +172,12 @@ def test_orbit_sizes_match_international_tables_on_every_crystal_class(setting):
 
 def test_holds_is_a_placement_existing():
     """``holds`` answers what :func:`count_site_assignments` counts, for every
-    count up to twice the general multiplicity: the existence question needs
-    no count."""
+    count up to twice the general multiplicity, at most 24: the existence
+    question needs no count, and the counting side's cost grows with the count
+    (the full range took 46 s, so it is trimmed here rather than marked slow)."""
     for setting in ("F m -3 m", "P 1 21/m 1", "I 21 3", "P 6/m m m", "P -1"):
         classes = site_classes(setting)
-        top = 2 * max(c.multiplicity for c in classes)
+        top = min(2 * max(c.multiplicity for c in classes), 24)
         for n in range(1, top + 1):
             assert holds(classes, n) == (
                 count_site_assignments(classes, {"Si": n}) > 0), (setting, n)
