@@ -1,0 +1,166 @@
+# WP-2062 — Pawley is the structure-free default
+
+Milestone: unscheduled · Status: ⬜
+Track: What fires, and what stays silent
+Depends on: 2011 (the indexer's validation, built provisionally as Pawley); 1910 soft (the extinction screen's fits)
+Priority: P2 2026-10-27 — a scoping WP, the decision with a named user that other WPs wait on (1542, 1910's fit mode)
+
+## Goal
+
+Every place where rietx chooses a structure-free fit for a user runs the
+method the maintainer picks below, site by site, and every name that would
+then describe the wrong fit is renamed or records the mode. The evidence for
+each choice, including what TOPAS, GSAS-II and FullProf do, is in this file
+and in `docs/practice.md`.
+
+## Context
+
+**What "default" means here.** No argument default picks Le Bail. `mode`
+defaults to `"rietveld"` in `Refinement.fit` (`refine.py:4838`),
+`rietx.refine()`, `Project.create`, `ProjectDoc`, `SequentialRefinement` and
+the GUI's create form, and `_audit.py:3315-3320` records that none of the
+seven surveyed programs defaults to Le Bail either. rietx picks Le Bail for
+the user in four other ways, inventoried 2026-10-27 (an agent's read, its
+load-bearing lines checked here):
+
+| | Site | Who sees it | Pawley-ready? |
+|---|---|---|---|
+| A1 | the indexer's candidate validation, `validate_by_lebail` (`indexing/workflow.py`) | every `index_pattern` user, the GUI's candidate row | **switched** in WP-2011, provisionally |
+| A2 | the extinction screen's fits: `_fit_class` (`indexing/extinction.py:773`), the cell-free prefit (`:825`) and the reference fit (`:983`) | `determine_extinction_symbol`, the GUI's Peaks panel | runs, but unmeasured. Its Hamilton count adds `n_lines + n_free_parameters` (`:1137-1141`), and a Pawley `n_free_parameters` already includes the intensity block, so the count would double (read, not run) |
+| B1 | the GUI's Adopt sets `doc.mode = "lebail"` (`gui/session.py:2460`) | a GUI user adopting a candidate | yes: the GUI already runs Pawley projects |
+| B2 | the wizard's typed cell flips the mode to `lebail` (`gui/src/lib/wizard.ts:157`, pinned by `wizard.test.ts`) | a GUI user without a CIF | yes; a frontend change needs a rebuilt dist |
+| C | prose that tells a person or an agent to run Le Bail first: `docs/skill/rietx/SKILL.md` (:77-137), `docs/docs/start/first-fit.md` ("Le Bail before Rietveld", :170-181), `reference/refinement.md`, tutorials 01, 03 and 06, `examples/nac_11bm.py`, `README.md` | every reader and every agent | yes |
+| D | `mccusker_default` runs `profile_only` under `lebail` and `pawley_default` under `pawley` (`strategy/staged.py:719`, `_MODE_SUBSTITUTES`); the two have identical stages | API, GUI, agent | yes; `profile_only` also serves Rietveld, so it cannot simply be renamed |
+
+**Pawley already rests on Le Bail.** A Pawley stage with no intensities
+carried in seeds its block from one Le Bail partition (`refine.py:4404-4411`,
+`Stage.lebail_cycles` partitions). So no option here deletes Le Bail.
+`help.lebail_cycles` said Pawley ignores the setting; WP-2011 corrected it.
+
+**Why Le Bail is in question.** rietx's Le Bail re-extracts the intensities
+only between least-squares runs (`lebail_cycles` = 3 partitions before each
+solve), so one pass refines widths against intensities partitioned at the
+starting profile. Measured:
+
+- WP-2011, nine real patterns' true cells, one pass of the indexer's plan:
+  Le Bail left `w` on its floor on corundum and zircon and 21 and 44 observed
+  peaks unmatched; Pawley hit no floor and left 12 and 11. On a wrong cell
+  the Le Bail background sank (−7.3 counts under magnetite's primitive
+  rival; Pawley +13.8). Five or ten Le Bail passes did not close the gap and
+  cost more than one Pawley fit.
+- WP-2011's non-goals, ordinary `profile_only` against `pawley_default` over
+  three passes: corundum 0.234 → 0.179 with `y` still on its floor, against
+  Pawley 0.152 → 0.139; FAP 0.130 → 0.085 against 0.083 → 0.078; zircon
+  0.184 → 0.172 against 0.172 → 0.149.
+- Notebook 03 (aragonite): the indexer's one Pawley pass reaches Rwp 0.044,
+  the notebook's own two Le Bail passes 0.053.
+- Issue #740, folded into WP-1542: with cell and profile at the truth and
+  only the background free, Le Bail plateaus at Rwp 1.62 % from 100 to 400
+  cycles, Pawley reaches 1.06 % and the Rietveld fit of the true structure
+  1.09 %. The cause found there is the background, not the partition.
+
+**What Pawley costs and lacks** (each read at its line 2026-10-27 unless
+marked):
+
+- Cost: one intensity per reflection in θ. About equal to Le Bail below ~450
+  reflections; on 11-BM NAC's 837, 3.1× on an idle machine (WP-2011,
+  10-18). Above 128 columns LM steps by projected CG (WP-1953), and
+  `at_bound` is then not exact (`strategy/staged.py:1858-1870`). The esd
+  pass builds a dense n×n (`refine.py:6809`, `:8055`).
+- `compare_rivals` raises in Pawley (`report/layer2.py:1202`).
+- The exchangeability scan returns nothing in Pawley
+  (`optimize/identifiability.py:191`).
+- No `FROZEN_COMPILE_STALE` recompile: a Pawley result is the frozen
+  compile's (`refine.py:5536`).
+- Overlap groups are built per phase, so coincident reflections of two
+  phases are neither restrained nor flagged (`model/forward.py:4396-4415`;
+  inferred from the code, not tested).
+- Its three constants (`PAWLEY_OVERLAP_FWHM_FRAC`, `PAWLEY_OVERLAP_LAMBDA`,
+  `PAWLEY_OFF_DATA_SCALE_FLOOR`) are tier 3 on the ground "opt-in Pawley
+  mode", measured on LaB6 and FAP only (`_audit.py:1868-1890`). A default
+  that reaches users unasked removes that ground, so the generality rule
+  reopens them. WP-2011's switch already does this for `index_pattern`, and
+  that WP holds the decision.
+
+What Pawley has that Le Bail lacks: per-reflection esds, cell esds
+marginalised over the intensities (`docs/solver-survey.md:249-251` calls
+Le Bail's "known to be optimistic"), intensities bounded at zero, the
+overlap flag `PAWLEY_OVERLAP_UNRESOLVED`, and the off-data ridge
+(`PAWLEY_OFF_DATA_RIDGED`, WP-1459).
+
+**Names.** If the method changes, these would describe a fit that is no
+longer Le Bail. Public: `rietx.LeBailValidation`, `CellCandidate.lebail`,
+`CandidateEvidence.lebail_status` and `.lebail_rwp`,
+`rietx.indexing.validate_by_lebail`, the `validate_candidates` label "Le Bail
+validation" (`help.py:4828`, `gui/src/lib/controls.ts:104`), and tutorial 03's
+file name, which is a published URL. WP-2011 kept them and added
+`LeBailValidation.mode`. These stay true whatever is chosen, since Le Bail
+still exists: the `Mode` literal, `lebail_passes`, `lebail_cycles`,
+`LEBAIL_ALTERNATION_STOPPED`, `lebail_scaffold` (both modes use it), and
+`FitReport.lebail_gap`, which is a Rietveld-only diagnostic that runs no
+least squares (`report/layer0.py:75-114`). The field's term for both methods
+is whole powder pattern decomposition (Le Bail 2005).
+
+**Practice.** Filled from the 2026-10-27 survey; the table is in
+`docs/practice.md` § Structure-free fitting.
+
+**The tier of each rule this WP adds.** A site moved to Pawley is a default
+or an automatic action, so each move is tiered by the generality rule
+(`docs/milestones/generality.md` § The rule). Its kind of ambiguity is 1
+(every competent refiner would act) only if the practice survey shows the
+programs agree; otherwise it is 2, and the evidence is the measurements
+above, which come from lab and synchrotron single-phase patterns
+(LaB6, NAC, FAP, the IUCr round-robin pure phases, aragonite).
+
+## Decisions (maintainer)
+
+1. **Which sites move.** A1 (done provisionally), A2, B1-B2, C, D, each
+   on its own; doing nothing at a site keeps Le Bail there.
+2. **A2's timing.** In this WP after WP-1910 lands, or inside WP-1910
+   (PR #1170 open, by @mustachefeeling), with the Hamilton count fixed first.
+3. **Names.** Keep the `lebail` family and record the mode (WP-2011's
+   provisional choice), or rename to the field's term with old files still
+   opening (`schemas/migrate.py`'s read-point mechanism).
+4. **Le Bail's own repair.** WP-1542 (a Le Bail background left at its seed,
+   issue #740) continues as it is, or drops a rung once no default path runs
+   Le Bail.
+
+## Tasks
+
+- [ ] Fill § Practice from the survey, and add its section to
+      `docs/practice.md`.
+- [ ] The maintainer's four decisions, each recorded as `Decided YYYY-MM-DD:`.
+- [ ] Per site chosen: switch, record, re-measure the numbers that site's
+      tests pin, and stage the change in the release record (ROADMAP rule 6).
+- [ ] Reopen the three tier-3 Pawley constants with the generality review
+      if any site moves that a user reaches without asking for Pawley.
+
+## Acceptance
+
+Decided per site. For each site moved: its own tests and the fast suite
+green, and no ranking or class decision on the acceptance suites lost.
+
+```sh
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- Pawley, G. S. (1981). *J. Appl. Cryst.* **14**, 357-361.
+- Le Bail, A., Duroy, H. & Fourquet, J. L. (1988). *Mater. Res. Bull.* **23**, 447-452.
+- Le Bail, A. (2005). *Powder Diffr.* **20**, 316-326, doi:10.1154/1.2135315.
+- WP-0306 (Pawley mode), WP-1323 (the Le Bail stop rule), WP-1542 and
+  issue #740, WP-1910, WP-1953 (large Pawley stages), WP-2011.
+
+## Handover log
+
+- **2026-10-27** — filed as a scoping WP by the WP-2011 session, at the
+  maintainer's request ("scope out replacing Le Bail as the default
+  structure-free fitting method for all of rietx"). No open WP owns the
+  package-wide choice: WP-2011 owns the indexer's validation only, WP-1910
+  the extinction screen, WP-1542 Le Bail's own background. The inventory is
+  an agent's read of the tree at `feae4c75`; the lines this file leans on
+  were checked by hand. *Next:* the practice table, then the maintainer's
+  four decisions.

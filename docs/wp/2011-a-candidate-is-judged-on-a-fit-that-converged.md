@@ -132,6 +132,83 @@ rietx re-extracts between runs, so the gap above may be rietx's Le Bail rather
 than the method. GSAS-II and FullProf are runnable in `rietx-bench/tools` if
 that needs settling. No paper compares the two as cell validators.
 
+### Re-measured 2026-10-27, on the tree with #941
+
+`probe5_after_941.py` calls the shipped `validate_by_lebail` and swaps only
+the fit's mode, by wrapping `Refinement.fit`. Tree `feae4c75` (main after
+#941), arm64, `[dev]` venv, compiled kernels on. Another session's suite held
+about ten cores throughout, so the seconds below are ratios at best.
+
+*True cells, the indexer's path* (picked peaks, widths free; the cells are
+probe 2's, refined once by an ordinary Le Bail fit):
+
+| dataset | refl. | unmatched LB / P | Rwp LB / P | width on its floor, LB / P |
+|---|---|---|---|---|
+| SRM 660c | 30 | 15 / 13 | 0.099 / 0.093 | — / — |
+| NAC | 837 | 184 / 170 | 0.155 / 0.126 | — / — |
+| FAP | 216 | 13 / 5 | 0.140 / 0.079 | — / — |
+| corundum | 85 | 21 / 12 | 0.172 / 0.137 | `w` / — |
+| brucite | 43 | 9 / 11 | 0.172 / 0.167 | — / — |
+| zincite | 36 | 11 / 7 | 0.124 / 0.105 | — / — |
+| zircon | 98 | 44 / 11 | 0.225 / 0.147 | `w` / — |
+| fluorite | 18 | 4 / 4 | 0.190 / 0.179 | — / — |
+| magnetite | 52 | 4 / 4 | 0.210 / 0.180 | — / — |
+
+The absent count is identical under both modes on every row with a peak
+list: it is the line screen's since #941, as designed. Le Bail improved
+since 10-18 on FAP (76 unmatched with `y` on its floor, now 13 with no
+floor), corundum (43 → 21) and zircon (60 → 44); the tree moved under it
+(#941's width seeding, WP-2002's edge margin and emission lines), and this
+probe did not separate which. Pawley's corundum count moved 10 → 12.
+
+*Wrong cells, the indexer's path:*
+
+| candidate | refl. | unmatched LB / P | Rwp LB / P | background LB / P |
+|---|---|---|---|---|
+| LaB6 doubled | 153 | 0 / 0 | 0.354 / 0.164 | 25.6 / 28.4 |
+| LaB6 a×√5 | 204 | 4 / 4 | 0.850 / 0.233 | 19.1 / 28.5 |
+| LaB6 +1 % | 28 | 22 / 23 | 1.008 / 0.503 | 27.4 / 29.2 |
+| magnetite P rival | 163 | 25 / 2 | 0.646 / 0.174 | −7.3 / 13.8 |
+
+(LaB6 true background 29.7; its true cell reads Rwp 0.234 / 0.164.) The
+magnetite rival indexes every line the true F cell does, so its unmatched
+count should equal the truth's 4: Pawley's 2 is near it, Le Bail's 25 is
+its sunk background. Pawley's Rwp ties the doubled cell to the truth
+(0.164 both) and puts the P rival at 0.174 against 0.180: a converged
+decomposition of a lattice containing the truth's fits at least as well.
+**So the rival/truth Rwp gap the acceptance rows pinned (> 2×) was the
+stall.** Two rows assert it (`test_acceptance_indexing.py`: magnetite's,
+now inverted to < 1.05×, and the calibrated LaB6's a·√2 rivals, which are
+not sublattices of the truth's everywhere and were left to the suite's run).
+
+*No peak list* (`absent_source="fitted_background"`, reached only by a
+direct call): Pawley's honest background reads more absences on wrong
+cells (+1 % 0 → 14, a×√5 59 → 167, magnetite rival 0 → 3) and on two true
+cells (NAC 0 → 20, the weak real reflections § Context names; FAP 4 → 7),
+fewer on corundum (11 → 7) and zircon (8 → 5).
+
+*`freeze_profile=True`*: frozen is worse than free under both modes
+(SRM 660c Rwp 0.575 / 0.456 against 0.099 / 0.093), so it stays off.
+Frozen Pawley is the more stable of the two (FAP unmatched 164 / 31).
+
+*Notebook 03's candidate* (aragonite, the tutorial's search): Pawley
+validates it at Rwp 0.044 with 0 unmatched, where the tutorial's own two
+Le Bail passes reach 0.053. The `INDEX_IMPURITY_LINES` the notebook used to
+explain away no longer fires.
+
+**The provisional go (Claude, 2026-10-27, maintainer away).** Criterion: on
+the path the indexer runs, does the Pawley fit answer the forward question
+(is there a reflection under every observed peak) better? Evidence above:
+no true cell leaves a width on its floor, the impurity count on true cells
+falls (zircon 44 → 11, FAP 13 → 5, corundum 21 → 12; brucite +2), and a
+nested rival's count becomes right. Against it: the Rwp cue a reader saw
+on supercells is gone, and the fit costs more on large patterns
+(§ Cost below). What reverses it: the acceptance suite losing a ranking,
+or the bethanechol benchmark validating fewer candidates than `main`.
+**Acceptance bar, read honestly:** FAP 5, zircon 11 and no `FLOOR_HIT` meet
+it; corundum's 12 misses "at most 11" by one. That bar was Pawley's own
+10-18 worst (5, 10, 11) with no margin.
+
 ## Non-goals
 
 - The missing count's inputs and the grade (WP-1956).
@@ -161,6 +238,15 @@ that needs settling. No paper compares the two as cell validators.
       *kept, mode recorded* (`LeBailValidation.mode`).
 - [x] Switch `validate_by_lebail`'s fit to `mode="pawley"`, record the mode on
       the validation record, and rewrite the `:377` paragraph with the numbers.
+- [ ] **Decision (maintainer, with the generality review):** the three tier-3
+      Pawley constants (`PAWLEY_OVERLAP_FWHM_FRAC`, `PAWLEY_OVERLAP_LAMBDA`,
+      `PAWLEY_OFF_DATA_SCALE_FLOOR`, `_audit.py:1868-1890`) are kept on the
+      grounds "opt-in Pawley mode". The switch puts Pawley on every
+      `index_pattern` call that validates, so for that path the ground no
+      longer holds. Re-ground them (the validation reads Rwp and the
+      unmatched count, and neither depends on how an overlapped group is
+      split) or re-tier them. Not edited here: a tier-3 ground needs the
+      maintainer's dated approval.
 - [ ] Re-measure `MEASURED_VALIDATION_SECONDS` under Pawley, and run
       `python -m tests.bethanechol_benchmark` alone against `main`'s count of
       validated candidates (the large monoclinic cost case).
