@@ -854,6 +854,15 @@ ROWS: tuple[Row, ...] = (
     Row("PEAK_UNRESOLVED_SPLIT", "code"),
     Row("PEAK_WIDTH_CAPPED", "code"),
     Row("PEAK_WIDTH_LAW_MISMATCH", "code"),
+    Row("PHASE_HELD_IN_PATTERNS", "code", tier=1, ambiguity=1,
+        evidence=("arithmetic: an info record of the holds the answer's stage already made "
+                  "(StageResult.held): a structure row held by phase_support_sigma on the "
+                  "joint screen (tier 3, WP-1325), and a scale row held where the pattern "
+                  "has no reflection of the phase in range (WP-1958); counts the patterns, "
+                  "inherits neither threshold, gates nothing (WP-2028)"),
+        response="info",
+        responds=("read a value in a listed pattern's row, or that pattern's fraction of "
+                  "the phase, as the value handed in rather than a measurement")),
     Row("PHASE_UNCONSTRAINED", "code"),
     Row("QPA_ESD_UNAVAILABLE", "code"),
     Row("QPA_FRACTION_RANGE", "code", tier=1, ambiguity=3,
@@ -909,7 +918,6 @@ ROWS: tuple[Row, ...] = (
                   "person's stop, and no default path sets one (searched 2026-10-24). It "
                   "reports the requested act, n of N patterns, and moves no value "
                   "(sequential.py:2153-2167, WP-1016)")),
-    Row("SEQUENTIAL_DISCONTINUITY", "code"),
     Row("SEQUENTIAL_MOMENT_HOLD", "code"),
     Row("SEQUENTIAL_MOMENT_ONSET", "code"),
     Row("SEQUENTIAL_PATH_CHECK_INCOMPLETE", "code", tier="caller", ambiguity=1,
@@ -1184,6 +1192,31 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.sequential.SeriesEntry.rwp_fence", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.rungs_tried", "action"),
     Row("rietx.schemas.sequential.SeriesEntry.rungs_raised", "action"),
+    Row("rietx.schemas.sequential.SeriesEntry.seeded_from", "action", tier=3, ambiguity=1,
+        evidence=("WP-1051's quarantine (sequential.py _chain): a diverged kept attempt seeds no "
+                  "successor, joins no median and supplies no first-rung sample, so the next "
+                  "pattern warm-starts from the last accepted one; fires in no measured "
+                  "family (WP-2003 2003-batch/reseed.md), shown on the injected divergence "
+                  "(tests/test_sequential.py). Practice: EasyDiffraction moves the start values "
+                  "only on a successful fit; GSAS-II and MAUD end the chain (docs/practice.md). "
+                  "This field records where each warm start came from (WP-2003 task 3)"),
+        grounds=("Rule 1's protection: no competent refiner wants a diverged fit seeding its "
+                 "successors (generality.md § The rule, fourth review); the field is its "
+                 "record, the substitution having been visible only through history notes "
+                 "under history=True (WP-2003 batch C2)."),
+        approved="2026-10-26"),
+    Row("rietx.schemas.sequential.SeriesEntry.floored", "action", tier=3, ambiguity=1,
+        evidence=("WP-1329, WP-1301's hold along the series (sequential.py "
+                  "_floor_unsupported_moments): an unsupported modulus is scaled to "
+                  "MOMENT_FLOOR_MU_B before it seeds the successor, direction kept, the entry's "
+                  "own value untouched; one synthetic magnetic ramp "
+                  "(tests/test_magnetic_series.py) and the real Cr2WO6 4 K/150 K pair, which "
+                  "fires SEQUENTIAL_MOMENT_HOLD in every reseed arm. Recorded on the kept "
+                  "attempt, so a floored pattern refitted cold is not counted (WP-2003 X7)"),
+        grounds=("Rare feature, judged on the judgement ground alone: a modulus the pattern did "
+                 "not support is no measurement to warm-start from, as the absent-phase hold's "
+                 "cell is not (WP-2003 batch C8)."),
+        approved="2026-10-26"),
     Row("rietx.schemas.results.RefinementResult.absorption", "action", tier="caller", ambiguity=1,
         evidence=("opt-in: Geometry.mu_r/mu_t or capillary_radius_mm/thickness_mm, default None "
                   "(off); choosing flat_plate_transmission applies sec theta; Rouse et al. (1970) "
@@ -2916,11 +2949,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.suggest.SUGGEST_ABSORPTION_MAX", "constant", value=0.95),
     Row("rietx.schemas.suggest.SUGGEST_GROUP_R2", "constant", value=0.95),
     Row("rietx.schemas.suggest.SUGGEST_MIN_GAIN", "constant", value=9.0),
-    Row("rietx.sequential.DISCONTINUITY_FACTOR", "constant", value=5.0),
-    Row("rietx.sequential.DISCONTINUITY_SIGMA", "constant", value=3.0),
     Row("rietx.sequential.FIRST_RUNG_FACTOR", "constant", value=3.0),
     Row("rietx.sequential.FIRST_RUNG_SAMPLES", "constant", value=3),
-    Row("rietx.sequential.MIN_POINTS_FOR_DISCONTINUITY", "constant", value=5),
     Row("rietx.sequential.MIN_POINTS_FOR_PERSISTENCE", "constant", value=5),
     Row("rietx.sequential.NOISE_FLOOR_REL", "constant", tier=1, value=1e-09,
         evidence=("numerical floor: a step or a between-chain gap under 1e-9 of the parameter's "
@@ -2928,8 +2958,9 @@ ROWS: tuple[Row, ...] = (
                   "eps_fp64 and five decades under a refined cell's relative esd (CPD corundum "
                   "a 4.75804(38), 8e-5; 2003-batch/reseed.md), so only a constant trajectory "
                   "falls under it; before it an unrefinable profile.y read as a 29 000x step and "
-                  "1e16 sigma of path dependence (its comment, sequential.py:231-242). The fences "
-                  "it guards are tiered on DISCONTINUITY_* and PATH_DEPENDENCE_SIGMA")),
+                  "1e16 sigma of path dependence (its comment). What it guards is tiered on its "
+                  "own: PATH_DEPENDENCE_SIGMA, and SeriesStep.size_esd, which it sets to 0 under "
+                  "the floor (WP-2003)")),
     Row("rietx.sequential.PATH_DEPENDENCE_SIGMA", "constant", value=3.0),
     Row("rietx.sequential.RESEED_FACTOR", "constant", value=1.25),
     Row("rietx.sequential.WIDTH_GROWTH_FACTOR", "constant", value=3.0),
@@ -3542,15 +3573,16 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.SequentialRefinement.fit:reseed", "default", value=True),
     Row("rietx.sequential.SequentialRefinement.fit:reseed_factor", "default", value=1.25),
     Row("rietx.sequential.SequentialRefinement.fit:first_rung_factor", "default", value=3.0),
-    Row("rietx.sequential.SequentialRefinement.fit:verify_discontinuities", "default", tier="caller", ambiguity=1,
-        value=False,
-        evidence=("opt-in: verify_discontinuities=True is asked by name and off by default; no "
-                  "default path sets it, the GUI included (searched 2026-10-24). What it turns on, "
-                  "a cold refit of each flagged pair and the cold step as a signed ratio of the "
-                  "chain's with a reading and no threshold (sequential.py:1888-1900), moves no "
-                  "fitted value; which pairs it refits is set by DISCONTINUITY_FACTOR and "
-                  "DISCONTINUITY_SIGMA, so this row is re-read when WP-2003's demotion of "
-                  "SEQUENTIAL_DISCONTINUITY lands")),
+    Row("rietx.sequential.SequentialRefinement.fit:verify_steps", "default", tier="caller", ambiguity=1,
+        value=0,
+        evidence=("opt-in: verify_steps=0 refits nothing, and a count is asked by name; no "
+                  "default path passes one, the GUI included (searched 2026-10-26). What a count "
+                  "k turns on, a cold refit of the two patterns of each of the k largest "
+                  "SeriesResult.steps and the cold step as a signed ratio of the chain's "
+                  "(SeriesStep.cold_ratio, _verify_steps), moves no fitted value, and which "
+                  "steps it refits is the caller's k over a list sorted by size with no "
+                  "threshold: the ruling's option (ii), approved 2026-10-26 "
+                  "(2003-batch/batch.md, C4)")),
     Row("rietx.sequential.SequentialRefinement.fit:prepare", "default", tier="caller",
         ambiguity=1, value=None,
         evidence=("opt-in: prepare=None calls no hook; a caller's callable run on each pattern's "
@@ -3814,7 +3846,6 @@ ROWS: tuple[Row, ...] = (
     Row("SEQUENTIAL_CANCELLED.suggestion", "suggestion", tier="caller", ambiguity=1, value=1,
         evidence=("opt-in, as its code: says the one way to extend a trajectory the caller "
                   "stopped, re-running it (sequential.py:2166)")),
-    Row("SEQUENTIAL_DISCONTINUITY.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_MOMENT_HOLD.suggestion", "suggestion", value=1),
     Row("SEQUENTIAL_MOMENT_ONSET.suggestion", "suggestion", value=6),
     Row("SEQUENTIAL_PATH_CHECK_INCOMPLETE.suggestion", "suggestion", tier="caller", ambiguity=1,
@@ -4232,8 +4263,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "ROUGHNESS_UNCONSTRAINED.suggestion",
     "SCALE_B_INSEPARABLE",
     "SCALE_B_INSEPARABLE.suggestion",
-    "SEQUENTIAL_DISCONTINUITY",
-    "SEQUENTIAL_DISCONTINUITY.suggestion",
     "SEQUENTIAL_MOMENT_HOLD",
     "SEQUENTIAL_MOMENT_HOLD.suggestion",
     "SEQUENTIAL_MOMENT_ONSET",
@@ -4730,11 +4759,8 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.schemas.suggest.SUGGEST_ABSORPTION_MAX",
     "rietx.schemas.suggest.SUGGEST_GROUP_R2",
     "rietx.schemas.suggest.SUGGEST_MIN_GAIN",
-    "rietx.sequential.DISCONTINUITY_FACTOR",
-    "rietx.sequential.DISCONTINUITY_SIGMA",
     "rietx.sequential.FIRST_RUNG_FACTOR",
     "rietx.sequential.FIRST_RUNG_SAMPLES",
-    "rietx.sequential.MIN_POINTS_FOR_DISCONTINUITY",
     "rietx.sequential.MIN_POINTS_FOR_PERSISTENCE",
     "rietx.sequential.PATH_DEPENDENCE_SIGMA",
     "rietx.sequential.RESEED_FACTOR",
@@ -4974,7 +5000,6 @@ RESPONSE_BASELINE: tuple[str, ...] = (
     "ROUGHNESS_OUTSIDE_REGIME",
     "ROUGHNESS_UNCONSTRAINED",
     "SCALE_B_INSEPARABLE",
-    "SEQUENTIAL_DISCONTINUITY",
     "SEQUENTIAL_MOMENT_HOLD",
     "SEQUENTIAL_MOMENT_ONSET",
     "SEQUENTIAL_PATH_CHECK_INCOMPLETE",

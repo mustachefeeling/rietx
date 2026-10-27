@@ -124,7 +124,7 @@ moves `Structure`/`Instrument` values and `prepare` runs a line before the per-p
 *absence*, never a drop, and a ninth such fact inherits it. The two halves differ: a tie is
 **re-declared** per pattern by `constrain=(index, ref)` and never carried, since `tie_equal`
 resolves globs against a live table and each pattern has its own — so the hook fires once per
-**fit**, ladder rungs and the `verify_discontinuities` refit included — while a variable's
+**fit**, ladder rungs and the `verify_steps` refits included — while a variable's
 *value* is carried under the same globs (`vars.<name>` is an ordinary dot-path), **after** the
 hook, the only order in which the name exists.
 

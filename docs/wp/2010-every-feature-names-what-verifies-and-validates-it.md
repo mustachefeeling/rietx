@@ -67,7 +67,7 @@ caller (a Theory section, a `capabilities()` arm, the verb); the first task argu
 
 ### Inherited
 
-(none at filing)
+- 2026-10-26 issue triage: #1051 is the outside contributor's (mustachefeeling) claim on this WP. Their 2026-10-19 comment proposes the seat (`capabilities()` primary, a derived `HelpEntry.validation`) and the key (a `rietx.features` registry held to the help vocabulary and the Theory headings), with a 43-feature first-pass table, and asks five questions that wait on the maintainer. Checked against the tree at c0e32ab29: status ⬜, nothing landed under it.
 
 ## Non-goals
 

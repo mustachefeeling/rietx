@@ -54,6 +54,8 @@ CLAUDE.md, "a silent correction is a reader's to make").
 
 ### Inherited
 
+- 2026-10-26 issue triage: #1088 shows this WP's Priority premise "a refined coordinate cannot drift there" holds only for a site already special. A general atom at occupancy ½ refined onto a mirror is snapped by the next stage compile, and the default plan's closing stage then returns 10 O per cell for 12 (10 of 16 noise draws). The mid-fit case is WP-2052's, outside this WP and PR #1014. Checked against the tree at c0e32ab29.
+
 ## Non-goals
 
 - Changing `SITE_TOL`.

@@ -30,6 +30,8 @@ under any emission line lands inside the fitted range is enumerated.
 - **Unmeasured on a real pattern.** No fixture yet puts a satellite in the
   strip either copy disagrees on.
 
+- 2026-10-26 issue triage: #1130 is the outside contributor's (mustachefeeling) claim on this WP, in PR #1139. Checked against the tree at c0e32ab29: status ⬜, nothing merged.
+
 ## Non-goals
 
 - What the arm ranks, or the candidate set (WP-1418's M-8).

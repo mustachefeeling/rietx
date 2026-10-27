@@ -315,6 +315,46 @@ the cheaper of the two at the time; the skill row is required either way.
   model, and the acceptance should say so. Asked of them: build the child
   from a published structure and name it in the test.
 
+- **2026-10-26 issue triage (#1082's reproduction): `MAGNETIC_WIDTH_UNMODELLED`
+  fires on a moment no stage refined.** Checked against the tree at c0e32ab29:
+  on #1081's synthetic k = (0,0,½) child, simulated with no magnetic
+  broadening, a moment held 20 % high (3.6 against 3.0 μ_B) under
+  `mccusker_default` and `mccusker_structural` makes the magnetic peaks too
+  tall at their centres, and the diagnostic reads it as the width signature:
+  "fitted by peaks that are too narrow, so the refined moment is biased low".
+  The moment was not refined and is biased high. The centre-versus-tails test
+  assumes the moment was free; where it was held, the same residual shape is
+  the moment's error. #1089's reporter measured the same while writing #1087:
+  with the moment held 10-20 % high it fires on 7 of 8 sharp arms.
+
+- **2026-10-26 issue triage: #1089, when the magnetic width is freed; the
+  reporter's final answer keeps the tree's behaviour and changes one text.**
+  Checked against the tree at c0e32ab29: no default plan frees
+  `magnetic_lor_*` (only `plan="magnetic_width"` does) and nothing consults
+  `MAGNETIC_WIDTH_UNMODELLED`. The reporter measured three real families
+  (Ba₂FeSbSe₅ G4.1, Cr₂WO₆ HB-2A, LaMnO₃ BT-1): the trigger is silent on all six
+  patterns before and after #1087; on Ba₂FeSbSe₅ freeing the width moved the
+  moment by about 3 esd while ΔBIC was weak or against, and after tying the
+  child Biso and refitting the background (#1073) the width is rejected at every
+  temperature (ΔBIC −5.8 to −9.0 at N/f²). The moved moment came from Lorentzian
+  tails the 9.35° line does not have; the line's misfit is a low-angle centroid
+  shift, now WP-2056's (#1090). Their revised ask: no default frees the width,
+  no default reads the trigger, and the three texts that say to quote the
+  freed-width moment change (`help.py:3026-3034`,
+  `report/magnetic.py:637-640`, `references/magnetic.md:60`). The issue's
+  first-pass trigger-first rule is withdrawn by its author. Also measured: the
+  trigger fires on a moment held too large (the reporter's 7 of 8 sharp arms at
+  10-20 % high; this round's #1082 reproduction at 20 % high under
+  `mccusker_default`, "biased low" on data with no magnetic broadening), so it is
+  read only after a stage that freed the moment. The four width codes are
+  `unaudited` (`_audit.py:720-722`); the reporter's proposed tiers (the ΔBIC
+  test tier 2 statistic, tier 3 action; width after moment tier 2, from
+  FullProf's manual order and Rodríguez-Carvajal 1993) go to whichever of this
+  WP and WP-2004 tiers `report/magnetic.py` first. Question B (cell free in the
+  moment stages): no change to `SOLVE_STAGE_PATHS`, since freeing the cell there
+  moved no moment by more than 0.1 esd on three families, a ramp and two
+  above-T_N starts.
+
 ## Non-goals
 
 - **Neutron TOF**, and with it the whole POWGEN/Mn₃O₄ case the issue leads

@@ -93,6 +93,33 @@ identification call.
   the tree at 7d9be3cb: no subgroup code there; the only maximal-subgroup code
   is `strategy/magnetic.py:1106` `_maximal_subgroups`, maximal among the
   classes at the winner's k.
+- **2026-10-26, from the issue triage (#806): the reporter proposed answers to
+  the three decisions and offered to build the WP from the prototype.** Their
+  last comment (13:59) supersedes the two before it, which are one text posted
+  twice. (1) Placement: `crystallography/representation/subgroups.py`. (2) The
+  (P, p) rule: the one `distortion_candidates` already uses, so one group never
+  gets two (P, p) in the package: r_parent = P·r_child + p, the standard setting
+  spglib returns, each operation checked against the group. Tests compare up to
+  the affine normaliser, and Wyckoff labels are stated as belonging to that
+  (P, p). (3) Exact `Fraction` arithmetic first, with the 230-group sweep as a
+  `slow` test. A fourth consumer: the active-modes work on #286 wants to rank a
+  parent's subgroups down to the child cell, which means walking down from the
+  maximal ones. Checked against the tree at `6eb010a0f`. `representation/` holds
+  `distortion.py` (#950), `irreps.py`, `modes.py` and `order_parameter.py`, and
+  no subgroup code. The (P, p) rule is `magnetic/isotropy.py`'s
+  `_standard_child`, which `distortion_candidates` calls, not a function in
+  `representation/`. Its operation check is in floats: P and p are
+  rationalised with `limit_denominator(48)` and compared to 1e-6. It is not
+  the exact check this WP's Goal names. `Fraction` is the arithmetic of
+  `wyckoff._nullspace_int` and of `magnetic/isotropy.py`. The prototype's
+  13 CPU-minutes and 23 s are the reporter's and were not re-run. The decisions
+  stay open until the maintainer answers. Read against `docs/DESIGN.md`
+  § Rules, the proposals leave three gaps. Rule 4 (a new output) wants the
+  splitting result to carry the (P, p) its labels belong to, and the sketch's
+  `{"4a": ["2a", "2d"]}` drops it. Rule 2 wants the method and its source
+  stated: the (P, p) is spglib's standardisation and can move with spglib or
+  moyo. Rule 4 (a new topic) wants the reference named before the code: the
+  Tests task's "stated set of named maximal subgroups" is not yet stated.
 
 ## Non-goals
 
@@ -105,14 +132,25 @@ identification call.
 
 ## Tasks
 
-- [ ] **Decision (maintainer):** placement. Under the symmetry package
+- [x] **Decision (maintainer):** placement. Under the symmetry package
       WP-1419 creates, or under `crystallography/` now (#806 question 1).
-- [ ] **Decision (maintainer):** the (P, p) choice rule. A1-identical where
+      Decided 2026-10-26: `crystallography/representation/subgroups.py`.
+- [x] **Decision (maintainer):** the (P, p) choice rule. A1-identical where
       it can be reproduced, or a documented canonical choice (#806
-      question 2).
-- [ ] **Decision (maintainer):** exact `Fraction` arithmetic as the prototype
+      question 2). Decided 2026-10-26: the rule `distortion_candidates`
+      uses (r_parent = P·r_child + p, spglib's standard setting), with three
+      conditions. The operation check is exact, and `_standard_child` later
+      calls it, so the package keeps one standardiser. The splitting result
+      carries the (P, p) its labels belong to (a typed result, never a bare
+      dict). The docs say the (P, p) is spglib's and can move with spglib or
+      moyo. Tests compare up to the affine normaliser.
+- [x] **Decision (maintainer):** exact `Fraction` arithmetic as the prototype
       has it, or an integer implementation the reporter estimates at about
-      10× faster (#806 question 4).
+      10× faster (#806 question 4). Decided 2026-10-26: exact `Fraction`. The
+      `slow` test is the index ≤ 4 acceptance sweep, parametrised per group;
+      the index ≤ 9 sweep is a benchmark script outside the suite. Before the
+      code, the PR names the reference set the Tests task calls "stated":
+      the groups, the published entries and the tolerance (DESIGN Rule 4).
 - [ ] t-subgroups from the point group's maximal subgroups, with conjugacy
 - [ ] k-subgroups: maximal P-invariant sublattices per prime, complements
       over F_p, conjugacy classes

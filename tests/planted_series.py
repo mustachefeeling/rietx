@@ -313,15 +313,17 @@ def signals(result: rx.SeriesResult) -> dict:
 
     Read off the :class:`~rietx.SeriesResult` and nothing else (WP-1317's one
     vocabulary): the entries above the Rwp fence (``SEQUENTIAL_RWP_OUTLIER``),
-    the flagged steps (``SeriesResult.discontinuities``, one per
-    ``SEQUENTIAL_DISCONTINUITY``), the reseeded entries
+    the largest step of each :data:`TABLE_PATHS` path
+    (:func:`largest_steps`, read off ``SeriesResult.steps``), the reseeded entries
     (``SEQUENTIAL_RESEED``), the quarantined ones (``SEQUENTIAL_UNRECOVERED``),
     the entries carrying ``PHASE_UNCONSTRAINED``, and every series-level code
     with its ``where``.
     """
+    largest = largest_steps(result)
     return {
         "above_fence": [e.index for e in result.entries if e.above_fence],
-        "steps": [[s.path, *s.indices] for s in result.discontinuities or []],
+        "steps": [[path, *largest[path]] for path in TABLE_PATHS
+                  if path in largest],
         "reseeded": [e.index for e in result.entries if e.reseeded],
         "unrecovered": [e.index for e in result.entries
                         if e.status == "diverged"],
@@ -331,6 +333,22 @@ def signals(result: rx.SeriesResult) -> dict:
         "codes": sorted({(d.code, ",".join(d.where or []))
                          for d in result.diagnostics}),
     }
+
+
+def largest_steps(result: rx.SeriesResult) -> dict[str, tuple[int, int]]:
+    """Each path's largest step in esds, as the pair of ``SeriesEntry.index``.
+
+    ``SeriesResult.steps`` is sorted largest first, so a path's first row is
+    its largest (WP-2003).  A rank and not a threshold: the field calls no step
+    a jump, and neither does this, so an event is "carried" when its step is
+    the largest its path took — which says where the series moved most, and
+    nothing about how much is too much.
+    """
+    out: dict[str, tuple[int, int]] = {}
+    for s in result.steps or []:
+        if s.size_esd is not None:
+            out.setdefault(s.path, tuple(s.indices))
+    return out
 
 
 def _run_onsets(indices: list[int]) -> list[int]:
@@ -356,19 +374,19 @@ def surfaced(result: rx.SeriesResult, kind: str, index: int) -> str | None:
     One rule per kind, each read from :func:`signals`:
 
     ``background``
-        a flagged step on ``instrument.background.c0`` between ``index - 1``
-        and ``index``;
+        the largest step of ``instrument.background.c0`` is between
+        ``index - 1`` and ``index``;
     ``bad``
         the frame alone above the Rwp fence, neither neighbour with it (a
-        frame inside a run is the run's), or a flagged step on
-        ``phases.0.scale`` into or out of it;
+        frame inside a run is the run's), or the largest step of
+        ``phases.0.scale`` is into or out of it;
     ``second_phase``
         a run of patterns above the fence beginning within
         :func:`second_phase_tolerance` of ``index``;
     ``transition``
-        a run above the fence beginning at ``index`` or the one after it, or a
-        flagged step on a ``phases.0.cell`` length between ``index - 1`` and
-        ``index``.
+        a run above the fence beginning at ``index`` or the one after it, or
+        the largest step of a ``phases.0.cell`` length is between
+        ``index - 1`` and ``index``.
 
     A reseed is not a marker of its own: it fires through any run above the
     fence wherever the ladder's first rung is cut short, on the event's
@@ -376,18 +394,19 @@ def surfaced(result: rx.SeriesResult, kind: str, index: int) -> str | None:
     """
     sig = signals(result)
     onsets = _run_onsets(sig["above_fence"])
+    largest = largest_steps(result)
     if kind == "background":
-        for path, i, j in sig["steps"]:
-            if path == "instrument.background.c0" and (i, j) == (index - 1, index):
-                return f"SEQUENTIAL_DISCONTINUITY {path} ({i}, {j})"
+        path = "instrument.background.c0"
+        if largest.get(path) == (index - 1, index):
+            return f"largest step {path} ({index - 1}, {index})"
         return None
     if kind == "bad":
         above = set(sig["above_fence"])
         if index in above and not {index - 1, index + 1} & above:
             return f"SEQUENTIAL_RWP_OUTLIER {index}"
-        for path, i, j in sig["steps"]:
-            if path == "phases.0.scale" and index in (i, j):
-                return f"SEQUENTIAL_DISCONTINUITY {path} ({i}, {j})"
+        pair = largest.get("phases.0.scale")
+        if pair is not None and index in pair:
+            return f"largest step phases.0.scale ({pair[0]}, {pair[1]})"
         return None
     if kind == "second_phase":
         n = len(result.entries)
@@ -400,9 +419,9 @@ def surfaced(result: rx.SeriesResult, kind: str, index: int) -> str | None:
         for k in onsets:
             if index <= k <= index + 1:
                 return f"SEQUENTIAL_RWP_OUTLIER run from {k}"
-        for path, i, j in sig["steps"]:
-            if path.startswith("phases.0.cell.") and (i, j) == (index - 1, index):
-                return f"SEQUENTIAL_DISCONTINUITY {path} ({i}, {j})"
+        for path, pair in largest.items():
+            if path.startswith("phases.0.cell.") and pair == (index - 1, index):
+                return f"largest step {path} ({index - 1}, {index})"
         return None
     raise ValueError(f"unknown event kind {kind!r}; the kinds are {list(EVENTS)}")
 

@@ -271,6 +271,22 @@ def test_a_row_left_on_its_face_by_rounding_is_not_violated():
     assert rows.violated(np.array([1.0, 1.1])).tolist() == [True, False]
 
 
+def test_a_block_whose_every_row_is_on_its_face_is_not_violated():
+    """With every row on its face the largest |slack| is itself a rounding,
+    so a test against it alone is strict again.  The Lorentzian width block
+    at X = Y = 0 is that block: a stage left them at 4e-22 and −4e-21, and the
+    next one was built with no row (WP-2003, X16).  The guards floor their
+    scale at 1 in the row's units, and so does this test."""
+    th = np.radians(np.linspace(1.5, 10.0, 10))
+    rows = lm.LinearInequality(T=np.column_stack([1.0 / np.cos(th), np.tan(th)]),
+                               c=np.zeros(th.size))
+    on_face = np.array([4e-22, -4e-21])
+    assert (rows.slack(on_face) < 0.0).any()
+    assert not rows.violated(on_face).any()
+    # a genuine violation of a few millidegrees still reads as one
+    assert rows.violated(np.array([0.0, -0.0137])).all()
+
+
 def test_inactive_inequality_changes_nothing():
     residual, jacobian, _ = _exponential_problem()
     x0 = np.array([1.0, -0.3, 0.0])
