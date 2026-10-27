@@ -40,9 +40,13 @@ _FIT = Refinement.fit
 
 @contextlib.contextmanager
 def fit_mode(mode):
-    """Inside the block, every ``Refinement.fit(mode="lebail")`` runs as ``mode``."""
+    """Inside the block, every structure-free ``Refinement.fit`` runs as ``mode``.
+
+    Either structure-free mode is rewritten, so the swap works on both sides
+    of the switch (the validation passed ``"lebail"`` before it and
+    ``"pawley"`` after)."""
     def fit(self, *a, **kw):
-        if kw.get("mode") == "lebail":
+        if kw.get("mode") in ("lebail", "pawley"):
             kw["mode"] = mode
         return _FIT(self, *a, **kw)
     Refinement.fit = fit
