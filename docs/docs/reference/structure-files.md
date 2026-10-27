@@ -144,6 +144,9 @@ print(phase.atoms[1].moment.values(), phase.atoms[1].moment.ion)
 
 A magCIF usually states no ordinary space group, since the magnetic block replaces it.
 The nuclear group's type then comes from `_parent_space_group.name_H-M_alt`.
+FullProf writes that item as `_parent_space_group.name_H-M`, which the magnetic dictionary does not define.
+It is read where `_alt` is absent, and [`CIF_MAGNETIC_PARENT_TAG_UNDEFINED`](diagnostics-structures.md#cif_magnetic_parent_tag_undefined) names the tag.
+A file stating both tags with different groups is refused, quoting both.
 The IUCr underscore spelling of a screw axis (`P 2_1/c`) is normalised to the one gemmi's tables accept (`P 21/c`), and every message keeps the file's own spelling.
 A file that also states an ordinary `_space_group_name_H-M_alt`, as an ISODISTORT export can, takes that group as stated, and `nuclear_group=` has no effect.
 
