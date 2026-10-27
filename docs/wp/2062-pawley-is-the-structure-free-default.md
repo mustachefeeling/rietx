@@ -101,8 +101,27 @@ still exists: the `Mode` literal, `lebail_passes`, `lebail_cycles`,
 least squares (`report/layer0.py:75-114`). The field's term for both methods
 is whole powder pattern decomposition (Le Bail 2005).
 
-**Practice.** Filled from the 2026-10-27 survey; the table is in
-`docs/practice.md` § Structure-free fitting.
+**Practice** (surveyed 2026-10-27; the table and its citations are in
+`docs/practice.md` § Structure-free fitting: Le Bail or Pawley). Three
+findings bear on the choice:
+
+- **rietx's Le Bail is not the one the other programs run.** GSAS-II
+  (`GSASIIstrMath.py:4808`, checked), FullProf (ran), TOPAS, RIETAN-FP and
+  MAUD all re-extract the intensities inside the refinement, once per
+  least-squares cycle or iteration. rietx re-extracts only between whole
+  solves, so the stall WP-2011 measured may be rietx's schedule rather than
+  the method. WP-2011's "recalled, not checked" note is now checked.
+- **TOPAS defaults to Pawley** ("The default is Pawley refinement, the
+  keyword lebail triggers a Le Bail refinement", Technical Reference v5 §8,
+  p.84; read by the survey agent, not by the lead). GSAS-II offers both and
+  defaults to neither. MAUD advises Le Bail first, then Pawley. FullProf and
+  RIETAN-FP offer Le Bail only; BGMN's mode called "LeBail" is Pawley-type.
+- **No program makes a structure-free fit the default mode.** That matches
+  rietx: the question here is which structure-free fit rietx runs where it
+  runs one for the user, never whether `mode` should default to one.
+
+Le Bail (2005, §IV.C, pp.318-319): two round robins could not show either
+method better, and the paper gives no timings.
 
 **The tier of each rule this WP adds.** A site moved to Pawley is a default
 or an automatic action, so each move is tiered by the generality rule
@@ -114,6 +133,18 @@ above, which come from lab and synchrotron single-phase patterns
 
 ## Decisions (maintainer)
 
+0. **Replace, or repair.** Two routes reach a converged structure-free fit.
+   (a) Pawley wherever rietx runs one for the user (this WP's sites). (b)
+   Re-extract the Le Bail intensities inside the solve, once per
+   least-squares iteration, as every surveyed program does. (b) keeps
+   Le Bail's per-fit cost, which matters on large patterns (NAC's 1668
+   reflections: 107 s against 8.5 s under load, WP-2011 probe 6), but it
+   changes the residual between iterations. The bounded LM's trust region
+   judges each step by comparing the predicted with the actual reduction of
+   one fixed objective, and the frozen-per-stage invariant (root CLAUDE.md)
+   exists to keep that objective fixed. So (b) is a design WP with its own
+   measurements, not a setting. (a) is the cheaper route and is what
+   WP-2011 built for the indexer.
 1. **Which sites move.** A1 (done provisionally), A2, B1-B2, C, D, each
    on its own; doing nothing at a site keeps Le Bail there.
 2. **A2's timing.** In this WP after WP-1910 lands, or inside WP-1910
@@ -127,9 +158,9 @@ above, which come from lab and synchrotron single-phase patterns
 
 ## Tasks
 
-- [ ] Fill § Practice from the survey, and add its section to
+- [x] Fill § Practice from the survey, and add its section to
       `docs/practice.md`.
-- [ ] The maintainer's four decisions, each recorded as `Decided YYYY-MM-DD:`.
+- [ ] The maintainer's five decisions (0-4), each recorded as `Decided YYYY-MM-DD:`.
 - [ ] Per site chosen: switch, record, re-measure the numbers that site's
       tests pin, and stage the change in the release record (ROADMAP rule 6).
 - [ ] Reopen the three tier-3 Pawley constants with the generality review
@@ -162,5 +193,7 @@ green, and no ranking or class decision on the acceptance suites lost.
   package-wide choice: WP-2011 owns the indexer's validation only, WP-1910
   the extinction screen, WP-1542 Le Bail's own background. The inventory is
   an agent's read of the tree at `feae4c75`; the lines this file leans on
-  were checked by hand. *Next:* the practice table, then the maintainer's
-  four decisions.
+  were checked by hand. The practice survey (one agent, seven programs)
+  is in `docs/practice.md`; its GSAS-II lines were checked by hand, its
+  TOPAS quote was not. *Next:* the maintainer's five decisions, decision 0
+  first.

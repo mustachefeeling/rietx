@@ -124,13 +124,16 @@ powder pattern decomposition (Le Bail 2005).
 
 **Practice.** Kariuki *et al.* (1999) tested cell hypotheses with Le Bail fits
 in a genetic-algorithm indexer, "faster than with the Pawley method" (as cited
-by Le Bail 2005, §VI; checked 2026-10-18). Le Bail (2005, §II.B): the method
-"requires as good starting cell and profile parameters as the Rietveld method
-itself", and a wrong candidate is a bad start. Recalled, not checked: FullProf
-and GSAS-II re-extract Le Bail intensities every least-squares cycle, where
-rietx re-extracts between runs, so the gap above may be rietx's Le Bail rather
-than the method. GSAS-II and FullProf are runnable in `rietx-bench/tools` if
-that needs settling. No paper compares the two as cell validators.
+by Le Bail 2005, §VI p.321; checked 2026-10-18). Le Bail (2005, §IV.B
+p.318; this file said §II.B until 2026-10-27): the method "requires as good
+starting cell and profile parameters as the Rietveld method itself", and a
+wrong candidate is a bad start. **Checked 2026-10-27** (WP-2062's survey,
+`docs/practice.md` § Structure-free fitting): GSAS-II re-extracts once per
+least-squares iteration (`GSASIIstrMath.py:4808`), FullProf once per cycle
+(ran), and TOPAS, RIETAN-FP and MAUD inside the refinement too, where rietx
+re-extracts only between runs. So the gap above may be rietx's Le Bail
+rather than the method; WP-2062 carries that as its decision 0. TOPAS
+defaults to Pawley. No paper compares the two as cell validators.
 
 ### Re-measured 2026-10-27, on the tree with #941
 
@@ -304,7 +307,7 @@ validates no fewer candidates than on `main`.
 - Pawley, G. S. (1981). *J. Appl. Cryst.* **14**, 357-361.
 - Le Bail, A., Duroy, H. & Fourquet, J. L. (1988). *Mater. Res. Bull.* **23**, 447-452.
 - Le Bail, A. (2005). *Powder Diffr.* **20**, 316-326, doi:10.1154/1.2135315 —
-  §II.C compares the two; §VI cites Kariuki *et al.* (1999).
+  §IV.C compares the two; §VI cites Kariuki *et al.* (1999).
 - Peterson, V. K. (2005). *Powder Diffr.* **20**, 14-17 (Le Bail against
   Rietveld cells in low-symmetry systems; abstract only).
 - WP-0306 (Pawley mode), WP-1043 (the retracted "constrained validator"
