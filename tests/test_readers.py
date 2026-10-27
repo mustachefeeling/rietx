@@ -3038,11 +3038,13 @@ def test_an_xydata_multiplier_or_interpolation_is_refused_by_name(
 # still carrying its background.  Nothing is repaired: y is the file's.
 
 def _write_pdcif(path, columns: dict[str, list[float]]):
-    """A one-block pdCIF holding ``columns`` as one loop, 2θ first."""
+    """A one-block pdCIF holding ``columns`` as one loop, 2θ first; a ``str``
+    cell is written as it is (``?`` and ``.`` are the CIF nulls)."""
     tags = list(columns)
     rows = zip(*(columns[t] for t in tags))
     text = ("data_synthetic\nloop_\n" + "".join(f"{t}\n" for t in tags)
-            + "".join(" ".join(repr(float(v)) for v in r) + "\n" for r in rows))
+            + "".join(" ".join(v if isinstance(v, str) else repr(float(v)) for v in r)
+                      + "\n" for r in rows))
     path.write_text(text, encoding="utf-8")
     return path
 
@@ -3346,6 +3348,36 @@ def test_a_negative_weight_falls_back_to_poisson_and_says_so(tmp_path):
     assert [d.code for d in found] == ["PATTERN_WEIGHT_UNUSABLE"]
     assert found[0].value == 2.0
     assert "2 negative weight(s)" in found[0].message
+
+
+@pytest.mark.parametrize("null", ["?", "."])
+def test_a_cif_null_among_positive_weights_is_counted_as_missing(tmp_path, null):
+    """T10d (Yue, round 1): ``?`` and ``.`` read as NaN. Five of the six
+    weights are positive, so the message must not say "no positive weight";
+    the column is still dropped, as in 1.10.0, and the null is counted on its
+    own beside any negative entries."""
+    w = list(_W)
+    w[2] = null
+    p = _write_pdcif(tmp_path / "null.cif", {
+        "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": w,
+        "_pd_proc_intensity_total": _Y})
+    found: list = []
+    pat = rx.read_pattern(p, diagnostics=found)
+    assert pat.sigma is None and pat.excluded_regions == []
+    assert [d.code for d in found] == ["PATTERN_WEIGHT_UNUSABLE"]
+    assert found[0].value == 1.0
+    assert "1 missing weight(s)" in found[0].message
+    assert "no positive weight" not in found[0].message
+    assert "negative" not in found[0].message
+    # a negative and two nulls in the same column: each counted on its own
+    w[0], w[4] = -w[0], "?"
+    p = _write_pdcif(tmp_path / "both.cif", {
+        "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": w,
+        "_pd_proc_intensity_total": _Y})
+    found = []
+    rx.read_pattern(p, diagnostics=found)
+    assert found[0].value == 3.0
+    assert "1 negative weight(s) and 2 missing weight(s)" in found[0].message
 
 
 def test_a_usable_weight_column_does_not_fire_the_fallback_code(tmp_path):

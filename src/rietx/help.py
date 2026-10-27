@@ -3294,13 +3294,15 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "PATTERN_WEIGHT_UNUSABLE": HelpEntry(
         title="A pdCIF weight column could not give σ",
         description=(
-            "The file's `_pd_proc_ls_weight` column holds a negative entry, or no "
-            "positive entry, so it cannot be read as w = 1/σ². The reader fell back to "
-            "the Poisson σ = √max(y, 1), as it does for a file with no weights, and did "
-            "not repair the column. The code's value is the number of negative entries "
-            "(0 when the column holds no positive weight). If the file's counting time "
-            "varies across the scan, the Poisson σ is not the deposit's; quote χ² and "
-            "esds accordingly, or supply σ yourself."
+            "The file's `_pd_proc_ls_weight` column holds a negative entry, a missing "
+            "one (`?` or `.`) or no positive entry, so it cannot be read as w = 1/σ². "
+            "The reader fell back to the Poisson σ = √max(y, 1), as it does for a file "
+            "with no weights, and did not repair the column: it drops the whole column, "
+            "not just the bad entries, even where most weights are positive. The message "
+            "counts the negative and the missing entries separately; the code's value is "
+            "their sum (0 when the column holds no positive weight and no bad entry). "
+            "If the file's counting time varies across the scan, the Poisson σ is not "
+            "the deposit's; quote χ² and esds accordingly, or supply σ yourself."
         ),
     ),
     "PATTERN_X_AXIS_ASSUMED": HelpEntry(

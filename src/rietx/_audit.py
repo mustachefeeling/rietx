@@ -803,12 +803,15 @@ ROWS: tuple[Row, ...] = (
                   "re-collect at a step near FWHM/5 where it must be quotable"),
         scope=("qpa", "structure", "microstructure", "calibration", "magnetic")),
     Row("PATTERN_WEIGHT_UNUSABLE", "code", tier=1, ambiguity=1,
-        evidence=("info; a record of an act the file forces: a negative weight or a column "
-                  "with no positive weight gives no sigma = 1/sqrt(w) (the pdCIF dictionary "
-                  "defines _pd_proc_ls_weight as the least-squares weight, w >= 0), so the "
-                  "reader uses the Poisson sigma it always used for a file with no weights; "
-                  "fires exactly when a weight column was present and unusable, and names the "
-                  "count of negative entries or 'no positive weight'"),
+        evidence=("info; a report that fires exactly when a present weight column was not "
+                  "read. Where no entry is positive the fallback is the file's own (no "
+                  "sigma = 1/sqrt(w) for any point; the dictionary defines _pd_proc_ls_weight "
+                  "as the least-squares weight, w >= 0). Where only some entries are negative "
+                  "or null (? or .), dropping the whole column is a choice the reader makes, "
+                  "as 1.10.0 did; the report says the column was dropped and counts negative "
+                  "and missing entries separately. Yue ruled on 2026-10-26 to keep the whole-"
+                  "column fallback: no program surveyed uses a pdCIF weight column "
+                  "(docs/practice.md, A pdCIF weight column with bad entries, #1181)"),
         response="info",
         responds=("nothing: the weights are not used, sigma is the Poisson value, so quote "
                   "chi2 and esds as for a pattern with no weights")),
