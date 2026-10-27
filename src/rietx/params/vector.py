@@ -1535,18 +1535,19 @@ class ParameterTable:
                        dtype=np.float64)
         lengths = np.sqrt(np.diag(g))
         cosines = g / np.outer(lengths, lengths)
-        lam_min = float(np.linalg.eigvalsh(cosines)[0])
+        lam_min = float(lapack.eigvalsh(cosines)[0])
         amplitudes = np.array([p.value for p in declared.strain], dtype=np.float64)
         strained = cosines + 2.0 * np.tensordot(amplitudes, basis, axes=1)
-        if not float(np.linalg.eigvalsh(strained)[0]) > 0.0:
+        if not float(lapack.eigvalsh(strained)[0]) > 0.0:
             raise ValueError(
                 f"{base}.parent_cell.strain {amplitudes.tolist()} makes the "
                 f"child's metric not positive definite (its smallest "
-                f"eigenvalue is {float(np.linalg.eigvalsh(strained)[0])!r} "
+                f"eigenvalue is {float(lapack.eigvalsh(strained)[0])!r} "
                 f"against {lam_min!r} unstrained): that is not a lattice. "
                 f"Use smaller amplitudes")
         for path, e_j in zip(strains, basis, strict=True):
-            norm = float(np.linalg.norm(e_j, 2))
+            # E is symmetric, so its spectral norm is its largest |eigenvalue|
+            norm = float(np.max(np.abs(lapack.eigvalsh(e_j))))
             if norm > 0.0:
                 self._strain_domain[path] = (PARENT_STRAIN_PD_FRACTION * lam_min
                                              / (2.0 * len(basis) * norm))
