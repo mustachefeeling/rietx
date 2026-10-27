@@ -10653,9 +10653,10 @@ def _restraint_pairs_stale_diagnostics(structure: Structure,
                      f"their anti-bump minimum during the run and have no row "
                      f"in the pair list: "
                      f"{shown}" + (f"; and {more} more" if more > 0 else "")),
-            suggestion="the list was built from other coordinates: rebuild it with "
-                       "anti_bump_restraints from these (or with a wider margin) "
-                       "and refit, then judge the contact"))
+            suggestion="rebuild the list with anti_bump_restraints from these "
+                       "coordinates (or with a wider margin) and refit; or, if "
+                       "the contact is real, lower that species pair's minimum "
+                       "distance"))
     return out
 
 

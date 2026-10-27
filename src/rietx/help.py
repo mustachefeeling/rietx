@@ -3745,8 +3745,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "have no row in the pair list. The list is built once, from the starting "
             "coordinates, so a pair that drifted inside its minimum from outside the list "
             "is not restrained. A contact already inside its minimum when the run "
-            "started, such as a bond you left out of the list, is not reported. Rebuild the list with `anti_bump_restraints` from these "
-            "coordinates, or with a wider margin, and refit before you judge the contact."
+            "started, such as a bond you left out of the list, is not reported. Either rebuild the list with "
+            "`anti_bump_restraints` from these coordinates, or with a wider margin, and refit; or, if "
+            "the contact is real (a hydrogen bond, say), lower that species pair's minimum distance."
         ),
     ),
     "RESTRAINT_TENSION": HelpEntry(
