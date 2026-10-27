@@ -613,7 +613,7 @@ def test_an_edited_child_cell_is_refused_not_overwritten():
     phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
     phase.cell.gamma.value += 0.01
     with pytest.raises(ValueError, match=r"phases\.0\.cell\.gamma is stored as .* "
-                                         r"Edit the parent's cell or a strain"):
+                                         r"cannot tell which was edited"):
         ParameterTable(Structure(phases=[phase]), INSTRUMENT)
 
 
@@ -692,3 +692,181 @@ def test_the_cosine_snap_removes_round_off_and_nothing_physical(monkeypatch):
     off = np.array(g, dtype=np.float64)
     off[0, 1] = off[1, 0] = (-0.5 + 1e-9) * lengths[0] * lengths[1]
     assert metric.cell_from_metric(off)[5] != exact
+
+
+# ---------------------------------------------------------------------------
+# review of #1108: the parent's cell is a cell to every safeguard
+# ---------------------------------------------------------------------------
+PARENT_A = "phases.0.parent_cell.cell.a"
+STRAIN_0 = "phases.0.parent_cell.strain.0"
+
+
+def _cm_table(**edits) -> ParameterTable:
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
+    for name, value in edits.items():
+        getattr(phase.parent_cell.cell, name).value = value
+    return ParameterTable(Structure(phases=[phase]), INSTRUMENT)
+
+
+def test_the_cell_parser_reads_the_parents_five_part_path():
+    from rietx.params.vector import _cell_parameter_name
+
+    assert _cell_parameter_name(PARENT_A, phases=None) == "a"
+    assert _cell_parameter_name("phases.0.parent_cell.cell.gamma", phases={0}) == "gamma"
+    assert _cell_parameter_name(PARENT_A, phases={1}) is None
+    # neither the strain nor a made-up cell name is a cell parameter
+    assert _cell_parameter_name(STRAIN_0, phases=None) is None
+    assert _cell_parameter_name("phases.0.parent_cell.cell.z", phases=None) is None
+    assert _cell_parameter_name("phases.0.cell.b", phases=None) == "b"
+
+
+def test_an_unseen_phases_parent_cell_gets_the_stage_window():
+    """WP-1301's window reached the child's six locked outputs and none of the
+    parent's edges, so a floored-scale child could walk its cell unbounded."""
+    table = _cm_table()
+    table.set_vary(["phases.*.cell.*"], True)
+    table.freeze_cell_windows({0})
+    lo, hi = table.bounds()
+    i = table.free_paths.index(PARENT_A)
+    a = table.entries[table._paths[PARENT_A]].value
+    assert np.isfinite(lo[i]) and np.isfinite(hi[i])
+    assert lo[i] < a < hi[i] and hi[i] < 1.1 * a
+
+
+def test_a_parent_cell_runaway_is_reset_and_named():
+    from rietx.refine import _cell_runaway_diagnostic, reset_cell_runaway
+
+    table = _cm_table()
+    table.set_vary(["phases.*.cell.*"], True)
+    start = {e.path: e.value for e in table.entries}
+    entry = table.entries[table._paths[PARENT_A]]
+    entry.value = 1.4 * start[PARENT_A]
+    reset = reset_cell_runaway(table, start)
+    assert PARENT_A in {c[0] for c in reset}
+    assert entry.value == start[PARENT_A]
+    diag = _cell_runaway_diagnostic(reset)
+    assert diag is not None and PARENT_A in diag.where
+    assert "1 phase" in diag.message or "phase's free cell" in diag.message
+
+
+def test_a_bound_on_the_parent_carries_to_the_child_built_from_it():
+    parent = _lamno3().model_copy(deep=True)
+    parent.cell.a.min, parent.cell.a.max = 5.683, 5.783
+    cand = next(c for c in _candidates((0.5, 0.5, 0))
+                if c.irrep_label == "S1" and c.direction.label == "(rank 2)#3")
+    phase = sc.magnetic_supercell(parent, cand, nuclear_group="magnetic").phase
+    assert (phase.parent_cell.cell.a.min, phase.parent_cell.cell.a.max) == (5.683, 5.783)
+    # the vary flag stays the plan's, and an unbounded edge stays unbounded
+    assert not phase.parent_cell.cell.a.vary
+    assert phase.parent_cell.cell.c.min == -np.inf
+
+
+def test_the_parent_moves_through_set_values_and_the_child_follows():
+    """The refusal cannot tell which side was edited; the verb is the way."""
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
+    ref = rx.Refinement(Structure(phases=[phase]), INSTRUMENT.model_copy(deep=True))
+    a0 = ref.structure.phases[0].cell.a.value
+    ref.set_values({PARENT_A: _lamno3().cell.a.value * 1.001})
+    assert ref.structure.phases[0].cell.a.value == pytest.approx(a0 * 1.001, rel=1e-12)
+    ParameterTable(ref.structure, INSTRUMENT)    # and the table accepts the pair
+
+
+def test_the_drift_refusal_names_both_sides_and_prints_plain_floats():
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
+    phase.parent_cell.cell.a.value *= 1.001
+    with pytest.raises(ValueError) as caught:
+        ParameterTable(Structure(phases=[phase]), INSTRUMENT)
+    message = str(caught.value)
+    assert "np.float64" not in message
+    assert "cannot tell which was edited" in message and "set_values" in message
+
+
+# ---------------------------------------------------------------------------
+# a freed strain stays where the child's metric is positive definite
+# ---------------------------------------------------------------------------
+def test_a_freed_strain_is_bounded_where_the_metric_stays_positive_definite():
+    table = _cm_table()
+    table.set_vary([STRAIN_0], True)
+    lo, hi = table.bounds()
+    i = table.free_paths.index(STRAIN_0)
+    assert np.isfinite(lo[i]) and lo[i] == -hi[i] and hi[i] > 0
+    # the parent is orthorhombic, so its cosine matrix is the identity
+    e = np.asarray(table._cell_blocks[0].basis[0])
+    for sign in (1.0, -1.0):
+        assert np.linalg.eigvalsh(np.eye(3) + 2.0 * sign * hi[i] * e)[0] > 0.0
+    # a held strain carries no bound: nothing moves it
+    table.set_vary([STRAIN_0], False)
+    assert STRAIN_0 not in table.free_paths
+
+
+def test_a_stored_strain_past_the_cone_is_refused_by_name():
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
+    phase.parent_cell.strain[0].value = 5.0
+    with pytest.raises(ValueError, match=r"parent_cell\.strain .* not positive definite"):
+        ParameterTable(Structure(phases=[phase]), INSTRUMENT)
+
+
+def test_a_caller_bound_on_a_strain_is_kept_where_tighter():
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
+    phase.parent_cell.strain[0].min, phase.parent_cell.strain[0].max = -1e-3, 2e-3
+    table = ParameterTable(Structure(phases=[phase]), INSTRUMENT)
+    table.set_vary([STRAIN_0], True)
+    lo, hi = table.bounds()
+    assert lo[0] == -1e-3 and hi[0] == 2e-3
+
+
+# ---------------------------------------------------------------------------
+# the strain basis is built from one invariant basis of the parent
+# ---------------------------------------------------------------------------
+def test_strain_basis_asks_the_parents_invariant_basis_once(monkeypatch):
+    """Rebuilt per axis pair it was 0.24 s a call on a cubic parent, and
+    ``ParameterTable`` calls it on every build."""
+    calls = []
+    real = metric.invariant_metric_basis
+    monkeypatch.setattr(metric, "invariant_metric_basis",
+                        lambda rotations: calls.append(len(rotations)) or real(rotations))
+    parent = sym.get_spacegroup("P m -3 m")
+    child = sym.get_spacegroup("P 4/m m m")
+    basis = metric.strain_basis(metric.rotations_of(parent),
+                                metric.in_parent_basis(np.eye(3), metric.rotations_of(child)),
+                                {"alpha": 90.0, "beta": 90.0, "gamma": 90.0})
+    assert len(basis) == 1
+    assert len(calls) <= 2          # the parent's, and the child's
+
+
+# ---------------------------------------------------------------------------
+# PARENT_STRAIN_HELD: the hold under the cell glob is said aloud
+# ---------------------------------------------------------------------------
+def _small_pattern() -> PatternData:
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase
+    ref = rx.Refinement(Structure(phases=[phase.model_copy(deep=True)]),
+                        INSTRUMENT.model_copy(deep=True))
+    tt = np.arange(10.0, 40.0, 0.04)
+    y = np.asarray(ref.predict(tt))
+    return PatternData(two_theta=tt.tolist(),
+                       intensity=(y / y.max() * 5e3 + 30.0).tolist())
+
+
+def _held_findings(turn_on):
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase
+    ref = rx.Refinement(Structure(phases=[phase.model_copy(deep=True)]),
+                        INSTRUMENT.model_copy(deep=True))
+    ref.set_values({STRAIN_0: SEED})
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage(name="scale", turn_on=["phases.*.scale"]),
+        rx.Stage(name="cell", turn_on=turn_on, max_iter=5)])
+    result = ref.fit(_small_pattern(), plan=plan, telemetry=False)
+    return [d for d in result.diagnostics if d.code == "PARENT_STRAIN_HELD"]
+
+
+def test_the_cell_glob_leaves_a_strain_held_and_says_so():
+    (finding,) = _held_findings(["phases.*.scale", "phases.*.cell.*"])
+    assert finding.level == "info"
+    assert finding.where == [STRAIN_0]
+    assert "set_values" in finding.suggestion and "phases.*.parent_cell.strain.*" in finding.suggestion
+
+
+def test_naming_the_strain_silences_it_and_so_does_a_stage_with_no_edges():
+    assert _held_findings(["phases.*.scale", "phases.*.cell.*",
+                           "phases.*.parent_cell.strain.*"]) == []
+    assert _held_findings(["phases.*.scale"]) == []

@@ -1098,8 +1098,8 @@ CONFIGS = {"families": _state_families,
 #: config to one worker means its state and its six method Jacobians are built
 #: once (jax pays a 1-4 s jit compile per state), while the nine configs still
 #: spread across nine workers.  No matrix row is cut.
-def _config(name: str, *marks):
-    return pytest.param(name, marks=[*marks, pytest.mark.xdist_group(f"xb-{name}")])
+def _config(name: str, *marks, group: str | None = None):
+    return pytest.param(name, marks=[*marks, pytest.mark.xdist_group(group or f"xb-{name}")])
 
 
 CONFIG_PARAMS = [
@@ -1124,6 +1124,10 @@ CONFIG_PARAMS = [
     _config("distortion_modes"),
     _config("bodies_site"),
     _config("parent_cell"),
+    # the state imports test_parent_cell's LaMnO₃ child, whose candidate search
+    # is cached per process: sharing that module's group pays it once
+    # (tests/CLAUDE.md § Shared fixtures)
+    _config("parent_cell", group="parent-cell"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),

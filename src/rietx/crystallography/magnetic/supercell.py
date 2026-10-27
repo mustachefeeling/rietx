@@ -1548,11 +1548,15 @@ def _parent_cell(parent: Phase, transform: str, child_group) -> ParentCell:
     basis = strain_basis(rotations_of(parent_sg),
                          in_parent_basis(p_matrix, rotations_of(child_group)),
                          cell_constraints(parent_sg).fixed_angles)
-    values = parent.cell.lengths_angles()
+    # values and bounds, as ``biso`` carries them below: a bound a caller stated
+    # on the parent binds every child it becomes; ``vary`` stays the plan's
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
     return ParentCell(
         space_group=parent.space_group, transform=transform,
-        cell=Cell(**{n: Parameter(value=v) for n, v in zip(
-            ("a", "b", "c", "alpha", "beta", "gamma"), values, strict=True)}),
+        cell=Cell(**{n: Parameter(value=getattr(parent.cell, n).value,
+                                  min=getattr(parent.cell, n).min,
+                                  max=getattr(parent.cell, n).max)
+                     for n in names}),
         strain=[Parameter(value=0.0) for _ in range(len(basis))])
 
 

@@ -768,6 +768,17 @@ ROWS: tuple[Row, ...] = (
                   "default where the caller set none (multi.py:2316-2322), and applies no "
                   "threshold of its own (WP-1325)")),
     Row("PARAMETRIC_TARGET_UNSEEN", "code"),
+    Row("PARENT_STRAIN_HELD", "code", tier=3, ambiguity=1,
+        evidence=("info; fires when a stage frees a Phase.parent_cell phase's cell edges while a "
+                  "strain stays held: phases.*.cell.* reaches the edges and never a strain, since "
+                  "a strain at exactly zero has no gradient to leave it by (test_parent_cell.py)"),
+        grounds=("The glob's choice to leave a strain held is the package's own act, so it is said "
+                 "out loud with the held paths and the verbs that free them; Yue ruled the hold "
+                 "stays and is reported (PR #1108, 2026-10-27), naming a dissenting refiner who "
+                 "would free the strain."),
+        approved="2026-10-27", response="info",
+        responds=("read the child's cell as the parent's carried through the transform; seed the "
+                  "strain off zero with set_values and free it to test for a shear")),
     Row("PATTERN_DEAD_CHANNELS", "code"),
     Row("PATTERN_DUPLICATE_POINTS", "code"),
     Row("PATTERN_INTENSITY_NET", "code", tier=1, ambiguity=1,
@@ -2755,6 +2766,13 @@ ROWS: tuple[Row, ...] = (
         evidence=("linear-algebra round-off: R.v - v of an allowed mode vector is ~1e-15, a "
                   "forbidden one O(1) (docstring, WP-1419); tests/test_distortion_block.py::"
                   "test_a_mode_vector_its_site_does_not_allow_is_refused")),
+    Row("rietx.params.vector.PARENT_STRAIN_PD_FRACTION", "constant", tier=3, value=0.5,
+        evidence=("arithmetic for the sufficient box: sum 2|s_j|.|E_j|_2 < lambda_min(C) keeps the child "
+                  "metric positive definite, and a fraction below 1 keeps the bound off the singular "
+                  "edge; the value 1/2 is the midpoint and untuned (test_parent_cell.py)"),
+        grounds=("rietx's own fraction, thin: any value in (0, 1) is correct and it moves no answer "
+                 "unless a strain reaches it; waiting on the maintainer's dated approval "
+                 "(PR #1108 review item 5).")),
     Row("rietx.params.vector.PARENT_CELL_DRIFT_TOL", "constant", tier=1, value=1e-09,
         evidence=("numerical floor: the builder and every write-back store the derived child cell itself, "
                   "so a stored cell agrees to the bit; 1e-9 relative sits above a 1e-13 round-off and below "
@@ -4088,6 +4106,10 @@ ROWS: tuple[Row, ...] = (
         evidence=("opt-in, as its code: names three changes to the caller's own declaration "
                   "(subset, order, basis) and picks none (multi.py:2334-2336)")),
     Row("PARAMETRIC_TARGET_UNSEEN.suggestion", "suggestion", value=1),
+    Row("PARENT_STRAIN_HELD.suggestion", "suggestion", tier=3, ambiguity=1, value=1,
+        evidence="names the two verbs that free a held strain: set_values to seed it, turn_on to free it",
+        grounds="Says how to test for the strain the glob left held (PR #1108, ruled 2026-10-27).",
+        approved="2026-10-27"),
     Row("PATTERN_DEAD_CHANNELS.suggestion", "suggestion", value=2),
     Row("PATTERN_INTENSITY_SCALED.suggestion", "suggestion", value=6),
     Row("PATTERN_MULTISCAN_DEFAULTED.suggestion", "suggestion", value=1),

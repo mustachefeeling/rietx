@@ -169,9 +169,12 @@ def strain_basis(parent_rotations, child_rotations, fixed_angles=None
                 "parent's point group: the child is not a subgroup of this parent "
                 "under this transform")
         child.append(ri)
+    # the parent's invariant metric rows, built once: every pair below asks the
+    # same question of the same group (it was 0.24 s a call, rebuilt per pair)
+    tied_rows = invariant_metric_basis(parent)
     for r in parent:
         for i, j in product(range(3), repeat=2):
-            if i != j and r[i, j] != 0 and not _axes_tied(i, j, parent):
+            if i != j and r[i, j] != 0 and not _axes_tied(i, j, tied_rows):
                 raise ValueError(
                     f"strain_basis(): the parent rotation {r.tolist()} mixes axes "
                     f"{'abc'[i]} and {'abc'[j]}, whose lengths its symmetry does "
@@ -202,12 +205,14 @@ def strain_basis(parent_rotations, child_rotations, fixed_angles=None
     return np.array(out)
 
 
-def _axes_tied(i: int, j: int, rotations) -> bool:
-    """Whether the point group maps axis i onto ±axis j (so their lengths tie)."""
+def _axes_tied(i: int, j: int, basis) -> bool:
+    """Whether the point group maps axis i onto ±axis j (so their lengths tie).
+
+    ``basis`` is the group's ``invariant_metric_basis``.
+    """
     # an axis is carried onto a combination of others by some rotation; when
     # the group makes |a_i| = |a_j| by symmetry, the metric's invariant
     # subspace has G_ii = G_jj on every row
-    basis = invariant_metric_basis(rotations)
     return bool(np.all(basis[:, i] == basis[:, j]))
 
 

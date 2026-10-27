@@ -497,6 +497,16 @@ _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 #: trip's zero and far below any edit a person makes.
 PARENT_CELL_DRIFT_TOL = 1e-9
 
+#: How much of the child metric's smallest eigenvalue a freed ``Phase.parent_cell``
+#: strain may use up (WP-1419, review of #1108): the amplitude box of
+#: :meth:`ParameterTable._guard_strain_domain` is the sufficient condition
+#: Σⱼ 2|sⱼ|·‖Eⱼ‖₂ < λ_min(C) scaled by this fraction, so the bound sits strictly
+#: inside the cone.  At 1.0 the box edge is a singular metric, and the default
+#: LM driver lands a value exactly on a bound.  Any value in (0, 1) keeps the
+#: metric positive definite; ½ is the midpoint, rietx's own choice, and moves
+#: no answer unless a strain reaches it.
+PARENT_STRAIN_PD_FRACTION = 0.5
+
 #: Fraction of the value a stage *starts from* that a cell length may travel
 #: within that stage, and an additive pad in Å so a small cell is not held
 #: tighter than a large one in absolute terms.
@@ -586,14 +596,20 @@ def _cell_parameter_name(path: str, *, phases: set[int] | None) -> str | None:
     but their paths to go on.
     """
     parts = path.split(".")
-    if len(parts) == 4 and parts[0] == "phases" and parts[2] == "cell":
-        if parts[3] not in _CELL_NAMES:
+    # a phase's own cell, or the parent's cell a ``Phase.parent_cell`` child
+    # refines in its place (WP-1419): the latter is the cell that moves, and
+    # the child's own six are locked outputs, so the safeguards must read it
+    if (len(parts) == 4 and parts[0] == "phases" and parts[2] == "cell") or (
+            len(parts) == 5 and parts[0] == "phases" and parts[2] == "parent_cell"
+            and parts[3] == "cell"):
+        name = parts[-1]
+        if name not in _CELL_NAMES:
             return None
         try:
             ip = int(parts[1])
         except ValueError:
             return None
-        return parts[3] if phases is None or ip in phases else None
+        return name if phases is None or ip in phases else None
     return None
 
 
@@ -1233,6 +1249,10 @@ class ParameterTable:
         #: the cell blocks of ``Phase.parent_cell`` phases (WP-1419), declared
         #: before every body block, which reads a phase's cell
         self._cell_blocks: list[DerivedBlock] = []
+        #: strain path → the amplitude at which the child's metric stops being
+        #: positive definite, however it is combined (WP-1419); applied in
+        #: :meth:`bounds` to a **free** strain, never stored on the entry
+        self._strain_domain: dict[str, float] = {}
         #: body base path → its rotation DOF paths: the **anchored-rotation**
         #: kind (WP-1805).  An increment δω = E·θ composed into the body's
         #: R₀ and zeroed at every :meth:`commit`, so its value is a step
@@ -1455,6 +1475,7 @@ class ParameterTable:
         for name in _CELL_NAMES:
             self._add(f"{base}.cell.{name}", getattr(phase.cell, name),
                       force_fixed=True)
+        self._guard_strain_domain(base, declared, parent_sg, strains, basis)
         block = ParentCellBlock(f"{base}.parent_cell.cell", f"{base}.cell",
                                 strains, [[float(v) for v in row] for row in p_matrix],
                                 basis)
@@ -1473,12 +1494,62 @@ class ParameterTable:
             worst = int(np.argmax(drift))
             raise ValueError(
                 f"{base}.cell.{_CELL_NAMES[worst]} is stored as "
-                f"{stored[worst]!r}, but the parent's cell and strains give "
-                f"{derived[worst]!r}: the child's cell is derived "
-                f"(Phase.parent_cell) and an edit of it would be overwritten. "
-                f"Edit the parent's cell or a strain instead, or drop "
-                f"parent_cell to refine the six parameters directly")
+                f"{float(stored[worst])!r}, but the parent's cell and strains "
+                f"give {float(derived[worst])!r}: the child's cell is derived "
+                f"(Phase.parent_cell), so the two sides disagree and the table "
+                f"cannot tell which was edited.  An edit of the child's cell "
+                f"would be overwritten; an edit of the parent's cell or a "
+                f"strain in the model leaves the child's stored cell behind.  "
+                f"Move the parent through a verb that re-derives it "
+                f"(``Refinement.set_values`` on {base}.parent_cell.cell.* or "
+                f"{base}.parent_cell.strain.*), or drop parent_cell to refine "
+                f"the six parameters directly")
         self._cell_blocks.append(block)
+
+    def _guard_strain_domain(self, base: str, declared, parent_sg, strains: list[str],
+                             basis: np.ndarray) -> None:
+        """Where the child's metric stays positive definite, by name (WP-1419).
+
+        G′ = Pᵀ·(G + 2·L·E·L)·P with G = L·C·L (L the parent's lengths, C its
+        cosine matrix) is positive definite exactly when C + 2E is, P being
+        invertible.  A stored amplitude outside that is a model to refuse here
+        (a negative diagonal under ``sqrt`` is a NaN mid-solve, and the
+        cosine clip in ``cell_from_metric`` would hide the off-diagonal case).
+        A **freed** strain is bounded in :meth:`bounds`, per amplitude, at
+        PARENT_STRAIN_PD_FRACTION·λ_min(C)/(2·n·‖Eⱼ‖₂): the sum of the n amplitudes' spectral norms then
+        stays under λ_min(C), which keeps C + 2E positive definite for any
+        combination.  A sufficient box, not the cone itself, and derived from
+        the parent's cell at this build (re-read each stage, like every
+        bound) rather than a tuned number.  A parent angle freed in the same
+        stage moves λ_min within the stage; the stage's next build re-reads it.
+        """
+        if len(basis) == 0:
+            return
+        from ..crystallography.lattice import direct_metric_tensor
+
+        cons = cell_constraints(parent_sg)
+        values = {n: getattr(declared.cell, n).value for n in _CELL_NAMES}
+        for name, src in cons.ties.items():
+            values[name] = values[src]
+        g = np.asarray(direct_metric_tensor(*(values[n] for n in _CELL_NAMES)),
+                       dtype=np.float64)
+        lengths = np.sqrt(np.diag(g))
+        cosines = g / np.outer(lengths, lengths)
+        lam_min = float(np.linalg.eigvalsh(cosines)[0])
+        amplitudes = np.array([p.value for p in declared.strain], dtype=np.float64)
+        strained = cosines + 2.0 * np.tensordot(amplitudes, basis, axes=1)
+        if not float(np.linalg.eigvalsh(strained)[0]) > 0.0:
+            raise ValueError(
+                f"{base}.parent_cell.strain {amplitudes.tolist()} makes the "
+                f"child's metric not positive definite (its smallest "
+                f"eigenvalue is {float(np.linalg.eigvalsh(strained)[0])!r} "
+                f"against {lam_min!r} unstrained): that is not a lattice. "
+                f"Use smaller amplitudes")
+        for path, e_j in zip(strains, basis, strict=True):
+            norm = float(np.linalg.norm(e_j, 2))
+            if norm > 0.0:
+                self._strain_domain[path] = (PARENT_STRAIN_PD_FRACTION * lam_min
+                                             / (2.0 * len(basis) * norm))
 
     def _collect_texture(self, base: str, sg, phase) -> None:
         """One ``phases.i.texture.<name>`` entry per term the Laue class allows.
@@ -4228,6 +4299,11 @@ class ParameterTable:
                 # narrows, so intersecting last is the tightest of all four and
                 # leaves each of their decisions reading the stored bounds.
                 e_lo, e_hi = max(e_lo, tied_window[0]), min(e_hi, tied_window[1])
+            domain = self._strain_domain.get(e.path)
+            if domain is not None:
+                # a freed Γ strain stays where the child's metric is positive
+                # definite (WP-1419, ``_guard_strain_domain``); only narrows
+                e_lo, e_hi = max(e_lo, -domain), min(e_hi, domain)
             scale = self._value_scale.get(e.path)
             if scale is not None:
                 # every bound above is a *physical* limit on this table's own
