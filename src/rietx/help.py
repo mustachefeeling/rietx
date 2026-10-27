@@ -3965,7 +3965,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "every one that followed and every one that was dropped. Nothing was moved: "
             "this is the bookkeeping of a site whose symmetry changed without a merge, "
             "for instance onto a mirror within 5e-5, after a fit wrote the coordinate "
-            "back, or off one by an edit."
+            "back, or off one by an `edit` or a `checkout`."
         ),
     ),
     "SITE_TWINS_KEPT": HelpEntry(

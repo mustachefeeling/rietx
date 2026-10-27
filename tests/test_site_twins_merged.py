@@ -1112,6 +1112,84 @@ def test_a_site_near_a_three_or_six_fold_axis_merges_wherever_the_axis_is_in_rea
     assert merged > 300
 
 
+# ------------------------------------------------ round 7: Yue's review at d83c96c1
+
+@pytest.mark.parametrize("group, cell", [("P m -3 m", (5.0, 5.0, 5.0, 90, 90, 90)),
+                                         ("I 4/m m m", (4.0, 4.0, 9.0, 90, 90, 90))])
+def test_a_site_near_a_fourfold_axis_merges_wherever_the_axis_or_a_mirror_is_in_reach(group, cell):
+    """Sweeps offsets from the (0, 0, z) fourfold axis out to 1.2 × the reach.  Within
+    0.9 × the reach the axis itself is in reach and must be the position; past it
+    the operations each pass on their own move while their group's axis does not,
+    and the site must still land on a mirror that is in reach (main merges there;
+    round 6's group generation refused the whole site)."""
+    sg = resolve_group(group, None)
+    rng = np.random.default_rng(1014)
+    reach = TWIN_COORD_TOL
+    axis = site_orbit(sg, np.array([0.0, 0.0, 0.1232])).multiplicity
+    refused = []
+    for _ in range(600):
+        d = rng.uniform(-1.2 * reach, 1.2 * reach, size=2)
+        x = np.array([d[0], d[1], 0.1232])
+        if site_orbit(sg, x).multiplicity < 2 * axis:   # already special at site_orbit's tolerance
+            continue
+        merge = site_twin_merge(sg, cell, x)
+        # the oracle: every coordinate within 0.9 × reach of 0 snaps to it, and a
+        # merge is owed exactly when that point carries fewer positions than x
+        snapped = np.where(np.abs(d) <= 0.9 * reach, 0.0, d)
+        owed = (site_orbit(sg, x).multiplicity
+                > site_orbit(sg, np.array([*snapped, 0.1232]), tol=1e-9).multiplicity)
+        axis_in_reach = max(abs(d[0]), abs(d[1])) <= 0.9 * reach
+        if merge is None:
+            if owed:
+                refused.append(d)
+            continue
+        assert merge.before > merge.after
+        if axis_in_reach:
+            assert merge.after == axis, d
+            np.testing.assert_allclose(merge.position[:2], [0.0, 0.0], atol=1e-12)
+        assert float(np.max(np.abs(merge.position - x))) <= reach * 1.01, d
+    assert not refused, refused[:3]
+
+
+def test_the_reviewers_site_near_the_cubic_axis_merges():
+    """Yue's case: Fe at (-0.000513, 0.000096, 0.1232) in P m-3m, a = 5 Å."""
+    sg = resolve_group("P m -3 m", None)
+    merge = site_twin_merge(sg, (5.0, 5.0, 5.0, 90, 90, 90),
+                            np.array([-0.000513, 0.000096, 0.1232]))
+    assert merge is not None and merge.before > merge.after
+
+
+@pytest.mark.parametrize("shift", [+1, -1])
+def test_a_shift_of_atom_indices_puts_the_findings_at_the_sites_new_path(pbso4, shift):
+    """Round 7, item 2: O5 drifts to y = 0.2502 with a hold on z and a tie onto z, then
+    ``edit(structure=)`` inserts an atom at index 0 (shift +1) or removes atom 0
+    (shift -1).  The hold and the tie follow O5 to its new index, the
+    ``SITE_TWINS_MERGED`` there carries the "Constraints:" note, and no
+    ``SITE_DOFS_RENUMBERED`` names the atom that now holds the old index."""
+    ref, j, site = _o5_state(pbso4)
+    ref.hold([f"{site}.dof.2"])
+    ref.tie(f"{site}.dof.0", f"{site}.dof.2")
+    _drift_y(ref, j, 0.2502)
+    candidate = ref.structure.model_copy(deep=True)
+    atoms = candidate.phases[0].atoms
+    if shift > 0:
+        extra = atoms[0].model_copy(deep=True)
+        extra.label = "Xtra"
+        extra.x.value = 0.123
+        atoms.insert(0, extra)
+    else:
+        del atoms[0]
+    ref.edit(structure=candidate)
+    new_site = f"phases.0.atoms.{j + shift}"
+    (k,) = _z_dofs(ref, j + shift)
+    assert ref._user_holds == {f"{new_site}.dof.{k}"}
+    assert [src for src, _ in ref._ties[f"{new_site}.dof.0"].terms] == [f"{new_site}.dof.{k}"]
+    findings = [d for d in ref._twin_findings]
+    (merged,) = [d for d in findings if d.code == "SITE_TWINS_MERGED"]
+    assert merged.where == [new_site] and "Constraints:" in merged.message
+    assert not [d for d in findings if d.code == "SITE_DOFS_RENUMBERED"], findings
+
+
 def test_the_reviewers_site_near_the_hexagonal_axis_merges():
     """Yue's case: Fe at (0.332848, 0.666937, 0.070472) in P 6₃/mmc, 4.85e-4 per coordinate."""
     sg = resolve_group("P 63/m m c", None)
@@ -1197,31 +1275,51 @@ def _pcr_model_off_the_mirror(pbso4, tmp_path, y="0.2501"):
     return edited, read_fullprof_pcr(edited)
 
 
-def test_a_full_atom_written_at_half_of_m_over_M_merges_on_the_gate_itself(pbso4, tmp_path):
-    """S2 at Occ 0.5 on the Pnma mirror is a full atom (0.5 x 8/4 = 1): the gate is fed
-    that occupancy, so it merges on 1 x 2 > 1 and the fallback decides nothing."""
-    from rietx.io.projects.fullprof import occupancy_reading
-    _, model = _pcr_model_off_the_mirror(pbso4, tmp_path)
-    factor, decided = occupancy_reading(model.nuclear_phases[0])
-    assert decided == [] and factor > 0
-
-
-def test_where_only_the_column_decides_the_message_says_so_and_names_both_readings(
-        pbso4, tmp_path):
-    """Every Occ halved (the common factor FullProf leaves free): S2's gate reads
-    0.5 x 2 = 1 and keeps the site, the column agrees with itself only on the
-    mirror, and the fallback merges it, saying so and naming the split pair."""
-    from rietx.io.projects.fullprof import occupancy_reading
-    from rietx.io.projects.fullprof import to_structure as pcr_to_structure
-    edited, model = _pcr_model_off_the_mirror(pbso4, tmp_path)
+def _halved(model, factor):
+    """Every Occ scaled by ``factor``: the common factor FullProf's column leaves free."""
     for a in model.nuclear_phases[0].atoms:
         a.values["occ"] = dataclasses.replace(a.values["occ"],
-                                              value=a.values["occ"].value * 0.5)
-    _, decided = occupancy_reading(model.nuclear_phases[0])
-    assert len(decided) == 1
+                                              value=a.values["occ"].value * factor)
+    return model
+
+
+@pytest.mark.parametrize("factor", [1.0, 2.0, 0.5, 0.25])
+def test_the_route_does_not_depend_on_fullprofs_free_common_factor(pbso4, tmp_path, factor):
+    """Round 7, item 3.  S2 off the Pnma mirror, every Occ scaled by F: the same site is
+    merged, in the same words, at F = 1, 2, 0.5 and 0.25 (at F = 0.5 the gate once read
+    0.5 x 2 = 1 and a fallback decided instead)."""
+    from rietx.io.projects.fullprof import occupancy_factor
+    from rietx.io.projects.fullprof import to_structure as pcr_to_structure
+    reference: list = []
+    pcr_to_structure(_pcr_model_off_the_mirror(pbso4, tmp_path)[1], diagnostics=reference)
+    _, model = _pcr_model_off_the_mirror(pbso4, tmp_path)
+    model = _halved(model, factor)
+    assert occupancy_factor(model.nuclear_phases[0]) > 0
     found: list = []
     phase = pcr_to_structure(model, diagnostics=found).phases[0]
     assert _counts(phase)["S"] == 4
     (d,) = [d for d in found if d.code == "SITE_TWINS_MERGED"]
-    assert "agrees with itself only" in d.message and "split pair" in d.message
-    assert "8 × 1 = 8" not in d.message
+    (ref,) = [d for d in reference if d.code == "SITE_TWINS_MERGED"]
+    assert d.message == ref.message
+
+
+def test_the_fullprof_message_gives_the_files_occ_and_both_readings_in_numbers(pbso4, tmp_path):
+    from rietx.io.projects.fullprof import to_structure as pcr_to_structure
+    _, model = _pcr_model_off_the_mirror(pbso4, tmp_path)
+    found: list = []
+    pcr_to_structure(model, diagnostics=found)
+    (d,) = [d for d in found if d.code == "SITE_TWINS_MERGED"]
+    assert "Occ is occupancy x m/M" in d.message and "split pair" in d.message
+    assert "8 positions at occupancy 0.5 each, which holds 4 atoms per cell" in d.message
+    assert "occupancy unchanged" not in d.message and "8 × 1 = 8" not in d.message
+
+
+def test_a_note_the_merge_adds_after_its_content_sentence_is_found():
+    """The FullProf rewrite used to split at ' Atoms per cell' and drop everything the
+    merge said after that sentence (coordinates released, a tensor projected)."""
+    from rietx.crystallography.twins import message_notes
+    assert message_notes("x. Atoms per cell (multiplicity × occupancy): 8 × 0.5 = 4 → "
+                         "4 × 0.5 = 2. Coordinates y released.") == " Coordinates y released."
+    assert message_notes("x. Atoms per cell (multiplicity × occupancy): 8 × 1 = 8 → 4 × 1 = 4.") == ""
+    assert message_notes("no content sentence") == ""
+

@@ -46,6 +46,7 @@ from .crystallography.magnetic.moments import (
 from .crystallography.magnetic.scattering import check_group_is_structure_symmetry
 from .crystallography.symmetry import reflection_label, reflection_label_row
 from .crystallography.twins import (
+    NumberingMoves,
     carry_constraints,
     carry_state_constraints,
     coordinate_snapshot,
@@ -2627,6 +2628,8 @@ class Refinement:
                           if (new := (site_moves[p][0] if p in site_moves else p))]
             if not notes:
                 continue
+            # the findings and the paths the caller sees read the new numbering
+            site = moves.new_site(site) if isinstance(moves, NumberingMoves) else site
             for n, d in enumerate(found):
                 if d.code == "SITE_TWINS_MERGED" and d.where == [site]:
                     found[n] = d.model_copy(update={

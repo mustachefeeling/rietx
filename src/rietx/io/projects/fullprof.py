@@ -166,7 +166,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...crystallography.twins import merge_site_twins
+from ...crystallography.symmetry import resolve_group, site_twin_merge
+from ...crystallography.twins import merge_site_twins, message_notes
 from ...schemas.common import Diagnostic, Parameter
 from ..formats.base import decode
 
@@ -1938,16 +1939,6 @@ _OCCUPANCY_RTOL = 5e-3
 def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     """The common factor FullProf's ``Occ`` column carries, or a refusal.
 
-    See :func:`occupancy_reading`, which also says which sites the consistency
-    fallback decided.
-    """
-    return occupancy_reading(phase, where)[0]
-
-
-def occupancy_reading(phase: FullProfPhase, where: str | None = None
-                      ) -> tuple[float, list[int]]:
-    """The common factor FullProf's ``Occ`` column carries, or a refusal.
-
     FullProf's ``Occ`` is the chemical occupancy times the site multiplicity
     over the general multiplicity, and the *absolute* normalisation of the
     column is degenerate with the phase scale — doubling every ``Occ`` and
@@ -1962,9 +1953,12 @@ def occupancy_reading(phase: FullProfPhase, where: str | None = None
     refused, naming the ratios: handing the column through would be a silently
     wrong structure factor.
 
-    Returns the common factor, for the record, and the indices of the sites the
-    consistency fallback decided (read on their special position because only
-    then does the column agree with itself).
+    Returns the common factor, for the record.  A site whose own images
+    coincide is read on its special position, and the gate that decides whether
+    it merges is fed the occupancy *divided by that factor*: the column carries
+    one free common factor (1 and 2 in the corpus, 0.5 as legal), and a gate fed
+    ``Occ x M/m x F`` decided differently at each F for the same file (#1014
+    round 7, item 3).
     """
     import gemmi
     import numpy as np
@@ -2003,7 +1997,14 @@ def occupancy_reading(phase: FullProfPhase, where: str | None = None
             candidates[j].after if candidates.get(j) is not None
             else len(expand_positions(sg, xyzs[j])))
         for j, a in enumerate(phase.atoms)]
-    applied, kept = ({}, {}) if cell is None else applied_twin_merges(
+    # ...divided by the phase's reference ratio: the column carries one free
+    # common factor F (the corpus has 1 and 2, and 0.5 is as legal), and a gate
+    # fed Occ x M/m x F decides differently at each F for the same file
+    # (#1014 round 7, item 3).  What the gate asks is the chemical occupancy.
+    top = max((abs(o) for o in occupancies), default=0.0)
+    if top > 0.0:
+        occupancies = [o / top for o in occupancies]
+    applied, _ = ({}, {}) if cell is None else applied_twin_merges(
         sg, cell, xyzs, occupancies)
 
     def ratios_under(merges: dict) -> list[float]:
@@ -2013,19 +2014,6 @@ def occupancy_reading(phase: FullProfPhase, where: str | None = None
                 for j, a in enumerate(phase.atoms)]
 
     ratios = ratios_under(applied)
-    # ``Occ`` is m/M, so a column that only agrees with itself once a site the
-    # gate left as stored is read on its special position is the file saying
-    # so: the site's own stated number is the evidence the gate lacks here
-    decided: list[int] = []
-    if kept and (max(ratios, key=abs) == 0.0 or any(
-            abs(r - max(ratios, key=abs)) > _OCCUPANCY_RTOL * abs(max(ratios, key=abs))
-            for r in ratios)):
-        merged_ratios = ratios_under({**applied, **kept})
-        top = max(merged_ratios, key=abs)
-        if top != 0.0 and all(abs(r - top) <= _OCCUPANCY_RTOL * abs(top)
-                              for r in merged_ratios):
-            ratios = merged_ratios
-            decided = sorted(kept)
     reference = max(ratios, key=abs)
     if reference == 0.0 or any(
             abs(r - reference) > _OCCUPANCY_RTOL * abs(reference) for r in ratios):
@@ -2041,7 +2029,7 @@ def occupancy_reading(phase: FullProfPhase, where: str | None = None
             f"partially occupied phase, whose chemical occupancies are not in "
             f"the file, or the wrong origin choice for this symbol. Read "
             f"`phase.atoms[i].values['occ']` for what the file does state.")
-    return reference, decided
+    return reference
 
 
 #: How close two numbers the stance below compares must be, and why each is
@@ -2758,7 +2746,6 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     origin_choices: list[tuple[str, str, str]] = []
     #: Phases whose occupancy-ratio cross-check could not discriminate.
     unchecked_occupancy: list[tuple[str, str]] = []
-    decided_sites: list[str] = []
     for structure_index, ph in enumerate(model.nuclear_phases):
         where = f"{model.path or '<model>'}: phase {ph.index} ({ph.name!r})"
         missing = [k for k in _CELL_COLUMNS if k not in ph.cell]
@@ -2780,8 +2767,7 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         # The occupancy check is also what verifies `normalize_space_group`'s
         # origin choice: a wrong origin gives wrong multiplicities, so the
         # ratios stop agreeing and the phase is refused rather than returned.
-        _, decided = occupancy_reading(ph, where)
-        decided_sites.extend(f"phases.{structure_index}.atoms.{j}" for j in decided)
+        occupancy_factor(ph, where)
         # ...but only where it has more than one ratio to compare. With a single
         # site the test compares one number with itself and passes for *every*
         # setting, so the licence it grants the origin choice above is vacuous
@@ -3073,30 +3059,56 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     merged = merge_site_twins(structure, diagnostics=found,
                               source=model.path or "<model>")
     for d in found:
-        if d.code == "SITE_TWINS_MERGED" and d.where and d.where[0] in decided_sites:
-            d = d.model_copy(update={"message": _fallback_message(d, model.path)})
+        if d.code == "SITE_TWINS_MERGED" and d.where:
+            d = d.model_copy(update={"message": _merged_message(d, structure, model.path)})
         if diagnostics is not None:
             diagnostics.append(d)
     return merged
 
 
-def _fallback_message(d: Diagnostic, path: str | None) -> str:
-    """The merge's message where only the file's own ``Occ`` column decided it.
+def _fmt(v: float) -> str:
+    return f"{v:.4g}"
 
-    The gate read the site as a split pair of part-atoms and left it; the
-    column agrees with itself only on the special position, where ``Occ`` is
-    occupancy x m/M, so the site was read there (maintainer's ruling on #1014,
-    round 6).  The content stated is the file's, not the reader's intermediate.
+
+def _merged_message(d: Diagnostic, structure, path: str | None) -> str:
+    """The merge's message in the file's own terms: ``Occ``, not the reader's intermediate.
+
+    The column's one free common factor cancels (:func:`occupancy_factor`), so
+    the structure holds occupancy 1.0 for every site and the generic message's
+    "8 x 1 = 8 -> 4 x 1 = 4, occupancy unchanged" would state a number the file
+    never wrote.  This says what the file's ``Occ`` implies on each reading
+    instead, with the counts of both (#1014 round 7, item 3): ``Occ`` is
+    occupancy x m/M, so the same ``Occ`` is one full atom on the special
+    position (m positions) and a part-atom on each of the M positions at the
+    stated coordinates, the same content per cell either way.  Anything the
+    merge said after its content sentence (coordinates released, a tensor
+    projected) is carried over.
     """
-    return (f"{path + ': ' if path else ''}{d.where[0]}: FullProf's Occ column "
-            f"agrees with itself only if this site is read on its special "
-            f"position, so it was moved there and counted as one atom (Occ is "
-            f"occupancy x m/M, and m is the special position's). The other reading "
-            f"is a split pair of part-atoms at the stated position, which would "
-            f"put the site's multiplicity before the move in the cell at the "
-            f"occupancy the column implies for it; if the file meant that, state "
-            f"the occupancy on the special position instead. "
-            f"Original finding: {d.message.split(' Atoms per cell')[0]}")
+    import numpy as np
+
+    i, j = (int(v) for v in (d.where[0].split(".")[1], d.where[0].split(".")[3]))
+    phase = structure.phases[i]
+    atom = phase.atoms[j]
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
+    merge = site_twin_merge(sg, phase.cell.lengths_angles(),
+                            np.array([atom.x.value, atom.y.value, atom.z.value]))
+    notes = message_notes(d.message)
+    prefix = f"{path + ': ' if path else ''}{d.where[0]}: "
+    if merge is None:        # the structure's own gate acted on what the reader's did not
+        return prefix + d.message
+    part = merge.after / merge.before
+    return (
+        f"{prefix}site {atom.label!r} of phase {phase.name!r}: FullProf's Occ is "
+        f"occupancy x m/M (times one free common factor, which cancels), so this "
+        f"column reads the site as one full atom on its special position, "
+        f"{merge.after} positions, and it was moved there from the stated "
+        f"coordinates, where it puts {merge.before} positions in pairs "
+        f"{merge.gap:.2g} Å apart.  The other reading of the same Occ is a split "
+        f"pair of part-atoms at the stated position: {merge.before} positions at "
+        f"occupancy {_fmt(part)} each, which holds {_fmt(merge.before * part)} "
+        f"atoms per cell, as {merge.after} x 1 = {_fmt(merge.after)} does on the "
+        f"special position.  If the file meant the split pair, state the "
+        f"occupancy on the special position instead." + notes)
 
 
 # ------------------------------------------------------------------- the writer

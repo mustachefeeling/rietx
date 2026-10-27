@@ -939,7 +939,7 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
                   "between two structures, in either direction (a coordinate a fit or "
                   "set_values left within reach of a special position, with no merge, or an "
-                  "edit moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction and what "
+                  "edit or a checkout moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction and what "
                   "was dropped because the position fixes or couples it. The direction of a "
                   "DOF is the nullspace of the site group, so the map is derived, never "
                   "chosen (#1014, rounds 5-6)")),
@@ -1570,7 +1570,10 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry.TWIN_COORD_TOL", "constant", tier=1, value=0.0005,
         evidence=("arithmetic on the gate's role: under the one gate the reach decides only "
                   "whether atoms that would overfill one place are the same place, so the "
-                  "bar is a distance. The reach bounds a site's offset from the position, so "
+                  "bar is a distance. The reach bounds a site's offset from the position it lands on "
+                  "(where the group of operations that fix the axis has its fixed point past the "
+                  "reach, the site lands on the largest subgroup's fixed point that is within it, "
+                  "a mirror, rather than being refused), so "
                   "5e-4 of a cell edge is an offset of 0.002 A on a 4 A axis and 0.02 A on a "
                   "40 A one (fractional, so it follows the cell), and the pair of images on "
                   "a mirror, twice the offset, is up to 0.004 A and 0.04 A apart; two "

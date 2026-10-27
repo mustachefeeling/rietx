@@ -14,6 +14,7 @@ to the next result they return.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
@@ -51,6 +52,22 @@ def _content_change(occ: float, merge: TwinMerge) -> str:
     return (f"Atoms per cell (multiplicity × occupancy): {merge.before} × {_num(occ)} = "
             f"{_num(merge.before * occ)} → {merge.after} × {_num(occ)} = "
             f"{_num(merge.after * occ)}.")
+
+
+#: :func:`_content_change`'s sentence: its numbers can carry a decimal point.
+_CONTENT_SENTENCE = re.compile(r"Atoms per cell \(multiplicity × occupancy\): .*? = \S+ → .*? = \S+?\.(?= |$)")
+
+
+def message_notes(message: str) -> str:
+    """What a ``SITE_TWINS_MERGED`` message says after its atoms-per-cell sentence.
+
+    The coordinates released and the tensor projected, each as its own sentence,
+    with their leading space; ``""`` if there are none.  For a reader that
+    rewrites the head of the message and must keep what the merge said about
+    making the site fit its position (#1014 round 7, item 3).
+    """
+    m = _CONTENT_SENTENCE.search(message)
+    return message[m.end():] if m else ""
 
 
 def _fixed_by_symmetry(atom, sg, position: np.ndarray, diagnostics_note: list[str]):
@@ -174,6 +191,24 @@ class CoordinateSnapshot:
     phases: tuple[tuple[str, object, tuple[str, ...], np.ndarray], ...]
 
 
+class NumberingMoves(dict):
+    """:func:`numbering_moves`' result: ``{old DOF path: (new DOF path | None, scale)}``.
+
+    The keys read the *old* structure's atom numbering, the diagnostics a caller
+    reports read the new one's, and the two differ whenever an atom was inserted
+    or removed ahead of the site (#1014 round 7, item 2).  ``sites`` maps each
+    old site path (``phases.i.atoms.j``) to its path in the new structure.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sites: dict[str, str] = {}
+
+    def new_site(self, old_site: str) -> str:
+        """The new structure's path of the site that was ``old_site``."""
+        return self.sites.get(old_site, old_site)
+
+
 def coordinate_snapshot(structure: Structure) -> CoordinateSnapshot:
     """The coordinates and the labels, groups and operation lists they are read against."""
     return CoordinateSnapshot(tuple(
@@ -185,7 +220,7 @@ def coordinate_snapshot(structure: Structure) -> CoordinateSnapshot:
 
 def numbering_moves(old: Structure | CoordinateSnapshot,
                     new: Structure | CoordinateSnapshot
-                    ) -> dict[str, tuple[str | None, float]]:
+                    ) -> NumberingMoves:
     """Where each coordinate DOF of ``old`` goes in ``new``, wherever a site's DOFs differ.
 
     The one reading of "this structure's DOF numbering changed", whatever
@@ -207,7 +242,7 @@ def numbering_moves(old: Structure | CoordinateSnapshot,
     """
     old = old if isinstance(old, CoordinateSnapshot) else coordinate_snapshot(old)
     new = new if isinstance(new, CoordinateSnapshot) else coordinate_snapshot(new)
-    moves: dict[str, tuple[str | None, float]] = {}
+    moves = NumberingMoves()
     for i, (po, pn) in enumerate(zip(old.phases, new.phases, strict=False)):
         (go, _, lo, xo_all), (gn, ops_n, ln, xn_all) = po, pn
         if go != gn:
@@ -233,6 +268,7 @@ def numbering_moves(old: Structure | CoordinateSnapshot,
                 continue
             moves.update(_dof_moves(sg, xo, xn, f"phases.{i}.atoms.{jo}",
                                     f"phases.{i}.atoms.{jn}"))
+            moves.sites[f"phases.{i}.atoms.{jo}"] = f"phases.{i}.atoms.{jn}"
     return moves
 
 
@@ -322,8 +358,9 @@ def carry_state_constraints(state, moves: dict[str, tuple[str | None, float]],
             site_moves, holds=state.holds, ties=state.ties,
             free_paths=state.free_paths)
         state.holds, state.ties, state.free_paths = holds, ties, free
+        new_site = moves.new_site(site) if isinstance(moves, NumberingMoves) else site
         for n, d in enumerate(found):
-            if notes and d.code == "SITE_TWINS_MERGED" and d.where == [site]:
+            if notes and d.code == "SITE_TWINS_MERGED" and d.where == [new_site]:
                 found[n] = d.model_copy(update={
                     "message": d.message + " Constraints: " + "; ".join(notes) + "."})
 
