@@ -731,9 +731,10 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
             where=where + ([f"first at {tt[0]:.3f}°"] if tt else []),
             suggestion=("Compare the smaller cell that indexes the same lines: "
                         "the pairwise supercell check against it is what "
-                        "refutes, this count only caps. Read the count beside "
-                        "lebail.rwp. Rwp moves little on an oversized cell "
-                        "(0.379 against 0.216 for the correct one).")))
+                        "refutes, this count only caps. lebail.rwp cannot "
+                        "separate them: a converged fit of a cell that "
+                        "contains another's lattice matches its Rwp (0.164 "
+                        "against 0.164 for a doubled LaB6 cell).")))
 
     refuting = [c for c in cand.supercell_checks or [] if c.verdict == "refuted"]
     if refuting:
@@ -765,7 +766,8 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
         out.append(Diagnostic(
             level="warning", code="INDEX_IMPURITY_LINES",
             message=(f"{lebail.unmatched_observed} observed peak(s) have no "
-                     "calculated reflection nearby after a whole-pattern Le Bail "
+                     "calculated reflection nearby after a whole-pattern "
+                     f"{'Pawley' if lebail.mode == 'pawley' else 'Le Bail'} "
                      "fit of this cell."),
             where=where + ([f"strongest region near {tt[0]:.3f}°" ] if tt else []),
             suggestion=("If a handful of lines remain, subtract the solved "
@@ -841,9 +843,10 @@ def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
                      "confidence gate, so best_or_none() returns None."),
             where=[f"{c.system} {c.centring}, V = {c.volume:.1f} Å³"
                    for c in high],
-            suggestion=("Compare their figure-of-merit panels and their "
-                        "lebail.rwp, and extend the 2θ range to reach a "
-                        "high-angle reflection that separates them.")))
+            suggestion=("Compare their figure-of-merit panels, and their "
+                        "lebail.rwp where neither lattice contains the other, "
+                        "and extend the 2θ range to reach a high-angle "
+                        "reflection that separates them.")))
 
     if result.best_or_none() is None:
         top = result.candidates[0] if result.candidates else None

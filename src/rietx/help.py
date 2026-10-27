@@ -2756,7 +2756,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "INDEX_IMPURITY_LINES": HelpEntry(
         title="Observed peaks have no matching reflection",
         description=(
-            "After a whole-pattern Le Bail fit of this cell, some observed peaks sit "
+            "After the whole-pattern fit of this cell, some observed peaks sit "
             "where it predicts no reflection. A handful of such lines points to a second "
             "phase. Many of them point to a wrong cell. This package does not index "
             "multi-phase patterns, so subtract the solved phase before you index the "
@@ -4348,9 +4348,10 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         title="Le Bail cycles",
         description=(
             "How many cycles of intensity partitioning run before each solve in "
-            "`lebail` mode. The setting is ignored in `rietveld` and `pawley` modes, "
-            "where the intensities come from the structure or from the fitted Pawley "
-            "intensities."
+            "`lebail` mode. In `pawley` mode the same partition seeds the intensities "
+            "on a stage that carries none in, and the solve then refines them. The "
+            "setting is ignored in `rietveld` mode, where the intensities come from "
+            "the structure."
         ),
         default="3",
         typical="3",
@@ -4401,7 +4402,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         description=(
             "Extra 2θ on each side of a reflection's integration window, replacing the "
             "default (`WINDOW_MIN_DEG`). A fit whose starting model may sit far from "
-            "the data declares it, such as the Le Bail validation that an indexing "
+            "the data declares it, such as the whole-pattern validation that an indexing "
             "candidate goes through. Empty takes the default."
         ),
         unit="deg 2θ", default="null",

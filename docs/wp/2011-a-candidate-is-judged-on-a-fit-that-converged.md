@@ -147,14 +147,19 @@ that needs settling. No paper compares the two as cell validators.
 
 ## Tasks
 
-- [ ] Re-measure on the tree with #941 merged: the probe adapted to its
+- [x] Re-measure on the tree with #941 merged: the probe adapted to its
       signatures, both modes, the true and wrong cells above and the
-      no-peak-list path, plus `freeze_profile=True` under each mode. Record a
-      go or no-go as `Decided YYYY-MM-DD:` (maintainer).
+      no-peak-list path, plus `freeze_profile=True` under each mode
+      (`probe5_after_941.py`, § Re-measured 2026-10-27).
+- [ ] **Decision (maintainer):** go or no-go, recorded as `Decided
+      YYYY-MM-DD:`. Built provisionally as a go on 2026-10-27 while the
+      maintainer was away; § Re-measured 2026-10-27 has the case and what
+      reverses it.
 - [ ] **Decision (maintainer):** the names above, kept with the mode recorded
       on the validation record or renamed to the field's term, staged in the
-      release record either way (ROADMAP rule 6).
-- [ ] Switch `validate_by_lebail`'s fit to `mode="pawley"`, record the mode on
+      release record either way (ROADMAP rule 6). Built provisionally as
+      *kept, mode recorded* (`LeBailValidation.mode`).
+- [x] Switch `validate_by_lebail`'s fit to `mode="pawley"`, record the mode on
       the validation record, and rewrite the `:377` paragraph with the numbers.
 - [ ] Re-measure `MEASURED_VALIDATION_SECONDS` under Pawley, and run
       `python -m tests.bethanechol_benchmark` alone against `main`'s count of
