@@ -1,9 +1,9 @@
 # WP-2011 — a candidate is judged on a fit that converged
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-27 — claimed by @yue-here (Claude session)
 Track: What fires, and what stays silent
 Depends on: 1956 (PR #941 takes the missing count off this fit and edits the same two functions)
-Priority: P3 2026-10-19 — P2's row (`INDEX_IMPURITY_LINES` fires on a true cell's stalled fit, and notebook 03 works around it), down a rung: nothing starts until #941 lands for WP-1956; P2 when it does
+Priority: P2 2026-10-27 — `INDEX_IMPURITY_LINES` fires on a true cell's stalled fit, and notebook 03 works around it; #941 landed for WP-1956 on 2026-10-25, the condition the P3 rung waited on
 
 ## Goal
 
