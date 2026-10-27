@@ -490,11 +490,24 @@ def refinement_width_diagnostics(measured: float,
         suggestion=suggestion, value=ratio)]
 
 
-#: How far a single line may sit from an anode's Kα1 and still be that anode, Å.
-#: Four decimals typed by hand (``1.5405``, 9e-5 off) is within it; the nearest
-#: two Kα1 lines of the six anodes are 0.15 Å apart, so it names one anode at
-#: most.
+#: How far a single line may sit from one of an anode's three declared
+#: wavelengths (:func:`lab_lines`) and still be that anode, Å.  Four decimals
+#: typed by hand (``1.5405``, 9e-5 off) and the weighted mean quoted to four
+#: (``1.5418`` for Cu, 7e-5 off) are within it.  The six anodes' lines are at
+#: least 0.14 Å apart (Fe Kα1 to Co Kα2 is the nearest, 0.143 Å), so it names
+#: one anode at most.
 LAB_LINE_TOLERANCE_ANGSTROM = 5e-4
+
+
+def lab_lines() -> dict[str, tuple[float, float, float]]:
+    """Per anode, the three wavelengths a source may declare as one line: Kα1,
+    Kα2, and the intensity-weighted mean (2λ₁ + λ₂)/3, which is what ``.uxd``
+    files and older exports write (1.5418 for Cu).  The GUI's metadata reader
+    asks the same three of a file's wavelength."""
+    from ..schemas.instrument import _KA_DOUBLETS
+
+    return {name: (a1, a2, (2.0 * a1 + a2) / 3.0)
+            for name, (a1, a2) in _KA_DOUBLETS.items()}
 
 
 def lab_source(instrument: Instrument) -> bool:
@@ -502,23 +515,23 @@ def lab_source(instrument: Instrument) -> bool:
 
     Read off the declared source, never guessed from the pattern (WP-2030): a
     constant-wavelength X-ray source carrying a Kα doublet, or whose one line is
-    an anode's Kα1 to within :data:`LAB_LINE_TOLERANCE_ANGSTROM`, so the value
+    an anode's Kα1, Kα2 or weighted mean (:func:`lab_lines`) to within
+    :data:`LAB_LINE_TOLERANCE_ANGSTROM`, so the value
     :meth:`~rietx.schemas.instrument.Instrument.bragg_brentano`'s ``radiation=``
-    writes, GSAS-II's six-decimal ``1.540593`` and a hand-typed ``1.5406`` all
-    read alike.  A synchrotron or neutron source is not one, and nor is a single
-    line more than the tolerance from every anode: it states none, so this
-    answers ``False`` and nothing is said that the declaration does not support.
+    writes, GSAS-II's six-decimal ``1.540593``, a hand-typed ``1.5406`` and the
+    ``1.5418`` of a vendor header all read alike.  A synchrotron or neutron
+    source is not one, and nor is a single line more than the tolerance from
+    every anode's three: it states none, so this answers ``False`` and nothing
+    is said that the declaration does not support.
     """
-    from ..schemas.instrument import _KA_DOUBLETS
-
     source = instrument.source
     if source.kind != "xray_cw":
         return False
     if len(source.lines) >= 2:
         return True
-    kalpha1 = {pair[0] for pair in _KA_DOUBLETS.values()}
     wavelength = source.lines[0].wavelength.value
-    return any(abs(wavelength - k) <= LAB_LINE_TOLERANCE_ANGSTROM for k in kalpha1)
+    return any(abs(wavelength - line) <= LAB_LINE_TOLERANCE_ANGSTROM
+               for lines in lab_lines().values() for line in lines)
 
 
 def undeclared_instrument(instrument: Instrument) -> dict[str, str]:

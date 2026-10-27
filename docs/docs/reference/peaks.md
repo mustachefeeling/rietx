@@ -413,7 +413,7 @@ The list abstains for one of three reasons, each written into `DataQualityReport
 - no system supported;
 - a fitted list whose median σ(Q)/Q is above 1e-3, where cells differing by 0.1 % in a lattice parameter cannot be told apart.
 
-On a fitted list picked with a laboratory source, a tube's Kα doublet or one anode's Kα1, whose axial apertures or profile were left at their defaults, the suggestion names declaring them first, since a re-pick is the cheapest remedy.
+On a fitted list picked with a laboratory source, a tube's Kα doublet or one line at an anode's Kα1, Kα2 or weighted-mean wavelength (to 5e-4 Å, so `1.5405929`, `1.5406` and a vendor header's `1.5418` all read as Cu), whose axial apertures or profile were left at their defaults, the suggestion names declaring them first, since a re-pick is the cheapest remedy.
 The list records those blocks at its pick, in `PeakList.instrument_undeclared`, so `index_pattern(peaks)` with no instrument still names them.
 On a synchrotron or neutron source the defaults are what a correct declaration looks like, so nothing is named.
 

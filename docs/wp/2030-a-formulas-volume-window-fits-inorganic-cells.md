@@ -166,7 +166,7 @@ to the table arrives tiered (CI's `tests/audit_delta.py`).
 - [x] The instrument-first lead fires only on a lab source. Decide whether
       `PeakList` records its instrument so `index_pattern(peaks)` sees the
       lead. Test both.
-- [x] Supercell (superseded, see the 2026-10-25 line): judge the parent's lines with the parent's own shift. Replay
+- [x] Supercell (superseded by #941, dropped from this PR; see item 6 of the 2026-10-23 entry): judge the parent's lines with the parent's own shift. Replay
       the captured searches and run the indexing acceptance. Then write or
       decline the supported-promotion rule in `src/rietx/indexing/CLAUDE.md`.
 - [ ] GUI: fix the stale `duplicate_line` marks or decline them, with the
@@ -232,26 +232,38 @@ unwindowed one does, and `CuSO4.5H2O` never reads as 4.5 O.
   is silent on every organic one; the four it spares imply the wrong whole
   number (Si 4.30 for 8). (3) `formula_unit_volume` refuses a full stop
   that reads both as a decimal count and as a hydrate's dot, naming `·`
-  (tier 1, an ambiguous string); `Mg0.5SiO3`, `CuSO4·5H2O` and a spaced
-  CIF formula are unchanged, while `Fe2.95O4` is now refused too and reads
-  as `Fe2.95 O4`. (4) `IndexingResult.formula` and `.temperature`, written
+  (tier 1: refusing an ambiguous string rather than guessing). What is refused is a
+  decimal count of 1 or more straight after an element or a bracket and
+  followed, past any whitespace, by one of the 13 adduct molecules that ends
+  the part. Every other decimal reads as 1.10.0 read it: `Mg0.5SiO3`,
+  `CuSO4·5H2O`, a spaced CIF formula and the doped oxides `Fe2.95O4`,
+  `Li1.05Mn1.95O4` and `Ca9.5(PO4)6F2` are unchanged. A solvate whose molecule
+  is not on the list (`ZnCl2.2C5H5N`) still reads as a decimal, as it did. (4) `IndexingResult.formula` and `.temperature`, written
   by `index_pattern` on both its paths (`None` with no formula), and
   `rietx index --formula --temperature`. (5) `diagnostics.lab_source` reads
-  the declared source: a Kα doublet, or one anode's Kα1 as `radiation=`
-  writes it. The instrument lead fires only there. `PeakList` records the
+  the declared source: a Kα doublet, or one line within 5e-4 Å of an
+  anode's Kα1, Kα2 or weighted mean (`radiation=`'s value, GSAS-II's six
+  decimals, a vendor header's 1.5418). The instrument lead fires only there. `PeakList` records the
   undeclared blocks (`instrument_undeclared`, written by `pick_peaks` and
   `fit_peaks`) rather than the whole instrument, and the record outranks
   an instrument handed in later. (6) *Dropped on the 2026-10-25 rebase:* the supercell change
   (`supercell_chance(parent_q_obs=)`) is not in this PR. C3 (#941) rewrote
   `consensus.supercell_checks` to ask containment on `screen_for`, which
   scores every candidate on its own `scored_positions`, so the parent is
-  already read on its own shift correction. No audit row was owed: no
-  number, code, default or record field the table walks was added or moved.
+  already read on its own shift correction. One audit row was owed and is
+  there: `LAB_LINE_TOLERANCE_ANGSTROM` (tier 1, arithmetic: the six anodes'
+  lines are at least 0.14 Å apart, so 5e-4 Å names one anode at most). The
+  other new names are record fields on `IndexingResult` and `PeakList`,
+  which `_audit.RECORD_SCHEMAS` does not walk, so the table cannot see them
+  and "no row owed" there shows only that.
 
-  *Measured* (own `[dev]` venv, macOS arm64, pearl offline). Replay of the
+  *Measured* (own `[dev]` venv, macOS arm64, pearl offline). On the
+  supercell change this PR dropped on the 2026-10-25 rebase, a replay of the
   22 consensus calls the indexing acceptance makes (100 parent-child pairs,
-  20 candidates carrying a shift): no count, verdict or order moved.
-  `tests/test_acceptance_indexing.py`: 44 passed in 14:44. Fluorapatite on
+  20 candidates carrying a shift) moved no count, verdict or order; that
+  measures the dropped change, and this PR touches no consensus code.
+  `tests/test_acceptance_indexing.py`: 44 passed in 14:44, on the tree before
+  the rebase. Fluorapatite on
   `FAP.XRA` (hexagonal and trigonal, preset full, the acceptance row's
   budgets): unwindowed 157 s, truth ranked 1; the shipped window
   (738-1153 Å³) 28 s, truth absent, the 1050 Å³ cells lead; a ceiling alone

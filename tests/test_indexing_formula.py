@@ -321,7 +321,11 @@ def test_a_formula_that_reads_one_way_is_unchanged(formula, expected):
 
 @pytest.mark.parametrize("formula", [
     "Na2CO3.10H2O", "CuSO4.5 H2O", "MgSO4.7 H2O", "CuSO4.5H2O·H2O",
-    "CoCl2.6H2O", "ZnSO4.6NH3"])
+    "CoCl2.6H2O", "ZnSO4.6NH3",
+    # any whitespace before the molecule, and inside it: a copy from a PDF or a
+    # web page brings a non-breaking space, and a CIF sum writes H2 O
+    "CuSO4.5  H2O", "CuSO4.5\u00a0H2O", "CuSO4.5 H2 O", "CuSO4.5\tH2O",
+    "CuSO4.5 \u00a0H2 O ", "CoCl2.6 H2 O"])
 def test_every_full_stop_that_reads_two_ways_is_refused(formula):
     with pytest.raises(ValueError, match="reads two ways"):
         formula_unit_volume(formula)

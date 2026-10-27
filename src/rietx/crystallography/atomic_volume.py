@@ -107,20 +107,31 @@ _TOKEN = re.compile(r"([A-Z][a-z]?)|([(\[])|([)\]])|(\d+(?:\.\d+)?)|(\s+)")
 _LEADING_COUNT = re.compile(r"\s*(\d+(?:\.\d+)?)")
 #: The molecules a full-stop adduct names: the solvents and ligands of a
 #: crystallisation, written as the formula of one molecule.  A hydrate's dot is
-#: ``X.nH2O`` for these and for nothing else a chemist writes, so a decimal count
-#: whose tail is not one of them has one reading only.
+#: ``X.nH2O`` for these.  Chemists write it for others too (``ZnCl2.2C5H5N``,
+#: the pyridine, DMF and DMSO solvates), and those still read one way here, as
+#: main's parser reads them: the refusal covers this list and claims no more.
 _ADDUCT_MOLECULES = ("H2O", "D2O", "NH3", "H2O2", "HCl", "CO2", "CH3OH", "CH4O",
                      "C2H5OH", "C2H6O", "CH3CN", "C6H6", "C4H8O")
+
+
+def _spaced(molecule: str) -> str:
+    """``molecule`` as a pattern that tolerates whitespace between its element
+    tokens (``H2 O``), so a spaced copy of the same string is the same string."""
+    return r"\s*".join(re.findall(r"[A-Z][a-z]?\d*", molecule))
+
+
 #: A count ``n.m`` straight after an element or a bracket, with ``n`` not zero,
 #: whose ``m`` can be an adduct count (no leading zero: nobody writes ``05H2O``)
-#: and is followed, past at most one space, by a whole adduct molecule that ends
-#: the part (``CuSO4.5H2O``, ``CuSO4.5 H2O``).  The string reads two ways: the
-#: decimal count n.m, or n of the first part and m of the adduct.  Both are
-#: grammatical and they differ, so the formula is refused.  Every other decimal
-#: reads one way: ``Fe2.95O4``, ``Li1.05Mn1.95O4`` and ``Ca9.5(PO4)6F2`` are
-#: doped oxides, and ``n = 0`` (``Mg0.5SiO3``) writes no count of zero.
+#: and is followed, past any whitespace (spaces, tabs, a non-breaking space
+#: from a PDF), by a whole adduct molecule that ends the part
+#: (``CuSO4.5H2O``, ``CuSO4.5 H2O``, ``CuSO4.5  H2 O``).  The string reads two
+#: ways: the decimal count n.m, or n of the first part and m of the adduct.
+#: Both are grammatical and they differ, so the formula is refused.  Every other
+#: decimal reads one way: ``Fe2.95O4``, ``Li1.05Mn1.95O4`` and ``Ca9.5(PO4)6F2``
+#: are doped oxides, and ``n = 0`` (``Mg0.5SiO3``) writes no count of zero.
 _DOT_TWO_WAYS = re.compile(
-    r"(?<=[A-Za-z)\]])(\d+)\.([1-9]\d*)(?=[ \t]?(?:" + "|".join(_ADDUCT_MOLECULES)
+    r"(?<=[A-Za-z)\]])(\d+)\.([1-9]\d*)(?=\s*(?:"
+    + "|".join(_spaced(m) for m in _ADDUCT_MOLECULES)
     + r")\s*(?:[·•*]|$))")
 
 
@@ -206,8 +217,8 @@ def formula_unit_volume(formula: str,
     leading count (``"CuSO4·5H2O"``), and counts may be decimal.  A full stop
     that reads both as a decimal count and as a hydrate's dot raises, naming
     ``·`` (``"CuSO4.5H2O"``: 4.5 O, or CuSO4 with 5 H2O); that is a count
-    followed by a whole solvent molecule (:data:`_ADDUCT_MOLECULES`), spaced or
-    not.  Every other decimal count reads one way (``"Fe2.95O4"``,
+    followed by a whole solvent molecule (:data:`_ADDUCT_MOLECULES`), with any
+    whitespace or none before it or inside it.  Every other decimal count reads one way (``"Fe2.95O4"``,
     ``"Li1.05Mn1.95O4"``, ``"Mg0.5SiO3"``).  A symbol that
     is not an element, or one the table has no volume for, raises naming it.  The esd is
     eq. (13)'s: the table's mean errors summed as Σ nᵢ Δvᵢ, and the expansion

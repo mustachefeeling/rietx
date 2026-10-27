@@ -579,9 +579,24 @@ def test_a_lab_source_is_read_off_the_declaration():
     # the same Cu Kα1 however many digits were typed (GSAS-II writes 1.540593)
     for wavelength in (1.5405929, 1.540593, 1.5406, 1.5405):
         assert lab_source(Instrument.debye_scherrer(wavelength=wavelength))
+    # the weighted mean a vendor header writes (1.5418 Cu, 0.71073 Mo), and Kα2
+    for wavelength in (1.5418, 1.54184, 0.71073, 0.7107, 1.5444, 1.9373):
+        assert lab_source(Instrument.debye_scherrer(wavelength=wavelength))
     # a synchrotron line states no anode, and nor does a line far from every one
     assert not lab_source(Instrument.debye_scherrer(wavelength=0.4139090))
     assert not lab_source(Instrument.debye_scherrer(wavelength=1.54))
+    assert not lab_source(Instrument.debye_scherrer(wavelength=1.5411))
+
+
+def test_the_lab_lines_name_one_anode_at_the_tolerance():
+    """The audit row's evidence: the nearest lines of two anodes are 0.14 Å
+    apart, so the tolerance can never name two."""
+    from rietx.indexing.diagnostics import LAB_LINE_TOLERANCE_ANGSTROM, lab_lines
+
+    lines = [(name, w) for name, ws in lab_lines().items() for w in ws]
+    nearest = min(abs(w1 - w2) for n1, w1 in lines for n2, w2 in lines if n1 != n2)
+    assert 0.14 <= nearest < 0.15
+    assert 2 * LAB_LINE_TOLERANCE_ANGSTROM < nearest
 
 
 def test_a_synchrotron_declaration_is_never_named_as_missing():
