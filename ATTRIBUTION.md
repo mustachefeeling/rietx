@@ -122,6 +122,8 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   the Voigt profile as Re[w(z)] and its Gaussian/Lorentzian limits.
 - Finger, Cox & Jephcoat (1994). *J. Appl. Cryst.* 27, 892–900 — axial-divergence asymmetry.
 - Waasmaier & Kirfel (1995). *Acta Cryst.* A51, 416–431 — 5-Gaussian form factors.
+- Rez, Rez & Grant (1994). *Acta Cryst.* A50, 481–497 — Dirac-Fock form factors,
+  the source of the `O2-` row of that table (not printed in the 1995 paper).
 - Cromer, D. T. & Liberman, D. (1970). *J. Chem. Phys.* 53, 1891–1898 — relativistic
   calculation of the anomalous scattering factors f′, f″ (also LANL report LA-4403).
 - Cromer, D. T. & Liberman, D. (1981). *Acta Cryst.* A37, 267–268 — anomalous
@@ -438,7 +440,11 @@ two faces from Google Fonts and redistributes nothing.
   intermetallic and anion-free phases; the bond table does not read it.
 - `src/rietx/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
-  redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).
+  redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995),
+  except for the `O2-` row, which that paper does not print: it is Waasmaier &
+  Kirfel's own fit, distributed with their data files, to Rez, Rez & Grant
+  (1994), *Acta Cryst.* A50, 481-497, Table 2 (their README, reprinted in the
+  file, labels it `O1-`). Cite both for that row.
 - `_ITC_IONS` in `src/rietx/crystallography/scattering.py` — the 4-Gaussian
   f0 coefficients of Y³⁺, the one ion of *International Tables* Vol. C Table
   6.1.1.3 the Waasmaier-Kirfel file lacks. Nine numbers, no code, transcribed

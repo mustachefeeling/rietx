@@ -9,6 +9,14 @@ valid for s ≤ 6 Å⁻¹ — a wider range than the older 4-Gaussian Cromer-Man
 form.  Coefficients are read from the DABAX file ``f0_WaasKirf.dat`` (ESRF
 DABAX collection; see ATTRIBUTION.md).
 
+One row of that file is not in the 1995 paper, ``O2-``.  The paper's Table 1(b)
+prints O¹⁻ and no O²⁻; the authors' own README, reprinted in the file, says one
+oxygen ion's fit is theirs to the tabulated values of Rez, Rez & Grant (1994),
+*Acta Cryst.* A50, 481, Table 2, which it labels ``O1-``.  That is the O²⁻ row
+(the O¹⁻ row is the paper's), a Dirac-Fock ion inside a Watson sphere, which is
+what binds a free O²⁻.  Its f0(0) is 9.998 e, the fit's residual.  Only the
+citation is affected, not a coefficient (#1039).
+
 One ion *International Tables* Vol. C Table 6.1.1.3 lists is missing from that
 file, Y³⁺.  It is carried in :data:`_ITC_IONS`, from Table 6.1.1.4's
 4-Gaussian fit, which is valid for s ≤ 2 Å⁻¹ only (WP-1527); past the s where
