@@ -268,7 +268,7 @@ Z \;=\; \frac{\rho\, V\, N_A}{M},
 
 {source}`rietx.indexing.extinction.declared_z`
 
-with $N_A = 6.022\,140\,76 \times 10^{23}$ mol$^{-1}$, exact in the SI since
+with $N_A = 6.022\,140\,76 \times 10^{23}\ \mathrm{mol}^{-1}$, exact in the SI since
 2019 {cite}`bipm2019`, so that $\rho$ in g/cm$^3$, $V$ in Å$^3$ and $M$ in
 g/mol give $Z = 0.602\,214\,076\,\rho V / M$. The error of $Z$ is the error of
 the density, about 1 % for a laboratory measurement, since the cell
