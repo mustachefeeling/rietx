@@ -500,29 +500,35 @@ def test_cafe4as3_extended_group_relates_what_g_k_leaves_free():
 
 
 @pytest.mark.slow
-def test_every_internal_translation_the_isotropy_search_reads_divides_24(monkeypatch):
-    """The audit row for ``DELTA_GRID`` rests on this: the isotropy search
-    only tries δ on the 1/24 grid, so an isotropy group needing another δ would
-    be left out unannounced.  Every δ the search returns (after the gauge
-    shift, ε = −1 ones included) over these parents and lines has a
-    denominator dividing 24 — observed 1, 2, 3, 4, 6.  Not a proof for other
-    parents or lines."""
-    denominators = set()
-    real = inc._gauge_float
-
-    def recording(lop, stab):
-        out = real(lop, stab)
-        denominators.update(F(d).denominator for _, _, d in out)
-        return out
-
-    monkeypatch.setattr(inc, "_gauge_float", recording)
+def test_the_isotropy_search_finds_the_same_groups_on_a_finer_delta_grid(monkeypatch):
+    """The audit row for ``DELTA_GRID`` rests on this: the candidate subspaces
+    of the isotropy search come from operations whose δ lie on the 1/24 grid
+    alone, so a group needing another δ never becomes a candidate and is left
+    out unannounced (reading the δ of the groups that *are* found cannot see
+    it).  72 holds the cross products ⅓·⅓ and ⅓·⅙ (it adds 1/8, 1/9, 1/18 and
+    1/36); the search at 24 and at 72 must return the same groups, irrep by
+    irrep, over these nine lines.  Not a proof for other parents or lines."""
     lines = [("P n m a", "(0,0,γ)"), ("P n m a", "(0,γ,0)"),
              ("P 63/m m c", "(0,0,γ)"), ("P 63/m m c", "(1/3,1/3,γ)"),
              ("C m c a", "(0,0,γ)"), ("I 41/a m d", "(0,0,γ)"),
              ("R -3 m", "(0,0,γ)"), ("F d -3 m", "(0,0,γ)"),
              ("P 31 2 1", "(0,0,γ)")]
-    for sg, q in lines:
-        for irr in inc.line_irreps(sg, q, [1 / math.sqrt(7)]):
-            inc.isotropy_superspace_groups(inc.line_order_parameter(irr))
-    assert {3, 4} <= denominators
-    assert all(inc.DELTA_GRID % d == 0 for d in denominators)
+
+    def found():
+        out = []
+        for sg, q in lines:
+            for irr in inc.line_irreps(sg, q, [1 / math.sqrt(7)]):
+                gs = inc.isotropy_superspace_groups(inc.line_order_parameter(irr))
+                out.append(sorted((len(g.group), g.dimension, tuple(sorted(g.stabiliser)))
+                                  for g in gs))
+        return out
+
+    at_24 = found()
+    monkeypatch.setattr(inc, "DELTA_GRID", 72)
+    at_72 = found()
+    assert sum(map(len, at_24)) > 0
+    assert at_24 == at_72
+
+    # positive arm: a grid that lacks thirds does lose groups
+    monkeypatch.setattr(inc, "DELTA_GRID", 4)
+    assert found() != at_24

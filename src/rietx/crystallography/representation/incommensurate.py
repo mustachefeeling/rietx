@@ -62,7 +62,8 @@ from .order_parameter import ORDER_PARAMETER_KINDS
 #: group's operations (0, ½, ⅓, ¼, ⅙, and the M·v cross terms of centred and
 #: screw operations, which can leave the grid in principle) are searched on 1/24
 #: only.  That no stabiliser needs another δ is measured, not derived:
-#: ``test_every_internal_translation_the_isotropy_search_reads_divides_24``.
+#: ``test_the_isotropy_search_finds_the_same_groups_on_a_finer_delta_grid``
+#: runs the search at 24 and at 72 and compares the groups found.
 DELTA_GRID = 24
 
 #: Relative rank cut of the SVD in :func:`_null` (the fixed subspaces of the
