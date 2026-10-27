@@ -1747,7 +1747,9 @@ class ParameterTable:
         the molecule: #876's SO₄ moved 0.03 off the Pnma mirror built with its
         S 0.32 Å from its own image and 8 S, 32 O in a cell of 4 and 16.
         Exempt when either atom has a ``disorder_group``, which declares the
-        overlap.  Minimum image over the 27 neighbouring cells.
+        overlap, or when the two occupancies sum to 1 or less: two half atoms
+        in one place are a disorder model, while a sum over 1 is #876's double
+        count.  Minimum image over the 27 neighbouring cells.
         """
         import gemmi
 
@@ -1764,6 +1766,7 @@ class ParameterTable:
             return
         xyz = np.array([[a.x.value, a.y.value, a.z.value] for a in atoms],
                        dtype=np.float64)
+        occ = [float(a.occ.value) for a in atoms]
         elements = [element_symbol(a.species) for a in atoms]
         radius = np.array([float(gemmi.Element(e).covalent_r) for e in elements])
         shifts = np.array([(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1)
@@ -1780,6 +1783,8 @@ class ParameterTable:
                 d = d - np.round(d) + shifts[None, :, :]
                 dist = np.sqrt(((d @ m.T) ** 2).sum(axis=2)).min(axis=1)
                 for k, j in enumerate(live):
+                    if occ[i] + occ[j] <= 1.0 + 1e-9:
+                        continue
                     limit = RIGID_BODY_OVERLAP_FACTOR * (radius[i] + radius[j])
                     if dist[k] < limit:
                         hits.append((float(dist[k]), i, j, g, limit))
@@ -1802,7 +1807,8 @@ class ParameterTable:
             "straddles a symmetry element and the cell counts the overlap twice: "
             f"it holds {tally} per cell — put the body's origin on that element "
             "and list one atom per image (body_from_atoms(..., origin=...)), or "
-            "give the atoms a disorder_group if the body is disordered across it")
+            "give the atoms a disorder_group and an occupancy of 1/|G_s| "
+            "(1/2 across a mirror or a centre) if the body is disordered across it")
 
     def _check_body_drift(self) -> None:
         """Refuse a body whose stored atoms sit off its map (WP-1805).

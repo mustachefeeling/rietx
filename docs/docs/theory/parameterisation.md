@@ -419,7 +419,9 @@ under $G_o$. `RIGID_BODY_IMAGE_OVERLAP` refuses a body with a symmetry image
 of one of its atoms within {{ RIGID_BODY_OVERLAP_FACTOR }} times the
 covalent-radius sum of an atom of the same body, because such a body straddles
 a symmetry element and the cell would hold part of it twice. A body whose
-atoms carry a `disorder_group` is exempt, since that declares the overlap. The
+atoms carry a `disorder_group` is exempt, since that declares the overlap, and
+so is a pair of atoms whose occupancies sum to 1 or less: two half atoms in one
+place are a disorder model, a sum over 1 is the double count. The
 remedy for both is to put the origin on the element the atoms share
 (`body_from_atoms(..., origin=...)`).
 

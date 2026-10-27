@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import re
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +45,7 @@ from rietx.params.derived import cartesian_frame
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import (
+    RIGID_BODY_INVARIANCE_TOL,
     RIGID_BODY_OVERLAP_FACTOR,
     Atom,
     BodyTorsion,
@@ -377,6 +379,7 @@ def test_a_displaced_diacetylene_comes_back_on_a_synthetic_profile():
     result = ref.fit(pattern, plan=RefinementPlan(stages=[
         Stage("body", ["phases.*.scale", "instrument.background.*", *BODY],
               max_iter=200)]))
+    _draw(result, "diacetylene_displaced_site_body")
     assert result.status == "converged"
     fitted = ref.fitted_structure.phases[0].rigid_bodies[0]
     for c, k in (("x", 0), ("z", 1)):
@@ -433,8 +436,8 @@ def test_perhydropyrene_half_molecule_on_the_centre_recovers_its_orientation(off
     result = ref.fit(pattern, plan=RefinementPlan(stages=[
         Stage("body", ["phases.*.scale", "instrument.background.*", *BODY],
               max_iter=200)]))
-    if off_deg == 10.0:
-        _draw(result, "perhydropyrene_site_body")
+    _draw(result, "perhydropyrene_site_body" if off_deg == 10.0
+          else f"perhydropyrene_site_body_{off_deg:g}deg")
     assert result.status == "converged"
     fitted = ref.fitted_structure.phases[0].rigid_bodies[0]
     assert _angle_deg(fitted.orientation, body.orientation) < 0.1
@@ -589,7 +592,7 @@ def _pbso4_pattern() -> tuple[Structure, PatternData]:
     return truth, _synthesize(truth, LAB, tt, peak=2e4, background=50.0, seed=3)
 
 
-def _two_stage_fit(truth: Structure, pattern: PatternData):
+def _two_stage_fit(truth: Structure, pattern: PatternData, stem: str):
     d = truth.phases[0].model_dump()
     d["rigid_bodies"][0]["orientation"] = tuple(float(v) for v in _quat(0.5, (0, 1, 0)))
     d["rigid_bodies"][0]["rotation_vary"] = True
@@ -600,6 +603,7 @@ def _two_stage_fit(truth: Structure, pattern: PatternData):
     result = ref.fit(pattern, plan=RefinementPlan(stages=[
         Stage("s1", globs, max_iter=100), Stage("s2", globs, max_iter=100)],
         closing_window_tol=None))
+    _draw(result, stem)
     return ref, result
 
 
@@ -612,7 +616,7 @@ def test_the_sulfate_with_its_origin_on_s_refines_across_a_stage_boundary():
     truth, pattern = _pbso4_pattern()
     assert _dofs(ParameterTable(truth, LAB)) == (2, 1)
     assert _counts(truth.phases[0]) == {"Pb": 4.0, "S": 4.0, "O": 16.0}
-    ref, result = _two_stage_fit(truth, pattern)
+    ref, result = _two_stage_fit(truth, pattern, "pbso4_so4_two_stage_site_body")
     s1, s2 = result.stages
     assert s2.cost_initial == pytest.approx(s1.cost_final, rel=1e-9)
     fitted = ref.fitted_structure.phases[0]
@@ -629,7 +633,7 @@ def test_an_unrestricted_turn_on_the_mirror_breaks_the_stage_boundary(monkeypatc
                         lambda self, r0: np.eye(3))
     truth, pattern = _pbso4_pattern()
     try:
-        _, result = _two_stage_fit(truth, pattern)
+        _, result = _two_stage_fit(truth, pattern, "pbso4_so4_unrestricted_turn")
     except ValueError as exc:
         assert "RIGID_BODY_" in str(exc)
         return
@@ -868,3 +872,130 @@ def test_a_disorder_group_exempts_a_body_across_the_mirror_from_the_overlap_refu
     phase = Phase.model_validate(d)
     body = body_from_atoms(phase, SO4_5, "SO4")
     ParameterTable(_with_body(phase, body), LAB)
+
+
+def test_the_overlap_refusal_reads_occupancy_and_the_exemption_keeps_the_composition():
+    """Yue's round 2: #876's SO₄ moved 0.03 off the mirror is two half-occupied
+    images at occupancy 1/2, so it builds, with no ``disorder_group``, at
+    S 4, O 16; at 0.6 a pair sums to 1.2, the double count, still refused.
+    A ``disorder_group`` at occupancy 1/2 gives the same cell composition."""
+    def with_atoms(o, group=None):
+        d = _pbso4_with_o5_image(0.03).model_dump()
+        for a in d["atoms"]:
+            if a["label"] in SO4_5:
+                a["occ"]["value"] = o
+                a["disorder_group"] = group
+        return Phase.model_validate(d)
+
+    for phase in (with_atoms(0.5), with_atoms(0.5, "1")):
+        ParameterTable(_with_body(phase, body_from_atoms(phase, SO4_5, "SO4")), LAB)
+        assert _counts(phase) == {"Pb": 4.0, "S": 4.0, "O": 16.0}
+    over = with_atoms(0.6)
+    with pytest.raises(ValueError, match="RIGID_BODY_IMAGE_OVERLAP"):
+        ParameterTable(_with_body(over, body_from_atoms(over, SO4_5, "SO4")), LAB)
+
+
+# ------------------- the invariance tolerance is the bound on typed precision
+H = 0.5e-3  # the most a coordinate typed to three decimals in Å can be off by
+SITES = [("P 1 2 1", (7.0, 8.0, 9.0, 90.0, 90.0, 90.0)),
+         ("P 2 3", (8.0, 8.0, 8.0, 90.0, 90.0, 90.0)),
+         ("P 3", (7.0, 7.0, 9.0, 90.0, 90.0, 120.0)),
+         ("P 4", (7.0, 7.0, 9.0, 90.0, 90.0, 90.0)),
+         ("P 6", (7.0, 7.0, 9.0, 90.0, 90.0, 120.0))]
+
+
+def _site_phase(space_group: str, cell) -> Phase:
+    P = Parameter
+    return Phase(name="s", space_group=space_group, cell=Cell(**{
+        k: P(value=v) for k, v in zip(("a", "b", "c", "alpha", "beta", "gamma"),
+                                      cell, strict=True)}),
+        atoms=[Atom(label="Q", species="Na", x=P(value=0.4), y=P(value=0.3),
+                    z=P(value=0.2))])
+
+
+def _site_ops(phase: Phase) -> list[np.ndarray]:
+    """The Cartesian W_g of the origin's site group, in the check's own frames."""
+    from rietx.crystallography.bodies import _frames
+
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
+    m, minv = _frames(phase.cell.lengths_angles())
+    return [m @ r.astype(np.float64) @ minv
+            for r in site_orbit(sg, np.zeros(3)).stabilizer]
+
+
+def _try_template(phase: Phase, template: np.ndarray) -> None:
+    n = len(template)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        add_body(phase, "B", [f"A{k}" for k in range(n)], ["C"] * n, template,
+                 (0.0, 0.0, 0.0), centre=False)
+
+
+Q_POINT = np.array([-2.2, 1.9, 0.8])
+
+
+def _two_orbits(ops, p, q) -> np.ndarray:
+    """Every site image of two general points: a body needs two atoms to be one,
+    and each orbit must be whole for the template to map onto itself."""
+    return np.array([w @ x for x in (p, q) for w in ops])
+
+
+def _perturb(template, ops, g, ei, ej) -> None:
+    """Move the first orbit's identity image by ``ei`` and its image under
+    ``ops[g]`` by ``ej``: the pair the site operation g relates."""
+    ident = next(a for a, w in enumerate(ops) if np.allclose(w, np.eye(3)))
+    template[ident] += ei
+    template[g] += ej
+
+
+def _worst_pair(ops, scale: float):
+    """The operation and the two corner error vectors (each coordinate ±scale)
+    maximising |W·e_i − e_j|, the miss a point and its partner can show
+    (the identity relates a point to itself, so it is not a pair)."""
+    corners = scale * np.array([[a, b, c] for a in (-1, 1) for b in (-1, 1)
+                                for c in (-1, 1)], dtype=np.float64)
+    return max(((float(np.linalg.norm(w @ ei - ej)), g, ei, ej)
+                for g, w in enumerate(ops) if not np.allclose(w, np.eye(3))
+                for ei in corners for ej in corners),
+               key=lambda t: t[0])
+
+
+@pytest.mark.parametrize("space_group,cell", SITES)
+def test_every_three_decimal_template_is_accepted_on_a_site(space_group, cell):
+    """``RIGID_BODY_INVARIANCE_TOL`` = √3 × 10⁻³ Å is arithmetic: each coordinate
+    typed to three decimals is off by ≤ 0.5e-3 Å, a point by ≤ √3·0.5e-3 and a
+    pair by twice that.  On 2-, 3-, 4- and 6-fold sites, 200 random templates
+    (every site image of a general point, typed to three decimals) are
+    accepted, and so is the worst corner pair, 1e-6 inside the bound."""
+    phase = _site_phase(space_group, cell)
+    ops = _site_ops(phase)
+    assert len(ops) > 1
+    rng = np.random.default_rng(5)
+    for _ in range(200):
+        _try_template(phase, np.round(_two_orbits(ops, *rng.uniform(-3.0, 3.0, (2, 3))), 3))
+    p = np.array([1.3, -0.7, 2.1])
+    miss, g, ei, ej = _worst_pair(ops, H * (1 - 1e-6))
+    template = _two_orbits(ops, p, Q_POINT)
+    _perturb(template, ops, g, ei, ej)
+    assert miss <= RIGID_BODY_INVARIANCE_TOL
+    _try_template(phase, template)
+
+
+def test_the_bound_is_attained_on_the_cubic_three_fold_and_refused_beyond_it():
+    """Under (x, y, z) → (z, x, y) the errors h(1, 1, −1) and h(1, −1, −1) miss
+    by √3 × 10⁻³ exactly; a template carrying them, 1e-6 inside the bound, is
+    accepted, and 1 % outside it is refused naming the point."""
+    phase = _site_phase("P 2 3", (8.0, 8.0, 8.0, 90.0, 90.0, 90.0))
+    ops = _site_ops(phase)
+    miss = _worst_pair(ops, H)[0]
+    assert miss == pytest.approx(RIGID_BODY_INVARIANCE_TOL, rel=1e-12)
+    for scale, ok in ((1 - 1e-6, True), (1.01, False)):
+        _, g, ei, ej = _worst_pair(ops, H * scale)
+        p = np.array([1.3, -0.7, 2.1])
+        template = _two_orbits(ops, p, Q_POINT)
+        _perturb(template, ops, g, ei, ej)
+        if ok:
+            _try_template(phase, template)
+        else:
+            with pytest.raises(ValueError, match="RIGID_BODY_NOT_INVARIANT"):
+                _try_template(phase, template)

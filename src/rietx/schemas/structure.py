@@ -671,11 +671,17 @@ RIGID_BODY_OVERLAP_FACTOR = 0.7
 
 #: How far (Å) a template point's image under the origin's site symmetry may
 #: land from a same-species template point and still count as that point
-#: (``crystallography.bodies.add_body`` on a special position, WP-1807).  A
-#: template typed to three decimals in Å, or built from five-decimal
-#: fractional coordinates in a 10 Å cell (1e-4 Å), lands well inside it; a
-#: genuinely asymmetric fragment misses by a bond-scale distance.
-RIGID_BODY_INVARIANCE_TOL = 1e-3
+#: (``crystallography.bodies.add_body`` on a special position, WP-1807).
+#: Derived, not tuned: a coordinate typed to three decimals in Å is off by at
+#: most 0.5e-3 Å on each axis, so a point is off by at most √3·0.5e-3 Å
+#: (a rotation keeps that length), and a point and its partner may be off in
+#: opposite directions, so under any site operation an image misses by at most
+#: 2·√3·0.5e-3 = √3·1e-3 ≈ 1.73e-3 Å.  The bound is attained, at the 3-fold
+#: (x, y, z) → (z, x, y) with errors h(1, 1, −1) and h(1, −1, −1), h = 0.5e-3 Å.
+#: It does **not** cover a template converted from four-decimal fractional
+#: coordinates in a cell of about 20 Å, which can miss by up to 3.5e-3 Å
+#: (computed); a genuinely asymmetric fragment misses by a bond-scale distance.
+RIGID_BODY_INVARIANCE_TOL = math.sqrt(3.0) * 1e-3
 
 
 class BodyOrigin(Base):
