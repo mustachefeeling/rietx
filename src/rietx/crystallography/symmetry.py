@@ -1158,7 +1158,7 @@ def site_twin_merge(sg, cell, xyz, *, tol: float = SITE_TOL,
         orbit = site_orbit(sg, pos, tol=_COINCIDENCE_TOL)
         if orbit.multiplicity >= tight.multiplicity:
             return None
-        return pos, orbit
+        return pos, orbit, float(np.max(np.abs(delta)))
 
     found = attempt(*_generated_group(all_rot[kept], all_tran[kept]))
     if found is None and len(kept) > 1:
@@ -1170,13 +1170,19 @@ def site_twin_merge(sg, cell, xyz, *, tol: float = SITE_TOL,
                 rots, trans = _generated_group(all_rot[list(combo)], all_tran[list(combo)])
                 seen.setdefault(frozenset(_op_key(a, b) for a, b in zip(rots, trans)),
                                 (rots, trans))
+        # equal-order subgroups (the three mirrors of 4mm) are ranked by how
+        # far their fixed point is from x, the nearest being the reading the
+        # stated coordinates are closest to (#1014 round 8, item 1)
+        order = None
         for rots, trans in sorted(seen.values(), key=lambda g: -len(g[0])):
-            found = attempt(rots, trans)
-            if found is not None:
+            if found is not None and len(rots) < order:
                 break
+            cand = attempt(rots, trans)
+            if cand is not None and (found is None or cand[2] < found[2]):
+                found, order = cand, len(rots)
     if found is None:
         return None
-    position, loose = found
+    position, loose, _ = found
     # the pairs the merge collapses: each stated image goes to the nearest
     # image of the merged position, and images sharing one are the pairs
     images = np.asarray(tight.images, dtype=np.float64)

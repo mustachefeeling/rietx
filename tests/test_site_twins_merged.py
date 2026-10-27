@@ -1157,6 +1157,11 @@ def test_the_reviewers_site_near_the_cubic_axis_merges():
     merge = site_twin_merge(sg, (5.0, 5.0, 5.0, 90, 90, 90),
                             np.array([-0.000513, 0.000096, 0.1232]))
     assert merge is not None and merge.before > merge.after
+    # three mirrors of 4mm have a fixed point within reach (y = 0 at 9.6e-5,
+    # x = -y at 3.0e-4, x = y at 4.3e-4): the site lands on the nearest, y = 0
+    # (round 8, item 1), so x is untouched and y goes to zero
+    assert merge.position == pytest.approx([-0.000513, 0.0, 0.1232], abs=1e-9)
+    assert (merge.before, merge.after) == (48, 24)
 
 
 @pytest.mark.parametrize("shift", [+1, -1])
@@ -1312,6 +1317,13 @@ def test_the_fullprof_message_gives_the_files_occ_and_both_readings_in_numbers(p
     assert "Occ is occupancy x m/M" in d.message and "split pair" in d.message
     assert "8 positions at occupancy 0.5 each, which holds 4 atoms per cell" in d.message
     assert "occupancy unchanged" not in d.message and "8 × 1 = 8" not in d.message
+    # round 8, item 2: both positions, as the generic message gives them
+    import re
+    m = re.search(r"moved onto (\[[^\]]+\]) from the stated (\[[^\]]+\])", d.message)
+    assert m, d.message
+    onto, stated = eval(m.group(1)), eval(m.group(2))
+    assert onto[1] == pytest.approx(0.25) and stated[1] != pytest.approx(0.25, abs=1e-9)
+    assert d.message.count(model.path or "<model>") == 1       # prefix once, not twice
 
 
 def test_a_note_the_merge_adds_after_its_content_sentence_is_found():

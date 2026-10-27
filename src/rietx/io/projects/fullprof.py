@@ -3095,14 +3095,16 @@ def _merged_message(d: Diagnostic, structure, path: str | None) -> str:
     notes = message_notes(d.message)
     prefix = f"{path + ': ' if path else ''}{d.where[0]}: "
     if merge is None:        # the structure's own gate acted on what the reader's did not
-        return prefix + d.message
+        return d.message     # already carries the file prefix (``source=`` above)
+    stated = [round(float(v), 6) for v in (atom.x.value, atom.y.value, atom.z.value)]
+    onto = [round(float(v), 6) for v in merge.position]
     part = merge.after / merge.before
     return (
         f"{prefix}site {atom.label!r} of phase {phase.name!r}: FullProf's Occ is "
         f"occupancy x m/M (times one free common factor, which cancels), so this "
         f"column reads the site as one full atom on its special position, "
-        f"{merge.after} positions, and it was moved there from the stated "
-        f"coordinates, where it puts {merge.before} positions in pairs "
+        f"{merge.after} positions, and it was moved onto {onto} from the stated "
+        f"{stated}, where it puts {merge.before} positions in pairs "
         f"{merge.gap:.2g} Å apart.  The other reading of the same Occ is a split "
         f"pair of part-atoms at the stated position: {merge.before} positions at "
         f"occupancy {_fmt(part)} each, which holds {_fmt(merge.before * part)} "
