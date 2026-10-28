@@ -53,6 +53,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import sparse
+from scipy.linalg import LinAlgError, cho_factor, cho_solve
 from scipy.sparse.linalg import spilu
 
 #: their equation (2) constant — a parameter contributing less than
@@ -344,9 +345,12 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
     along p because ``p·r = r·z`` holds for any preconditioner, so every
     segment still lowers the model.  A factorisation that fails, or a
     direction with ``r·z ≤ 0``, takes the unpreconditioned direction r, and a
-    switch between the two restarts the recurrence (β = 0).  A
-    dense H is never preconditioned, and its arithmetic is unchanged.  The
-    measurement is :func:`.lm._solve_step`'s.
+    switch between the two restarts the recurrence (β = 0).  **A dense H is
+    preconditioned by the exact Cholesky factor of its free block**, rebuilt
+    on the same rule: a direction is then the face's Newton step, so CG on a
+    face ends in one product unless a bound cuts it.  A block that is not
+    numerically positive definite takes r.  The measurement is
+    :func:`.lm._solve_step`'s.
 
     Returns the step and which bound each variable was fixed on (−1 lower,
     +1 upper, 0 neither), the convention :func:`.lm._solve_step` lands
@@ -358,8 +362,8 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
     floor = _PCG_TOL * _PCG_TOL * max(float(g @ g), np.finfo(np.float64).tiny)
     fixed = (y <= lo) | (y >= hi)
     spent = 0
-    # the free set the incomplete LU was built on, and the factor (None where
-    # it failed); a dense H keeps (None, None) and takes r as its direction
+    # the free set the preconditioner was built on, and the factor (None
+    # where it failed, and the direction is then r)
     factored, ilu = None, None
     while spent < budget:
         grad = H @ y - g
@@ -373,8 +377,9 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
             fixed &= ~release
             continue
         free = ~fixed
-        if sparse.issparse(H) and (factored is None or not np.array_equal(free, factored)):
-            factored, ilu = free, _incomplete_lu(H, free)
+        if _PRECONDITION_DENSE or sparse.issparse(H):
+            if factored is None or not np.array_equal(free, factored):
+                factored, ilu = free, _factor(H, free)
         z, rz = _preconditioned(ilu, r, rr, free)
         plain = z is r      # this direction took no preconditioner
         p = z
@@ -419,15 +424,36 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
     return y, side
 
 
-def _incomplete_lu(H, free: np.ndarray):
-    """The incomplete LU of H's free block at scipy's defaults, or ``None``
-    where the factorisation fails (an exactly singular pivot)."""
+_PRECONDITION_DENSE = True
+
+
+class _Cholesky:
+    """A dense free block's Cholesky factor, behind ``spilu``'s ``solve``."""
+
+    def __init__(self, factor):
+        self.factor = factor
+
+    def solve(self, r: np.ndarray) -> np.ndarray:
+        return cho_solve(self.factor, r, check_finite=False)
+
+
+def _factor(H, free: np.ndarray):
+    """The preconditioner on H's free block, or ``None`` where it fails: a
+    sparse H's incomplete LU at scipy's defaults (an exactly singular pivot
+    fails it), a dense H's exact Cholesky factor (a block that is not
+    numerically positive definite fails it)."""
     idx = np.flatnonzero(free)
     if not idx.size:
         return None
+    if sparse.issparse(H):
+        try:
+            return spilu(H.tocsr()[idx][:, idx].tocsc())
+        except RuntimeError:
+            return None
     try:
-        return spilu(H.tocsr()[idx][:, idx].tocsc())
-    except RuntimeError:
+        return _Cholesky(cho_factor(np.asarray(H)[np.ix_(idx, idx)],
+                                    check_finite=False))
+    except LinAlgError:
         return None
 
 
