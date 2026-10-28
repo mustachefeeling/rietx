@@ -263,6 +263,95 @@ or the bethanechol benchmark validating fewer candidates than `main`.
 it; corundum's 12 misses "at most 11" by one. That bar was Pawley's own
 10-18 worst (5, 10, 11) with no margin.
 
+### Re-measured 2026-10-28, under `quick`
+
+Tree `938a635e` (this branch), arm64, `[dev]` venv, compiled kernels on.
+Load average 3-7 on ten cores; one other Claude session was open and idle,
+and no suite ran.
+
+**The bethanechol benchmark cannot see this question.** It hands
+`index_pattern` a position-only `PeakList` and no pattern
+(`tests/bethanechol_benchmark.py`, `run_one`), so no candidate is ever
+validated, in either mode. The acceptance bar "validates no fewer
+candidates than on `main`" was empty there from the start.
+
+*`quick` in both modes* (`probe8_quick.py`). `index_pattern` as a first
+click runs it, with only `workflow.VALIDATION_MODE` swapped, so the
+extinction screen's own Le Bail fits are the same in both columns. "acc."
+is the acceptance suite's spec with the per-unit budget left at its
+default; "default" is `SearchSpec()`, every system. Validated counts the
+candidates whose record is not `None`.
+
+| case | spec | validated, Le Bail / Pawley | ceiling hit | seconds, LB / P |
+|---|---|---|---|---|
+| 11-BM NAC | acc. (cubic) | 2 / 2 | no | 90 / 112 |
+| 11-BM NAC | acc., all seven systems | **3 / 0** | yes | 123 / 123 |
+| 11-BM NAC | default | **1 / 0** | yes | 123 / 125 |
+| FAP | acc. | 3 / 3 | no | 20 / 22 |
+| FAP | default | 3 / 3 | yes | 119 / 121 |
+| SRM 660c | acc. | 10 / 10 | no | 32 / 32 |
+| corundum | acc. | 4 / 4 | yes | 117 / 116 |
+| zincite | acc. | 3 / 3 | no | 12 / 12 |
+| zircon | acc. | 3 / 3 | no | 20 / 20 |
+| zircon | default | 3 / 3 | yes | 119 / 120 |
+| magnetite | acc. | 2 / 2 | no | 3 / 3 |
+
+So the condition the maintainer set for merging fails on NAC. When the
+search runs to the ceiling, it stops `VALIDATION_RESERVE_FRACTION` (8 %,
+9.6 s) early, a reserve sized for three Le Bail fits of 1.9 s. Three
+Pawley fits of NAC-sized cells cannot finish in it, and every slice
+expired. On the lab patterns the counts are equal. What a user sees on NAC
+under Pawley: no candidate row carries an Rwp or an unmatched count, and
+`INDEX_BUDGET_EXHAUSTED` names the unvalidated candidates. The grades did
+not move: every NAC candidate read `low` in both modes, below the
+`medium` cap an unvalidated candidate takes. Two runs ended a validation
+at `max_iter`: Le Bail's on corundum's c/2 subcell (Rwp 5.5) and Pawley's
+on FAP's 525 Å³ rival (Rwp 0.356).
+
+*The three Pawley constants on the validation's readings*
+(`probe9_constants.py`, ruling 3's sweep). The shipped validation, peak-list
+path, on the thirteen cells of probe 5 (nine true cells; synthetic LaB6's
+doubled, a×√5 and +1 % cells; magnetite's P rival), varying one thing at a
+time:
+
+| variant | unmatched count or status moved | largest Rwp move |
+|---|---|---|
+| `PAWLEY_OVERLAP_FWHM_FRAC` 0.25 | none of 14 runs | 0 |
+| `PAWLEY_OVERLAP_FWHM_FRAC` 1.0 | none | 1e-4 (FAP) |
+| `PAWLEY_OVERLAP_LAMBDA` 0.1 | none | 0 |
+| `PAWLEY_OVERLAP_LAMBDA` 10 | none | 7e-4 (corundum, 0.1371 → 0.1378) |
+| intensity and σ ÷ max count | none | **0.098 (synthetic LaB6 truth)**, else ≤ 2e-4 |
+
+The overlap fraction does change which reflections are grouped (zircon
+12, 24 and 30 grouped reflections at 0.25, 0.5 and 1.0). The readings do
+not follow. On the scaled patterns the off-data floor binds: the ridge's
+scale falls to 0.005-0.09 on NAC, FAP, corundum and zircon and to 0 on
+LaB6's wrong cells, and none of their readings moved. The audit rows were
+re-grounded on this (ruling 3).
+
+**A unit dependence the floor does not explain.** Synthetic LaB6's true
+cell validates at Rwp 0.164 on counts and 0.262 with the pattern and σ
+divided by the maximum count (2721). χ² is the same function in both, and
+Le Bail reads 0.2339 and 0.2338. The Pawley fit's widths differ (`u`
+1e-5 against −4.3e-4, `y` −1.9e-4 against −1.3e-3), and the divergence
+starts in the zero-shift stage. Against an intensity factor *f*: Rwp
+0.164 for *f* ≥ 1, 0.171 at 0.1, 0.266 at 0.01 and 0.001, and at 1e-4 the
+last stage ends at `max_iter` (Rwp 0.200). Ruled out: the off-data floor
+(no off-data reflection in this fit; the floor at 1e-12 reads the same),
+the LM driver's curvature probe (disabled, the same), and the re-picked
+peak list (the base list reads the same). Not found. It belongs to
+WP-2062, where Pawley becomes the structure-free default: a Pawley fit
+whose answer depends on the intensity units is wrong on count-rate and
+normalised exports. On the nine real true cells no scaled reading moved by
+more than 2e-4.
+
+**Found on the way.** `validate_by_lebail` raises numpy's `ValueError:
+array of sample points is empty` (`screen.fwhm_at`) when handed a peak list
+with no usable peak. The picker returns one on a pattern divided by its
+maximum with no σ column, where the Poisson fallback √max(y, 1) puts every
+point under the noise. `index_pattern` stops before validating on such a
+list, so only a direct call reaches it. For WP-1956's screen, unfixed here.
+
 ## Non-goals
 
 - The missing count's inputs and the grade (WP-1956).
@@ -286,13 +375,15 @@ it; corundum's 12 misses "at most 11" by one. That bar was Pawley's own
       YYYY-MM-DD:`. Built provisionally as a go on 2026-10-27 while the
       maintainer was away; § Re-measured 2026-10-27 has the case and what
       reverses it.
-- [ ] **Decision (maintainer):** the names above, kept with the mode recorded
+- [x] **Decision (maintainer):** the names above, kept with the mode recorded
       on the validation record or renamed to the field's term, staged in the
       release record either way (ROADMAP rule 6). Built provisionally as
-      *kept, mode recorded* (`LeBailValidation.mode`).
+      *kept, mode recorded* (`LeBailValidation.mode`). **Decided 2026-10-28:**
+      kept for now; the rename is decided inside WP-2062, so the names break
+      once.
 - [x] Switch `validate_by_lebail`'s fit to `mode="pawley"`, record the mode on
       the validation record, and rewrite the `:377` paragraph with the numbers.
-- [ ] **Decision (maintainer, with the generality review):** the three tier-3
+- [x] **Decision (maintainer, with the generality review):** the three tier-3
       Pawley constants (`PAWLEY_OVERLAP_FWHM_FRAC`, `PAWLEY_OVERLAP_LAMBDA`,
       `PAWLEY_OFF_DATA_SCALE_FLOOR`, `_audit.py:1868-1890`) are kept on the
       grounds "opt-in Pawley mode". The switch puts Pawley on every
@@ -306,7 +397,11 @@ it; corundum's 12 misses "at most 11" by one. That bar was Pawley's own
       (`indexing/pick.py:492-565`, `indexing/peaks.py:42, 308`). It rated
       the first two **weak** (mechanism plausible, no sweep on the
       validation's readings) and the off-data floor **cannot tell** (it may
-      bind on a pattern scaled to a maximum of 1).
+      bind on a pattern scaled to a maximum of 1). **Decided 2026-10-28:**
+      sweep, then re-ground. Swept (§ Re-measured 2026-10-28, probe 9): no
+      unmatched count or status moved under any variant, and all three rows
+      now name the default path, the sweep and the 2026-10-28 approval, tier
+      3 and values unchanged.
 - [ ] Re-measure `MEASURED_VALIDATION_SECONDS` under Pawley, and run
       `python -m tests.bethanechol_benchmark` alone against `main`'s count of
       validated candidates (the large monoclinic cost case). *Half done
