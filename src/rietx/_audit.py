@@ -1871,12 +1871,15 @@ ROWS: tuple[Row, ...] = (
                   "only where that intensity is under 1 or absent; inline in "
                   "build_pawley_restraint until the B14 lift.  WP-2011 probe 9 (2026-10-28): "
                   "with each pattern and its sigma divided by the maximum count, the ridge's "
-                  "scale fell to 0.005-0.09 on 11-BM NAC, GSAS-II FAP and CPD corundum and "
+                  "scale fell to 0.005-0.095 on 11-BM NAC, GSAS-II FAP and CPD corundum and "
                   "zircon, and to 0 on two synthetic LaB6 wrong cells, so the floor bound; "
-                  "no validation's unmatched count or status moved, nor its Rwp by more "
-                  "than 2e-4"),
-        grounds=("On index_pattern's default path since WP-2011, where every validation fit "
-                 "carries off-data reflections: acts only on reflections outside the data, "
+                  "on those six no unmatched count, status or Rwp moved.  Over all 14 cells "
+                  "no unmatched count or status moved and Rwp moved by at most 2e-4, bar "
+                  "synthetic LaB6's truth (0.164 to 0.262), which carries no off-data "
+                  "reflection, so not the floor: a unit dependence left to WP-2062"),
+        grounds=("On index_pattern's default path since WP-2011, where a validation fit "
+                 "carries off-data reflections (four of probe 9's nine true cells, two of "
+                 "its four wrong cells): acts only on reflections outside the data, "
                  "whose intensity nothing constrains, and binding on a pattern scaled to a "
                  "maximum of 1 moved none of the validation's readings; kept at 1.0 (WP-2011 "
                  "ruling 3, 2026-10-28)."),
@@ -1884,12 +1887,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC", "constant", tier=3, value=0.5,
         evidence=("WP-0306: 'the point past which least squares cannot apportion intensity'; LaB6 "
                   "only (synchrotron and Cu, tests/test_pawley.py).  WP-2011 probe 9 "
-                  "(2026-10-28), the validation fit on 13 cells (SRM 660c, 11-BM NAC, GSAS-II "
+                  "(2026-10-28), the validation fit on 14 cells (SRM 660c, 11-BM NAC, GSAS-II "
                   "FAP, six CPD pure phases, synthetic LaB6's truth and three wrong cells, CPD "
                   "magnetite's P rival): 0.25 and 1.0 regroup reflections (zircon 12, 24, 30 "
-                  "grouped) and move no unmatched count or status, and Rwp by at most 1e-4.  "
-                  "The peak picker's use (indexing/pick.py, peaks.py) is not swept"),
-        grounds=("On two default paths: the peak picker's duplicate and unresolved flags, and "
+                  "grouped) and move no unmatched or absent count or status, and Rwp by at "
+                  "most 1e-4.  The sweep moved the line screen's testable mask too "
+                  "(extinction.testable_mask calls _overlap_groups).  The peak picker's copies "
+                  "(indexing/pick.py, peaks.py:308) are not swept"),
+        grounds=("On three default paths: the peak picker's duplicate and unresolved flags, "
+                 "the line screen's testable mask, and "
                  "since WP-2011 every index_pattern validation, where an overlapped group gets "
                  "an equal-split restraint and is flagged PAWLEY_OVERLAP_UNRESOLVED rather than "
                  "split confidently.  The validation reads the group's sum, which the restraint "
@@ -1900,11 +1906,12 @@ ROWS: tuple[Row, ...] = (
         evidence=("WP-0306, WP-1459: unit weight, per-group intensity scaling; Cu LaB6 (221)/(300) "
                   "sum 0.6 % off, split esd ~112 %; without the off-data ridge a (6 0 2) reached "
                   "1.45e8 against a median of 81.  WP-2011 probe 9 (2026-10-28), the "
-                  "validation fit on the 13 cells PAWLEY_OVERLAP_FWHM_FRAC's row names: 0.1 and "
+                  "validation fit on the 14 cells PAWLEY_OVERLAP_FWHM_FRAC's row names: 0.1 and "
                   "10 move no unmatched count or status, and Rwp by at most 7e-4 (CPD corundum "
                   "at 10)"),
         grounds=("On index_pattern's default path since WP-2011: the weight acts only on "
-                 "directions the data do not constrain, and the group sum stays free; the "
+                 "directions the data do not constrain (an overlapped group's split, and the "
+                 "off-data ridge toward zero), and the group sum stays free; the "
                  "validation's readings did not move over two decades; kept at 1.0 (WP-2011 "
                  "ruling 3, 2026-10-28)."),
         approved="2026-10-28"),

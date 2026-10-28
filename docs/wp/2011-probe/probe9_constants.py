@@ -1,7 +1,7 @@
 """Ruling 3's sweep: do the three Pawley constants move the validation's readings?
 
 The generality review (2026-10-27) asked for the validation's ``rwp``,
-``unmatched_observed`` and ``status`` on probe 5's thirteen cells under
+``unmatched_observed`` and ``status`` on probe 5's fourteen cells under
 ``PAWLEY_OVERLAP_FWHM_FRAC`` 0.25 and 1.0, ``PAWLEY_OVERLAP_LAMBDA`` 0.1 and
 10, and every pattern divided by its maximum (where
 ``PAWLEY_OFF_DATA_SCALE_FLOOR`` may bind).  Each case runs the shipped
@@ -9,7 +9,9 @@ The generality review (2026-10-27) asked for the validation's ``rwp``,
 
 - ``frac=…`` patches ``forward.PAWLEY_OVERLAP_FWHM_FRAC``, which
   ``_overlap_groups`` reads at call time.  The picker imported its own copy, so
-  the peak list is the base one and only the fit's grouping moves.
+  the peak list is the base one.  The fit's grouping moves, and so does the
+  line screen's testable mask (``extinction.testable_mask`` calls
+  ``_overlap_groups``), which ``predicted_but_absent`` reads.
 - ``lam=…`` wraps ``CompiledModel.build_pawley_restraint``, whose default
   argument was bound at definition.  λ weights the off-data ridge as well as
   the equal-split rows.

@@ -35,24 +35,32 @@ from rietx.indexing.pick import pick_peaks  # noqa: E402
 _VALIDATE = wf.validate_by_lebail
 
 
+def checked_candidates(data, ins, peaks, spec):
+    """The candidates a ``preset="full"`` search validates, under Le Bail."""
+    seen = []
+
+    def capture(cand, *a, **kw):
+        seen.append(cand.model_copy(deep=True))
+        return _VALIDATE(cand, *a, **kw)
+
+    mode = wf.VALIDATION_MODE
+    wf.VALIDATION_MODE = "lebail"
+    wf.validate_by_lebail = capture
+    try:
+        # full: no slice, so every checked candidate reaches the capture
+        wf.index_pattern(peaks, data=data, instrument=ins, spec=spec, preset="full")
+    finally:
+        wf.validate_by_lebail = _VALIDATE
+        wf.VALIDATION_MODE = mode
+    return seen
+
+
 def cost(rows, names):
     for name in names or ["nac_default", "nac_all"]:
         load, spec = sets()[name]
         data, ins = load()
         peaks = pick_peaks(data, ins)
-        seen = []
-
-        def capture(cand, *a, **kw):
-            seen.append(cand.model_copy(deep=True))
-            return _VALIDATE(cand, *a, **kw)
-
-        wf.VALIDATION_MODE = "lebail"
-        wf.validate_by_lebail = capture
-        try:
-            # full: no slice, so every checked candidate reaches the capture
-            wf.index_pattern(peaks, data=data, instrument=ins, spec=spec, preset="full")
-        finally:
-            wf.validate_by_lebail = _VALIDATE
+        seen = checked_candidates(data, ins, peaks, spec)
         for k, cand in enumerate(seen):
             order = ("lebail", "pawley") if k % 2 == 0 else ("pawley", "lebail")
             for mode in order:
@@ -71,29 +79,35 @@ def cost(rows, names):
 def reserve(rows, names):
     table = sets()
     wf.VALIDATION_MODE = "pawley"
-    for name in names or ["nac_default", "nac_all", "corundum", "fap_default",
-                          "zircon_default"]:
-        load, spec = table[name]
-        data, ins = load()
-        peaks = pick_peaks(data, ins)
-        for frac in (0.08, 0.2, 0.3, 0.4):
-            eng.VALIDATION_RESERVE_FRACTION = frac
-            t0 = time.perf_counter()
-            res = wf.index_pattern(peaks, data=data, instrument=ins, spec=spec)
-            cands = res.candidates
-            rec = dict(case=name, reserve=frac, seconds=round(time.perf_counter() - t0, 1),
-                       load=round(os.getloadavg()[0], 1),
-                       n_candidates=len(cands),
-                       n_validated=sum(c.lebail is not None for c in cands),
-                       systems_searched=list(res.systems_searched),
-                       incomplete=[s for s, ok in res.search_complete.items() if not ok],
-                       top=[[c.system, c.centring, round(c.volume, 2), c.confidence,
-                             None if c.lebail is None else c.lebail.status,
-                             None if c.lebail is None else round(c.lebail.rwp, 4)]
-                            for c in cands[:6]])
-            rows.append(rec)
-            print(json.dumps(rec), flush=True)
-    eng.VALIDATION_RESERVE_FRACTION = 0.08
+    shipped = eng.VALIDATION_RESERVE_FRACTION
+    try:
+        for name in names or ["nac_default", "nac_all", "corundum", "fap_default",
+                              "zircon_default"]:
+            _reserve_case(rows, name, *table[name])
+    finally:
+        eng.VALIDATION_RESERVE_FRACTION = shipped
+
+
+def _reserve_case(rows, name, load, spec):
+    data, ins = load()
+    peaks = pick_peaks(data, ins)
+    for frac in (0.08, 0.2, 0.3, 0.4):
+        eng.VALIDATION_RESERVE_FRACTION = frac
+        t0 = time.perf_counter()
+        res = wf.index_pattern(peaks, data=data, instrument=ins, spec=spec)
+        cands = res.candidates
+        rec = dict(case=name, reserve=frac, seconds=round(time.perf_counter() - t0, 1),
+                   load=round(os.getloadavg()[0], 1),
+                   n_candidates=len(cands),
+                   n_validated=sum(c.lebail is not None for c in cands),
+                   systems_searched=list(res.systems_searched),
+                   incomplete=[s for s, ok in res.search_complete.items() if not ok],
+                   top=[[c.system, c.centring, round(c.volume, 2), c.confidence,
+                         None if c.lebail is None else c.lebail.status,
+                         None if c.lebail is None else round(c.lebail.rwp, 4)]
+                        for c in cands[:6]])
+        rows.append(rec)
+        print(json.dumps(rec), flush=True)
 
 
 if __name__ == "__main__":

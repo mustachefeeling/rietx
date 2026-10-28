@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path.cwd()))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from probe8_quick import OUT, sets  # noqa: E402
+from probe10_reserve import checked_candidates  # noqa: E402
 
 import rietx.indexing.workflow as wf  # noqa: E402
 from rietx.indexing.pick import pick_peaks  # noqa: E402
@@ -38,18 +39,7 @@ def main():
     peaks = pick_peaks(data, ins)
     cached = OUT / "nac_checked.json"
     if not cached.exists():
-        seen = []
-
-        def capture(cand, *a, **kw):
-            seen.append(cand.model_copy(deep=True))
-            return _VALIDATE(cand, *a, **kw)
-
-        wf.VALIDATION_MODE = "lebail"
-        wf.validate_by_lebail = capture
-        try:
-            wf.index_pattern(peaks, data=data, instrument=ins, spec=spec, preset="full")
-        finally:
-            wf.validate_by_lebail = _VALIDATE
+        seen = checked_candidates(data, ins, peaks, spec)
         cached.write_text(json.dumps([c.model_dump(mode="json") for c in seen]),
                           encoding="utf-8")
     cands = [CellCandidate.model_validate(c)

@@ -360,13 +360,14 @@ fix.
 
 *The three Pawley constants on the validation's readings*
 (`probe9_constants.py`, ruling 3's sweep). The shipped validation, peak-list
-path, on the thirteen cells of probe 5 (nine true cells; synthetic LaB6's
-doubled, a×√5 and +1 % cells; magnetite's P rival), varying one thing at a
-time:
+path, on the fourteen cells of probe 5 (nine real true cells; synthetic
+LaB6's truth and its doubled, a×√5 and +1 % cells; magnetite's P rival),
+fifteen runs a variant since magnetite's truth runs twice, varying one thing
+at a time:
 
 | variant | unmatched count or status moved | largest Rwp move |
 |---|---|---|
-| `PAWLEY_OVERLAP_FWHM_FRAC` 0.25 | none of 14 runs | 0 |
+| `PAWLEY_OVERLAP_FWHM_FRAC` 0.25 | none of 15 runs | 0 |
 | `PAWLEY_OVERLAP_FWHM_FRAC` 1.0 | none | 1e-4 (FAP) |
 | `PAWLEY_OVERLAP_LAMBDA` 0.1 | none | 0 |
 | `PAWLEY_OVERLAP_LAMBDA` 10 | none | 7e-4 (corundum, 0.1371 → 0.1378) |
@@ -525,7 +526,7 @@ validates no fewer candidates than on `main`.
   dataset and spec cases. Equal validated counts on every lab pattern; on
   11-BM NAC with every system searched, Pawley validated none where Le Bail
   validated one to three. Probe 9: the three constants swept on the
-  thirteen cells; no unmatched count or status moved, so the rows in
+  fourteen cells; no unmatched count or status moved, so the rows in
   `_audit.py` were re-grounded to the default path and dated 2026-10-28,
   tier and values unchanged. Probe 10: Pawley's unbounded cost on NAC's
   checked shortlist (377 s at 2224 reflections), and a reserve sweep showing

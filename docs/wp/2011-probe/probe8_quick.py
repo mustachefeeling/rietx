@@ -26,12 +26,13 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))
+sys.path.insert(0, str(Path(__file__).parent))
+
+from probe_lebail_vs_pawley import OUT  # noqa: E402  (creates the directory)
 
 import rietx.indexing.workflow as wf  # noqa: E402
 from rietx.indexing.engines import SearchSpec  # noqa: E402
 from rietx.indexing.pick import pick_peaks  # noqa: E402
-
-OUT = Path(os.environ.get("WP2011_OUT", "/tmp"))
 
 
 def sets():
