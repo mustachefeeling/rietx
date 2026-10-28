@@ -1440,11 +1440,15 @@ def _pawley_intensity_columns(model: CompiledModel, bases: DerivativeBases,
 #: windows (macOS arm64), the two break even at 0.05 both at 5 995 × 343 and
 #: at 59 498 × 2 224, and at 0.2 the sparse one is 12-13× slower.  11-BM NAC's
 #: candidates sit at 0.022-0.023, where the sparse build took a monoclinic
-#: candidate's fit from 47 s to 34 s against the dense build feeding the same
-#: preconditioned CG.  A lab pattern's Lorentzian windows reach much further:
-#: FAP.XRA's closing stage, on windows dropping 1e-3 of each peak, sits at
-#: 0.38 where its other stages sit at 0.03, and there the sparse build took
-#: 115 ms against 2 ms.
+#: candidate's fit from 47 s to 34 s (one run each) against a probe that built
+#: A dense and then preconditioned it.  A lab pattern's Lorentzian windows
+#: reach much further: FAP.XRA's closing stage, on windows dropping 1e-3 of
+#: each peak, sits at 0.38 where its other stages sit at 0.03, and there the
+#: sparse build took 115 ms against 2 ms.  **Past the cut the CG is not
+#: preconditioned either**, since only a sparse H is: an ill-conditioned stage
+#: there is back in the regime that cost the monoclinic candidate 376 s.  No
+#: such stage has been measured; the validation fit runs no closing stage, and
+#: a user's own Pawley fit of a pseudo-symmetric lab cell would be the case.
 PAWLEY_SPARSE_DENSITY = 0.05
 
 

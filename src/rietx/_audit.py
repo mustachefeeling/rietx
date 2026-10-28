@@ -2284,11 +2284,14 @@ ROWS: tuple[Row, ...] = (
         evidence=("WP-2011: banded windows break even against dense BLAS at 0.05 at 5995 x 343 "
                   "and 59498 x 2224 (macOS arm64); either side A agrees with the dense JtJ to "
                   "2e-15; NAC candidates at 0.022-0.023 (monoclinic 47 s dense-built, 34 s "
-                  "sparse), FAP.XRA's closing stage at 0.38 (115 ms a build against 2 ms); "
-                  "two families; second pass owed (refits of three families on either side)"),
-        grounds=("A solver-path switch no refiner has a view on; kept at tier 3 until refits of "
-                 "three families on either side give one answer (B10, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                  "sparse, one run each), FAP.XRA's closing stage at 0.38 (115 ms a build "
+                  "against 2 ms); past the cut the CG is unpreconditioned too, and no "
+                  "ill-conditioned stage there was measured; two families; second pass owed "
+                  "(refits of three families on either side)"),
+        grounds=("A solver-path switch no refiner has a view on, put in B10's class (ruled "
+                 "2026-10-19 for six named rows) by its author on 2026-10-28; the maintainer's "
+                 "own confirmation is pending (WP-2011, PR #1191)."),
+        approved="2026-10-28"),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", tier=3, value=0.95,
         evidence=("the profile interval's own level, PARAMETER_INTERVAL_LEVEL, held equal by "
                   "test; at one angle its chi-bar-squared cut is the one-sided interval's 2.706 "
