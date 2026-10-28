@@ -146,7 +146,10 @@ dev = [
     # instead of importorskip-ing out, and notebooks so the display tests and
     # the tutorials meet a real kernel.
     "rietx[docs,notebooks]",
-    "pytest>=8",
+    # <9.2 until a pytest-xdist release carries the fix for pytest-xdist#1386:
+    # 9.2.0 moved the node id xdist rewrites to group a case, so every
+    # xdist_group mark is ignored (tests/conftest.py, `_refuse_ungrouped`)
+    "pytest>=8,<9.2",
     # `-n auto --dist loadgroup` is how the suite is meant to be run; the
     # expensive shared fixtures are pinned to a worker by xdist_group marks
     # (tests/conftest.py), so this is not an optional accelerator
