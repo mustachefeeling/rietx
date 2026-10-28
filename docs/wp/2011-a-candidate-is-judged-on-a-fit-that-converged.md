@@ -1,6 +1,6 @@
 # WP-2011 — a candidate is judged on a fit that converged
 
-Milestone: unscheduled · Status: 🔄 2026-10-28 — names and Pawley constants ruled; the conditional go failed under `quick` on 11-BM NAC (draft PR #1191), so the go is back with the maintainer
+Milestone: unscheduled · Status: 🔄 2026-10-28 — option (c) built (a sparse, preconditioned Pawley solve, 376 s → 34 s on NAC's outlier); `quick` on NAC still validates 0 of 12 under Pawley, so the go stays with the maintainer (draft PR #1191)
 Track: What fires, and what stays silent
 Depends on: 1956 (PR #941 takes the missing count off this fit and edits the same two functions)
 Priority: P2 2026-10-27 — `INDEX_IMPURITY_LINES` fires on a true cell's stalled fit, and notebook 03 works around it; #941 landed for WP-1956 on 2026-10-25, the condition the P3 rung waited on
@@ -498,6 +498,36 @@ and residual angles 0.77 s, the step solves 0.35 s.
   cost 377 s. With that fit at 37 s, a reserve sized to the shortlist's
   measured cost may be worth re-measuring.
 
+*On the tree* (commit e39b8c19d, built by a lane from the prototype). A
+Pawley stage above the BVLS cut gathers its intensity block over the frozen
+window pattern into CSC, and `projected_cg` preconditions a sparse H with
+`spilu` at scipy's defaults, refactored when the free set changes. Past
+`PAWLEY_SPARSE_DENSITY` (0.05 of the block nonzero) the stage keeps the
+dense build: banded sparse products break even with BLAS there, at 5995 ×
+343 and at 59 498 × 2224, and FAP.XRA's closing stage sits at 0.38 on its
+1e-3 windows. Measured:
+
+| case | dense | tree | readings |
+|---|---|---|---|
+| NAC monoclinic, 2224 reflections | 376 s | 34.1 s | Rwp 0.12591 → 0.12592, 170 / 16 |
+| NAC tetragonal, 1241 | 11.1 s | 10.5 s | unchanged |
+| NAC orthorhombic, 1223 | 12.0 s | 8.9 s | unchanged |
+| NAC true cubic I, 837 | 6.0 s | 4.8 s | unchanged |
+| probe 5's other 14 cells | 0.07-0.57 s | 0.07-0.65 s | unchanged, all 14 |
+| FAP.XRA Pawley fit, 343 columns | 1.1 s | 1.3-1.4 s | Rwp 0.0786244 both |
+
+`index_pattern` under `quick` on NAC, both modes, quiet machine
+(`probe8_quick.py` on the tree):
+
+| case | Le Bail validated | Pawley validated |
+|---|---|---|
+| NAC default spec | 0 of 12 (probe 8: 1) | 0 of 12 |
+| NAC all seven systems | 2 of 12 (probe 8: 3) | 0 of 12 |
+
+So the go's condition still fails. Le Bail's count moved between two runs of
+the same tree under the wall-clock ceiling. Neither mode validated NAC's true
+cubic I cell in this run, which sits second on both shortlists.
+
 ## Non-goals
 
 - The missing count's inputs and the grade (WP-1956).
@@ -527,10 +557,14 @@ and residual angles 0.77 s, the step solves 0.35 s.
       validated one to three, and the bethanechol benchmark never validates.
       So the PR did not merge, and the go is back with the maintainer, with
       probes 10 and 11's cause and options.
-- [ ] Option (c), asked for 2026-10-28: the Pawley step solve in sparse form,
+- [x] Option (c), asked for 2026-10-28: the Pawley step solve in sparse form,
       its projected CG preconditioned by an incomplete LU above the BVLS cut,
       and A built from the frozen window pattern (probes 12-15, § Option (c)
-      probed). Then `quick` on NAC again.
+      probed). Then `quick` on NAC again. *Done 2026-10-28* (§ Option (c)
+      probed, "On the tree"): 376 s → 34 s on the outlier, no reading moved
+      on 15 cells, and `quick` on NAC still validates 0 of 12 under Pawley.
+      One new tier-3 row, `PAWLEY_SPARSE_DENSITY`, rests on the B10 class
+      ruling and needs the maintainer's confirmation.
 - [x] **Decision (maintainer):** the names above, kept with the mode recorded
       on the validation record or renamed to the field's term, staged in the
       release record either way (ROADMAP rule 6). Built provisionally as
