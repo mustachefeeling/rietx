@@ -1,6 +1,6 @@
 # WP-2028 — a joint fit's guards see every histogram
 
-Milestone: unscheduled · Status: 🔄 2026-10-28 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7's `_ticks` folded, the rest of 7 and 8 open
+Milestone: unscheduled · Status: 🔄 2026-10-28 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7's four mechanical folds done, three items await a ruling; 8 measured on #1124
 Track: What fires, and what stays silent
 Depends on: — (1341 closed: it built the joint report this WP completes; 1325
 soft: its parametric codes and per-pattern holds are what tasks 3 and 6
@@ -223,8 +223,20 @@ shows the findings that name histogram h.
   to `main` on five fits (MnF₂ k = 0, a k = (0,0,½) supercell, a nuclear
   phase, MnF₂ under X-rays, LaB6 with a declared peak; one SHA-256 over all
   five). `tests/test_extra_components.py`'s joint test calls `_tick_rows`,
-  since `_ticks` is gone. *Open*: the rest of the census is listed for the
-  maintainer's ruling on #1124 and is not folded; task 8.
+  since `_ticks` is gone. *Also folded*, each a move-and-call:
+  `refine._merge_unresolved` (the merge by driver after a second solve, which
+  `Refinement._run_stage` kept inline and `multi.py` copied);
+  `MultiParameterTable._canonical` for `_specimen_path`'s non-ADP branch and
+  the QPA `where_of` (an ADP site keeps its own rule); and
+  `strategy.staged._correlation_findings`, `check_guards`' correlation and
+  flat-direction loop, which `_top_diagnostics` copied. Every whole result
+  (run-clock keys dropped) of six single fits and seven joint fits hashes the
+  same before and after these three; a mutant of each shared function turns a
+  test red (the merge rule is pinned directly in
+  `test_cell_runaway_safety.py`, since no fit reaches a second-solve escape).
+  *Open*: the Lindemann bound's histogram, the per-histogram screens and a
+  joint `parameters()`, for the maintainer's ruling; task 8 (measured on
+  #1124).
 
 - **2026-10-26** — tasks 1-3, 5 and 6 merged from outside as PR #1128
   (`1ba6c216`), after four review rounds. A joint fit's structure guards now
