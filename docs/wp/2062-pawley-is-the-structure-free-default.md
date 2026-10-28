@@ -82,6 +82,32 @@ marked):
   reopens them. WP-2011's switch already does this for `index_pattern`, and
   that WP holds the decision.
 
+**Added 2026-10-28, from WP-2011's `quick` measurement** (that file's
+§ Re-measured 2026-10-28, probes 8-11):
+
+- Cost on a pseudo-symmetric cell. Unbounded on 11-BM NAC, Pawley took 11 s
+  at 1223-1241 reflections and 377 s at 2224, where Le Bail took 1.4-2.4 s.
+  The 2224 are NAC's orthorhombic subcell redescribed as monoclinic with β
+  90.003°, a routine shortlist member. Its last stage needed 89 LM
+  iterations, at 2.4 s of projected CG and 0.8 s of dense JᵀJ each. The
+  dense normal matrix and CG's dependence on conditioning are solver
+  properties: a banded or sparse intensity block is a third route beside
+  decision 0's two.
+- Under `quick`, the default preset, Pawley validated none of NAC's
+  candidates where Le Bail validated one to three. A larger validation
+  reserve is no fix (probe 10). So decision 0's cost argument is measured
+  now, and on the indexer's own path.
+- A unit dependence. Synthetic LaB6's true cell validates at Rwp 0.164 on
+  counts and 0.262 with pattern and σ divided by the maximum count. Le Bail
+  is invariant (0.2339, 0.2338). It is not the off-data floor or the LM
+  curvature probe. Not found. On nine real true cells no reading moved by
+  more than 2e-4. A Pawley default needs it found first.
+- The three Pawley constants were re-grounded for the indexer's path on
+  2026-10-28 (ruling 3: no unmatched count or status moved under any swept
+  value). A site this WP moves reopens them only for that site's readings.
+- Names: the maintainer ruled 2026-10-28 that the rename is decided here
+  (decision 3), so the names break once.
+
 What Pawley has that Le Bail lacks: per-reflection esds, cell esds
 marginalised over the intensities (`docs/solver-survey.md:249-251` calls
 Le Bail's "known to be optimistic"), intensities bounded at zero, the
@@ -186,6 +212,13 @@ green, and no ranking or class decision on the acceptance suites lost.
   issue #740, WP-1910, WP-1953 (large Pawley stages), WP-2011.
 
 ## Handover log
+
+- **2026-10-28** — forward notes from WP-2011's `quick` measurement added to
+  § Context (Pawley's cost on a pseudo-symmetric cell, the `quick` result, a
+  Pawley unit dependence, the re-grounded constants, the names ruling). Not
+  started: WP-2011's go is back with the maintainer, and decision 0 now has
+  a third route (a sparse Pawley solve). *Next:* WP-2011's go, then this
+  WP's decision 0.
 
 - **2026-10-27** — filed as a scoping WP by the WP-2011 session, at the
   maintainer's request ("scope out replacing Le Bail as the default

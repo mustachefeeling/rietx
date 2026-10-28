@@ -1,6 +1,6 @@
 # WP-2011 — a candidate is judged on a fit that converged
 
-Milestone: unscheduled · Status: 🔄 2026-10-27 — switch built provisionally in draft PR #1191; the go, the names and the Pawley constants' grounds wait on the maintainer
+Milestone: unscheduled · Status: 🔄 2026-10-28 — names and Pawley constants ruled; the conditional go failed under `quick` on 11-BM NAC (draft PR #1191), so the go is back with the maintainer
 Track: What fires, and what stays silent
 Depends on: 1956 (PR #941 takes the missing count off this fit and edits the same two functions)
 Priority: P2 2026-10-27 — `INDEX_IMPURITY_LINES` fires on a true cell's stalled fit, and notebook 03 works around it; #941 landed for WP-1956 on 2026-10-25, the condition the P3 rung waited on
@@ -321,8 +321,24 @@ candidates NAC's default-spec search checks when it runs to completion
 All three are wrong subcells of NAC's I cell, and all three Pawley fits
 converged. Pawley's cost rises far faster than the reflection count: ×1.8
 in reflections costs ×33 in seconds. The LM driver's exact BVLS step stops
-at 128 columns (`lm.BVLS_MAX_COLUMNS`), so above it the cost is elsewhere
-(probe 11).
+at 128 columns (`lm.BVLS_MAX_COLUMNS`), so above it the cost is elsewhere.
+`probe11_profile.py` profiled two of them under `cProfile`:
+
+| candidate | reflections | seconds | last stage's iterations | projected CG, s a call | dense JᵀJ, s a call |
+|---|---|---|---|---|---|
+| orthorhombic P | 1223 | 12.0 | 10 | 0.08 | 0.23 |
+| monoclinic P, β 90.003° | 2224 | 377 | 89 | 2.4 | 0.81 |
+
+In the monoclinic fit, projected CG took 246 s (65 %) and forming the
+dense normal matrix 83 s (22 %). The monoclinic cell is the orthorhombic
+one with β freed by 0.003°, so nearly every reflection has a partner
+within a fraction of a width. A pseudo-symmetric description of this kind
+is a routine member of an indexing shortlist. Its intensity block is
+nearly singular, and the solve needs nine times the iterations at thirty
+times the cost each. Both factors are solver properties: the normal
+matrix is formed dense although each intensity column is nonzero only
+under its own peak, and CG's cost tracks the conditioning. Neither is
+fixed here.
 
 The reserve, swept under `quick` and Pawley:
 
@@ -408,7 +424,13 @@ list, so only a direct call reaches it. For WP-1956's screen, unfixed here.
 - [ ] **Decision (maintainer):** go or no-go, recorded as `Decided
       YYYY-MM-DD:`. Built provisionally as a go on 2026-10-27 while the
       maintainer was away; § Re-measured 2026-10-27 has the case and what
-      reverses it.
+      reverses it. **Decided 2026-10-28, conditionally:** measure `quick` on
+      NAC and a bethanechol set in both modes first, and merge if no
+      candidate goes unvalidated. **The condition failed** (§ Re-measured
+      2026-10-28): Pawley validated none of NAC's candidates where Le Bail
+      validated one to three, and the bethanechol benchmark never validates.
+      So the PR did not merge, and the go is back with the maintainer, with
+      probes 10 and 11's cause and options.
 - [x] **Decision (maintainer):** the names above, kept with the mode recorded
       on the validation record or renamed to the field's term, staged in the
       release record either way (ROADMAP rule 6). Built provisionally as
@@ -436,7 +458,7 @@ list, so only a direct call reaches it. For WP-1956's screen, unfixed here.
       unmatched count or status moved under any variant, and all three rows
       now name the default path, the sweep and the 2026-10-28 approval, tier
       3 and values unchanged.
-- [ ] Re-measure `MEASURED_VALIDATION_SECONDS` under Pawley, and run
+- [x] Re-measure `MEASURED_VALIDATION_SECONDS` under Pawley, and run
       `python -m tests.bethanechol_benchmark` alone against `main`'s count of
       validated candidates (the large monoclinic cost case). *Half done
       2026-10-27:* re-timed (§ Cost), value kept with a comment. The
@@ -446,6 +468,11 @@ list, so only a direct call reaches it. For WP-1956's screen, unfixed here.
       validated whatever the fit costs. The risk § Cost names is under
       `quick`, so the measurement owed is `index_pattern` under `quick` on a
       large pattern (NAC, a bethanechol set) in both modes, quiet machine.
+      *Done 2026-10-28* (probes 8, 10, 11): the benchmark passes no pattern
+      and so validates nothing in either mode, and the `quick` measurement
+      is in § Re-measured 2026-10-28. `MEASURED_VALIDATION_SECONDS`' top
+      (44 s) does not bracket Pawley's 377 s on NAC's monoclinic subcell;
+      left until the go is decided, since the fix decides the number.
 - [x] Tests: `test_le_bail_validation_separates_the_failure_modes` (its +1 %
       row asserts 0 missing, which is Le Bail's blindness; Pawley reads
       19-30), the magnetite acceptance row's regenerated negative background,
@@ -488,6 +515,45 @@ validates no fewer candidates than on `main`.
   claim), WP-1323 (the alternation), WP-1956 and PR #941.
 
 ## Handover log
+
+- **2026-10-28** — The maintainer ruled overnight: measure `quick`, then
+  merge if no candidate goes unvalidated; rename inside WP-2062; sweep and
+  re-ground the three Pawley constants. The names and the constants are
+  done. The go's condition failed, so the PR stays a draft.
+
+  *Done.* Probe 8: `index_pattern` under `quick` in both modes on eleven
+  dataset and spec cases. Equal validated counts on every lab pattern; on
+  11-BM NAC with every system searched, Pawley validated none where Le Bail
+  validated one to three. Probe 9: the three constants swept on the
+  thirteen cells; no unmatched count or status moved, so the rows in
+  `_audit.py` were re-grounded to the default path and dated 2026-10-28,
+  tier and values unchanged. Probe 10: Pawley's unbounded cost on NAC's
+  checked shortlist (377 s at 2224 reflections), and a reserve sweep showing
+  a larger reserve is no fix. Probe 11: the 377 s is 89 LM iterations of
+  projected CG and dense JᵀJ on a pseudo-symmetric monoclinic subcell.
+  Forward notes to WP-2062.
+
+  *Measured.* macOS arm64, Python 3.12.10, `[dev]` venv, compiled kernels
+  on, load 3-7 on ten cores with one idle Claude session beside. Audit
+  tests 22 passed. No suite run: the code change is three audit rows'
+  text, and nothing else in `src` moved.
+
+  *Gotchas.* (1) The bethanechol benchmark never validates: it passes
+  `index_pattern` no pattern. (2) A Pawley validation depends on the
+  intensity units below a maximum of a few hundred counts (synthetic LaB6,
+  Rwp 0.164 → 0.262 at ÷2721); the cause is not found and not the
+  off-data floor. (3) `validate_by_lebail` raises numpy's empty-array
+  `ValueError` on a peak list with no usable peak (`screen.fwhm_at`). (4)
+  Probe 5's `fit_mode` swaps the extinction screen's fits too; probes 8 and
+  10 swap `workflow.VALIDATION_MODE` alone. (5) This session worked the
+  branch from a second worktree while the 2026-10-27 session sat idle in
+  its own; that worktree's checkout is now behind the remote branch.
+
+  *Next.* The maintainer's go, among four options (the PR body has the
+  brief): Pawley with a reflection-count cutover to Le Bail; a sparse
+  Pawley intensity solve first (solver work, a WP of its own); WP-2062's
+  decision 0 (a per-iteration Le Bail) first; or merge as built and accept
+  an unvalidated NAC shortlist under `quick`.
 
 - **2026-10-27** — The indexer now checks each candidate cell with a Pawley
   fit instead of one Le Bail pass. It was built provisionally while the

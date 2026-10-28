@@ -54,7 +54,8 @@ def main():
                           encoding="utf-8")
     cands = [CellCandidate.model_validate(c)
              for c in json.loads(cached.read_text(encoding="utf-8"))]
-    big = min(cands, key=lambda c: c.volume)
+    # the monoclinic subcell: the 2224-reflection one (orthorhombic ties its volume)
+    big = next(c for c in cands if c.system == "monoclinic")
     print("candidate", big.system, big.centring, big.cell, flush=True)
     wf.VALIDATION_MODE = "pawley"
     prof = cProfile.Profile()
