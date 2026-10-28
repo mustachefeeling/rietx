@@ -102,6 +102,14 @@ engine or the ranking. Indexing is provisional by declaration
 
 ### Inherited
 
+- **2026-10-28, from WP-2011: the line screen raises on a peak list with no
+  usable peak.** `validate_by_lebail` with such a list fails inside
+  `screen.fwhm_at` with numpy's `ValueError: array of sample points is
+  empty`, where it should decline. The list arises from `pick_peaks` on a
+  pattern divided by its maximum with no σ column: the Poisson fallback
+  √max(y, 1) puts every point under the noise. `index_pattern` stops before
+  validating on such a list, so only a direct call reaches it (WP-2011
+  § Re-measured 2026-10-28, "Found on the way").
 - **2026-10-27, from WP-2011: on the no-peak-list path the fitted-background
   count moved with the fit's mode.** The Pawley background no longer sinks
   under a wrong cell, so the count reads more absences there (LaB6 with its
