@@ -1,6 +1,6 @@
 # WP-2011 — a candidate is judged on a fit that converged
 
-Milestone: unscheduled · Status: 🔄 2026-10-28 — option (c) built (a sparse, preconditioned Pawley solve, 376 s → 34 s on NAC's outlier); `quick` on NAC still validates 0 of 12 under Pawley, so the go stays with the maintainer (draft PR #1191)
+Milestone: unscheduled · Status: 🔄 2026-10-28 — go decided under the maintainer's delegation: Pawley validation, cheapest first, a 15 % reserve; NAC's true cell now validates under `quick`; ready for review (PR #1191)
 Track: What fires, and what stays silent
 Depends on: 1956 (PR #941 takes the missing count off this fit and edits the same two functions)
 Priority: P2 2026-10-27 — `INDEX_IMPURITY_LINES` fires on a true cell's stalled fit, and notebook 03 works around it; #941 landed for WP-1956 on 2026-10-25, the condition the P3 rung waited on
@@ -547,7 +547,7 @@ cubic I cell in this run, which sits second on both shortlists.
       signatures, both modes, the true and wrong cells above and the
       no-peak-list path, plus `freeze_profile=True` under each mode
       (`probe5_after_941.py`, § Re-measured 2026-10-27).
-- [ ] **Decision (maintainer):** go or no-go, recorded as `Decided
+- [x] **Decision (maintainer):** go or no-go, recorded as `Decided
       YYYY-MM-DD:`. Built provisionally as a go on 2026-10-27 while the
       maintainer was away; § Re-measured 2026-10-27 has the case and what
       reverses it. **Decided 2026-10-28, conditionally:** measure `quick` on
@@ -556,7 +556,11 @@ cubic I cell in this run, which sits second on both shortlists.
       2026-10-28): Pawley validated none of NAC's candidates where Le Bail
       validated one to three, and the bethanechol benchmark never validates.
       So the PR did not merge, and the go is back with the maintainer, with
-      probes 10 and 11's cause and options.
+      probes 10 and 11's cause and options. **Decided 2026-10-28 (3rd
+      session), under the maintainer's delegation** ("consider a user's needs
+      … use your best judgement"): **go**, with validation cheapest first and
+      a 15 % reserve, which validates NAC's true cell under `quick` (the 3rd
+      session's handover entry).
 - [x] Option (c), asked for 2026-10-28: the Pawley step solve in sparse form,
       its projected CG preconditioned by an incomplete LU above the BVLS cut,
       and A built from the frozen window pattern (probes 12-15, § Option (c)
@@ -564,7 +568,17 @@ cubic I cell in this run, which sits second on both shortlists.
       probed, "On the tree"): 376 s → 34 s on the outlier, no reading moved
       on 15 cells, and `quick` on NAC still validates 0 of 12 under Pawley.
       One new tier-3 row, `PAWLEY_SPARSE_DENSITY`, rests on the B10 class
-      ruling and needs the maintainer's confirmation.
+      ruling and needs the maintainer's confirmation. *Confirmed 2026-10-28
+      (3rd session)* under the delegation, once its unmeasured case was built.
+- [x] Option (f), asked for 2026-10-28 (3rd session): spend `quick`'s
+      validation reserve differently. Measured (probes 16-21): no schedule
+      helped, because on NAC the reserve was spent before validation began
+      (filed as WP-2063). Built: fits cheapest first on the run's clock, and
+      the reserve 8 → 15 %.
+- [x] The case the generality review called unmeasured: an ill-conditioned
+      Pawley stage past `PAWLEY_SPARSE_DENSITY` (probe 17). Built: the dense
+      step's exact Cholesky factor, shifted where singular, and a projected
+      search (Lin & Moré 1999), lane-implemented.
 - [x] **Decision (maintainer):** the names above, kept with the mode recorded
       on the validation record or renamed to the field's term, staged in the
       release record either way (ROADMAP rule 6). Built provisionally as
@@ -649,6 +663,116 @@ validates no fewer candidates than on `main`.
   claim), WP-1323 (the alternation), WP-1956 and PR #941.
 
 ## Handover log
+
+### 2026-10-28 (3rd session) — the go, decided: Pawley validates NAC's true cell under `quick`
+
+The indexer now checks its shortlist with a Pawley fit by default, and on the
+heavy synchrotron pattern that blocked the go, NAC's true cell gets checked
+in the default 120 s run, which no fit reached before. The obstacle was
+never the fit's speed alone: the time kept for validation was being spent,
+before validation began, on ranking work the search does after its clock
+fires. Validation now runs cheapest candidate first and keeps 15 % of the
+run instead of 8 %, and Pawley's solver no longer stalls on candidates
+whose reflections come in near-coincident pairs, lab or synchrotron. The
+cost is about 9 s less search on a heavy pattern; on NAC's default spec the
+orthorhombic system is no longer reached. The maintainer delegated the go
+and the two constants ("consider a user's needs … use your best judgement").
+
+*Done* (commits 7014d0bb1, db7e7875d, e0c4f479b, f64957f07, 70a6bd578):
+- A dense Pawley step past `PAWLEY_SPARSE_DENSITY` is preconditioned by its
+  free block's exact Cholesky factor, shifted where singular (Lin & Moré
+  1999, ICFS Algorithm 3.1, α_S = 10⁻³, checked in the paper), and takes Lin
+  & Moré's subspace step: CG on the face ignoring the bounds, then a
+  projected search that puts every variable carried past a bound on it at
+  once. The sparse ILU path keeps the cut-and-restart step (lane).
+- Under a ceiling, validation fits run in ascending `validation_size`
+  (reflections in the lattice group over the range), each on the run's
+  clock; the equal slice and its `INDEX_BUDGET_EXHAUSTED` wording are gone.
+  `preset="full"` keeps rank order.
+- `VALIDATION_RESERVE_FRACTION` 0.08 → 0.15, out of the unaudited baseline
+  at tier 3; `PAWLEY_SPARSE_DENSITY` confirmed. Both under the delegation.
+- WP-2063 filed: the FoM panel scored after the search's stop.
+
+*Measured* (macOS arm64, `[dev]`, one run per cell, nothing else running;
+probes 16-22 in `docs/wp/2011-probe/`):
+- Where NAC's 9.6 s went (probe 19): the last trial_error unit returned
+  4.1 s past the search's stop, then consensus took 6.5 s, so the first fit
+  started at 120.95 s. Profiled (probes 20, 21): `rank_candidates`' panel
+  scoring is 4.9 s of consensus's 5.8 s and 3.6 s of the unit's overrun.
+- Schedules replayed on measured costs (probe 18): with no clock left, none
+  helps NAC; on six lab sets equal slices already validated everything.
+  Leader-first fails on NAC regardless: its leader costs 9-15 s.
+- `quick`, cheapest first, Pawley (probe 16, final tree):
+
+| dataset | 8 % | 15 % | 20 % |
+|---|---|---|---|
+| NAC, default spec | no fit started | truth ✓ (1 of 2) | truth ✓ (2 of 2) |
+| NAC, all systems | truth's fit cut | truth ✓ (1 of 2) | truth ✓ (2 of 3) |
+| zircon, FAP, corundum, LaB6 | all checked ✓ | same | same |
+
+  Lab searches covered the same systems at every reserve; NAC's default spec
+  lost orthorhombic at 15 and 20 %. Le Bail at 8 %, cheapest first: NAC
+  truth ✓ on both specs. Pawley fits on NAC cost 5-15 s, Le Bail 1.2-1.9 s.
+- The dense path's ill-conditioned case (probe 17, lane): zircon described as
+  monoclinic P, β = 90.03° (601 columns, 6 % dense), 12.1 → 8.7 s, largest
+  solve 1204 → 157 products, total 16 851 → 1 274; corundum as monoclinic C
+  (576 columns), 1154 → 128 and 12 654 → 787. Rwp, unmatched and absent
+  unchanged on both. FAP.XRA's Pawley fit (probe 22): Rwp 0.0786244, stage
+  iterations [2, 8, 6, 9, 9, 7] on every path. NAC's monoclinic candidate
+  unchanged (sparse path).
+- Lanes (`session_usage.py lanes`): two lanes, saved $15.17 (+26 %); trial
+  row in `docs/milestones/process.md`; selective policy at 300-450K peak:
+  −5 %.
+
+- Replayed at the measured 15 % clock (7.3 s left on NAC, probe 18's
+  policies on probe 16's costs): equal slices in rank order validate
+  nothing on either spec; cheapest first validates the true cell on both.
+
+*Review* (`/code-review high --fix 4b8bb73d9..HEAD`): eight findings, five
+fixed in 3efa7a1ae (sizing runs only with clock left and is guarded, a
+candidate it cannot size sorts last; the skill's indexing reference said
+"equal slice", re-synced; `_factor` copies once per shifted try;
+`_CHOLESKY_SHIFTS`' arithmetic is 2³⁸; the probe switch is labelled).
+Declined: sharing `structure_from_candidate`'s symbol choice (a signature
+change for one line), rewriting the 8 % paragraph above the 15 % one (it is
+the old value's record), and keeping `ceiling_hit` (removed on purpose; the
+1.11.0 note records it).
+
+*Generality* (judge, condensed; full text in the session transcript):
+- `_CHOLESKY_SHIFT` **holds** (paper confirms 10⁻³ and the doubling; the
+  row's scaling sentence was wrong, fixed). `_CHOLESKY_SHIFTS` **holds**
+  (off-by-one in the arithmetic, fixed). The solver's fallback chain
+  **holds** (no dense Rietveld stage past 128 columns measured; nothing
+  records which branch ran).
+- `PAWLEY_SPARSE_DENSITY` **weak**: the constant's comment contradicted the
+  row (fixed); the cut now also chooses the step algorithm, and the sparse
+  side keeps the singular-face weak case; the approval is a delegation.
+  *Author*: the comment now says both; the weak case is WP-2062's.
+- `VALIDATION_RESERVE_FRACTION` **weak**: one run per cell, one discriminating
+  pattern, one ceiling (at a caller's 60 s, 15 % is the old 9 s); the margin
+  on NAC is ~7 s for a 5 s fit. *Author*: agreed; WP-2063 is the fix that
+  makes the reserve cover validation alone, and its re-measure is where the
+  value gets repeated runs.
+- Cheapest-first order **weak**: no replay at 15 % (now given above), the
+  leader goes unvalidated on NAC, and size is not cost when a candidate is
+  ill-conditioned. *Author*: the objective (most fits) is a choice; on NAC
+  the leader is a wrong subcell, and the order is in the reference manual.
+- `_PRECONDITION_DENSE` **holds** as rowless; weak as code (labelled now).
+
+*Gotchas*:
+- `build_nac_inputs()[::2]` in probes 8-16 slices the returned *tuple*
+  (data, structure, instrument) to (data, instrument); NAC is 59 498 points
+  either way.
+- Under the default preset a `total_budget_seconds=None` is filled with
+  120 s; a test wanting no ceiling passes `preset="full"`.
+- The sparse ILU path still spends its whole budget on a singular face (FAP
+  as monoclinic C, 944 columns, 1882 of 1888 products, 12 s); a shifted ILU
+  fixed it offline and slowed FAP.XRA's real fit, so it is not in (WP-2062
+  inherits it).
+
+*Next*: review and merge PR #1191 (the maintainer's). Then WP-2063 can
+lower the reserve if the panel's cost is bounded, and WP-2062 picks up the
+remaining Pawley costs.
 
 ### 2026-10-28 (2nd session) — option (c) built: a sparse, preconditioned Pawley solve
 
