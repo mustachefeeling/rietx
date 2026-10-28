@@ -487,6 +487,28 @@ def _windows_stale(axial_to: float | None) -> list:
         cost_final=1.0, window_loss=loss)])
 
 
+def _held_moment(plan: str, *, moment: bool = True) -> list:
+    """``refine._held_moment_diagnostics`` on the #1081 synthetic child's
+    start (moment 3.6 against 3.0 μ_B), read off the table before any stage,
+    as ``fit`` reads it; ``moment=False`` drops every moment block."""
+    from rietx import Instrument, Structure
+    from rietx.params.vector import ParameterTable
+    from rietx.refine import _held_moment_diagnostics
+    from rietx.strategy.staged import resolve_plan
+    from tests.test_magnetic_structural_preset import _start
+
+    phase = _start()
+    if not moment:
+        for atom in phase.atoms:
+            atom.moment = None
+        phase.magnetic_symmetry = None
+    structure = Structure(phases=[phase])
+    table = ParameterTable(
+        structure, Instrument.constant_wavelength_neutron(1.54, fwhm_deg=0.35))
+    return _held_moment_diagnostics(resolve_plan(plan, "rietveld"), table,
+                                    structure, "rietveld")
+
+
 SILENCE: dict[str, Pair] = {
     "CIF_SITE_LISTED_TWICE": Pair(
         _listed_twice_fires, _listed_twice_silent, "tests/test_cif_sites_coincide.py"),
@@ -509,6 +531,11 @@ SILENCE: dict[str, Pair] = {
         _net_background_fires, _net_background_silent, "tests/test_readers.py"),
     "PATTERN_UNDERSAMPLED": Pair(
         _undersampled_fires, _undersampled_silent, "tests/test_data_support.py"),
+    "PLAN_FREES_NO_MOMENT": Pair(
+        functools.partial(_held_moment, "mccusker_structural"),
+        lambda: (_held_moment("magnetic_structural")
+                 + _held_moment("mccusker_structural", moment=False)),
+        "tests/test_magnetic_structural_preset.py"),
     "RESOLUTION_UNCONSTRAINED": Pair(
         _resolution_fires, _resolution_silent,
         "strategy.staged.check_resolution_supported (no test pinned it before)"),

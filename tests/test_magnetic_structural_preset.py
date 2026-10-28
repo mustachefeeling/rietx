@@ -48,8 +48,7 @@ import pytest
 
 import rietx as rx
 from rietx.crystallography.magnetic.isotropy import candidates
-from rietx.crystallography.magnetic.supercell import (anti_translation_ties,
-                                                       magnetic_supercell)
+from rietx.crystallography.magnetic.supercell import anti_translation_ties, magnetic_supercell
 from rietx.schemas.structure import Atom, Cell, Parameter, Phase
 from rietx.strategy.staged import PLAN_INFO, PLAN_PRESETS, RefinementPlan
 

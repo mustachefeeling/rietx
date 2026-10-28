@@ -457,6 +457,14 @@
    "matches": []
   },
   {
+   "pattern": "phases.*.atoms.*.moment.dof0",
+   "matches": []
+  },
+  {
+   "pattern": "phases.*.atoms.*.moment.dof*",
+   "matches": []
+  },
+  {
    "pattern": "instrument.geometry.sample_displacement",
    "matches": [
     27
@@ -497,10 +505,6 @@
    "matches": [
     11
    ]
-  },
-  {
-   "pattern": "phases.*.atoms.*.moment.dof*",
-   "matches": []
   },
   {
    "pattern": "instrument.background.c*",
