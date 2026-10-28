@@ -534,10 +534,95 @@ validates no fewer candidates than on `main`.
   projected CG and dense JᵀJ on a pseudo-symmetric monoclinic subcell.
   Forward notes to WP-2062.
 
-  *Measured.* macOS arm64, Python 3.12.10, `[dev]` venv, compiled kernels
-  on, load 3-7 on ten cores with one idle Claude session beside. Audit
-  tests 22 passed. No suite run: the code change is three audit rows'
-  text, and nothing else in `src` moved.
+  *Measured.* macOS arm64, Python 3.12.10, `[dev]` venv built today,
+  compiled kernels on, load 3-7 on ten cores with one idle Claude session
+  beside. Fast selection on the branch (main had not moved since
+  `2cf63737`): 11 859 passed, 10 failed, 272 skipped, 32 xfailed (8:47, no
+  other suite running). The total, 11 869 passed + failed, equals
+  yesterday's green run; this session added no tests, so
+  `added_test_times` has nothing to report. **None of the ten is this
+  branch's.** The venv resolved pytest 9.2.0, where CI's last `main` run had
+  9.1.1. Six fail on 9.2 directly: `pytest.approx` refuses nested tuples
+  (`test_projects_fullprof` ×2, `test_diagnostics_summary` ×1), and
+  `Module._id` is gone (`test_jax_cases` ×3). Three in `test_gui_peaks`
+  pass serially and fail under `-n 4` on an `origin/main` snapshot too,
+  probably the same upgrade, not separated. `test_body_misfit`'s empty PNG
+  passed on rerun. The next CI run that resolves pytest 9.2 should go red
+  on every branch; no WP owns this, and none was filed. Full suite not
+  run: the code change is three audit rows' text.
+
+  *Review.* `/code-review high --fix` over `938a635e..` (this session's
+  range; the branch had a high review on 2026-10-27) found 10 items, no
+  runtime defect, and fixed 7 (`c5779243`). The worst was the floor row
+  claiming no Rwp moved by more than 2e-4 under scaling, which LaB6's
+  0.098 contradicts. It also found that `PAWLEY_OVERLAP_FWHM_FRAC` reaches
+  a third default path, the line screen's testable mask
+  (`extinction.testable_mask` → `_overlap_groups`), which probe 9's frac
+  sweep moved with the fit and no absent count followed. The other fixes
+  were the cell count (14, not 13) and probes that now restore what they
+  patch. Declined: a dead `_scaled(sigma=False)` branch (minor), and
+  "the rows cite a default path whose go is undecided". The rows ship only
+  with this branch, so a no-go drops them with the switch.
+
+  *Generality* (the `generality-review` agent, unedited; the author's
+  answer under each verdict short of *holds*):
+
+  #### `rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC` (0.5)
+
+  **weak** (was weak on 2026-10-27). On the indexer's validation fit, the case for keeping 0.5 is now measured and strong. The row also keeps the value on the peak picker's path, though. That path is unswept, and the package's own `fom.py` records a measured case against using 0.5 for a picker question.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "On two default paths: the peak picker's duplicate and unresolved flags, and since WP-2011 every index_pattern validation, where an overlapped group gets an equal-split restraint and is flagged PAWLEY_OVERLAP_UNRESOLVED" (`_audit.py:1892-1895`; WP-2011 is this branch, which made the indexer check each candidate cell with a Pawley fit) | The validation half is right. The picker half does more than set flags. At `indexing/peaks.py:308` the value is the gap below which a curvature shoulder is not seeded as a peak at all. At `pick.py:565` it is the distance below which a component from another fitting group is flagged `duplicate_line`. That flag is in `PEAK_UNUSABLE_FLAGS` (`schemas/indexing.py:810-813`), so the component leaves the line list the search engines and the line screen read. `pick.py:497` sets the report-only `unresolved_shoulder` flag. So on every `index_pattern` call given a pattern, this value decides which observed lines the search sees. | stated; the picker's effect is understated |
+  | 2. Kind of ambiguity | none (a constant row needs no `ambiguity` field) | Validation fit: how intensity splits inside an unresolved group is kind 3. The package regularises the split, flags it, and the validation never reads it. Picker: "these two components are one line" is a kind-1 claim resting on a threshold. | consistent for the validation; the picker's claim is untested |
+  | 3. Case against | "The peak picker's use (indexing/pick.py, peaks.py) is not swept" (`_audit.py:1891`) | **Validation path:** none found in the measurements. GSAS-II's dissent stands: it ties only reflections that overlap exactly by symmetry (\|Δd\|/d < 1e-4) and leaves near-overlaps free (`docs/practice.md:355, 372-374`, from this repository's survey). The sweep's 0.25 moves toward that choice and changed nothing. Frac 0 itself was not run. **Picker path:** `fom.py:479-489` reads "0.5 is where least squares stops apportioning intensity, while a *picker* separates two equal components only from about one FWHM (Rayleigh 1879; Sparrow 1916)". It also records a measurement: at 0.5, a true cell with a 0.9-FWHM split was refuted. That is why `RESOLUTION_FWHM` is 1.0. So the package's own measured reasoning puts a picker's resolution near 1 FWHM. Meanwhile the picker seeds shoulders, and calls fitted pairs resolved, from 0.5. That is a tension, not a measured failure of the picker. **Cost:** not read. Probe 11 traced the 377 s fit on 11-BM NAC's monoclinic subcell to a nearly singular intensity block (WP § Re-measured 2026-10-28). Grouping shapes that block. That cell is not among the 13. Probe 9 records seconds per run (`probe9_constants.py:109`), and the WP quotes none. Under `quick` (the indexer's default preset, which runs under a whole-run time ceiling), a slower fit can leave a candidate unvalidated. | real on the picker half; cost unmeasured |
+  | 4. Case for | "The validation reads the group's sum, which the restraint leaves free, and its readings did not move over 0.25-1.0" (`_audit.py:1895-1896`) | Borne out. Probe 9 (`docs/wp/2011-probe/probe9_constants.py`, the sweep the maintainer ruled for): at 0.25, no unmatched count (observed peaks the cell does not explain) or status (converged, failed, diverged; failed or diverged refutes the cell) moved in any of 14 runs, and Rwp moved by 0. At 1.0, none moved and Rwp moved by 1e-4 (FAP). The sweep did reach the mechanism: zircon grouped 12, 24 and 30 reflections at 0.25, 0.5 and 1.0, and the readings did not follow. The restraint rows sum to zero, so the group total stays free (`forward.py:3316-3323`). **Picker:** "a quarter to a third of the re-seeded components were such copies, 27 of the 116 on cpd-4" (`pick.py:522-524`). That shows the duplicate test catching real copies at 0.5. It is a count at one value, not a sweep. | strong for the validation; one point for the picker |
+  | 5. Tier | tier 3, kept at 0.5 (WP-2011 ruling 3, 2026-10-28) | Tier 3 is right. RIETAN-FP's hybrid step uses a rule in FWHM fractions (`RWID`), but its default is still not in `docs/practice.md`, and I found no tier-2 source. Not `invariant`: on an opt-in Pawley refinement the value decides which splits are restrained and flagged. No test pins the validation's insensitivity to it. `tests/` mentions the name once, in a comment (`test_peak_picking.py:1017`). | tier 3 holds |
+  | 6. Families and reference | "SRM 660c, 11-BM NAC, GSAS-II FAP, six CPD pure phases, synthetic LaB6's truth and three wrong cells, CPD magnetite's P rival" (`_audit.py:1887-1889`) | **True cells: four real families.** NIST SRM 660c (NIST lab), 11-BM NAC (APS synchrotron), FAP (GSAS-II tutorial lab pattern), and the CPD round robin (one instrument, six materials, counted once). **Wrong cells:** synthetic LaB6 (rietx's generator) and one real family (CPD magnetite). **Reference:** which cell is true is known. No reading moved, so the gate's verdict stays where the truth puts it. That shows the value is inert on this path; it does not validate 0.5. The unmatched counts have no independent reference, because their level belongs to the specimen (WP-1041). The mechanical ground asks for a stated case where the value fails: **none given**. **Picker:** one value, measured on the IUCr round-robin lab patterns and NAC. | passes three families for the validation; the picker has no sweep |
+  | 7. What records that it fired | none given | Validation: unchanged since the last review. `PAWLEY_OVERLAP_UNRESOLVED` stays on the fit's `RefinementResult`, which the indexer discards. Picker: each `ObservedPeak` carries its `duplicate_line` and `unresolved_shoulder` flags, so its use is recorded. | recorded on the picker; not on the validation |
+
+  What would change the verdict: the picker's three uses swept at 0.25 and 1.0 on the same families, reading the usable line count and the indexer's ranked candidates. Probe 9 left the picker at 0.5, because `pick.py` and `peaks.py` import their own copy of the name. Or the maintainer ruling that the picker's use gets its own constant and row.
+
+  *Author:* agreed. The picker's sweep is outside this WP: it moves which
+  lines every search sees, a WP-2007 (indexing audit) question. The row
+  says the picker is unswept. The review pass meanwhile found a third
+  path, the line screen's testable mask, now named in the row.
+
+  #### `rietx.model.forward.PAWLEY_OVERLAP_LAMBDA` (1.0)
+
+  **holds** (was weak). The case for keeping 1.0 is stronger. The sweep named last time ran over two decades on four real families and moved no unmatched count or status. Time under `quick` is the one reading it did not report.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "the weight acts only on directions the data do not constrain, and the group sum stays free" (`_audit.py:1906-1908`) | λ weights the equal-split rows and also the off-data ridge (a penalty pulling toward zero the intensities of reflections centred just past the scan's end; `forward.py:3322, 3331`). The probe says so (`probe9_constants.py:13-14`). The row's grounds name only the split. | stated; the ridge half is omitted |
+  | 2. Kind of ambiguity | none (constant row) | Split weight: kind 3, a regulariser on a direction the data cannot settle. Ridge: holding it at all is kind 1, since no refiner wants an intensity off the data running to 1e8. | consistent |
+  | 3. Case against | none given | No surveyed program uses an equal-split soft weight. GSAS-II's only intensity penalty, on negative intensities, has weight 0 by default (`docs/practice.md:355`). That is a dissent by absence, and the sweep shows the readings do not depend on it over 0.1-10. Cost is unread, as under the first item: λ conditions the intensity block probe 11 blamed for the 377 s fit. | weak case; cost unmeasured |
+  | 4. Case for | "0.1 and 10 move no unmatched count or status, and Rwp by at most 7e-4 (CPD corundum at 10)" (`_audit.py:1903-1905`) | Matches the probe 9 table: at 0.1 the Rwp moved 0; at 10, corundum went 0.1371 → 0.1378. The evidence keeps WP-1459's failure without the ridge: a (6 0 2) intensity reached 1.45e8 against a median of 81, and solves ended at up to 769× the Rwp (`forward.py:3297-3301`). | strong |
+  | 5. Tier | tier 3 (WP-2011 ruling 3, 2026-10-28) | No tier-2 source found. No test pins the readings' insensitivity. | tier 3 holds |
+  | 6. Families and reference | "the 13 cells PAWLEY_OVERLAP_FWHM_FRAC's row names" (`_audit.py:1903`) | Same as the first item: four real true-cell families, one real wrong-cell family, plus synthetic LaB6. Same reference: the readings are inert against known truth, which verifies and does not validate. Stated failure: λ → 0 for the ridge, on one synthetic fluorapatite case (issue #440). | passes three families |
+  | 7. What records that it fired | none given | `PAWLEY_OVERLAP_UNRESOLVED` and `PAWLEY_OFF_DATA_RIDGED` stay on the discarded `RefinementResult`. `LeBailValidation` carries neither on the success path. | nothing records it on this path |
+
+  What would change the verdict: the seconds probe 9 already recorded, or a timed validation of NAC's 2224-reflection monoclinic subcell at λ 0.1 and 10. Either would show whether λ moves the fit's cost enough to change what validates under `quick`.
+
+  *Author:* the grounds now name the ridge (`c5779243`).
+
+  #### `rietx.model.forward.PAWLEY_OFF_DATA_SCALE_FLOOR` (1.0)
+
+  **holds** (was cannot tell). The case for keeping 1.0 is stronger. The floor bound on three real families, with the ridge 11-200× wider than designed, and no unmatched count or status moved. Two sentences of the row misstate the measurement and need correcting before approval.
+
+  | Question | Author's answer (where) | What I found | Verdict |
+  |---|---|---|---|
+  | 1. What it decides | "binds only where that intensity is under 1 or absent" (`_audit.py:1870-1871`) | Correct (`forward.py:3328`). The ridge's width comes from the seeded intensities at build time (`pawley_x0`, `forward.py:3314`). Where the floor binds, the ridge is wider than designed by 1 / (largest on-data intensity). | holds |
+  | 2. Kind of ambiguity | none (constant row) | Holding the ridge is kind 1. The floor's value is rietx's own. | consistent |
+  | 3. Case against | none given | The floor is an absolute number in intensity units, so whether it binds depends on the units of the user's file. That is a unit dependence by construction. Probe 9 tried one scale (÷ the maximum count). Patterns in still smaller units would widen the ridge further, and none was measured. The WP's intensity-factor scan on synthetic LaB6's true cell suggests something else breaks first: that fit reaches `max_iter` at a factor of 1e-4, in a fit with no off-data reflection. No program in `docs/practice.md` has an off-data ridge. | plausible, measured at one scale |
+  | 4. Case for | "the ridge's scale fell to 0.005-0.09 on 11-BM NAC, GSAS-II FAP and CPD corundum and zircon, and to 0 on two synthetic LaB6 wrong cells, so the floor bound; no validation's unmatched count or status moved" (`_audit.py:1872-1877`) | Matches the WP. It answers the scaled-pattern check named last time. The "0" is after the probe's four-decimal rounding (`probe9_constants.py:114`), so it means below 5e-5 or exactly zero. Either way the floor bound by at least 2e4×, and nothing moved. **Two misstatements.** (a) Evidence: "nor its Rwp by more than 2e-4". As written this covers every validation, and it is false: synthetic LaB6's true cell went 0.164 → 0.262 under the same scaling (WP § "A unit dependence the floor does not explain"). The WP shows that cell has no off-data reflection and reads the same with the floor at 1e-12, so the floor did not cause it. The row must say this, or it reads cleaner than measured. (b) Grounds: "where every validation fit carries off-data reflections". The same cell has none. | strong; two sentences to correct |
+  | 5. Tier | tier 3 (WP-2011 ruling 3, 2026-10-28) | No program default or citation exists. No test pins the result. | tier 3 holds |
+  | 6. Families and reference | NAC, FAP, CPD corundum and zircon, synthetic LaB6 (`_audit.py:1874-1877`) | The floor bound on exactly three real families: NAC (APS synchrotron), FAP (GSAS-II lab) and CPD (corundum, zircon). That meets the bar and does not exceed it. SRM 660c and the other CPD phases are not reported as binding. Every real case is a true cell. The floor bound on a wrong cell only in synthetic LaB6. Same reference as the other two items: the readings are inert against known truth. The failure case (no ridge, WP-1459) sits in λ's row and `forward.py`'s docstring, not this row. | passes three families, at the bar |
+  | 7. What records that it fired | none given | `PAWLEY_OFF_DATA_RIDGED` (info) stays on the discarded `RefinementResult`. Nothing reaches the validation record. | nothing records it on this path |
+
+  What would change the verdict: a real pattern in much smaller units, where the floor binds by 1e4× or more and status or the unmatched count moves. Or a real wrong cell where the floor binds and its status moves.
+
+  *Author:* both sentences corrected (`c5779243`).
 
   *Gotchas.* (1) The bethanechol benchmark never validates: it passes
   `index_pattern` no pattern. (2) A Pawley validation depends on the
@@ -550,11 +635,14 @@ validates no fewer candidates than on `main`.
   branch from a second worktree while the 2026-10-27 session sat idle in
   its own; that worktree's checkout is now behind the remote branch.
 
-  *Next.* The maintainer's go, among four options (the PR body has the
-  brief): Pawley with a reflection-count cutover to Le Bail; a sparse
-  Pawley intensity solve first (solver work, a WP of its own); WP-2062's
-  decision 0 (a per-iteration Le Bail) first; or merge as built and accept
-  an unvalidated NAC shortlist under `quick`.
+  *Next.* (1) The maintainer's go, among five options (the PR body has the
+  brief): merge as built and accept an unvalidated NAC shortlist under
+  `quick`; Pawley with a reflection-count cutover to Le Bail (recommended,
+  threshold measured before landing); a sparse Pawley intensity solve
+  first (solver work, a WP of its own); WP-2062's decision 0 (a
+  per-iteration Le Bail) first; or no-go. (2) Before `gh pr ready`: the
+  pytest 9.2 breakage above, or CI's matrix goes red for reasons not this
+  branch's. (3) WP-2062, once the go is decided.
 
 - **2026-10-27** — The indexer now checks each candidate cell with a Pawley
   fit instead of one Le Bail pass. It was built provisionally while the
