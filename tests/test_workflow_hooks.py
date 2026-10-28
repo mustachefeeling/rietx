@@ -588,6 +588,8 @@ def test_nudge_is_silent_once_the_command_has_run(
     cmd = "wp-" + "handover"
     for name, body in (
         ("skill.jsonl", '{"name":"Skill","input":{"skill": "%s"}}\n' % cmd),
+        ("scoped.jsonl",
+         '{"name":"Skill","input":{"skill":".claude/worktrees/t:%s"}}\n' % cmd),
         ("typed.jsonl", f"<command-{'name'}>/{cmd}</command-name>\n"),
     ):
         assert owed.nudge(_stop(wt, _transcript(tmp_path, name, body))) is None
