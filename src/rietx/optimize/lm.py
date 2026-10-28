@@ -694,9 +694,11 @@ def _diagonal(A) -> np.ndarray:
 def _with_diagonal(A, values: np.ndarray):
     """A with its diagonal replaced by ``values``: in place for a dense A, as
     a new matrix for a sparse one, whose stored pattern need not hold every
-    diagonal entry."""
+    diagonal entry.  The old diagonal is subtracted out and ``values`` added
+    to the zero left, so each entry is ``values`` exactly, as the dense write
+    makes it: ``a + (v − a)`` need not round back to v."""
     if sparse.issparse(A):
-        return (A + sparse.diags(values - A.diagonal())).tocsr()
+        return (A - sparse.diags(A.diagonal()) + sparse.diags(values)).tocsr()
     A[np.diag_indices(len(values))] = values
     return A
 

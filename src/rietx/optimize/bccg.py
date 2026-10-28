@@ -343,7 +343,8 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
     ``(r·z)/(pᵀHp)`` with ``z = M⁻¹r``, which is the exact line minimiser
     along p because ``p·r = r·z`` holds for any preconditioner, so every
     segment still lowers the model.  A factorisation that fails, or a
-    direction with ``r·z ≤ 0``, takes the unpreconditioned direction r.  A
+    direction with ``r·z ≤ 0``, takes the unpreconditioned direction r, and a
+    switch between the two restarts the recurrence (β = 0).  A
     dense H is never preconditioned, and its arithmetic is unchanged.  The
     measurement is :func:`.lm._solve_step`'s.
 
@@ -375,6 +376,7 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
         if sparse.issparse(H) and (factored is None or not np.array_equal(free, factored)):
             factored, ilu = free, _incomplete_lu(H, free)
         z, rz = _preconditioned(ilu, r, rr, free)
+        plain = z is r      # this direction took no preconditioner
         p = z
         stalled = False
         while spent < budget:
@@ -402,7 +404,12 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
             if rr_next <= floor:
                 break
             z, rz_next = _preconditioned(ilu, r, rr_next, free)
-            p = z + (rz_next / rz) * p
+            # a direction that fell back to r (or came back from it) restarts
+            # the recurrence: β would divide one preconditioner's r·z by the
+            # other's.  p·r = r·z still holds, so the step stays a descent
+            beta = rz_next / rz if (z is r) == plain else 0.0
+            plain = z is r
+            p = z + beta * p
             rz = rz_next
         if stalled:
             break

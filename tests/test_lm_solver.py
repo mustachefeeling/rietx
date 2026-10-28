@@ -717,6 +717,12 @@ def test_a_sparse_normal_matrix_takes_every_dense_operation():
     As = sparse.csr_matrix(A)
     np.testing.assert_array_equal(lm._with_diagonal(As, values).toarray(),
                                   lm._with_diagonal(A.copy(), values))
+    # a curvature far above the diagonal it replaces: a + (v − a) misses v by
+    # an ulp on ~0.4 % of such entries, so the write must not take that route
+    a = rng.uniform(1.0, 2.0, 4000)
+    v = a * rng.uniform(3.0, 1000.0, 4000)
+    np.testing.assert_array_equal(
+        lm._with_diagonal(sparse.diags(a).tocsr(), v).diagonal(), v)
     lo, hi = np.full(10, -0.1), np.full(10, 0.1)
     dense = lm._solve_step(A, b, 0.3, np.zeros(10), lo, hi, n_rows=30)
     out = lm._solve_step(As, b, 0.3, np.zeros(10), lo, hi, n_rows=30)
