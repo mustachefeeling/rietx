@@ -444,7 +444,12 @@ same reason. Six rules the pattern readers do not need:
   refuses `Nba ≤ -6`, where two sources disagree and no file settles them. The
   same census found two line widths the reader had taken from the corpus alone
   narrower than the manual states (LINE 8's nine reals, LINE 30's six off
-  `Npr = 7`): a width read off one lab's files is a lower bound, never the rule.
+  `Npr = 7`): a width read off one lab's files is a lower bound, never the rule. The
+  program can also contradict its manual outright: fp2k 8.20 reads a `Jbt = -10`
+  moment line under `N_t = 1` and stops on the manual's `N_t = -1`, and it
+  generates a `Jbt ±10` phase's reflections from the symbol, so a magnetic line
+  the symbol forbids is never computed. Run the program on a synthetic file
+  before believing either source about what a combination *means*.
 - **Where a file states its symmetry twice, the operators outrank the symbol —
   and where it states it once, the reader says so** (WP-1118, issue #101). A
   Hermann-Mauguin symbol is ambiguous for 40 of gemmi's settings, the `:1`/`:2`
