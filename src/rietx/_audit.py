@@ -1869,24 +1869,45 @@ ROWS: tuple[Row, ...] = (
         evidence=("WP-1459 (outside PR #453): the off-data ridge is as wide as the phase's "
                   "largest on-data intensity; the floor of 1 has no stated source and binds "
                   "only where that intensity is under 1 or absent; inline in "
-                  "build_pawley_restraint until the B14 lift"),
-        grounds=("Opt-in Pawley mode: acts only on reflections outside the data, whose "
-                 "intensity nothing constrains; kept at 1.0 (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                  "build_pawley_restraint until the B14 lift.  WP-2011 probe 9 (2026-10-28): "
+                  "with each pattern and its sigma divided by the maximum count, the ridge's "
+                  "scale fell to 0.005-0.09 on 11-BM NAC, GSAS-II FAP and CPD corundum and "
+                  "zircon, and to 0 on two synthetic LaB6 wrong cells, so the floor bound; "
+                  "no validation's unmatched count or status moved, nor its Rwp by more "
+                  "than 2e-4"),
+        grounds=("On index_pattern's default path since WP-2011, where every validation fit "
+                 "carries off-data reflections: acts only on reflections outside the data, "
+                 "whose intensity nothing constrains, and binding on a pattern scaled to a "
+                 "maximum of 1 moved none of the validation's readings; kept at 1.0 (WP-2011 "
+                 "ruling 3, 2026-10-28)."),
+        approved="2026-10-28"),
     Row("rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC", "constant", tier=3, value=0.5,
         evidence=("WP-0306: 'the point past which least squares cannot apportion intensity'; LaB6 "
-                  "only (synchrotron and Cu, tests/test_pawley.py), never swept; second pass owed"),
-        grounds=("Opt-in Pawley mode: an overlapped group gets an equal-split restraint and is "
-                 "flagged PAWLEY_OVERLAP_UNRESOLVED rather than split confidently; kept at the "
-                 "LaB6 value (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                  "only (synchrotron and Cu, tests/test_pawley.py).  WP-2011 probe 9 "
+                  "(2026-10-28), the validation fit on 13 cells (SRM 660c, 11-BM NAC, GSAS-II "
+                  "FAP, six CPD pure phases, synthetic LaB6's truth and three wrong cells, CPD "
+                  "magnetite's P rival): 0.25 and 1.0 regroup reflections (zircon 12, 24, 30 "
+                  "grouped) and move no unmatched count or status, and Rwp by at most 1e-4.  "
+                  "The peak picker's use (indexing/pick.py, peaks.py) is not swept"),
+        grounds=("On two default paths: the peak picker's duplicate and unresolved flags, and "
+                 "since WP-2011 every index_pattern validation, where an overlapped group gets "
+                 "an equal-split restraint and is flagged PAWLEY_OVERLAP_UNRESOLVED rather than "
+                 "split confidently.  The validation reads the group's sum, which the restraint "
+                 "leaves free, and its readings did not move over 0.25-1.0; kept at 0.5 "
+                 "(WP-2011 ruling 3, 2026-10-28)."),
+        approved="2026-10-28"),
     Row("rietx.model.forward.PAWLEY_OVERLAP_LAMBDA", "constant", tier=3, value=1.0,
         evidence=("WP-0306, WP-1459: unit weight, per-group intensity scaling; Cu LaB6 (221)/(300) "
                   "sum 0.6 % off, split esd ~112 %; without the off-data ridge a (6 0 2) reached "
-                  "1.45e8 against a median of 81; synthetic LaB6 and FAP only; second pass owed"),
-        grounds=("Opt-in Pawley mode: the weight acts only on directions the data do not "
-                 "constrain, and the group sum stays free; kept at 1.0 (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                  "1.45e8 against a median of 81.  WP-2011 probe 9 (2026-10-28), the "
+                  "validation fit on the 13 cells PAWLEY_OVERLAP_FWHM_FRAC's row names: 0.1 and "
+                  "10 move no unmatched count or status, and Rwp by at most 7e-4 (CPD corundum "
+                  "at 10)"),
+        grounds=("On index_pattern's default path since WP-2011: the weight acts only on "
+                 "directions the data do not constrain, and the group sum stays free; the "
+                 "validation's readings did not move over two decades; kept at 1.0 (WP-2011 "
+                 "ruling 3, 2026-10-28)."),
+        approved="2026-10-28"),
     Row("rietx.model.forward.REFLECTION_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("reflection-list margin past the scan; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC: fails on FAP (0.124 sigma at "
                   "129.98 deg, 0.016 esd) and cpd-1a (0.119 sigma, 0.103 esd on fluorite lor_strain), "
