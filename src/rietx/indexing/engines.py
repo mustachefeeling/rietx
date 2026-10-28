@@ -2307,7 +2307,16 @@ DEFAULT_SEARCH_PRESET = "quick"
 #: "validated by a whole-pattern fit" is part of the first click's answer rather than the
 #: rerun's.  No reserve when nothing will validate (``validate=False`` or no
 #: pattern): the search keeps every second.
-VALIDATION_RESERVE_FRACTION = 0.08
+#:
+#: **15 % since WP-2011.**  8 % had stopped reaching validation: consensus came
+#: to score every merged candidate's figure-of-merit panel (WP-1046), and that
+#: scoring, with the same scoring in the last search unit after its clock fired,
+#: spent the whole 9.6 s on 11-BM NAC (4 s overrun, 6.5 s consensus), so under
+#: Pawley no fit started.  At 15 % (18 s) NAC's true cell validated on both
+#: specs measured, cheapest first; at 8 % and 20 % the lab patterns (zircon, FAP,
+#: corundum, LaB6) validated every checked cell either way, searching the same
+#: systems.  What 15 % cost: NAC's default spec no longer reached orthorhombic.
+VALIDATION_RESERVE_FRACTION = 0.15
 
 #: name → the whole-run ceiling it fills in (``None`` = unbounded, today's
 #: pre-WP-1042 behaviour).  Held in bijection with :data:`SEARCH_PRESET_INFO`

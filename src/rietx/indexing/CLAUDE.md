@@ -74,10 +74,8 @@ On real data with no measured shift, `high` is *unreachable* by design
   would fire on every empty system of a run that found its cell elsewhere).
 - **`quick` is the default preset**: every engine, every requested system,
   a whole-run ceiling (`SEARCH_PRESETS`/`SEARCH_PRESET_INFO`, bijection by
-  meta-test, quoted live by `capabilities()` and the agent schema),
-  validation fits run **cheapest first** (`workflow.validation_size`, the
-  reflections each refines) on the run's own clock, never a slice: equal
-  slices in rank order finished none of 11-BM NAC's Pawley fits (WP-2011).
+  meta-test, quoted live), validation **cheapest first** in a reserve that
+  **anything run after the search's stop spends** (WP-2011: the FoM panel).
   Nothing is narrowed — a binding ceiling reports, and what it cuts is
   trailing low-symmetry systems, cheapest-first ordering's documented cost.
   A declared `total_budget_seconds` is never overridden and records

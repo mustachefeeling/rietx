@@ -1628,7 +1628,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.QUICK_TOTAL_BUDGET_SECONDS", "constant", value=120.0),
     Row("rietx.indexing.engines.SAME_SOLUTION_RTOL", "constant", value=0.001),
     Row("rietx.indexing.engines.SEARCH_POOL_MULTIPLE", "constant", value=2),
-    Row("rietx.indexing.engines.VALIDATION_RESERVE_FRACTION", "constant", value=0.08),
+    Row("rietx.indexing.engines.VALIDATION_RESERVE_FRACTION", "constant", tier=3, value=0.15,
+        evidence=("WP-2011, quick on the final tree, cheapest-first validation, Pawley, one run "
+                  "each (macOS arm64): at 0.08 11-BM NAC validated nothing on either spec (the "
+                  "panel scoring after the search's stop took the reserve: 4 s overrun + 6.5 s "
+                  "consensus); at 0.15 its true cell validated on both; at 0.20 also its leader. "
+                  "Zircon, FAP, corundum, LaB6 validated every checked cell at all three, with "
+                  "the same systems searched and incomplete; NAC's default spec lost the "
+                  "orthorhombic system at 0.15; one synchrotron pattern"),
+        grounds=("A share of the user's ceiling moved from search to the mandatory check; the "
+                 "smallest measured share that validates a heavy synchrotron pattern's true "
+                 "cell.  Set under the maintainer's delegation of 2026-10-28 (WP-2011)."),
+        approved="2026-10-28"),
     Row("rietx.indexing.engines.WIDTH_ALLOWANCE_FWHM", "constant", value=1.0),
     Row("rietx.indexing.engines.WIDTH_ALLOWANCE_QUANTILE", "constant", value=0.25),
     Row("rietx.indexing.engines._INDEX_MARGIN", "constant", value=1e-06),
@@ -2185,10 +2196,11 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: 2^-60 = 8.7e-19 sits below fp64 epsilon, so no further halving "
                   "changes the point")),
     Row("rietx.optimize.bccg._CHOLESKY_SHIFT", "constant", tier=2, value=0.001,
-        evidence=("Lin & Moré (1999) SIAM J. Sci. Comput. 21, 24 (ICFS, TRON's preconditioner): "
-                  "alpha_S = 1e-3 of the diagonal, doubled until the factor exists (docstring; "
-                  "recalled, not checked; paper not on disk).  It moves only the preconditioner, "
-                  "never the box minimiser CG converges to")),
+        evidence=("Lin & Moré (1999) SIAM J. Sci. Comput. 21, 24, § 3 Algorithm 3.1 (checked "
+                  "2026-10-28): alpha_S = 1e-3 on the matrix scaled to unit columns, doubled until "
+                  "the factor exists; lm scales A to a unit diagonal, so alpha x diag is their "
+                  "alpha I.  It moves only the preconditioner, never the box minimiser CG "
+                  "converges to")),
     Row("rietx.optimize.bccg._CHOLESKY_SHIFTS", "constant", tier=1, value=40,
         evidence=("arithmetic: 1e-3 * 2^39 = 5.5e8 times the diagonal; scaled to a unit "
                   "diagonal, a semidefinite block's off-diagonal row sums are at most n - 1, so "
@@ -2294,12 +2306,15 @@ ROWS: tuple[Row, ...] = (
                   "and 59498 x 2224 (macOS arm64); either side A agrees with the dense JtJ to "
                   "2e-15; NAC candidates at 0.022-0.023 (monoclinic 47 s dense-built, 34 s "
                   "sparse, one run each), FAP.XRA's closing stage at 0.38 (115 ms a build "
-                  "against 2 ms); past the cut the CG is unpreconditioned too, and no "
-                  "ill-conditioned stage there was measured; two families; second pass owed "
-                  "(refits of three families on either side)"),
-        grounds=("A solver-path switch no refiner has a view on, put in B10's class (ruled "
-                 "2026-10-19 for six named rows) by its author on 2026-10-28; the maintainer's "
-                 "own confirmation is pending (WP-2011, PR #1191)."),
+                  "against 2 ms); past the cut the step has the exact (shifted) Cholesky factor "
+                  "and a projected search, measured on the ill-conditioned case past it: zircon "
+                  "and corundum as monoclinic (601, 576 columns, 0.06), 157 and 128 products a "
+                  "solve against 1204 and 1154, readings unchanged; two families; second pass "
+                  "owed (refits of three families on either side)"),
+        grounds=("A solver-path switch no refiner has a view on: which arithmetic forms JtJ, "
+                 "never which answer.  Confirmed under the maintainer's delegation of "
+                 "2026-10-28 ('use your best judgement'), once its unmeasured case was built "
+                 "(WP-2011, PR #1191)."),
         approved="2026-10-28"),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", tier=3, value=0.95,
         evidence=("the profile interval's own level, PARAMETER_INTERVAL_LEVEL, held equal by "
@@ -4532,7 +4547,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.indexing.engines.SearchSpec:shift_template",
     "rietx.indexing.engines.SearchSpec:systems",
     "rietx.indexing.engines.SearchSpec:total_budget_seconds",
-    "rietx.indexing.engines.VALIDATION_RESERVE_FRACTION",
     "rietx.indexing.engines.WIDTH_ALLOWANCE_FWHM",
     "rietx.indexing.engines.WIDTH_ALLOWANCE_QUANTILE",
     "rietx.indexing.engines._INDEX_MARGIN",

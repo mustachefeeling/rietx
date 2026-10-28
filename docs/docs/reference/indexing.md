@@ -98,7 +98,7 @@ There are two budgets, and they bound different things.
 The slices run system by system: every engine finishes one system before any engine starts the next, cubic first and triclinic last.
 So a binding ceiling cuts trailing systems for every engine alike, and a completed system holds every engine's answer, which the agreement gate needs.
 
-Under a ceiling, the search stops 8 % of it early when validation is going to run, so the validation fits are not starved.
+Under a ceiling, the search stops 15 % of it early when validation is going to run, so the validation fits are not starved.
 The fits then run cheapest first, by the number of reflections each refines, and each may use whatever the clock still holds.
 That order finishes the most fits before the ceiling.
 `rietx.indexing.engines.estimate_ceiling` is the arithmetic for choosing a value before starting, and [`rietx index --ceiling`](cli.md#the-cost-ceiling) prints it.
