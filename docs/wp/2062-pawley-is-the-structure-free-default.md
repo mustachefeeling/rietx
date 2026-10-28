@@ -157,6 +157,23 @@ programs agree; otherwise it is 2, and the evidence is the measurements
 above, which come from lab and synchrotron single-phase patterns
 (LaB6, NAC, FAP, the IUCr round-robin pure phases, aragonite).
 
+### Inherited
+
+- **From WP-2011, 2026-10-28: Pawley's cost on large patterns, re-measured
+  with option (c) built** (WP-2011 § Option (c) probed, commit e39b8c19d on
+  its branch). A Pawley stage above the BVLS cut now forms JᵀJ sparse over
+  its frozen windows and preconditions the projected CG with an incomplete
+  LU. A pseudo-symmetric candidate's fit fell 376 s → 34 s with no reading
+  moved, so decision 0's cost argument should be re-measured before it is
+  ruled on. Well-conditioned fits gained little (NAC's true cell 6.0 → 4.8
+  s, FAP 1.1 → 1.3 s). What still costs on the true cell (probe 15): the
+  dense J build (1.1 s of 5.8), the esds every stage computes (0.77 s), and
+  recompiling the reflections of a held cell at each stage (0.89 s), each a
+  separate change. Merging exact coincidences (one intensity per distinct
+  d-spacing) cut NAC's true cell from 849 to 299 columns at an unchanged
+  Rwp. It changes the model only where the data cannot separate the
+  reflections, so it is a candidate for every site here.
+
 ## Decisions (maintainer)
 
 0. **Replace, or repair.** Two routes reach a converged structure-free fit.
