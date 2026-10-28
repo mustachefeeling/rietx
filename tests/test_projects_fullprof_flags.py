@@ -307,7 +307,9 @@ def test_a_strain_model_adding_lines_is_refused(tmp_path):
 
 @pytest.mark.parametrize("field, value, match", [
     ("cry", 1, "Cry = 1"), ("res", 1, "Res = 1"), ("uni", 1, "Uni = 1"),
-    ("job", -1, "Job = -1"), ("nba", 1, "Nba = 1.*CODFIL.bac")])
+    ("job", -1, "Job = -1"), ("nba", 1, "Nba = 1.*CODFIL.bac"),
+    # The manual's p. 69: 3 is pattern calculation, not time of flight.
+    ("job", 3, r"Job = 3 \(pattern calculation, neutron constant wavelength\)")])
 def test_what_stays_out_of_scope_is_still_refused_by_name(
         tmp_path, field, value, match):
     with pytest.raises(FullProfPcrError, match=match):

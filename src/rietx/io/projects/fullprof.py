@@ -173,6 +173,8 @@ the background points, the zero-shift line and the absorption line carry it
 
 from __future__ import annotations
 
+import dataclasses
+import itertools
 import math
 import re
 from dataclasses import dataclass, field
@@ -1541,8 +1543,13 @@ def read_fullprof_pcr(path: str | Path) -> FullProfModel:
 
     job = model.control["job"]
     if job not in (0, 1):
-        kind = {-1: "neutron time-of-flight", -2: "energy-dispersive X-ray",
-                2: "energy-dispersive X-ray", 3: "neutron time-of-flight"}
+        # The manual's LINE 4 (p. 69): 2 and 3 are FullProf's *pattern
+        # calculation* modes for X-rays and constant-wavelength neutrons, -3
+        # for time of flight. -2 is not in it.
+        kind = {-1: "neutron time-of-flight",
+                2: "pattern calculation, X-ray",
+                3: "pattern calculation, neutron constant wavelength",
+                -3: "pattern calculation, neutron time-of-flight"}
         named = kind.get(job, "a job this reader does not know")
         raise FullProfPcrError(
             f"{path}: Job = {job} ({named}). rietx models "
@@ -1799,8 +1806,13 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
         # of the line" and the comment "must start after the 20th column"
         # (manual p. 95). Read by column for Jbt ±10 only, the one phase whose
         # comment carries meaning, so every other phase keeps its old reading.
-        symbol = _strip(sg_line.raw[:20])
-        phase.symbol_comment = _strip(sg_line.raw[20:])
+        # A comment marker is cut first: `<--` written from column 20 would
+        # otherwise leave its `<` inside the symbol's field.
+        raw = sg_line.raw
+        cut = min((i for i in (raw.find(m) for m in ("!", "#", "<--")) if i >= 0),
+                  default=len(raw))
+        symbol = raw[:min(20, cut)].strip()
+        phase.symbol_comment = raw[20:cut].strip() if cut > 20 else ""
         if not symbol:
             raise FullProfPcrError(
                 f"{where}: line {sg_line.number}: {sg_line.raw!r} has no "
@@ -2086,7 +2098,7 @@ def _read_magnetic_atom(cur: _Cursor, where: str, i: int, nat: int) -> FullProfA
                         flags=tuple(numbers[:2]))
 
 
-#: LINE 25b (c) of a ``Jbt = ±10`` site carrying a moment, ``N_t = ±1``
+#: LINE 25b (c) of a ``Jbt = ±10`` site carrying a moment, ``N_t = 1``
 #: (manual p. 105): ``Rx Ry Rz Ix Iy Iz MagPh`` (``Rm Rphi Rtheta Im Iphi
 #: Itheta MagPh`` in spherical form). Named as :data:`_MAGNETIC_COLUMNS`'s
 #: moment slots so :func:`magnetic_reading` reads either phase kind's moments.
@@ -2141,12 +2153,14 @@ def _read_combined_atom(cur: _Cursor, where: str, i: int, nat: int) -> FullProfA
     """One LINE-25b site of a ``Jbt = ±10`` phase (manual p. 105).
 
     ``Atom Typ Mag Vek X Y Z Biso Occ N_t Spc`` and its five codewords, then —
-    for ``N_t = ±1`` only — the moment line ``Rx Ry Rz Ix Iy Iz MagPh`` (or its
-    spherical form) and its seven codewords. ``N_t`` decides the line count, so
-    it is read as the positional walk's selector: 0 is a nuclear site, ±1 a site
-    with a moment, and the β and form-factor forms (2, ±3, 4) are refused, the
-    manual stating the β lines' condition as "N_t=2,3,-3, and Isy=-2", which is
-    not a rule a reader can apply without guessing at the ``and``.
+    for ``N_t = 1`` only — the moment line ``Rx Ry Rz Ix Iy Iz MagPh`` (the
+    spherical ``M phi theta`` under ``Jbt = -10``) and its seven codewords.
+    ``N_t`` decides the line count, so it is read as the positional walk's
+    selector: 0 is a nuclear site, 1 a site with a moment. ``-1`` is refused:
+    the manual gives it the spherical form, and FullProf 8.20 does not read it
+    (measured). The β and form-factor forms (2, ±3, 4) are refused, the manual
+    stating the β lines' condition as "N_t=2,3,-3, and Isy=-2", which is not a
+    rule a reader can apply without guessing at the ``and``.
 
     ``flags`` is ``(Mag, Vek, N_t, Spc)``, so :attr:`FullProfAtom.n_t` reads it
     where it reads a nuclear site's ``(In, Fin, N_t, Spc)``.
@@ -2169,7 +2183,18 @@ def _read_combined_atom(cur: _Cursor, where: str, i: int, nat: int) -> FullProfA
     values = _row(_ATOM_COLUMNS, numbers[2:7], codewords)
     flags = tuple(numbers[:2]) + tuple(numbers[7:])
     n_t = int(numbers[7])
-    if n_t in (1, -1):
+    if n_t == -1:
+        # The manual (p. 105) reads the spherical form "if N_t=-1,-3", and
+        # FullProf 8.20 itself does not: given that line under N_t = -1 it
+        # stops with "FindFMT: separator missing" (fp2k, measured 2026-10-28),
+        # and reads the spherical form under Jbt = -10 with N_t = 1.
+        raise FullProfPcrError(
+            f"{where}: atom {tokens[0]!r} of a Jbt ±10 phase declares N_t = -1. "
+            f"FullProf 8.20 does not read a moment line under it (measured: "
+            f"'separator missing'), though the manual's p. 105 says it states "
+            f"the spherical form; FullProf's spherical form is Jbt = -10 with "
+            f"N_t = 1, which reads")
+    if n_t == 1:
         # FullProf writes `<-MagPar` after the seven numbers with no comment
         # marker (its example hobk.pcr), so the leading numeric run is read.
         _, moment = cur.floats(f"atom {i} moment line",
@@ -2412,6 +2437,10 @@ class MagneticReading:
     partner: int
     operations: list
     moments: dict
+    #: The space group the built phase carries where it is not the file's
+    #: symbol: a ``Jbt = ±10`` phase's is the group its SYMM operators generate
+    #: (:func:`combined_reading`), its symbol only generating reflections.
+    space_group: str | None = None
 
 
 def _parse_msym(text: str) -> tuple[list[list[int]], float]:
@@ -2688,21 +2717,24 @@ def combined_reading(model: FullProfModel, phase: FullProfPhase
     * ``Mag`` and ``N_t`` disagree on whether a site carries a moment
       ("If N_t = 1 give the lines (a), (b), (c) and (d)"; ``Mag`` is the
       ordinal of the moment matrix applied to it, 0 for none, p. 102);
-    * the moment is Cartesian (``N_t = 1``) in a ``Jbt = -10`` phase, or
-      spherical (``N_t = -1``) in a ``+10`` one — the manual names the form
-      both ways (pp. 90, 105) and a file stating both cannot be read one way;
     * the symmetry is a ``Mag`` comment with LINE 23a's time-reversal flags,
       which are keyed to "the same [order] as in CODFIL.out" (p. 96), an order
       FullProf prints and the ``.pcr`` does not state;
     * a site states a moment and no magnetic symmetry is given at all;
-    * the ``SYMM`` list is not the space group's own operator set. Under
-      ``Isy ≠ 0`` FullProf builds the nuclear structure factor from the listed
-      operators while the symbol names the group a
-      :class:`~rietx.schemas.Phase` carries, so the two have to be one group
-      (a subgroup ``G_k`` list, p. 106, is the propagation-vector form).
-    """
-    import gemmi
+    * a propagation vector is given, even k = 0: FullProf computes the
+      magnetic part on the fundamentals only when none is (p. 90), and fp2k
+      8.20's pattern did not move with the moment when k = 0 was stated;
+    * the symbol extinguishes a reflection its lattice allows, or the SYMM
+      list is not a tabulated group (:func:`_combined_group`).
 
+    Where it reads, the built phase's space group is the group of the SYMM
+    list (:attr:`MagneticReading.space_group`), the symbol having only
+    generated the reflections. ``Jbt = -10`` makes the moment line spherical
+    (``M``, φ, θ) under ``N_t = 1``. The positive arm is FullProf's own: the
+    same structure as a ``Jbt 0`` + ``Jbt 1`` pair, as one ``Jbt 10`` phase
+    (``P -1`` over the P 2₁/c operators) and as one ``Jbt -10`` phase gave the
+    same calculated pattern in fp2k 8.20, within 0.09 counts of ~5000.
+    """
     sites = _moment_sites(phase)
     for atom in phase.atoms:
         mag = int(atom.flags[0])
@@ -2710,12 +2742,6 @@ def combined_reading(model: FullProfModel, phase: FullProfPhase
             return (f"site {atom.label!r} states Mag = {mag} and N_t = "
                     f"{atom.n_t}, which disagree on whether it carries a "
                     f"moment")
-        if atom.n_t and (atom.n_t < 0) != (phase.jbt < 0):
-            return (f"site {atom.label!r} states its moment in "
-                    f"{'spherical' if atom.n_t < 0 else 'Cartesian'} form "
-                    f"(N_t = {atom.n_t}) in a Jbt = {phase.jbt} phase, whose "
-                    f"sign says the other — the manual names the form by both "
-                    f"(pp. 90, 105), and a file stating both is read neither way")
     if phase.time_reversal:
         return ("its magnetic symmetry is a 'Mag' comment with LINE 23a's "
                 "time-reversal flags, which follow the order FullProf lists the "
@@ -2743,32 +2769,100 @@ def combined_reading(model: FullProfModel, phase: FullProfPhase
         soft_moment_constraints=phase.soft_moment_constraints)
     if any(any(abs(v) > 0 for v in k) for k, _ in phase.propagation_vectors):
         # The propagation vector is the more basic refusal, and the one whose
-        # remedy is named, so it is given before the operator-list test.
+        # remedy is named, so it is given before the operator-list tests.
         return magnetic_reading(model, half, partners=[phase])
-    if phase.isy == -1 and sym.cen == 1:
-        try:
-            group = gemmi.SpaceGroup(phase.space_group).operations()
-            listed = [gemmi.Op(symm.strip()[4:].strip().lower().replace(" ", ""))
-                      for symm, _ in sym.operators]
-        except (RuntimeError, ValueError):
-            listed = None  # magnetic_reading names the unreadable operator
-        if listed is not None:
-            cen = [list(c) for c in group.cen_ops]
+    if phase.propagation_vectors:
+        return (f"it declares Nvk = {phase.nvk} with k = 0. FullProf computes a "
+                f"Jbt ±10 phase's magnetic intensity on the fundamental "
+                f"reflections only when no propagation vector is given (manual "
+                f"p. 90), and fp2k 8.20 bears that out: with k = (0, 0, 0) "
+                f"stated, flipping a moment changes its calculated pattern by "
+                f"nothing (measured), so the refinement this file records had no "
+                f"magnetic scattering there. Give Nvk = 0")
+    if phase.isy != -1 or sym.cen != 1:
+        return magnetic_reading(model, half, partners=[phase])
+    group, why = _combined_group(phase)
+    if why is not None:
+        return why
+    built = dataclasses.replace(phase, space_group=group)
+    reading = magnetic_reading(model, dataclasses.replace(half, space_group=group),
+                               partners=[built])
+    if isinstance(reading, MagneticReading):
+        reading.space_group = group
+    return reading
 
-            def key(op) -> tuple:
-                return (tuple(tuple(r) for r in op.rot),
-                        min(tuple((op.tran[i] + c[i]) % gemmi.Op.DEN
-                                  for i in range(3)) for c in cen))
 
-            if ({key(op) for op in listed} != {key(op) for op in group.sym_ops}
-                    or len(listed) != len(group.sym_ops)):
-                return (f"its {len(listed)} SYMM operators are not the "
-                        f"{len(group.sym_ops)} of {phase.space_group!r}, the "
-                        f"symbol a built phase carries, and FullProf builds "
-                        f"the nuclear structure factor from the listed ones "
-                        f"under Isy = -1 — a G_k list belongs to the "
-                        f"propagation-vector form (manual p. 106)")
-    return magnetic_reading(model, half, partners=[phase])
+def _lattice_absent(hkl, centrings) -> bool:
+    """Whether the lattice centring alone extinguishes ``hkl`` (Σ e^{2πi h·t} = 0)."""
+    import cmath
+
+    import gemmi
+
+    total = sum(cmath.exp(2j * math.pi * sum(h * t / gemmi.Op.DEN
+                                              for h, t in zip(hkl, c, strict=True)))
+                for c in centrings)
+    return abs(total) < 1e-9
+
+
+def _combined_group(phase: FullProfPhase) -> tuple[str | None, str | None]:
+    """The space group a ``Jbt = ±10`` phase's SYMM list states, or why not.
+
+    FullProf builds the phase's structure factor from the listed operators and
+    generates its reflections from the symbol ("The reflections … will be
+    generated according to the space group symbol", manual p. 95), so the two
+    play different parts and FullProf's own examples write an extinction-free
+    symbol (``I -1``) over the full operator list. Two conditions make that
+    reading the one FullProf computed, both measured with fp2k 8.20:
+
+    * the **symbol extinguishes nothing its lattice does not**. A symbol with a
+      glide or screw drops those reflections for the magnetic part too: a
+      ``P 1 21/c 1`` symbol over a primed c-glide lost the magnetic (001) the
+      moments give, 2062 counts against the same structure as a ``Jbt 0`` +
+      ``Jbt 1`` pair, while ``P -1`` over the same operators matched the pair to
+      print precision;
+    * the listed operators with the symbol's lattice centring **are a group**
+      gemmi tabulates, which is then the built phase's space group.
+
+    Returns ``(symbol, None)``, the extended H-M symbol, or ``(None, reason)``.
+    """
+    import gemmi
+
+    try:
+        symbol = gemmi.SpaceGroup(phase.space_group).operations()
+        listed = [gemmi.Op(symm.strip()[4:].strip().lower().replace(" ", ""))
+                  for symm, _ in phase.magnetic.operators]
+    except (RuntimeError, ValueError) as exc:
+        return None, f"its symbol or a SYMM operator cannot be read: {exc}"
+    centrings = [list(c) for c in symbol.cen_ops]
+    extinct = [hkl for hkl in itertools.product(range(-4, 5), repeat=3)
+               if any(hkl) and symbol.is_systematically_absent(list(hkl))
+               and not _lattice_absent(hkl, centrings)]
+    if extinct:
+        return None, (f"its symbol {phase.space_group!r} extinguishes reflections its "
+                f"lattice allows ({len(extinct)} with |h|,|k|,|l| <= 4, e.g. "
+                f"{extinct[0]}), and FullProf generates a Jbt ±10 phase's "
+                f"reflections from the symbol, magnetic ones included — so the "
+                f"refinement had no magnetic intensity there whatever the moments "
+                f"(measured with fp2k 8.20). The symbol FullProf's own examples "
+                f"write here is the lattice's extinction-free one (P -1, I -1) "
+                f"over the full SYMM list")
+    # The zero translation is the identity already listed; gemmi counts a
+    # second copy of it as a second centring.
+    seeds = listed + [gemmi.Op("x,y,z").translated(c) for c in centrings
+                      if any(c)]
+    group = gemmi.GroupOps(seeds)
+    stated = len(group.sym_ops)
+    group.add_missing_elements()
+    found = gemmi.find_spacegroup_by_ops(group)
+    if len(group.sym_ops) != stated or found is None:
+        return None, (f"its {len(listed)} SYMM operators with the lattice of "
+                f"{phase.space_group!r} "
+                + ("are not closed under composition, so they are not a space "
+                   "group" if len(group.sym_ops) != stated else
+                   "form no tabulated space-group setting")
+                + ", and the built phase needs the group the structure factor "
+                  "was computed under")
+    return normalize_space_group(found.xhm()), None
 
 
 #: The atom columns :func:`to_structure` puts on a :class:`~rietx.schemas.Atom`
@@ -3304,6 +3398,14 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     unchecked_occupancy: list[tuple[str, str]] = []
     for structure_index, ph in enumerate(model.nuclear_phases):
         where = f"{model.path or '<model>'}: phase {ph.index} ({ph.name!r})"
+        stated = merged.get(structure_index, (None, None))[1]
+        if stated is not None and stated.space_group is not None:
+            # A Jbt ±10 phase is built under the group its SYMM list states;
+            # its symbol only generated reflections (`_combined_group`). Raw
+            # set too, so no origin choice is reported for a group read off
+            # the operators rather than chosen.
+            ph = dataclasses.replace(ph, space_group=stated.space_group,
+                                     space_group_raw=stated.space_group)
         missing = [k for k in _CELL_COLUMNS if k not in ph.cell]
         if missing:
             raise FullProfPcrError(
@@ -3506,7 +3608,10 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                 message=(f"{named}: "
                          + (f"phase {ph.index} ({ph.name!r}, Jbt {ph.jbt}) "
                             f"was read as one nuclear phase carrying its "
-                            f"own moments. " if ph.is_combined else
+                            f"own moments, in {built.space_group!r}, the "
+                            f"group of its SYMM operators (its symbol "
+                            f"{ph.space_group_raw!r} generated the "
+                            f"reflections). " if ph.is_combined else
                             f"magnetic phase {ph.index} ({ph.name!r}, "
                             f"Jbt {ph.jbt}) was read as the moments of "
                             f"nuclear phase {built.name!r}. ")
