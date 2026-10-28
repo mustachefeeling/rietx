@@ -1211,7 +1211,7 @@ class StageResult(Base):
     #: reason.  It feeds ``STAGE_FREED_NOTHING``.
     unreached_histograms: dict[int, list[str]] | None = None
     #: each row this stage lifted before solving, and the value it started at
-    #: in column units (WP-1930).  Two writers put a row here.  The stage's own
+    #: in column units (WP-1930).  Three writers put a row here.  The stage's own
     #: :attr:`~rietx.strategy.staged.Stage.seed`, through
     #: :meth:`~rietx.params.vector.ParameterTable.seed_floored`, starts a
     #: freed row sitting exactly on a floor of 0 or above at the seed.  Its
@@ -1222,6 +1222,10 @@ class StageResult(Base):
     #: included (WP-2002, B14).  Those rows sit at zero rather than on a floor,
     #: since a Stephens DOF is unbounded below.  The joint fit's runner seeds
     #: no Stephens block, so its stages carry the first writer's rows alone.
+    #: The third, in both runners, is a free moment angle that starts on a
+    #: direction the symmetry fixes, moved by ``moments.SEED_TILT`` rad
+    #: (``refine._seed_stationary_moment_angles``, WP-1327): its exact column
+    #: is zero there, and a fit starting on a maximum along it cannot leave.
     #: WP-1930's floor seed sized by unit went with WP-1938: it existed because
     #: a softplus column at its floor was twelve orders below its neighbours,
     #: and a row refined in its own units has its physical column there.

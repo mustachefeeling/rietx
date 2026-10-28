@@ -1313,7 +1313,7 @@ def _moment_column(model: CompiledModel, table: ParameterTable,
                    bases: DerivativeBases, values: dict[str, float], c: int,
                    ip: int, reach: list[str],
                    grads: dict[tuple[int, int], np.ndarray]) -> np.ndarray:
-    """∂y/∂θ_c for a column moving moment moduli of phase ip only (WP-1327).
+    """∂y/∂θ_c for a column moving moment DOFs of phase ip only (WP-1327).
 
     The moment enters only p²⟨|F_⊥|²⟩, so only the intensity scalar moves.
     ``grads`` is :meth:`CompiledModel.moment_f2_grads` for the phase at this
@@ -1346,35 +1346,28 @@ def _moment_column(model: CompiledModel, table: ParameterTable,
 
 
 def _moment_reach_ok(path: str, extra: list[str]) -> bool:
-    """Whether ``_moment_column`` claims this column: moduli of one phase only.
+    """Whether ``_moment_column`` accounts for every path this column moves.
 
-    Its reach is moment **moduli** (``dof0``) of one phase, any atom — the
-    affine block can tie two sites' moduli or drive them from a variable, and
-    the branch sums those.  Anything else (a cell, a coordinate, another
-    phase's moment) takes the peak-chain column.
+    Its reach is moment DOFs of one phase, any atom — the affine block can tie
+    two sites' moduli or drive two azimuths from one variable, and the branch
+    sums those.  Anything else (a cell, a coordinate, another phase's moment)
+    is outside it and takes the peak-chain column.
 
-    **An angle is declined by name, and the reason is measured, not a gap in
-    the derivative** (``d_magnetic_f2_d_dofs`` returns the angle rows, held to
-    the same exact oracle).  A moment seeded on a direction the symmetry fixes
-    — (2.5, 0, 2.5) on P 1 2/m 1 puts the azimuth at exactly 0 — sits where
-    the pattern is even in the angle, so its exact column is zero (3.2e-14 of
-    the modulus column there).  Where that direction is a *maximum* along the
-    angle the solver cannot leave it: on ``test_magnetic_moment_frame``'s
-    fixture the analytic arm stopped at φ = 0 with χ² 10.9 above the minima
-    at φ = ±0.047, while the peak chain's forward difference, which reads
-    ½·r″·h there, walked off.  The forward difference escapes by its
-    truncation, which is not a mechanism anyone chose; the analytic angle
-    column waits on one that is — an angle seeded off its stationary point
-    before the stage that frees it, ``moments.tilted_seed``'s shape for the
-    same stationary point (WP-1327 handover).  A modulus has no such point a
-    fit can start at: a varied moment of zero is refused by the schema.
+    **An angle's exact column is zero at a symmetry-fixed seed**, so it is
+    claimed here only because the runners move such a seed off that point
+    before the stage (``refine._seed_stationary_moment_angles``, recorded in
+    ``StageResult.seeded``).  Without it, a fit seeded on a direction that is
+    a maximum along the angle stays there: two of ``test_magnetic_moment_
+    frame``'s fits stopped at φ = 0 with χ² 10.9 and 3.7 above the minima at
+    φ = ±0.047, which the forward difference had reached only through its
+    truncation (½·r″·h).  A caller building a Jacobian outside the runners
+    gets the exact column and keeps the stationary point it asked for.
     """
     m = _MOMENT_PATH.match(path)
-    if m is None or m.group(3) != "0":
+    if m is None:
         return False
     prefix = f"phases.{m.group(1)}.atoms."
-    return all((n := _MOMENT_PATH.match(q)) and n.group(3) == "0"
-               and q.startswith(prefix) for q in extra)
+    return all(_MOMENT_PATH.match(q) and q.startswith(prefix) for q in extra)
 
 
 def _po_column(model: CompiledModel, bases: DerivativeBases,
