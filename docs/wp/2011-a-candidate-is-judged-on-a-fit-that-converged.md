@@ -308,6 +308,40 @@ not move: every NAC candidate read `low` in both modes, below the
 at `max_iter`: Le Bail's on corundum's c/2 subcell (Rwp 5.5) and Pawley's
 on FAP's 525 Å³ rival (Rwp 0.356).
 
+*Why, and whether a larger reserve helps* (`probe10_reserve.py`). The
+candidates NAC's default-spec search checks when it runs to completion
+(`preset="full"`), each validated with no deadline (load 4-5):
+
+| candidate | reflections | Le Bail s | Pawley s |
+|---|---|---|---|
+| tetragonal P, 269 Å³ | 1241 | 1.5 | 11.2 |
+| orthorhombic P, 135 Å³ | 1223 | 1.4 | 11.5 |
+| monoclinic P, 135 Å³ | 2224 | 2.4 | **379** |
+
+All three are wrong subcells of NAC's I cell, and all three Pawley fits
+converged. Pawley's cost rises far faster than the reflection count: ×1.8
+in reflections costs ×33 in seconds. The LM driver's exact BVLS step stops
+at 128 columns (`lm.BVLS_MAX_COLUMNS`), so above it the cost is elsewhere
+(probe 11).
+
+The reserve, swept under `quick` and Pawley:
+
+| case | 0.08 | 0.2 | 0.3 | 0.4 |
+|---|---|---|---|---|
+| NAC default: validated | 0 | 1 | 1 | 1 |
+| NAC all seven: validated | 0 | 2 | 3 | 3 |
+| NAC default: systems searched | 5 | 4 | 4 | 4 |
+| corundum: validated / systems | 4 / 4 | 4 / 4 | 4 / 4 | 3 / 3 |
+| FAP default: run seconds | 121 | 107 | 97 | 84 |
+| zircon default: run seconds | 119 | 105 | 93 | 81 |
+
+A larger reserve buys NAC's cubic I its validation from 0.2 (Rwp 0.126).
+It never validates the whole shortlist, because one 2224-reflection fit
+outlasts any slice. On the lab patterns the reserve goes unused: the runs
+end that much earlier with the same answer, and at 0.4 corundum loses its
+tetragonal search and one validated rival. So raising the reserve is no
+fix.
+
 *The three Pawley constants on the validation's readings*
 (`probe9_constants.py`, ruling 3's sweep). The shipped validation, peak-list
 path, on the thirteen cells of probe 5 (nine true cells; synthetic LaB6's
