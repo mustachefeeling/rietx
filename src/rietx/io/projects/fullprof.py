@@ -2728,6 +2728,23 @@ def combined_reading(model: FullProfModel, phase: FullProfPhase
         return (f"{len(sites)} site(s) state a moment and the phase gives no "
                 f"magnetic symmetry (Isy = 0 with no 'Mag' comment)")
     sym = phase.magnetic
+    half = FullProfPhase(
+        index=phase.index, name=phase.name,
+        control={**phase.control, "jbt": 1 if phase.jbt > 0 else -1},
+        space_group=phase.space_group, space_group_raw=phase.space_group_raw,
+        atoms=[FullProfAtom(
+            label=atom.label, species_raw=atom.species_raw,
+            species=atom.species, flags=atom.flags[:2],
+            values={**atom.values, **{k: Value(value=0.0, codeword=0.0)
+                                      for k in ("m7", "m8", "m9")}})
+            for atom in sites],
+        magnetic=sym, profile=phase.profile, cell=phase.cell,
+        propagation_vectors=phase.propagation_vectors,
+        soft_moment_constraints=phase.soft_moment_constraints)
+    if any(any(abs(v) > 0 for v in k) for k, _ in phase.propagation_vectors):
+        # The propagation vector is the more basic refusal, and the one whose
+        # remedy is named, so it is given before the operator-list test.
+        return magnetic_reading(model, half, partners=[phase])
     if phase.isy == -1 and sym.cen == 1:
         try:
             group = gemmi.SpaceGroup(phase.space_group).operations()
@@ -2749,21 +2766,8 @@ def combined_reading(model: FullProfModel, phase: FullProfPhase
                         f"{len(group.sym_ops)} of {phase.space_group!r}, the "
                         f"symbol a built phase carries, and FullProf builds "
                         f"the nuclear structure factor from the listed ones "
-                        f"under Isy = -1 — a subgroup list is the "
+                        f"under Isy = -1 — a G_k list belongs to the "
                         f"propagation-vector form (manual p. 106)")
-    half = FullProfPhase(
-        index=phase.index, name=phase.name,
-        control={**phase.control, "jbt": 1 if phase.jbt > 0 else -1},
-        space_group=phase.space_group, space_group_raw=phase.space_group_raw,
-        atoms=[FullProfAtom(
-            label=atom.label, species_raw=atom.species_raw,
-            species=atom.species, flags=atom.flags[:2],
-            values={**atom.values, **{k: Value(value=0.0, codeword=0.0)
-                                      for k in ("m7", "m8", "m9")}})
-            for atom in sites],
-        magnetic=sym, profile=phase.profile, cell=phase.cell,
-        propagation_vectors=phase.propagation_vectors,
-        soft_moment_constraints=phase.soft_moment_constraints)
     return magnetic_reading(model, half, partners=[phase])
 
 
