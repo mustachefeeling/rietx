@@ -434,6 +434,17 @@ same reason. Six rules the pattern readers do not need:
   whose body lives in a library, and a file whose phases belong to different
   patterns — a *selection*, following `read_pattern`'s `scan=`:
   `to_structure(model, dataset=N)`, never concatenated; a TOF one refuses, #193.
+- **A format's manual can be older than its program, and then the program's own
+  files are the authority** (`.pcr`, 2026-10-27). FullProf's 2001 manual reads
+  `Nba ≤ -4` as cubic-spline points; its release notes make `-4` a cosine
+  Fourier series (2001) and `-5` a Chebyshev one (2011), and every example file
+  FullProf 8.20 ships writes those as coefficient lines, `-4` with 18 terms where
+  the 2001 note says 12. So the reader takes the counts the program's own output
+  writes, refuses the count it does not (at the group that is missing), and
+  refuses `Nba ≤ -6`, where two sources disagree and no file settles them. The
+  same census found two line widths the reader had taken from the corpus alone
+  narrower than the manual states (LINE 8's nine reals, LINE 30's six off
+  `Npr = 7`): a width read off one lab's files is a lower bound, never the rule.
 - **Where a file states its symmetry twice, the operators outrank the symbol —
   and where it states it once, the reader says so** (WP-1118, issue #101). A
   Hermann-Mauguin symbol is ambiguous for 40 of gemmi's settings, the `:1`/`:2`
