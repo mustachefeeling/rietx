@@ -403,6 +403,101 @@ maximum with no σ column, where the Poisson fallback √max(y, 1) puts every
 point under the noise. `index_pattern` stops before validating on such a
 list, so only a direct call reaches it. For WP-1956's screen, unfixed here.
 
+### Option (c) probed 2026-10-28: a sparse, preconditioned Pawley solve
+
+The maintainer asked for option (c) to be tested, and for the ways to make
+Pawley cheaper to be assessed. Indexing may be a little looser than
+Rietveld. Probes 12-15 ran against a scratch patch of this branch
+(`probe12_switches.patch`), on a quiet machine, macOS arm64, `[dev]`, 11-BM
+NAC every second point (59 498 points). Times are single runs.
+
+*The 2224-reflection monoclinic candidate* (`probe12_sparse.py`):
+
+| variant | seconds | last-stage iterations | CG products | Rwp | unmatched / absent |
+|---|---|---|---|---|---|
+| dense (as shipped) | 376 | 89 | 417 821 | 0.12591 | 170 / 16 |
+| A = JᵀJ formed sparse | 163 | 62 | 298 381 | 0.12591 | 170 / 16 |
+| sparse + incomplete-LU preconditioned CG | 39.8 | 13 | 3 266 | 0.12592 | 170 / 16 |
+| the same, sparsity pattern read once a stage | 37.5 | 13 | 3 266 | 0.12592 | 170 / 16 |
+| the same, exact LU instead of incomplete | 57.7 | 15 | 3 233 | 0.12591 | 170 / 16 |
+| merge each 0.5-FWHM overlap group into one intensity | 15.8 | 8 | 701 | 0.1362 | 170 / 16 |
+| merge at 0.1 FWHM | 30.4 | 15 | 9 325 | 0.13219 | 170 / 16 |
+| merge at 0.02 FWHM | 85.7 | 16 | 59 941 | 0.12634 | 170 / 16 |
+
+J is 2.5 % nonzero and JᵀJ 8 %. Each intensity column spans about 1411
+points (±0.7°: the 0.3° capture slack plus k·Γ at the start widths). Formed
+sparse, A costs less to build and each Hessian product 2.2× less. That alone
+does not fix the solve: each step still spends about 4000 CG products,
+close to the 2n budget, so the steps are poor and the last stage needs 62-89
+iterations. Preconditioning fixes the conditioning. With it a step takes
+about 120 products and the stage 13 iterations. The incomplete LU is
+scipy's `spilu` at its defaults (drop tolerance 1e-4, fill factor 10), so it
+adds no constant. The exact LU fills in and costs more. Lin & Moré (1999),
+the method `projected_cg` follows, precondition the same way with an
+incomplete Cholesky factor. Refactoring on every change of the free set
+(1543 factorisations) and once per step solve (49) gave the same answer in
+37.5 s and 34.2 s; the second worsened one stage's steps (11 iterations
+against 2), so the lane kept the paper's policy.
+
+Merging changes the model: a group's members are forced to an equal split.
+Coarse merges are fastest and move Rwp; tight ones barely help, because
+the near-singular pairs are not the only ill-conditioning.
+
+*Do the cheaper solves change a verdict?* (`probe13_variants.py`, probe 5's
+cells: nine real true cells, synthetic LaB6's truth and three wrong cells,
+magnetite's truth and its P rival.) Preconditioned sparse: every Rwp to four
+decimals, unmatched count, absent count and status identical on all 15 runs,
+and on NAC's 1223- and 1241-reflection candidates. Merging at 0.5 FWHM: one
+reading moved, zircon's unmatched 11 → 12 (Rwp 0.1474 → 0.1508); Rwp moved by
+under 1e-3 on magnetite's two cells and FAP; nothing else moved. On NAC's true
+cubic I cell merging cuts 849 columns to 299 at an unchanged Rwp: most of the
+cut is exact coincidences, distinct reflections at one d-spacing. Dropping the
+esds changed nothing and saved up to 6.5 s of the monoclinic fit's 37.
+
+*Well-conditioned fits do not gain.* Preconditioned and sparse, the
+orthorhombic candidate took 12.2 s against 12.0 dense, the tetragonal 12.6
+against 11.1, and NAC's true cell 7.4 against 5.9. Below about 1000 columns
+Apple's dense BLAS forms JᵀJ about as fast as the sparse product, and the
+factorisations cost more than they save.
+
+*Under `quick` the fast solve does not rescue the go* (`probe14_quick_solver.py`,
+the sparse preconditioned variant): NAC default spec and all seven systems
+each still validate **0** of 12 candidates. The search leaves its 9.6 s
+reserve, split among the checked candidates, so a slice is 2-3 s. Every NAC
+candidate's Pawley fit costs more than that, the true cell included, and Le
+Bail's 1.4-2.4 s fits inside it.
+
+*Where the true cell's 5.8 s goes* (`probe15_profile_true.py`, dense, 837
+reflections, 849 columns): forming JᵀJ 2.17 s (37 %, 20 builds), building
+the dense J 1.10 s, recompiling the model at each of four stages 0.95 s
+(`generate_reflections` 0.89 s of it, for a cell the plan holds), the esds
+and residual angles 0.77 s, the step solves 0.35 s.
+
+*Assessment*, by what each buys on NAC and what it costs:
+
+- **Sparse, preconditioned step solve** (built by this session's lane). Fixes
+  the pseudo-symmetric outlier 10× with no reading moved, and serves
+  WP-2062's Rietveld-grade Pawley as much as indexing. Alone it does not
+  make `quick` validate NAC.
+- **Normal equations from the window pattern.** The lane builds A from the
+  frozen windows instead of a dense product, which should take most of the
+  2.17 s off a well-conditioned fit. Not yet measured in the tree.
+- **No esds in a validation fit** (0.77 s of 5.8). A validation reads none.
+  Needs a way through `fit` to `run_least_squares(compute_uncertainties=…)`.
+- **Reflections generated once for a held cell** (0.89 s). Every stage of a
+  validation recompiles the same cell. A cache keyed on cell, group and range
+  would also serve the extinction screen's per-class fits.
+- **Merge exact coincidences** (indexing-grade). An intensity per distinct
+  d-spacing loses nothing the data can resolve: NAC's true cell 849 → 299
+  columns, Rwp unchanged. Merging near-coincidences at 0.5 FWHM is faster
+  still and moved one of 15 verdicts.
+- **A dense J never built** (1.1 s, and 1.1 GB a build on the 2224
+  candidate). The largest remaining cost after the above, and the widest
+  change: every consumer of `LSQOutcome.jac` reads a dense array.
+- **The reserve.** Ruled out at a fixed fraction in probe 10, while one fit
+  cost 377 s. With that fit at 37 s, a reserve sized to the shortlist's
+  measured cost may be worth re-measuring.
+
 ## Non-goals
 
 - The missing count's inputs and the grade (WP-1956).
@@ -432,6 +527,10 @@ list, so only a direct call reaches it. For WP-1956's screen, unfixed here.
       validated one to three, and the bethanechol benchmark never validates.
       So the PR did not merge, and the go is back with the maintainer, with
       probes 10 and 11's cause and options.
+- [ ] Option (c), asked for 2026-10-28: the Pawley step solve in sparse form,
+      its projected CG preconditioned by an incomplete LU above the BVLS cut,
+      and A built from the frozen window pattern (probes 12-15, § Option (c)
+      probed). Then `quick` on NAC again.
 - [x] **Decision (maintainer):** the names above, kept with the mode recorded
       on the validation record or renamed to the field's term, staged in the
       release record either way (ROADMAP rule 6). Built provisionally as
