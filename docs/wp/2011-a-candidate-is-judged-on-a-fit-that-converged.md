@@ -650,6 +650,113 @@ validates no fewer candidates than on `main`.
 
 ## Handover log
 
+### 2026-10-28 (2nd session) — option (c) built: a sparse, preconditioned Pawley solve
+
+A Pawley fit of a pseudo-symmetric candidate no longer takes six minutes.
+The cost was conditioning, not size: each bounded step solve spent nearly its
+whole budget and the fit needed 89 iterations. With the normal matrix formed
+sparse and the step preconditioned, the same fit takes 34 s and every
+reading is unchanged, on it and on 15 other cells. That does not rescue the
+go. Under `quick` a validation slice is 2-3 s, every NAC Pawley fit costs
+more, and NAC still validates 0 of 12 candidates under Pawley. Le Bail
+validated 0 and 2 in the same runs, and neither mode reached the true cell.
+The maintainer's options are in PR #1191's body.
+
+*Done.*
+- First, outside this WP, at the maintainer's request: pytest 9.2.0 (released
+  2026-10-27) broke nine fast tests on `main`. PR #1203 (branch
+  `tests-pytest-9-2`, not merged) fixes the six API breaks and pins
+  `pytest<9.2`. pytest-xdist 3.8.0 groups cases through a private node-id
+  attribute that 9.2 renamed (pytest-xdist#1386, fixed upstream, unreleased),
+  so every `xdist_group` mark was ignored. `conftest` now fails a marked case
+  whose group did not take. `main`'s own CI went red on this at 10:24.
+- Probes 12-15 and `probe12_switches.patch` (§ Option (c) probed): a sparse
+  JᵀJ, ILU and exact-LU preconditioners, merges at three fractions, no esds,
+  `quick` with the fast solve, and a profile of the true cell.
+- The solve in the tree, by a lane from the prototype (e39b8c19d), with the
+  review's two fixes (36abef33c) and the judge's corrections (bb384fcf8).
+  Seven tests added across `test_pawley`, `test_bccg` and `test_lm_solver`.
+- Forward notes: WP-2062 (Pawley's re-measured cost and the remaining
+  levers) and WP-2035 (a second failing near-right-angle reduce case, below).
+
+*Measured.* macOS arm64, Python 3.12.10, `[dev]`, pytest 9.1.1 (the venv was
+downgraded to the pin), quiet machine unless named.
+- The tables in § Option (c) probed, including "On the tree".
+- Fast selection, `origin/main` (`1fae8887`) merged into this branch: 1
+  failed, 11 873 passed, 272 skipped, 32 xfailed (8:09). The total 12 146 is
+  `main`'s 12 139 plus the 7 tests this branch adds over it (this session's 5
+  and the 2026-10-27 session's 2). The lane's run before the merge: 11 874
+  passed, 272 skipped. The one failure is
+  `test_indexing_reduce.py::test_the_exact_image_holds_with_one_angle_within_epsilon_of_90[P]`,
+  a hypothesis example found this run. It fails on a snapshot of this WP's
+  base too, so it is WP-2035's (its `### Inherited` has the example).
+- Added tests' cost, this run's junit: 0.93 s over 7, the largest
+  `test_indexing_consensus.py::test_the_validation_fits_a_supercell_as_well_as_its_parent`
+  0.44 s; per file `test_indexing_consensus` 0.44, `test_pawley` 0.30,
+  `test_lm_solver` 0.11, `test_bccg` 0.08. None joins the slow tail.
+- Full selection, same merged tree, run once, alone: 1 failed, 12 284
+  passed, 283 skipped, 47 xfailed (30:32). The one failure is the same
+  reduce case. Every acceptance suite passed, `test_acceptance_indexing.py`,
+  `test_acceptance_fap.py`'s Pawley-past-the-cut row and
+  `test_acceptance_nac.py` among them. The bethanechol benchmark was not run:
+  it validates nothing in either mode (§ Re-measured 2026-10-28).
+- Lanes (`session_usage.py lanes`):
+
+  | lane | est | requests | main at dispatch | lane base | re-read | main requests | left in main | main edits after | redo | model | lane $ | main $ | in-session $ | saved $ |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | sparse-pawley-solve | 35 | 99 | 314K | 75K | 0K of 55K | 10 | 17K | 4 | 0 | opus-5-5 | 8.57 | 0.94 | 12.97 | +3.40 |
+
+  Actual/estimated requests 2.83. Baseline, selective policy (lane when main
+  > 150K and item ≥ 20 requests): −14 % across 296 sessions.
+
+*Review* (`/code-review high --fix 6f0f65fa6..HEAD`, eight findings, two
+fixed). Fixed: a sparse diagonal write a + (v − a) missed v by an ulp in 0.4
+% of entries, now exact; a switch between preconditioned and plain CG
+directions mixed two r·z quantities in β, now a restart. Declined, with
+reasons: the tail pattern is derived a second time from `cp.batch` rather
+than emitted by its writer (a refactor outside this diff; one test checks
+completeness); factorisations are not counted against the product budget
+(the policy was measured and kept); single-run timings quoted as figures
+(the runs were single, a range would invent numbers); and three minor costs
+(the pattern sorted before the density test, a sparse A densified per
+crossed trial, D·A·D rebuilt per inner trial), none on the measured hot
+spot.
+
+*Generality* (generality-review agent, unedited verdict lines; full tables
+in the session transcript, summarised here per item):
+- `PAWLEY_SPARSE_DENSITY` (tier 3, 0.05): **weak**. "The row borrows an
+  approval that the B10 ruling did not give", and past 0.05 "the stage gets
+  the old unpreconditioned CG as well as the dense build", while the evidence
+  measures build cost only. "Would change the verdict: the maintainer's own
+  dated confirmation, plus either a measured ill-conditioned Pawley stage
+  past 0.05 or a dense side that is preconditioned too." *Author:* the row's
+  grounds now say the confirmation is pending and its date is the author's;
+  the comment and evidence now say the CG is unpreconditioned past the cut.
+- `spilu` at scipy's defaults: **holds**; gap: a scipy retune would move the
+  solve path unseen, and an incomplete LU is not the paper's symmetric
+  incomplete Cholesky. Would change: lifting the two values into constants.
+- Refactor on every free-set change: **holds** (one family; 34.2 against
+  37.5 s is within run-to-run spread).
+- The numpy and BVLS-cut gates: **holds**, tier 1.
+- Fallbacks: **holds**; gaps: the r·z ≤ 0 branch is untested, and nothing
+  records that the preconditioner dropped out.
+
+*Gotchas.*
+- The worktree's branch is `wp2011-pcg`, pushed to
+  `wp2011-pawley-validation` (PR #1191), because that local name is checked
+  out in `glowing-weaving-quail`.
+- The probe switches exist only in `probe12_switches.patch`; probes 12-15
+  run against a `git archive` copy with it applied.
+- Under `quick` the counts move between runs of one tree (Le Bail 1 → 0 and 3
+  → 2 within a day). Compare modes in one sitting.
+
+*Next.* The maintainer rules on PR #1191's options. If (c′) alone: split the
+solve into its own PR, which also needs the density row confirmed. If (b):
+measure the cutover's threshold before landing it. If (f): measure a reserve
+that validates the top-ranked candidate first, under Pawley, on NAC, before
+any other speed work, because it decides whether (g)'s levers are needed for
+the go at all.
+
 - **2026-10-28** — The maintainer ruled overnight: measure `quick`, then
   merge if no candidate goes unvalidated; rename inside WP-2062; sweep and
   re-ground the three Pawley constants. The names and the constants are
