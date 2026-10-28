@@ -1,4 +1,5 @@
 ---
+name: wp-start
 description: Session-start ritual — act on the hook report, pick the WP, branch, venv, restate scope
 ---
 
