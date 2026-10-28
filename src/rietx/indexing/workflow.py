@@ -1081,11 +1081,19 @@ def index_pattern(peaks: PeakList | None = None, *,
         # 11-BM NAC's two or three under Pawley, whose true cell needs 5 s of
         # a share under 5 s.  Unbudgeted, the order changes no fit
         order = list(checked)
-        if deadline is not None:
-            size = {i: validation_size(outcome.candidates[i], peaks.wavelength,
-                                       data, two_theta_limits)
-                    for i in checked}
-            order.sort(key=size.__getitem__)    # stable: ties keep rank order
+        if deadline is not None and len(order) > 1 and not bool(run_cancel):
+            def size(i: int) -> float:
+                # outside validate_by_lebail's net: a candidate whose list
+                # cannot be counted goes last (unknown cost) and its own fit
+                # still reports what failed, rather than aborting the run
+                try:
+                    return validation_size(outcome.candidates[i],
+                                           peaks.wavelength, data,
+                                           two_theta_limits)
+                except Exception:                   # noqa: BLE001
+                    return float("inf")
+
+            order.sort(key=size)    # stable: ties keep rank order
         for i in order:
             if run_cancel is not None and bool(run_cancel):
                 break

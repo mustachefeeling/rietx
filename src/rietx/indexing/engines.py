@@ -2313,7 +2313,7 @@ DEFAULT_SEARCH_PRESET = "quick"
 #: scoring, with the same scoring in the last search unit after its clock fired,
 #: spent the whole 9.6 s on 11-BM NAC (4 s overrun, 6.5 s consensus), so under
 #: Pawley no fit started.  At 15 % (18 s) NAC's true cell validated on both
-#: specs measured, cheapest first; at 8 % and 20 % the lab patterns (zircon, FAP,
+#: specs measured, cheapest first; at 8, 15 and 20 % the lab patterns (zircon, FAP,
 #: corundum, LaB6) validated every checked cell either way, searching the same
 #: systems.  What 15 % cost: NAC's default spec no longer reached orthorhombic.
 VALIDATION_RESERVE_FRACTION = 0.15

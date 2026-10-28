@@ -132,8 +132,8 @@ imports these types should pin an exact version.
 **How long will this take?** The default answers this itself:
 `index_pattern` resolves the **`quick` preset** — every engine, every requested
 system, and a whole-run ceiling (`SEARCH_PRESETS["quick"]`) covering search,
-probe and validation, with each validation fit drawing an equal slice of the
-remaining clock. A run that hits the ceiling says so
+probe and validation, with the validation fits run cheapest first on whatever
+clock remains. A run that hits the ceiling says so
 (`INDEX_BUDGET_EXHAUSTED`, §7c). Progress and a graded shortlist for every *completed* system
 stream on the event ladder as the run goes (`events=`), so a useful answer
 usually arrives seconds in. `preset="full"` is the

@@ -2197,14 +2197,15 @@ ROWS: tuple[Row, ...] = (
                   "changes the point")),
     Row("rietx.optimize.bccg._CHOLESKY_SHIFT", "constant", tier=2, value=0.001,
         evidence=("Lin & Moré (1999) SIAM J. Sci. Comput. 21, 24, § 3 Algorithm 3.1 (checked "
-                  "2026-10-28): alpha_S = 1e-3 on the matrix scaled to unit columns, doubled until "
-                  "the factor exists; lm scales A to a unit diagonal, so alpha x diag is their "
-                  "alpha I.  It moves only the preconditioner, never the box minimiser CG "
-                  "converges to")),
+                  "2026-10-28): alpha_S = 1e-3, doubled until the factor exists, on a matrix "
+                  "scaled to unit column 2-norms; lm scales A to a unit diagonal, which differs, "
+                  "and they report 1e-6 gave similar results.  It moves the preconditioner; on a "
+                  "singular face, which of the equal-model points CG reaches")),
     Row("rietx.optimize.bccg._CHOLESKY_SHIFTS", "constant", tier=1, value=40,
-        evidence=("arithmetic: 1e-3 * 2^39 = 5.5e8 times the diagonal; scaled to a unit "
-                  "diagonal, a semidefinite block's off-diagonal row sums are at most n - 1, so "
-                  "Gershgorin makes the shifted block positive definite for any n below 5.5e8")),
+        evidence=("arithmetic: one unshifted try, then 39 shifts up to 1e-3 * 2^38 = 2.7e8 "
+                  "times the diagonal; scaled to a unit diagonal, a semidefinite block's "
+                  "off-diagonal row sums are at most n - 1, so Gershgorin makes the shifted "
+                  "block positive definite for any n below 2.7e8")),
     Row("rietx.optimize.bccg._CONVERGED_FRACTION", "constant", tier=3, value=0.0001,
         evidence=("Coelho (2005) J. Appl. Cryst. 38, 455, § 2 termination (docstring; paper not on "
                   "disk)"),

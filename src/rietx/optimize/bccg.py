@@ -457,6 +457,9 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
     return y, side
 
 
+#: whether a dense H takes the Cholesky-preconditioned face step; a switch for
+#: the WP-2011 probes (``docs/wp/2011-probe/probe17``, ``probe22``) to measure
+#: the unpreconditioned path against, never set by the package
 _PRECONDITION_DENSE = True
 #: The first diagonal shift tried on a dense free block whose Cholesky
 #: factorisation fails, as a fraction of each diagonal entry, doubled until
@@ -464,7 +467,8 @@ _PRECONDITION_DENSE = True
 #: *SIAM J. Sci. Comput.* **21**, 24-45, the incomplete Cholesky
 #: preconditioner of their TRON.
 _CHOLESKY_SHIFT = 1e-3
-#: doublings of that shift tried before the block is left unpreconditioned
+#: factorisations tried before the block is left unpreconditioned: one
+#: unshifted, then that shift and its doublings
 _CHOLESKY_SHIFTS = 40
 
 
@@ -560,11 +564,17 @@ def _factor(H, free: np.ndarray):
             return None
     block = np.asarray(H)[np.ix_(idx, idx)]
     diag = np.diag(block)
-    raise_by = np.diag(np.where(diag > 0.0, diag, 1.0))
+    raise_by = np.where(diag > 0.0, diag, 1.0)
+    on_diag = np.diag_indices_from(block)
     alpha = 0.0
     for _ in range(_CHOLESKY_SHIFTS):
+        # one working copy an attempt, factored in place: a failed attempt
+        # leaves it partly overwritten, so the next starts from block again
+        work = block.copy()
+        if alpha:
+            work[on_diag] += alpha * raise_by
         try:
-            return _Cholesky(cho_factor(block + alpha * raise_by if alpha else block,
+            return _Cholesky(cho_factor(work, overwrite_a=True,
                                         check_finite=False))
         except LinAlgError:
             alpha = max(2.0 * alpha, _CHOLESKY_SHIFT)

@@ -1444,11 +1444,13 @@ def _pawley_intensity_columns(model: CompiledModel, bases: DerivativeBases,
 #: A dense and then preconditioned it.  A lab pattern's Lorentzian windows
 #: reach much further: FAP.XRA's closing stage, on windows dropping 1e-3 of
 #: each peak, sits at 0.38 where its other stages sit at 0.03, and there the
-#: sparse build took 115 ms against 2 ms.  **Past the cut the CG is not
-#: preconditioned either**, since only a sparse H is: an ill-conditioned stage
-#: there is back in the regime that cost the monoclinic candidate 376 s.  No
-#: such stage has been measured; the validation fit runs no closing stage, and
-#: a user's own Pawley fit of a pseudo-symmetric lab cell would be the case.
+#: sparse build took 115 ms against 2 ms.  Past the cut the step has the
+#: dense free block's exact (shifted) Cholesky factor and a projected search
+#: (:func:`.bccg.projected_cg`): on lab pseudo-symmetric candidates there
+#: (zircon and corundum as monoclinic, 601 and 576 columns, 0.06) the largest
+#: solve took 157 and 128 products against 1204 and 1154, readings unchanged.
+#: Below it the incomplete-LU path keeps its weak case: FAP as monoclinic C
+#: (944 columns, 0.041) still spends a solve's whole budget, 12 s a fit.
 PAWLEY_SPARSE_DENSITY = 0.05
 
 
