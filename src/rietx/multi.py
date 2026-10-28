@@ -1872,8 +1872,7 @@ class MultiHistogramRefinement:
                 unmeasured=joint_unmeasured[h],
                 held=(_held_scale_phases(stage_results[-1], h)
                       if stage_results else None),
-                where_of=lambda p, h=h: (p if mt.sharing.is_shared(p)
-                                         else f"hist.{h}.{p}"))
+                where_of=lambda p, h=h: mt._canonical(h, p))
 
             diags: list[Diagnostic] = []
             j0, j1 = data_off[h], data_off[h] + n_data[h]
@@ -2337,11 +2336,10 @@ def _specimen_path(mtable, h: int, path: str) -> str:
     the site is the histogram's own when **any** entry that moves it is
     (``adp.k`` is the column a joint fit frees, ``u11`` only its follower).
     """
-    if _ADP_SITE.fullmatch(path):
-        shared = all(mtable.sharing.is_shared(f"{path}.{leaf}")
-                     for leaf in _ADP_LEAVES)
-    else:
-        shared = mtable.sharing.is_shared(path)
+    if not _ADP_SITE.fullmatch(path):
+        return mtable._canonical(h, path)
+    shared = all(mtable.sharing.is_shared(f"{path}.{leaf}")
+                 for leaf in _ADP_LEAVES)
     return path if shared else f"hist.{h}.{path}"
 
 
