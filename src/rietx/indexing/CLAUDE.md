@@ -75,7 +75,9 @@ On real data with no measured shift, `high` is *unreachable* by design
 - **`quick` is the default preset**: every engine, every requested system,
   a whole-run ceiling (`SEARCH_PRESETS`/`SEARCH_PRESET_INFO`, bijection by
   meta-test, quoted live by `capabilities()` and the agent schema),
-  validation fits each drawing an equal **slice** of the remaining clock.
+  validation fits run **cheapest first** (`workflow.validation_size`, the
+  reflections each refines) on the run's own clock, never a slice: equal
+  slices in rank order finished none of 11-BM NAC's Pawley fits (WP-2011).
   Nothing is narrowed — a binding ceiling reports, and what it cuts is
   trailing low-symmetry systems, cheapest-first ordering's documented cost.
   A declared `total_budget_seconds` is never overridden and records

@@ -186,6 +186,28 @@ def structure_from_candidate(candidate: CellCandidate, *,
     return lebail_scaffold(symbol, candidate.cell, name=name)
 
 
+def validation_size(candidate: CellCandidate, wavelength: float,
+                    data: PatternData,
+                    two_theta_limits: tuple[float, float] | None = None) -> int:
+    """The reflections a candidate's validation fit will refine, before it runs.
+
+    The count of its lattice group's reflections over the fitted range, which
+    is what a Pawley fit's cost grows with (one intensity each): on 11-BM NAC
+    837, 999 and 1241 reflections cost 5.1, 6.5 and 11.7 s.  ``index_pattern``
+    orders the fits on it under a ceiling.
+    """
+    from ..crystallography.symmetry import generate_reflections
+
+    tt = data.tt()
+    lo, hi = float(np.min(tt)), float(np.max(tt))
+    if two_theta_limits is not None:
+        lo, hi = max(lo, float(two_theta_limits[0])), min(hi, float(two_theta_limits[1]))
+    symbol = candidate.lattice_group or lattice_group(candidate.system,
+                                                      candidate.centring)
+    return len(generate_reflections(symbol, candidate.cell, wavelength, hi,
+                                    lo).hkl)
+
+
 def absent_reflections(two_theta: np.ndarray, y_obs: np.ndarray,
                        y_background: np.ndarray, sigma: np.ndarray,
                        positions: np.ndarray, fwhm: np.ndarray, *,
@@ -736,9 +758,13 @@ def index_pattern(peaks: PeakList | None = None, *,
     behaviour: no ceiling beyond ``budget_seconds`` per (engine × system).
     The result records which preset governed (``IndexingResult.preset`` —
     ``"custom"`` when the caller's own ceiling did), and under a declared
-    ceiling each validation fit draws an equal **slice** of the remaining
-    clock, so one heavy candidate cannot starve the rest of the shortlist
-    (measured: unbudgeted fits were 74 of fap's 84 s).
+    ceiling the validation fits run cheapest first, by the reflections each
+    refines (:func:`validation_size`), each on whatever the run's clock holds:
+    by a common deadline that order finishes the most fits.  A heavy candidate
+    then waits behind every lighter one rather than starving them, which the
+    equal slice of WP-1042 was for (measured then: unbudgeted fits were 74 of
+    fap's 84 s); WP-2011 replaced the slice because, sliced in rank order,
+    none of 11-BM NAC's Pawley fits finished.
 
     **The (engine × system) units run system-major** (WP-1042): every engine
     finishes one system before any engine starts the next, in ``SYSTEM_ORDER``
@@ -1046,42 +1072,35 @@ def index_pattern(peaks: PeakList | None = None, *,
             prior_reports, jumped, outcome.candidates))
     checked = checked_indices(outcome.candidates, outcome.engines_run, top=top)
     validated = False
-    slices_expired = 0
     if validate and data is not None and instrument is not None:
         progress.add(len(checked))
-        for pos, i in enumerate(checked):
+        # under a declared ceiling the fits run cheapest first, by the
+        # reflections each will refine, and each runs on whatever the clock
+        # holds (WP-2011): for a common deadline that order maximises the fits
+        # finished.  Equal slices in rank order (WP-1042) finished none of
+        # 11-BM NAC's two or three under Pawley, whose true cell needs 5 s of
+        # a share under 5 s.  Unbudgeted, the order changes no fit
+        order = list(checked)
+        if deadline is not None:
+            size = {i: validation_size(outcome.candidates[i], peaks.wavelength,
+                                       data, two_theta_limits)
+                    for i in checked}
+            order.sort(key=size.__getitem__)    # stable: ties keep rank order
+        for i in order:
             if run_cancel is not None and bool(run_cancel):
                 break
             cand = outcome.candidates[i]
             label = f"validate:{cand.system} {cand.centring}"
             progress.start(label, system=cand.system, validation=True)
-            # budgeted validation (WP-1042): under a declared ceiling each fit
-            # draws an equal slice of the remaining clock, so one heavy
-            # candidate cannot starve the rest of the shortlist (unbudgeted
-            # fits measured 74 of fap's 84 s).  A fast fit's surplus flows to
-            # the later slices, which re-divide what actually remains.
-            fit_cancel = run_cancel
-            slice_deadline = None
-            if deadline is not None:
-                slice_deadline = Deadline(
-                    max(deadline.remaining, 1e-3) / (len(checked) - pos),
-                    cancel=run_cancel)
-                fit_cancel = slice_deadline
             try:
                 cand.lebail = validate_by_lebail(
                     cand, data, instrument, peaks=peaks,
-                    two_theta_limits=two_theta_limits, cancel=fit_cancel,
+                    two_theta_limits=two_theta_limits, cancel=run_cancel,
                     pattern_screen=pattern_screen)
             except RefinementCancelled:
                 # a truncated fit is not evidence about the candidate: leave
                 # ``lebail = None``, which reads ``not_validated`` (capping)
                 progress.end(label, validation=True, status="cancelled")
-                if slice_deadline is not None \
-                        and not slice_deadline.cancelled_by_user():
-                    # only this candidate's slice ran out — the next still
-                    # gets its share of what remains
-                    slices_expired += 1
-                    continue
                 break
             progress.end(label, validation=True, status=cand.lebail.status)
         validated = True
@@ -1100,7 +1119,7 @@ def index_pattern(peaks: PeakList | None = None, *,
                       and search_cancel is not run_cancel
                       and bool(search_cancel))
     if deadline is not None and not deadline.cancelled_by_user() \
-            and (deadline.expired() or search_expired or slices_expired):
+            and (deadline.expired() or search_expired):
         requested = ordered_systems
         outcome.diagnostics.append(budget_exhausted_diagnostic(
             float(spec.total_budget_seconds),
@@ -1111,8 +1130,7 @@ def index_pattern(peaks: PeakList | None = None, *,
                                  if s not in outcome.systems_searched],
             candidates_not_validated=sum(
                 1 for i in checked if outcome.candidates[i].lebail is None)
-            if validated else 0,
-            ceiling_hit=deadline.expired() or search_expired))
+            if validated else 0))
 
     # the gate's ``checked`` is what the enumeration actually covered, not what
     # was scheduled: under a fired token the two differ, and a candidate whose

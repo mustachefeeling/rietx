@@ -2233,8 +2233,7 @@ def budget_exhausted_diagnostic(total_seconds: float,
                                 engines_not_run: Sequence[str],
                                 systems_truncated: Sequence[str],
                                 systems_not_reached: Sequence[str],
-                                candidates_not_validated: int,
-                                ceiling_hit: bool = True) -> Diagnostic:
+                                candidates_not_validated: int) -> Diagnostic:
     """``INDEX_BUDGET_EXHAUSTED`` — the declared whole-run ceiling bound.
 
     Written only when the *clock* stopped the run
@@ -2243,13 +2242,10 @@ def budget_exhausted_diagnostic(total_seconds: float,
     ``systems_searched`` — a system searched to completion said something, a
     truncated one said less, and one never reached said nothing at all — plus
     the candidates whose validation never ran (they read ``not_validated``,
-    which is the honest cap, never ``validation_failed``).
-
-    ``ceiling_hit=False`` (WP-1042) is the slice-only case: the whole-run clock
-    never expired, but one or more validation fits exhausted the equal slice
-    of the remaining clock the ceiling's arithmetic gave them — the ceiling
-    still bound the answer, and saying "the run hit its ceiling" would be
-    false, so the message says which of the two happened.
+    which is the honest cap, never ``validation_failed``).  Until WP-2011 a
+    validation fit could also run out of its equal slice with the run's clock
+    unspent, and a second message said so; the fits now run on the run's
+    clock, so a cancelled fit means the ceiling bound.
     """
     where = []
     if engines_not_run:
@@ -2262,11 +2258,8 @@ def budget_exhausted_diagnostic(total_seconds: float,
         where.append(f"{candidates_not_validated} candidate(s) not validated")
     return Diagnostic(
         level="warning", code="INDEX_BUDGET_EXHAUSTED",
-        message=((f"The run hit its declared ceiling of {total_seconds:g} s, "
-                  "so the answer covers what was reached.") if ceiling_hit else
-                 (f"One or more validation fits exhausted their slice of the "
-                  f"clock under the declared ceiling of {total_seconds:g} s, "
-                  "and their candidates read not_validated.")),
+        message=(f"The run hit its declared ceiling of {total_seconds:g} s, "
+                 "so the answer covers what was reached."),
         where=where,
         suggestion=("Read systems_searched and search_complete before you "
                     "treat an absence as evidence. Raise total_budget_seconds, "
@@ -2380,7 +2373,7 @@ SEARCH_PRESET_INFO: dict[str, SearchPresetInfo] = {
             "behaviour."),
         when_to_use=(
             "when a quick run reported truncated or not-reached systems (or "
-            "validation slices that ran dry) and the answer may live there — "
+            "candidates not validated) and the answer may live there — "
             "typically low-symmetry searches, which are irreducibly slow"),
         typical_seconds=(4.0, 440.0),
     ),
