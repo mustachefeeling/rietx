@@ -270,3 +270,51 @@ def test_a_spent_budget_still_returns_a_descent_step():
     y, _ = bccg.projected_cg(H, g, lo, hi, budget=3)
     assert np.all((lo <= y) & (y <= hi))
     assert _model(H, g, y) < 0.0
+
+
+def _banded_box_qp(n: int = 300, seed: int = 4):
+    """A Pawley-shaped bounded model: each column of J a window of 20 rows
+    overlapping its neighbours', so H = JᵀJ is banded, with a floor at 0 that
+    about a third of the variables would cross unbounded."""
+    from scipy import sparse
+
+    rng = np.random.default_rng(seed)
+    m = 4 * n + 20
+    rows = np.concatenate([np.arange(4 * j, 4 * j + 20) for j in range(n)])
+    cols = np.repeat(np.arange(n), 20)
+    J = sparse.csc_matrix((rng.uniform(0.2, 1.0, len(rows)), (rows, cols)),
+                          shape=(m, n))
+    g = J.T @ (J @ rng.uniform(-0.5, 1.0, n))
+    return (J.T @ J).tocsr(), g, np.zeros(n), np.full(n, np.inf)
+
+
+def test_a_sparse_h_is_preconditioned_to_the_dense_minimiser():
+    """WP-2011: a sparse H takes CG preconditioned by the free block's
+    incomplete LU.  It must land on the minimiser the dense, unpreconditioned
+    solve reaches, put the same variables on their floor and lower the
+    model."""
+    H, g, lo, hi = _banded_box_qp()
+    n = len(g)
+    y_dense, side_dense = bccg.projected_cg(H.toarray(), g, lo, hi, budget=200 * n)
+    y, side = bccg.projected_cg(H, g, lo, hi, budget=200 * n)
+    np.testing.assert_allclose(y, y_dense, rtol=0.0,
+                               atol=1e-8 * float(np.max(np.abs(y_dense))))
+    assert np.array_equal(side, side_dense) and np.count_nonzero(side) > n // 10
+    assert np.all(y[side < 0] == 0.0)
+    assert _model(H.toarray(), g, y) < 0.0
+
+
+def test_a_failed_factorisation_falls_back_to_plain_cg(monkeypatch):
+    """A factor that cannot be built leaves the CG unpreconditioned, and the
+    solve still reaches the same minimiser."""
+    H, g, lo, hi = _banded_box_qp(n=150, seed=2)
+    n = len(g)
+    y_dense, _ = bccg.projected_cg(H.toarray(), g, lo, hi, budget=200 * n)
+
+    def singular(_):
+        raise RuntimeError("Factor is exactly singular")
+
+    monkeypatch.setattr(bccg, "spilu", singular)
+    y, _ = bccg.projected_cg(H, g, lo, hi, budget=200 * n)
+    np.testing.assert_allclose(y, y_dense, rtol=0.0,
+                               atol=1e-8 * float(np.max(np.abs(y_dense))))

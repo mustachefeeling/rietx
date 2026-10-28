@@ -2280,6 +2280,15 @@ ROWS: tuple[Row, ...] = (
         grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
                  "once a test confirms its margin under both LM and TRF."),
         approved="2026-10-19"),
+    Row("rietx.optimize.least_squares.PAWLEY_SPARSE_DENSITY", "constant", tier=3, value=0.05,
+        evidence=("WP-2011: banded windows break even against dense BLAS at 0.05 at 5995 x 343 "
+                  "and 59498 x 2224 (macOS arm64); either side A agrees with the dense JtJ to "
+                  "2e-15; NAC candidates at 0.022-0.023 (monoclinic 47 s dense-built, 34 s "
+                  "sparse), FAP.XRA's closing stage at 0.38 (115 ms a build against 2 ms); "
+                  "two families; second pass owed (refits of three families on either side)"),
+        grounds=("A solver-path switch no refiner has a view on; kept at tier 3 until refits of "
+                 "three families on either side give one answer (B10, ruled 2026-10-19)."),
+        approved="2026-10-19"),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", tier=3, value=0.95,
         evidence=("the profile interval's own level, PARAMETER_INTERVAL_LEVEL, held equal by "
                   "test; at one angle its chi-bar-squared cut is the one-sided interval's 2.706 "

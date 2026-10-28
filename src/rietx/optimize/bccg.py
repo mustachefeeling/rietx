@@ -52,6 +52,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy import sparse
+from scipy.sparse.linalg import spilu
 
 #: their equation (2) constant — a parameter contributing less than
 #: ``s_0 / (200·N_k)`` to the residual is a candidate for removal …
@@ -306,14 +308,15 @@ def _cauchy_point(H: np.ndarray, g: np.ndarray, lo: np.ndarray,
     return np.zeros_like(g)
 
 
-def projected_cg(H: np.ndarray, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
+def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
                  budget: int | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Minimise ``½yᵀHy − gᵀy`` over ``lo ≤ y ≤ hi`` by projected conjugate
     gradients, the step :mod:`.lm` takes above its BVLS cut (WP-1953).
 
-    ``H`` is symmetric positive semi-definite and ``lo ≤ 0 ≤ hi``, so y = 0 is
-    feasible.  The method is the subspace step of Lin, C.-J. & Moré, J. J.
-    (1999). *SIAM J. Optim.* **9**, 1100-1127, started from the Cauchy point:
+    ``H``, dense or ``scipy.sparse``, is symmetric positive semi-definite and
+    ``lo ≤ 0 ≤ hi``, so y = 0 is feasible.  The method is the subspace step of
+    Lin, C.-J. & Moré, J. J. (1999). *SIAM J. Optim.* **9**, 1100-1127,
+    started from the Cauchy point:
 
     1. **The Cauchy point** (:func:`_cauchy_point`) fixes the variables a
        steepest-descent step already pushes onto a bound.
@@ -330,6 +333,20 @@ def projected_cg(H: np.ndarray, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *
     :data:`_PCG_BUDGET_PER_VARIABLE` per variable); a solve that spends it
     returns the best point so far, still a descent step.
 
+    **A sparse H is preconditioned** (WP-2011), as Lin & Moré precondition
+    their subspace step with an incomplete Cholesky factor: step 2 runs CG on
+    the free block H_ff preconditioned by its incomplete LU (Saad, Y. (2003).
+    *Iterative Methods for Sparse Linear Systems*, 2nd ed., ch. 10.
+    Philadelphia: SIAM), ``scipy.sparse.linalg.spilu`` at scipy's own drop
+    tolerance and fill factor.  The factor is rebuilt whenever the free set
+    differs from the one it was built on.  The step length is
+    ``(r·z)/(pᵀHp)`` with ``z = M⁻¹r``, which is the exact line minimiser
+    along p because ``p·r = r·z`` holds for any preconditioner, so every
+    segment still lowers the model.  A factorisation that fails, or a
+    direction with ``r·z ≤ 0``, takes the unpreconditioned direction r.  A
+    dense H is never preconditioned, and its arithmetic is unchanged.  The
+    measurement is :func:`.lm._solve_step`'s.
+
     Returns the step and which bound each variable was fixed on (−1 lower,
     +1 upper, 0 neither), the convention :func:`.lm._solve_step` lands
     variables exactly on.
@@ -340,6 +357,9 @@ def projected_cg(H: np.ndarray, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *
     floor = _PCG_TOL * _PCG_TOL * max(float(g @ g), np.finfo(np.float64).tiny)
     fixed = (y <= lo) | (y >= hi)
     spent = 0
+    # the free set the incomplete LU was built on, and the factor (None where
+    # it failed); a dense H keeps (None, None) and takes r as its direction
+    factored, ilu = None, None
     while spent < budget:
         grad = H @ y - g
         spent += 1
@@ -351,7 +371,11 @@ def projected_cg(H: np.ndarray, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *
                 break
             fixed &= ~release
             continue
-        p = r
+        free = ~fixed
+        if sparse.issparse(H) and (factored is None or not np.array_equal(free, factored)):
+            factored, ilu = free, _incomplete_lu(H, free)
+        z, rz = _preconditioned(ilu, r, rr, free)
+        p = z
         stalled = False
         while spent < budget:
             q = H @ p
@@ -360,7 +384,7 @@ def projected_cg(H: np.ndarray, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *
             if pq <= 0.0:
                 stalled = True      # flat along p: no CG step left to take
                 break
-            alpha = rr / pq
+            alpha = rz / pq
             with np.errstate(divide="ignore", invalid="ignore"):
                 reach = np.where(p > 0.0, (hi - y) / p,
                                  np.where(p < 0.0, (lo - y) / p, np.inf))
@@ -377,11 +401,39 @@ def projected_cg(H: np.ndarray, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *
             rr_next = float(r @ r)
             if rr_next <= floor:
                 break
-            p = r + (rr_next / rr) * p
-            rr = rr_next
+            z, rz_next = _preconditioned(ilu, r, rr_next, free)
+            p = z + (rz_next / rz) * p
+            rz = rz_next
         if stalled:
             break
     side = np.zeros(n, dtype=np.int8)
     side[fixed & (y <= lo)] = -1
     side[fixed & (y >= hi)] = 1
     return y, side
+
+
+def _incomplete_lu(H, free: np.ndarray):
+    """The incomplete LU of H's free block at scipy's defaults, or ``None``
+    where the factorisation fails (an exactly singular pivot)."""
+    idx = np.flatnonzero(free)
+    if not idx.size:
+        return None
+    try:
+        return spilu(H.tocsr()[idx][:, idx].tocsc())
+    except RuntimeError:
+        return None
+
+
+def _preconditioned(ilu, r: np.ndarray, rr: float,
+                    free: np.ndarray) -> tuple[np.ndarray, float]:
+    """``z = M⁻¹r`` on the free variables, zero on the fixed ones, with
+    ``r·z``.  Without a factor, or where ``r·z`` is not positive and finite,
+    the direction is r itself with ``r·r``, unpreconditioned CG's."""
+    if ilu is None:
+        return r, rr
+    z = np.zeros_like(r)
+    z[free] = ilu.solve(r[free])
+    rz = float(r @ z)
+    if not (np.isfinite(rz) and rz > 0.0):
+        return r, rr
+    return z, rz
