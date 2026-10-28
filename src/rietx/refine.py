@@ -1774,6 +1774,21 @@ def _vars_driven_cell_escapes(table: ParameterTable,
     return out
 
 
+def _merge_unresolved(first: list[tuple[str, list[str]]],
+                      second: list[tuple[str, list[str]]]
+                      ) -> list[tuple[str, list[str]]]:
+    """Two solves' driven escapes as one record, merged by driver, so a
+    driver still escaping after both is named once, not twice.
+
+    One rule for both runners, :meth:`Refinement._run_stage` and the joint
+    stage loop in ``multi.py`` (WP-2028 task 7).
+    """
+    merged = dict(first)
+    for driver, escaped in second:
+        merged[driver] = sorted(set(merged.get(driver, [])) | set(escaped))
+    return list(merged.items())
+
+
 def _cell_runaway_withheld(table: ParameterTable,
                            named: Iterable[str]) -> set[str]:
     """The paths whose esd a result withholds, given the paths one stage's
@@ -4838,10 +4853,9 @@ class Refinement:
             # collapse-restore's own second solve landed on -- merged by
             # driver rather than concatenated, so a driver still escaping
             # after both solves is named once, not twice
-            merged = dict(cell_runaway_unresolved)
-            for driver, escaped in _vars_driven_cell_escapes(table, start_values):
-                merged[driver] = sorted(set(merged.get(driver, [])) | set(escaped))
-            cell_runaway_unresolved = list(merged.items())
+            cell_runaway_unresolved = _merge_unresolved(
+                cell_runaway_unresolved,
+                _vars_driven_cell_escapes(table, start_values))
             # the record is one stage: the second solve's answer, the first
             # solve's starting cost, and the iterations of both — the whole
             # point being that the hold cost something and it must be visible

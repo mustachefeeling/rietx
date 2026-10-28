@@ -102,6 +102,7 @@ from .refine import (
     _lineless_phases,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
+    _merge_unresolved,
     _occupancy_flag_diagnostics,
     _onto_flat_meridian,
     _origin_diagnostics,
@@ -1040,18 +1041,6 @@ def _vars_driven_cell_escapes_multi(mtable, start_values: list[dict[str, float]]
                 scoped = mtable._canonical(h, dependent)
                 if scoped not in row:
                     row.append(scoped)
-    return list(merged.items())
-
-
-def _merge_unresolved(first: list[tuple[str, list[str]]],
-                      second: list[tuple[str, list[str]]]
-                      ) -> list[tuple[str, list[str]]]:
-    """Two solves' driven escapes as one record, merged by driver, so a
-    driver still escaping after both is named once (``refine._run_stage``'s
-    rule)."""
-    merged = dict(first)
-    for driver, escaped in second:
-        merged[driver] = sorted(set(merged.get(driver, [])) | set(escaped))
     return list(merged.items())
 
 
