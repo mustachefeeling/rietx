@@ -318,3 +318,85 @@ def test_a_failed_factorisation_falls_back_to_plain_cg(monkeypatch):
     y, _ = bccg.projected_cg(H, g, lo, hi, budget=200 * n)
     np.testing.assert_allclose(y, y_dense, rtol=0.0,
                                atol=1e-8 * float(np.max(np.abs(y_dense))))
+
+
+class _Counting(np.ndarray):
+    """A dense H that counts its products, the cost :func:`bccg.projected_cg`
+    budgets."""
+
+    products = 0
+
+    def __matmul__(self, v):
+        type(self).products += 1
+        return np.asarray(self) @ v
+
+
+def _paired_box_qp(n_pairs: int = 100, seed: int = 1):
+    """A pseudo-symmetric Pawley block: reflections in pairs a fraction of a
+    width apart, the data pulling one of each pair below its floor at 0."""
+    rng = np.random.default_rng(seed)
+    m = 8 * n_pairs + 50
+    x = np.arange(m, dtype=float)
+    cols = [np.exp(-0.5 * ((x - 8 * j - 15 - off) / 3.0) ** 2)
+            for j in range(n_pairs) for off in (0.0, 2.0)]
+    J = np.array(cols).T
+    truth = np.zeros(2 * n_pairs)
+    truth[0::2] = rng.uniform(0.5, 1.5, n_pairs)
+    obs = J @ truth - 0.3 * J[:, 1::2].sum(axis=1) + 0.01 * rng.standard_normal(m)
+    n = 2 * n_pairs
+    return J, obs, J.T @ J, J.T @ obs, np.zeros(n), np.full(n, np.inf)
+
+
+def test_a_projected_search_activates_many_bounds_at_once():
+    """WP-2011: the subspace step's projected search (Lin & Moré 1999) puts
+    many variables on their floor in one step.  Cutting the CG step at the
+    first bound puts one there per restart, at least two Hessian products
+    each, so the 99 floors here cost that path over 2·99 (measured: 203
+    against 24, n = 200).  The search reaches the box minimiser the dense
+    active-set solve finds."""
+    from scipy.optimize import lsq_linear
+
+    J, obs, H, g, lo, hi = _paired_box_qp()
+    n = len(g)
+    exact = lsq_linear(J, obs, bounds=(lo, hi), method="bvls").x
+    _Counting.products = 0
+    y, side = bccg.projected_cg(H.view(_Counting), g, lo, hi)
+    np.testing.assert_allclose(y, exact, rtol=0.0,
+                               atol=1e-6 * float(np.max(np.abs(exact))))
+    on_floor = int(np.count_nonzero(side < 0))
+    assert np.all(y[side < 0] == 0.0) and on_floor > n // 4
+    assert _Counting.products < on_floor
+
+
+def test_a_singular_dense_block_is_factored_shifted(monkeypatch):
+    """WP-2011: at λ = 0 a Pawley block whose reflections coincide is
+    singular.  The worst systems of probe 17's zircon and FAP candidates had
+    23-54 eigenvalues within 2e-15 of zero, some of them negative, so the
+    Cholesky factorisation of the free block failed and the face step was
+    unpreconditioned CG.  The block's diagonal is raised until the
+    factorisation succeeds, as Lin & Moré's ICFS does, and the solve reaches
+    the box minimiser's model value within its default budget."""
+    from scipy.optimize import lsq_linear
+
+    J, obs, _, _, lo, hi = _paired_box_qp(n_pairs=60, seed=3)
+    J = np.column_stack([J, J[:, 0]])   # one reflection twice
+    H, g = J.T @ J, J.T @ obs
+    n = len(g)
+    lo, hi = np.zeros(n), np.full(n, np.inf)
+    # the null direction's eigenvalue at -1e-15 of the diagonal, as measured
+    v = np.zeros(n)
+    v[0], v[-1] = 1.0, -1.0
+    H -= 0.5e-15 * float(H[0, 0]) * np.outer(v, v)
+    with pytest.raises(np.linalg.LinAlgError):
+        np.linalg.cholesky(H)
+    free = np.ones(n, dtype=bool)
+    assert isinstance(bccg._factor(H, free), bccg._Cholesky)
+    exact = lsq_linear(J, obs, bounds=(lo, hi), method="bvls").x
+    _Counting.products = 0
+    y, _ = bccg.projected_cg(H.view(_Counting), g, lo, hi)
+    assert np.all((lo <= y) & (y <= hi))
+    assert _model(H, g, y) == pytest.approx(_model(H, g, exact), rel=1e-9)
+    # measured: 29 products shifted, 169 unpreconditioned, of 242 budgeted
+    assert _Counting.products < n // 2
+    monkeypatch.setattr(bccg, "_CHOLESKY_SHIFTS", 1)
+    assert bccg._factor(H, free) is None

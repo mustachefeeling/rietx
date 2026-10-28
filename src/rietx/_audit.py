@@ -2184,6 +2184,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.bccg._CAUCHY_HALVINGS", "constant", tier=1, value=60,
         evidence=("arithmetic: 2^-60 = 8.7e-19 sits below fp64 epsilon, so no further halving "
                   "changes the point")),
+    Row("rietx.optimize.bccg._CHOLESKY_SHIFT", "constant", tier=2, value=0.001,
+        evidence=("Lin & Moré (1999) SIAM J. Sci. Comput. 21, 24 (ICFS, TRON's preconditioner): "
+                  "alpha_S = 1e-3 of the diagonal, doubled until the factor exists (docstring; "
+                  "recalled, not checked; paper not on disk).  It moves only the preconditioner, "
+                  "never the box minimiser CG converges to")),
+    Row("rietx.optimize.bccg._CHOLESKY_SHIFTS", "constant", tier=1, value=40,
+        evidence=("arithmetic: 1e-3 * 2^39 = 5.5e8 times the diagonal; scaled to a unit "
+                  "diagonal, a semidefinite block's off-diagonal row sums are at most n - 1, so "
+                  "Gershgorin makes the shifted block positive definite for any n below 5.5e8")),
     Row("rietx.optimize.bccg._CONVERGED_FRACTION", "constant", tier=3, value=0.0001,
         evidence=("Coelho (2005) J. Appl. Cryst. 38, 455, § 2 termination (docstring; paper not on "
                   "disk)"),

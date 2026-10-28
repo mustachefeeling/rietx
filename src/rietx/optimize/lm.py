@@ -806,6 +806,20 @@ def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,
     A sparse A at or under the cut is densified, since BVLS needs the
     eigendecomposition.
 
+    **A dense A** past the cut takes the face's Newton step through the free
+    block's Cholesky factor, shifted where the block is singular, and a
+    projected search along it (WP-2011).  Pseudo-symmetric Pawley candidates
+    built from lab patterns put one reflection of most pairs on its zero
+    floor.  Cutting CG at the first bound did that one bound per restart,
+    and the largest solve spent its whole budget.  On zircon's candidate
+    (601 columns) the largest solve now takes 157 products against 1204, the
+    validation 1 274 against 16 851, and its step solves 0.18 s against
+    0.77 s.  On corundum's (576 columns) the figures are 128 against 1154,
+    787 against 12 654, and 0.14 s against 0.65 s.  Rwp, unmatched and absent
+    lines are unchanged on both, and FAP.XRA's Pawley fit is unchanged to
+    seven decimals with the same iterations per stage (macOS arm64,
+    ``[dev]``).
+
     Returns the step and which bound each variable was solved onto (−1 lower,
     +1 upper, 0 neither), so the caller can land those variables *exactly* on
     the bound the solve chose.

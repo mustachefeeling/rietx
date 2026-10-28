@@ -40,8 +40,10 @@ that cross that cut it was wrong in sign: its model value was positive at most
 because a variable clamped mid-loop moves *less* than the CG step assumed while
 the residual is updated as if it had not.  The stage then spent its budget
 raising λ.  The driver's step there is :func:`projected_cg` below, which
-stops at a bound instead of projecting past it.  :func:`solve` stays as the
-paper's method, with the readings the tests pin.
+stops at a bound instead of projecting past it.  Its projected search
+(WP-2011) projects only a finished CG direction, and keeps the point only
+where the model has fallen, so the defect above cannot recur there.
+:func:`solve` stays as the paper's method, with the readings the tests pin.
 
 The system is diagonally pre-conditioned to A_ii = 1 before any of this, which
 is also what makes the Levenberg-Marquardt λ of :mod:`.lm` dimensionless.
@@ -322,17 +324,26 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
     1. **The Cauchy point** (:func:`_cauchy_point`) fixes the variables a
        steepest-descent step already pushes onto a bound.
     2. **CG on the free variables**, from a residual recomputed at the current
-       point.  A CG step that would leave the box is cut at the first bound it
-       meets, that variable is put *on* the bound and fixed, and CG restarts.
+       point.  Where the free block's preconditioner is a dense Cholesky
+       factor, CG runs on the face ignoring the bounds, which is the face's
+       Newton step, and a **projected search** along it
+       (:func:`_projected_search`, Lin & Moré §4) puts every variable it
+       carries past a bound on that bound at once.  Otherwise a CG step that
+       would leave the box is cut at the first bound it meets, that variable
+       is put *on* the bound and fixed, and CG restarts.
     3. **Release.**  Once CG converges on a face, a fixed variable whose
        gradient points into the box is freed, and step 2 runs again; with none
        to free the face's minimiser is the box's.
 
-    Every CG segment lowers the model, the cut one included, so the step
-    always descends, which is what BCCG's projection past a bound could not
-    promise.  ``budget`` caps the Hessian products (default
-    :data:`_PCG_BUDGET_PER_VARIABLE` per variable); a solve that spends it
-    returns the best point so far, still a descent step.
+    Every CG segment lowers the model, the cut one included, and so does
+    every accepted search point, so the step always descends, which is what
+    BCCG's projection past a bound could not promise.  The search projects a
+    *finished* direction and keeps a point only if the model falls by the
+    Armijo fraction; BCCG projected inside the recurrence and kept updating
+    the residual as if it had not.  ``budget`` caps the Hessian products
+    (default :data:`_PCG_BUDGET_PER_VARIABLE` per variable), a search trial
+    included; a solve that spends it returns the best point so far, still a
+    descent step.
 
     **A sparse H is preconditioned** (WP-2011), as Lin & Moré precondition
     their subspace step with an incomplete Cholesky factor: step 2 runs CG on
@@ -348,9 +359,19 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
     switch between the two restarts the recurrence (β = 0).  **A dense H is
     preconditioned by the exact Cholesky factor of its free block**, rebuilt
     on the same rule: a direction is then the face's Newton step, so CG on a
-    face ends in one product unless a bound cuts it.  A block that is not
-    numerically positive definite takes r.  The measurement is
-    :func:`.lm._solve_step`'s.
+    face ends in one product.  A block that is not numerically positive
+    definite has its diagonal raised until it factors (:func:`_factor`, as
+    Lin & Moré's ICFS does): at λ = 0 a pseudo-symmetric Pawley block is
+    singular, and the worst systems of two such candidates had 23-54
+    eigenvalues within 2e-15 of zero, some negative.  Unshifted, 260 of 893
+    and 234 of 835 factorisations failed on two such validations, and the
+    face step there was unpreconditioned CG.
+
+    **The projected search stays off the sparse path**, measured: with an
+    incomplete LU on a singular face, the face's CG did not converge within
+    the budget, and the search then took one long unconverged step.  FAP's
+    monoclinic C test candidate (944 columns) went from Rwp 0.07715 to
+    0.07755 that way.  The measurement is :func:`.lm._solve_step`'s.
 
     Returns the step and which bound each variable was fixed on (−1 lower,
     +1 upper, 0 neither), the convention :func:`.lm._solve_step` lands
@@ -380,6 +401,18 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
         if _PRECONDITION_DENSE or sparse.issparse(H):
             if factored is None or not np.array_equal(free, factored):
                 factored, ilu = free, _factor(H, free)
+        if isinstance(ilu, _Cholesky):
+            # the face's Newton step, then a projected search along it
+            w, used, stalled = _face_cg(H, r, rr, ilu, free, floor, budget - spent)
+            spent += used
+            if not np.any(w):
+                break
+            y, hit, used = _projected_search(H, grad, y, w, lo, hi, budget - spent)
+            spent += used
+            fixed |= hit
+            if stalled:
+                break
+            continue
         z, rz = _preconditioned(ilu, r, rr, free)
         plain = z is r      # this direction took no preconditioner
         p = z
@@ -425,6 +458,79 @@ def projected_cg(H, g: np.ndarray, lo: np.ndarray, hi: np.ndarray, *,
 
 
 _PRECONDITION_DENSE = True
+#: The first diagonal shift tried on a dense free block whose Cholesky
+#: factorisation fails, as a fraction of each diagonal entry, doubled until
+#: the factorisation succeeds: α_S of Lin, C.-J. & Moré, J. J. (1999).
+#: *SIAM J. Sci. Comput.* **21**, 24-45, the incomplete Cholesky
+#: preconditioner of their TRON.
+_CHOLESKY_SHIFT = 1e-3
+#: doublings of that shift tried before the block is left unpreconditioned
+_CHOLESKY_SHIFTS = 40
+
+
+def _face_cg(H, r: np.ndarray, rr: float, ilu, free: np.ndarray, floor: float,
+             budget: int) -> tuple[np.ndarray, int, bool]:
+    """Preconditioned CG on the free face from w = 0, ignoring the bounds: the
+    direction of Lin & Moré's subspace step.  It runs until the face's
+    residual falls to ``floor``, ``budget`` products are spent, or H is flat
+    along a direction.  Returns w, the products spent, and whether it
+    stopped on a flat direction."""
+    w = np.zeros_like(r)
+    z, rz = _preconditioned(ilu, r, rr, free)
+    plain = z is r
+    p = z
+    spent = 0
+    while spent < budget:
+        q = H @ p
+        spent += 1
+        pq = float(p @ q)
+        if pq <= 0.0:
+            return w, spent, True
+        alpha = rz / pq
+        w = w + alpha * p
+        r = np.where(free, r - alpha * q, 0.0)
+        rr_next = float(r @ r)
+        if rr_next <= floor:
+            break
+        z, rz_next = _preconditioned(ilu, r, rr_next, free)
+        beta = rz_next / rz if (z is r) == plain else 0.0
+        plain = z is r
+        p = z + beta * p
+        rz = rz_next
+    return w, spent, False
+
+
+def _projected_search(H, grad: np.ndarray, y: np.ndarray, w: np.ndarray,
+                      lo: np.ndarray, hi: np.ndarray,
+                      budget: int) -> tuple[np.ndarray, np.ndarray, int]:
+    """The point P[y + β·w] for the first β = 1, ½, ¼, … at which the model
+    falls by the Armijo fraction of its first-order prediction (Moré &
+    Toraldo 1991; Lin & Moré 1999 §4).  A trial costs one H product, since
+    m(y + s) − m(y) = ∇m·s + ½sᵀHs.
+
+    Once β reaches the first breakpoint τ, where w first meets a bound, the
+    search takes β = τ without a trial.  w is a CG iterate from y, so it is
+    the exact minimiser along its own line, and the model falls
+    monotonically on β ∈ [0, 1]: the cut at τ lowers it.  Returns the point,
+    the variables it put on a bound, and the products spent."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        reach = np.where(w > 0.0, (hi - y) / w,
+                         np.where(w < 0.0, (lo - y) / w, np.inf))
+    tau = float(np.min(reach)) if len(w) else np.inf
+    spent, beta = 0, 1.0
+    while beta > tau and spent < budget and spent < _CAUCHY_HALVINGS:
+        trial = np.clip(y + beta * w, lo, hi)
+        s = trial - y
+        gs = float(grad @ s)
+        spent += 1
+        if gs + 0.5 * float(s @ (H @ s)) <= _CAUCHY_ARMIJO * gs:
+            return trial, (w != 0.0) & ((trial <= lo) | (trial >= hi)), spent
+        beta *= 0.5
+    beta = min(tau, 1.0)
+    hit = reach <= beta
+    y = y + beta * w
+    y = np.where(hit & (w > 0.0), hi, np.where(hit & (w < 0.0), lo, y))
+    return y, hit, spent
 
 
 class _Cholesky:
@@ -440,8 +546,10 @@ class _Cholesky:
 def _factor(H, free: np.ndarray):
     """The preconditioner on H's free block, or ``None`` where it fails: a
     sparse H's incomplete LU at scipy's defaults (an exactly singular pivot
-    fails it), a dense H's exact Cholesky factor (a block that is not
-    numerically positive definite fails it)."""
+    fails it), a dense H's Cholesky factor.  A dense block that is not
+    numerically positive definite is factored with its diagonal raised by
+    :data:`_CHOLESKY_SHIFT`, doubled until the factorisation succeeds, as
+    Lin & Moré's ICFS does."""
     idx = np.flatnonzero(free)
     if not idx.size:
         return None
@@ -450,11 +558,17 @@ def _factor(H, free: np.ndarray):
             return spilu(H.tocsr()[idx][:, idx].tocsc())
         except RuntimeError:
             return None
-    try:
-        return _Cholesky(cho_factor(np.asarray(H)[np.ix_(idx, idx)],
-                                    check_finite=False))
-    except LinAlgError:
-        return None
+    block = np.asarray(H)[np.ix_(idx, idx)]
+    diag = np.diag(block)
+    raise_by = np.diag(np.where(diag > 0.0, diag, 1.0))
+    alpha = 0.0
+    for _ in range(_CHOLESKY_SHIFTS):
+        try:
+            return _Cholesky(cho_factor(block + alpha * raise_by if alpha else block,
+                                        check_finite=False))
+        except LinAlgError:
+            alpha = max(2.0 * alpha, _CHOLESKY_SHIFT)
+    return None
 
 
 def _preconditioned(ilu, r: np.ndarray, rr: float,
