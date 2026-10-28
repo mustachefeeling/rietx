@@ -992,7 +992,8 @@ class CompiledModel:
 
         The tick half of the member contract's clause 2, written once because
         **two** result builders owe it: ``refine._build_result`` and
-        ``multi.MultiHistogramRefinement._ticks``.  A copy in each is how a
+        ``multi.MultiHistogramRefinement._build_result``, through their one
+        tick builder ``refine._tick_rows`` (WP-2028).  A copy in each is how a
         joint fit ends up reporting a declared peak as an unindexed impurity
         while a single-histogram fit does not — the ``ticks`` failure this
         exists to prevent, one surface over.
@@ -1181,6 +1182,7 @@ class CompiledModel:
         for a tick.  ``refine._build_result``, ``multi.MultiHistogramRefinement
         ._ticks`` and ``viz.snapshot.stage_ticks`` each carried their own copy
         until WP-1908's review, and a copy is how a builder forgets the shift.
+        The first two now share ``refine._tick_rows`` (WP-2028).
         A time-of-flight axis owes a twin here, not a fifth walk.  Positions come
         from :meth:`apparent_two_theta`, so they are where the model draws each
         peak.  The satellite report's lattice enumerates differently and calls

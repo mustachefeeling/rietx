@@ -27,10 +27,8 @@ import numpy as np
 
 from . import runs
 from .backend.api import backend_dtype_note
-from .crystallography.symmetry import reflection_label_row
 from .crystallography.twins import merge_site_twins
 from .history.events import _attach_progress, as_event_stream
-from .model.components import EXTRA_TICK_KEY
 from .model.forward import (
     PHASE_SUPPORT_SIGMA,
     compile_model,
@@ -93,7 +91,6 @@ from .refine import (
     _displacement_columns,
     _escaped_cell_paths,
     _extra_peak_diagnostics,
-    _extra_peak_tick_support,
     _far_from_data_diagnostics,
     _fixed_literal_diagnostics,
     _flat_moment_scan,
@@ -112,7 +109,6 @@ from .refine import (
     _phase_support_diagnostics,
     _quantify_phases,
     _radiation,
-    _reflection_tick_support,
     _refuse_without_phases,
     _reported_support_sigma,
     _resolve_specimen_absorption,
@@ -126,6 +122,7 @@ from .refine import (
     _species_fallback_diagnostics,
     _strain_flag_diagnostics,
     _symmetry_silence_diagnostics,
+    _tick_rows,
     _uncorrected,
     _unknown_path_diagnostics,
     _unmeasured_phases,
@@ -1836,54 +1833,6 @@ class MultiHistogramRefinement:
                                 for h, m in enumerate(models)],
                     **extra)
 
-    # ------------------------------------------------------------------
-    def _ticks(self, model, structure, values
-               ) -> tuple[dict[str, list[float]], dict[str, list[list[int]]],
-                          dict[str, list[float]]]:
-        """Positions per phase, which reflection each of them is, and its
-        support in σ.
-
-        All three, from one walk.  The positions and the Miller indices are
-        ``CompiledModel.reflection_positions``, the walk this shares with
-        ``refine._build_result`` and ``viz.snapshot.stage_ticks`` (WP-1908), so
-        a joint fit's ticks are where the model draws each peak and a joint
-        fit whose ticks carried no Miller indices cannot be the one surface
-        where pointing at a tick told the reader nothing (WP-1438).  The
-        support is not a result field: ``_low_angle_diagnostics`` is its one
-        reader, and its rule is ``refine``'s (``_reflection_tick_support``),
-        so the two builders cannot disagree about which tick has anything
-        behind it.
-        """
-        ticks: dict[str, list[float]] = {}
-        tick_hkl: dict[str, list[list[int]]] = {}
-        tick_support: dict[str, list[float]] = {}
-        for ip in range(len(model.phases)):
-            name = structure.phases[ip].name
-            # (H, m), not H: a satellite is labelled by its order (WP-1326)
-            pos, hkl = model.reflection_positions(ip, values)
-            sup = _reflection_tick_support(
-                model, ip, values, len(model.line_wavelengths))
-            keep = np.isfinite(pos)
-            pos, hkl, sup = pos[keep], hkl[keep], sup[keep]
-            order = np.argsort(pos, kind="stable")
-            ticks[name] = [float(v) for v in pos[order]]
-            tick_hkl[name] = [reflection_label_row(r) for r in hkl[order]]
-            tick_support[name] = [float(v) for v in sup[order]]
-        # Declared sharp peaks are ticks here too (WP-1103, the member
-        # contract's clause 2).  A joint fit's Layer 0 reads *this* list, so
-        # without the row every declared peak comes back as an unindexed
-        # impurity on every histogram — the single-histogram failure
-        # ``refine._build_result`` writes the same key to prevent.  The
-        # positions come from the compiled model rather than from a second
-        # loop, so the two surfaces cannot drift.
-        extra = model.extra_peak_tick_positions(values)
-        if extra:
-            # no `tick_hkl` row: a peak declared by centre has no Miller
-            # index, and an empty list would claim it had none of its own
-            ticks[EXTRA_TICK_KEY] = extra
-            tick_support[EXTRA_TICK_KEY] = _extra_peak_tick_support(model, values)
-        return ticks, tick_hkl, tick_support
-
     def _build_result(self, models, outcome, weights, correlation_guard,
                       stage_results, cell_runaway_diags=(),
                       answer_runaway=(), opening_diags=(),
@@ -2041,7 +1990,9 @@ class MultiHistogramRefinement:
             diags.extend(_harmonic_diagnostics(
                 model, values, set(table.free_paths), esd_h))
             diags.extend(_roughness_regime_diagnostics(model, values))
-            ticks, tick_hkl, tick_support = self._ticks(model, struct, values)
+            # the single path's own builder (WP-2028 task 7), so a magnetic
+            # phase draws its "(magnetic)" row here too (#278)
+            ticks, tick_hkl, tick_support = _tick_rows(model, struct, values)
             diags.extend(_extra_peak_diagnostics(model, values, ticks, table))
             diags.extend(_far_from_data_diagnostics(model, y_calc, y_bkg, stats))
             # the measurement's half only: support=None withholds the ratio,

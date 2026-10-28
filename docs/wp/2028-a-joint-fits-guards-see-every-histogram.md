@@ -1,6 +1,6 @@
 # WP-2028 — a joint fit's guards see every histogram
 
-Milestone: unscheduled · Status: 🔄 2026-10-26 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7 and 8 open
+Milestone: unscheduled · Status: 🔄 2026-10-28 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7's `_ticks` folded, the rest of 7 and 8 open
 Track: What fires, and what stays silent
 Depends on: — (1341 closed: it built the joint report this WP completes; 1325
 soft: its parametric codes and per-pattern holds are what tasks 3 and 6
@@ -209,6 +209,22 @@ shows the findings that name histogram h.
   WP-2001 and WP-2004 (the tier rule).
 
 ## Handover log
+
+- **2026-10-28** — task 7's `_ticks` fold, from outside (claim #1124). The
+  joint path's tick loop is gone: `refine._tick_rows` is the one builder, and
+  `refine._build_result` and each histogram of
+  `MultiHistogramRefinement._build_result` call it. A joint fit's magnetic
+  phase now draws its `"<phase> (magnetic)"` row in each neutron pattern
+  (issue #278); an X-ray pattern, which does not see the moment, keeps one row.
+  *Measured*: `tests/test_magnetic_tick_row.py::test_a_joint_fit_draws_the_magnetic_row_in_each_neutron_histogram`
+  fails on `main` `2cf63737` (`['MnF2']`, the four magnetic-only reflections
+  on the nuclear row of the λ = 2.4 Å pattern) and passes here. A single fit's
+  `ticks`, `tick_hkl`, `tick_support` and diagnostic codes are byte-identical
+  to `main` on five fits (MnF₂ k = 0, a k = (0,0,½) supercell, a nuclear
+  phase, MnF₂ under X-rays, LaB6 with a declared peak; one SHA-256 over all
+  five). `tests/test_extra_components.py`'s joint test calls `_tick_rows`,
+  since `_ticks` is gone. *Open*: the rest of the census is listed for the
+  maintainer's ruling on #1124 and is not folded; task 8.
 
 - **2026-10-26** — tasks 1-3, 5 and 6 merged from outside as PR #1128
   (`1ba6c216`), after four review rounds. A joint fit's structure guards now
