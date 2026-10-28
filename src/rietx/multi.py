@@ -156,12 +156,12 @@ from .schemas.results import (
 from .schemas.structure import Structure
 from .strategy.staged import (
     BACKGROUND_ABSORPTION_GUARD,
-    FLAT_DIRECTION_RHO,
     PLAN_PRESETS,
     ROUGHNESS_ABSORPTION_GUARD,
     GuardFinding,
     GuardReport,
     RefinementPlan,
+    _correlation_findings,
     _exact_active_bounds,
     bound_findings,
     check_adp_positive_definite,
@@ -2281,17 +2281,11 @@ class MultiHistogramRefinement:
         report.nonpositive_strain = _stephens_once(mt, models)
         report.nonpositive_texture = _texture_once(mt, models)
         if outcome.correlation is not None and len(free) > 1:
-            c = np.asarray(outcome.correlation)
-            for i in range(len(free)):
-                for j in range(i + 1, len(free)):
-                    if abs(c[i, j]) > correlation_guard:
-                        report.high_correlations.append(
-                            GuardFinding.correlation(free[i], free[j], c[i, j]))
-                        # beside it, never instead (``check_guards``' rule)
-                        if abs(c[i, j]) >= FLAT_DIRECTION_RHO:
-                            report.flat_directions.append(
-                                GuardFinding.flat_direction(
-                                    free[i], free[j], c[i, j]))
+            # the single fit's loop (``check_guards``' rule), on the joint
+            # correlation matrix
+            report.high_correlations, report.flat_directions = (
+                _correlation_findings(np.asarray(outcome.correlation), free,
+                                      correlation_guard))
         if outcome.jac is not None and len(free) > 1:
             try:
                 # the matrix the covariance cut (``check_guards``' rule)
