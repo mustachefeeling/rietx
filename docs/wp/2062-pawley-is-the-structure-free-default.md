@@ -173,6 +173,19 @@ above, which come from lab and synchrotron single-phase patterns
   d-spacing) cut NAC's true cell from 849 to 299 columns at an unchanged
   Rwp. It changes the model only where the data cannot separate the
   reflections, so it is a candidate for every site here.
+- **From WP-2011, 2026-10-28 (3rd session): the validation default is
+  decided, and the dense path is fast too.** Under the maintainer's
+  delegation the indexer's validation fit is Pawley, `quick` keeps 15 % of
+  its ceiling for validation (was 8 %), and the fits run cheapest first. On
+  11-BM NAC that validates the true cell, which no fit reached at 8 %. Past
+  `PAWLEY_SPARSE_DENSITY` a Pawley step now uses the exact, shifted Cholesky
+  factor and a projected search (Lin & Moré 1999): lab pseudo-symmetric
+  candidates went from a whole-budget solve (1204 products at 601 columns)
+  to 157, readings unchanged. Two costs stay open for every Pawley site here:
+  the sparse ILU path still spends its budget on a singular face (FAP as
+  monoclinic C, 944 columns, 1882 of 1888 products, 12 s; a shifted ILU
+  fixed it offline but slowed FAP.XRA's real fit), and the panel scoring
+  that spends `quick`'s reserve is WP-2063's.
 
 ## Decisions (maintainer)
 
