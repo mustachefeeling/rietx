@@ -83,9 +83,9 @@ def test_under_a_deliverable_every_count_is_the_level_for_that_purpose():
     assert s.deliverable == "structure"
     assert s.warnings_per_result == pytest.approx({"structure": 5 / 3})
     assert _tallies(s)["RESOLUTION_UNCONSTRAINED"] == (2, 2, 0, 0, 2)
-    assert [(p.code, p.cumulative) for p in s.pareto] == pytest.approx([
-        ("FLOOR_HIT", 0.6), ("PATTERN_UNDERSAMPLED", 0.8),
-        ("SITE_SNAPPED_TO_SPECIAL_POSITION", 1.0)])
+    assert [p.code for p in s.pareto] == [
+        "FLOOR_HIT", "PATTERN_UNDERSAMPLED", "SITE_SNAPPED_TO_SPECIAL_POSITION"]
+    assert [p.cumulative for p in s.pareto] == pytest.approx([0.6, 0.8, 1.0])
     cell = rx.diagnostics_summary(_batch(), deliverable="cell")
     assert cell.pareto == [] and cell.warnings_per_result == {"cell": 0.0}
 
