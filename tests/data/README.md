@@ -1080,9 +1080,22 @@ Bruker's own header definition) — plus two gates a mis-parse cannot pass:
 written from one fact have to satisfy, and the requirement that the declared
 ranges account for the file exactly. `tests/writers_xrd.py` packs v3 from its
 own literal offset table, so the writer cannot drift with the reader.
-**v1 and v2 are refused**: GSAS-II describes v2 and nothing else corroborated
-does, and one description with no file is how a reader comes to return a
-plausible wrong pattern.
+**v1 is refused**: no description of it exists.
+
+**v2 (`RAW2`) has one real file, and it is not here** (WP-2059, issue #1164).
+Durham's TOPAS tutorial file `Pbso4.raw` (24 328 bytes, SHA-256
+`80e990bc360a3628dca6b0efca3ce03278b00136c4183c2088c0d52041a018d7`) is the
+PbSO₄ round-robin X-ray pattern of Hill (1992), converted to v2 in 1997. Its
+page states no licence, so it is registered in `tests/local_data.py` as
+`durham-topas/pbso4` and fetched to the local-only data root
+(`python -m tests.local_data durham-topas/pbso4`). `test_readers.py` reads it
+where it has been fetched and skips otherwise, pinning 6001 points and every
+count. The pin is stated against this directory's `gsas2_pbso4.gpx`, whose X-ray
+histogram is the same pattern: the two agree at 5998 of 6000 common points,
+the RAW file reads 278 and 276 where the gpx has 275 at 143.375° and 153.725°,
+and the RAW file has one more point, 368 counts at 160°. Everything else about
+v2 is tested on files `tests/writers_xrd.py` packs from a literal offset table,
+with the gpx's counts.
 
 ### GSAS ESD — the 8-character field, and why no file here has a bright peak
 
