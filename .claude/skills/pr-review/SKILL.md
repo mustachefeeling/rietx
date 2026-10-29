@@ -1,4 +1,5 @@
 ---
+name: pr-review
 description: Review outside pull requests — triage the backlog, or work it top-down: merge the clear-cut, batch every human call to the end
 ---
 
