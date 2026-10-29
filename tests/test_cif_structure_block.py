@@ -294,6 +294,21 @@ def test_the_o2_row_is_not_credited_to_the_1995_paper():
     assert blocks._scat_source("O2-", "neutron") == "Sears (1992)"
 
 
+def test_a_written_oxide_cif_carries_the_o2_credit(tmp_path):
+    """The route a user reaches: an ``O2-`` site written through ``to_cif``
+    names Rez et al. (1994) in its ``_atom_type_scat_source`` loop (#1039)."""
+    structure = rx.Structure(phases=[rx.Phase(
+        name="CaO", space_group="F m -3 m", cell=rx.Cell.cubic(4.81),
+        atoms=[_site("Ca1", "Ca2+", (0.0, 0.0, 0.0)),
+               _site("O1", "O2-", (0.5, 0.5, 0.5))])])
+    _path, doc = _written(structure, tmp_path)
+    block = doc.sole_block()
+    sources = _loop(block, "_atom_type_scat_source")
+    assert [v for v in sources if "Rez et al. (1994)" in v] == [
+        "W&K, Rez et al. (1994); Sears (1992)"]
+    assert sum("Waasmaier & Kirfel (1995)" in v for v in sources) == 1
+
+
 def test_a_digitless_ion_is_respelled_by_name(tmp_path):
     """``Cu+`` is the tabulated ``Cu1+``, and the dictionary's symbol grammar
     wants the digit."""
