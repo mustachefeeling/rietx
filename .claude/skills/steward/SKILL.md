@@ -34,7 +34,7 @@ latest commit, open threads) and act on every open item, in this order.
 **Merge main in; never rebase or force-push** a branch that has been
 reviewed — `/pr-review`'s next round diffs from the last-reviewed sha, and a
 rewritten one may no longer merge onto main, leaving it a patch-by-patch
-comparison (`.claude/commands/pr-review.md` § Reviewing one PR, step 1).
+comparison (`.claude/skills/pr-review/SKILL.md` § Reviewing one PR, step 1).
 `git merge origin/main`, message
 `Merge main; <what was synced>`. Resolve by regenerating, never by taking a
 side, where the file is built from others:
@@ -42,7 +42,7 @@ side, where the file is built from others:
 - `docs/wp/README.md` — `python3 .claude/hooks/wp_index.py` (the `wpindex`
   driver usually merges it clean; GitHub's web merge runs no driver).
 - The schema number and `docs/releases/<next>.md` — exactly as the **Sync a
-  bookkeeping conflict yourself** paragraph of `.claude/commands/pr-review.md`
+  bookkeeping conflict yourself** paragraph of `.claude/skills/pr-review/SKILL.md`
   says; it is the one authority, so it is not restated here.
 - `src/rietx/gui/static/**` (marked `-merge`) — rebuild with
   `npm --prefix gui ci && npm --prefix gui run build`; `gui/src/tokens.css`

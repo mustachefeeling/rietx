@@ -91,7 +91,7 @@ tests/.jax_cache/
 docs/docs/_build/
 .DS_Store
 
-# .claude/ is committed selectively: commands/ is shared tooling, while
+# .claude/ is committed selectively: skills/ and hooks/ are shared tooling, while
 # worktrees/ holds live checkouts and settings.local.json is per-machine.
 .claude/worktrees/
 .claude/settings.local.json

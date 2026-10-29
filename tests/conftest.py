@@ -165,6 +165,43 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="run only the cases that reach jax (tests/jax_cases.py)")
 
 
+#: Why a marked case on this worker did not join its group, set where it is found.
+_UNGROUPED = pytest.StashKey[str]()
+
+
+def _refuse_ungrouped(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Fail every case whose ``loadgroup`` did not take, the guard above one rank down.
+
+    ``pytest_configure`` checks the flag, and the flag is not the mechanism.
+    xdist groups a case by appending ``@<group>`` to its node id inside its own
+    ``pytest_collection_modifyitems``, through a private attribute, and pytest
+    9.2.0 moved the id to another (pytest-xdist#1386, fixed on xdist's main
+    after 3.8.0).  Under that pair every mark was ignored, the run stayed green
+    but for the tests sharing a module's server, and the shared fixtures
+    refitted per worker.  This hook runs after xdist's, so a marked case still
+    lacking the suffix is the mechanism failing.  The case fails at setup
+    (``pytest_runtest_setup`` below), because a ``UsageError`` raised on a
+    worker reaches the controller as an INTERNALERROR without its message.
+    """
+    if not (hasattr(config, "workerinput") and config.getvalue("loadgroup")):
+        return
+    import xdist
+
+    reason = (f"--dist {REQUIRED_DIST} did not group this case: pytest "
+              f"{pytest.__version__} with pytest-xdist {xdist.__version__} drops "
+              "the xdist_group marks (pytest-xdist#1386). Install a pair that "
+              "groups; pyproject's [dev] pin names one.")
+    for item in items:
+        if any(True for _ in item.iter_markers("xdist_group")) and "@" not in item.nodeid:
+            item.stash[_UNGROUPED] = reason
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    reason = item.stash.get(_UNGROUPED, None)
+    if reason is not None:
+        pytest.fail(reason, pytrace=False)
+
+
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Keep the cases that reach jax, then shard K's files, after every other
@@ -176,6 +213,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     ``jax_cases.reaches`` reads each case's code, and ``shards.assign`` breaks
     every tie by name, never by collection order or a clock.
     """
+    _refuse_ungrouped(config, items)
     if getattr(config.option, "jax_cases", False):
         from tests import jax_cases
 

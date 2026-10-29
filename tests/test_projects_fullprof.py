@@ -711,8 +711,10 @@ def test_soft_moment_constraints_read_in_both_spellings(
     pcr = _pcr(tmp_path, "soft.pcr", _phase(),
                magnetic(third_value=declared), trailing=block + _RANGE)
     phase = read_fullprof_pcr(pcr).phases[-1]
-    got = [(c.key, c.moment, c.sigma) for c in phase.soft_moment_constraints]
-    assert got == pytest.approx(expected)
+    got = phase.soft_moment_constraints
+    assert [c.key for c in got] == [key for key, _, _ in expected]
+    assert [v for c in got for v in (c.moment, c.sigma)] == pytest.approx(
+        [v for _, moment, sigma in expected for v in (moment, sigma)])
     labels = [phase.atoms[c.atom_index].label if c.atom_index is not None else None
               for c in phase.soft_moment_constraints]
     assert all(label is not None for label in labels)
