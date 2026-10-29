@@ -645,11 +645,13 @@ class RestraintRow(Base):
     ``deviation_over_sigma`` is the headline: a restraint fighting the data
     shows up as |deviation/σ| ≫ 1 (and, past a threshold, a ``RESTRAINT_TENSION``
     diagnostic).  ``atoms`` (bond/angle) or ``path`` (value) names the target;
-    exactly one is set.
+    exactly one is set.  A planarity restraint gives one row per atom: its
+    signed distance to the plane (target 0), ``atoms`` listing that atom first
+    and then the rest of the plane in restraint order.
     """
 
     phase_index: int | None = None
-    kind: Literal["bond", "angle", "value", "tether", "anti_bump"]
+    kind: Literal["bond", "angle", "value", "tether", "anti_bump", "planarity"]
     atoms: list[int] | None = None                  # bond (2) / angle (3) indices
     path: str | None = None                         # value-restraint dot-path
     computed: float                                 # Å (bond), deg (angle), or value
@@ -1009,6 +1011,23 @@ class StageResult(Base):
     #: fraction: the 2 % and 0.1 % windows of one answer differ by up to 0.6 %
     #: in χ².
     window_area_tol: float | None = None
+    #: the share of the Bragg intensity this stage's frozen windows dropped at
+    #: its answer, against windows sized there (``forward.window_loss``,
+    #: WP-2047).  Windows are sized when a stage compiles, so a peak that moves
+    #: or broadens during the solve spills past them, and the stage may have
+    #: fitted that loss rather than the data.  Negative where the peaks
+    #: narrowed.  Past ``recorded_window_tol(window_area_tol)`` the frozen
+    #: windows drop more than the compile allows each peak, and
+    #: ``STAGE_WINDOWS_STALE`` reports the stage when its answer reaches the
+    #: result (the last stage, and the one before a closing stage); an
+    #: earlier stage is refitted by every later one.  At most 1.73 % at the 2 %
+    #: tolerance on the four acceptance protocols, and 73 % on the QPA
+    #: round-robin chain's runaway before WP-2045.
+    #:
+    #: ``None`` means nobody looked: a result stored before the field, or a
+    #: stage with no Bragg intensity to compare.  Writers: the three runners
+    #: that build a ``StageResult``.
+    window_loss: float | None = None
     #: steps the bounded-LM driver held on a linear-inequality constraint (the
     #: Stephens strain cone, or the Γ_G² floor of WP-1938 D7) during this
     #: stage: the step for the box alone crossed a row, and the step solved
@@ -1888,6 +1907,25 @@ def _agreement_line(stats: Statistics) -> str:
 _LEGACY_COUNT_FIELD = "n_background_peaks"
 
 
+#: The joint result's top-level codes every histogram view carries
+#: (WP-2028): fit-wide statements about the shared model or the plan that a
+#: reader of any one pattern must see.  ``for_histogram`` copies each once.
+FINDINGS_IN_EVERY_VIEW = frozenset({
+    "SCALE_B_INSEPARABLE", "PARAMETRIC_OUT_OF_RANGE",
+    "PARAMETRIC_FORM_REJECTED", "STAGE_PATH_UNKNOWN"})
+
+
+def _names_histogram(d: Diagnostic, h: int) -> bool:
+    """Whether a joint result's top-level finding belongs in histogram
+    ``h``'s view (:meth:`RefinementResult.for_histogram`, WP-2028)."""
+    if d.code == "STAGE_FREED_NOTHING":
+        return d.value is not None and int(d.value) == h
+    if d.code in FINDINGS_IN_EVERY_VIEW:
+        return True
+    prefix = f"hist.{h}."
+    return any(p.startswith(prefix) for p in d.where)
+
+
 class RefinementResult(Base):
     """What a fit returns: the answer, its statistics, and what the engine
     found wrong with it.
@@ -2227,6 +2265,13 @@ class RefinementResult(Base):
         keeps the joint result's value, which for a WP-1131 size term is the
         coefficient at histogram 0's wavelength.  A negative ``h`` counts from
         the end, as list indexing does.
+
+        The view's ``diagnostics`` are histogram ``h``'s own, then the
+        joint result's top-level findings that a reader of this pattern must
+        see, each once (WP-2028): a finding whose ``where`` names a
+        ``hist.<h>.`` row, ``STAGE_FREED_NOTHING`` whose ``value`` is ``h``,
+        and the fit-wide :data:`FINDINGS_IN_EVERY_VIEW`.  Their ``where``
+        keeps the joint spelling.  The rest stay on the joint result.
         """
         if not self.histograms:
             if h == 0:
@@ -2256,10 +2301,21 @@ class RefinementResult(Base):
         view.ticks = dict(hr.ticks)
         view.radiation = (hr.radiation.model_copy(deep=True)
                           if hr.radiation is not None else None)
+        # the reflections the ticks label and this pattern's structure
+        # R-factors, which the view used to drop (WP-1986, WP-2028)
+        view.tick_hkl = {k: [list(r) for r in v] for k, v in hr.tick_hkl.items()}
+        view.phase_agreement = [a.model_copy(deep=True)
+                                for a in hr.phase_agreement]
         view.qpa = hr.qpa.model_copy(deep=True) if hr.qpa is not None else None
         view.restraints = (hr.restraints.model_copy(deep=True)
                            if hr.restraints is not None else None)
+        # this pattern's own findings, then the fit-level ones a reader of
+        # this pattern must see (WP-2028): those naming it, and the FIT ones
+        # every pattern shares, each once
         view.diagnostics = list(hr.diagnostics)
+        for d in self.diagnostics:
+            if _names_histogram(d, h) and d not in view.diagnostics:
+                view.diagnostics.append(d.model_copy(deep=True))
         if view.identifiability is not None:
             # this histogram's background screen, as a single fit spells it
             # (WP-1341): the joint result scopes every row ``hist.<h>.``

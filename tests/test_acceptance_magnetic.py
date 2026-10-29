@@ -150,9 +150,12 @@ def cr2wo6(cr2wo6_nuclear):
         ref, res = _fit(_with_moment(ref4.structure, seed),
                         ref4.instrument.model_copy(deep=True), d4, MAGNETIC_STAGES)
         ordered[name] = (res, ref.report().magnetic)
+    # the null is compared with nuc150, so it is fitted under nuc150's protocol,
+    # with no closing stage: with one, its Rwp sat 1.2e-3 below the reference at
+    # some starts, which was the closing stage and not the moment (WP-2036)
     ref_null, null = _fit(_with_moment(ref150.structure, (2.0, 0.0, 0.0)),
                           ref150.instrument.model_copy(deep=True), d150,
-                          MAGNETIC_STAGES)
+                          MAGNETIC_STAGES, closing_window_tol=None)
     draw(nuc4, "cr2wo6_4K_nuclear", LOW_ANGLE)
     draw(ordered["a"][0], "cr2wo6_4K_moment", LOW_ANGLE)
     draw(null, "cr2wo6_150K_moment", LOW_ANGLE)

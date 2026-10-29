@@ -50,6 +50,17 @@ companion field.
 - What GSAS-II, FullProf and TOPAS do for the same question. Search before
   designing (root CLAUDE.md, prior art).
 
+### Inherited
+
+- 2026-10-26 issue triage: #1106 is a second, public case of this WP's symptom. NIST SRM
+  660c (`tests/data/nist_srm660c_100a.cif`, the issue's script) with the apertures at 0
+  gives 10 `unmatched_obs` below 45°, each 0.1-0.3° below a LaB₆ line (21.06-21.28° up to
+  25.4 σ), and `add_impurity_phase` at 0.50. Checked against the tree at c0e32ab29
+  (`[dev]`, macOS arm64). The issue's point 3 (a one-sided-flank filter on
+  `add_impurity_phase`, beside the displaced-pair filter in `report/layer2.py`) is a
+  candidate rule for this WP's task 3. Points 1-2 (an asymmetry column with FCJ off) are
+  WP-2054's.
+
 ## Non-goals
 
 - Tick placement. WP-1908 settled it.

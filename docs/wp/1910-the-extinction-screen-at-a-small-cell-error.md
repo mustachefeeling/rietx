@@ -1,9 +1,9 @@
 # WP-1910 — the extinction screen at a small cell error, and the other centring
 
-Milestone: unscheduled · Status: 🔄 2026-10-14 — the default decided: it flips, as PR #939 builds it (in review); point 2 is open
+Milestone: unscheduled · Status: 🔄 2026-10-26 — the default flip and the gate (PR #939), the margin scan's rows and the PNGs (PR #1178) merged; open: the second screen ruled for the default's confident misses, the contract's prose, point 2, the skill recipe
 Track: What fires, and what stays silent
 Depends on: —
-Priority: P2 2026-10-05 — a silent wrong answer on a path few fits run: at +0.06 % the screen refutes certified corundum's class and returns one whose members exclude it, nothing names the cell, and the skill's own recipe screens the unrefined index cell
+Priority: P2 2026-10-26 — a silent wrong answer on a path few fits run: with the default cell refinement, certified corundum's class hangs on one forbidden position read at 2.8-3.1 σ against a 3 σ bar (#1172), and the margin scan, point 2 and the skill recipe remain
 
 ## Goal
 
@@ -227,6 +227,25 @@ and is not proposed here. No code is ported.
   null model for the absence test) stays open under the PR and sits inside
   this WP's Non-goal on loosening the absence test (WP-1077).
 
+- 2026-10-26 issue triage: #1172 (from @mustachefeeling, found while building PR #1170):
+  with the default `refine_cell=True`, corundum started at ×0.995 returns `R - - -`
+  confidently, the gate silent (`reference_rwp_net` 0.194). Checked against the tree at
+  c0e32ab29 (`[dev]`, macOS arm64): reproduced to the issue's digits. ×0.994 and ×0.995
+  return `R - - -`; ×0.99, ×0.993, ×0.996-×1.00 return `R - c -`, every refined cell within
+  0.01 % of the certified one. The refuting position is (3,0,3) at 72.004°, 1 of 6
+  testable. Σ(obs − calc) over its window against the propagated σ reads 2.79-3.06 at every
+  start and 2.90 at the certified one, against `k_sigma` 3.0. So this is not a cell-margin
+  failure: one forbidden position holds a real excess sitting on the threshold, and the
+  third decimal of the refined c decides which side. The certified-cell pin
+  (`test_corundum_returns_the_class_its_certificate_names`) is 0.10 σ from failing. What
+  the excess at 72.0° is (impurity, a Kβ or tube line) was not checked. Any fix touches the
+  absence test, which this WP's Non-goals fence (loosening it, WP-1077), so it needs the
+  maintainer's call first: a refutation resting only on positions within a margin of the
+  threshold could mark the class "marginal" and abstain between the two, or the per-class
+  bar could account for the number of testable positions (six windows at 3 σ each). Task 1's
+  scan should report the decisive position's ratio beside each class, never the class alone.
+  Probe scripts: the 2026-10-26 triage scratchpad, not kept.
+
 ## Non-goals
 
 - Loosening the absence test or `_model_is_quiet` (WP-1077).
@@ -238,23 +257,33 @@ and is not proposed here. No code is ported.
 - [ ] A failing row: the corundum fixture at ×1.0008 refutes `R - c -` today.
       Add the margin both ways at finer steps, and the same scan on FAP
       (`P 63 - -`) and the synthetic monoclinic, so the contract quotes a
-      margin per pattern, not one number.
+      margin per pattern, not one number. *Rows pinned by PR #1178; the
+      contract's prose waits for #1170 and #1140.*
 - [x] Maintainer decision on point 1, recorded here: document only; refine
       the cell in the shared fit; a caution (code name settled at review);
       or a combination. *Decided 2026-10-06 on PR #747: document the
       contract and add `refine_cell=True` as an option, default unchanged;
       the caution is not decided.*
-- [ ] Land it. If the shared fit changes, the FAP, NAC and corundum rows of
+- [x] Land it. If the shared fit changes, the FAP, NAC and corundum rows of
       `tests/test_extinction_symbol.py` must keep their classes.
 - [ ] Maintainer decision on point 2: a new caveat or screen diagnostic for a
       centring twin in the list (not a wider `bravais_ambiguous`), screening
       both, or refusing to name a centring. Then land it.
-- [ ] Manual Part 1, § The extinction symbol: the contract, and the corundum
+- [x] Manual Part 1, § The extinction symbol: the contract, and the corundum
       numbers re-measured.
 - [ ] Skill: `references/diagnostics-indexing.md`'s recipe screens the
       Le Bail-refined cell (or states the contract), inside
       `tests/skill_caps.py`'s budget; a diagnostic code adds its row.
-- [ ] Tests, with obs/calc/diff PNGs to `tests/output/`.
+- [x] Tests, with obs/calc/diff PNGs to `tests/output/`. *PR #1178.*
+- [ ] The default's confident misses (PR #1178's four strict xfails). *Ruled
+      2026-10-26: (c).* Screen again at the prefit's cell, held, from the
+      declared instrument, and report a finding when the two return different
+      decisive classes; a held screen with no decisive class is recorded, not
+      flagged, or PbSO₄'s eleven rows raise false alarms. On a disagreement
+      the answer carries both rankings and picks neither. Measure (b) (carry
+      the cell and background, refit widths and zero) on the same scan, and
+      build it too only if it fixes rows (c) can only flag. Corundum ×0.985
+      and the monoclinic ×0.9975 stay strict xfails: the prefit's cell is off.
 
 ## Acceptance
 
@@ -354,3 +383,49 @@ are out of its reach.
   called without the caller's kind, and an empty screen drops
   `EXTINCTION_SCREEN_UNRELIABLE`. Point 2 and the caution stay undecided.
   *Next:* #939's round 2.
+- **2026-10-25** — PR #939 (by @mustachefeeling) merged at round 5 as
+  `fe4cbcc3`, carrying #941's and #993's synced heads. `determine_extinction_symbol`
+  refines the cell by default, in a cell-free `profile_only` Le Bail that runs
+  without the closing stage, as the screen's other fits do. It abstains with
+  `EXTINCTION_SCREEN_UNRELIABLE` when the reference fit's background-subtracted
+  Rwp passes `REFERENCE_NET_RWP_MAX` (1/√2, tier 3, ruled 2026-10-21). The
+  pinned classes held (synthetic P 2₁/c, FAP, NAC, certified corundum), with
+  their ΔBIC moved. The PbSO₄ X-ray histogram at a 0.1-0.2 % cell went from
+  an abstention to `P c - n`. The manual's `reference/extinction.md` states the
+  contract with the corundum numbers. The review's sync commit `9f8e8f21`
+  moved the notes to `docs/releases/1.11.0.md`, put the thresholds note under
+  C3's 1.12, and added schema 0.60's history line for `ExtinctionScreen.prefit_rwp`
+  and `.reference_rwp_net`. Gate: as WP-1956's 2026-10-25 entry. Open: the
+  margin scan (task 1), point 2, the skill recipe, and the PNGs. Round 4's
+  follow-ups stand: print √(N/(N+S)) beside `reference_rwp_net`, and show the
+  gate firing on a real family. *Next:* task 1's margin scan, then point 2.
+- **2026-10-26** — PR #1178 (task 1's scan and the PNGs, by @mustachefeeling)
+  merged as `7b5181bb`. `tests/test_extinction_margin.py` pins the margin per
+  pattern at both edges, held and default: corundum ×0.998-1.0004 held,
+  ×0.9975-1.015 default; FAP ×0.9996-1.001 held, ×1.000-1.005 default;
+  synthetic P 2₁/c ×0.9998-1.0002 held, ×0.9995-1.001 default. The scans
+  were identical on macOS arm64 and Linux x86_64. Four **strict xfails** pin
+  the default returning a wrong class confidently: corundum ×0.995
+  (`R - - -`), FAP ×1.0075 (`P - - -`), and the monoclinic ×0.999 and
+  ×1.002 (`P 1 - 1`). A control row holds the prefit's own cell, screens again
+  from the declared instrument, and gets the true class at each. So what
+  refutes the class is what the prefit carries besides the cell (its widths,
+  zero and seeded background). Carrying the cell alone costs PbSO₄'s X-ray
+  `P c - n`. Each row draws the true class's own screen fit, through a spy
+  on `_fit_class`, whole and zoomed on the first refuting position. The
+  corundum ×0.995 zoom shows the prefit's profile overshooting the 70.4° line.
+  The contract's prose waits for #1170 and #1140, which edit the same two
+  files. The PR asks which way the default goes: (a) accept the misses,
+  (b) carry the cell and background but refit widths and zero, or (c) report
+  a finding when the default and the held-at-the-prefit's-cell answers
+  disagree. That question went to the maintainer the same day. Gated in a
+  stack with #1179 (counts in WP-1968's entry of today). *Next:* the
+  maintainer's answer on the default, then the contract's prose after #1170
+  and #1140, point 2, and the skill recipe.
+- **2026-10-26 (later)** — The maintainer answered #1178's question: (c),
+  with (b) measured beside it. The indexing rulebook's governing rule is
+  never one confident answer, with confidence from methods that fail
+  differently agreeing, so (a) would leave a standing breach and (c) is the
+  rulebook's own device. (b) changes a default and stays one screen. Posted
+  on #1178; the task above carries the detail. *Next:* that task, then the
+  contract's prose after #1170 and #1140, point 2, and the skill recipe.

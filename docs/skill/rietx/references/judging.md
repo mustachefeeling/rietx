@@ -418,8 +418,8 @@ Four codes on `SeriesResult.summary(deliverable="series")` carry the chain's
 own rows. `SEQUENTIAL_PATH_DEPENDENT` is an ordering artefact — only a
 `direction="both"` chain can produce one, so a one-way chain has not looked.
 `SEQUENTIAL_PERSISTENT_FINDING` states a persistent count no per-pattern code
-can, measured at **42 of 68** patterns on this ramp (`BOUND_HIT` on one cell, original run). `SEQUENTIAL_DISCONTINUITY`
-flags either the science or a chain failure, and `verify_discontinuities=True`
+can, measured at **42 of 68** patterns on this ramp (`BOUND_HIT` on one cell, original run). A large entry in
+`series.steps` is either the science or a chain failure, and `verify_steps=k`
 tells them apart (below). `PHASE_UNCONSTRAINED` says the value is held, so its trajectory is the one you handed in. Apply the QPA background check **at every point** too: an absent phase took **40–96 wt %** at equal Rwp.
 
 The row exists because an agent needed it and wrote it itself. Given 68 patterns
@@ -436,8 +436,8 @@ into those checks. None of them is a fit statistic, and §4b named none of them.
 
 Two are now the package's:
 
-- **The cold-refit check is `verify_discontinuities=True`.** Each flagged step's
-  two patterns are refitted cold and independently, and the diagnostic's `value`
+- **The cold-refit check is `verify_steps=k`.** Each of the *k* largest steps'
+  two patterns are refitted cold and independently, and the step's `cold_ratio`
   becomes the cold step over the chain's (1.0 a real step, 0 the chain's).
   Measured on that ramp, reproducing the run's own protocol: the chain takes
   11.6–12.0 s and the check adds 1–5 % (12.1–12.2 s) for four flagged steps over

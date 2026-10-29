@@ -1770,6 +1770,76 @@ def test_a_magcif_with_no_resolvable_space_group_is_refused_by_name(tmp_path):
         structure_from_cif(str(path))
 
 
+_PARENT_ALT = "_parent_space_group.name_H-M_alt  'P  4_2/m  n  m'"
+
+
+def _parent_tags(tmp_path, replacement: str) -> Path:
+    """Cr2WO6 with its ``name_H-M_alt`` line replaced, so one fixture carries
+    every combination of the two parent tags."""
+    text = _fixture(tmp_path, "Cr2WO6").read_text(encoding="utf-8")
+    assert text.count(_PARENT_ALT) == 1
+    path = tmp_path / "parent_tags.mcif"
+    path.write_text(text.replace(_PARENT_ALT, replacement), encoding="utf-8")
+    return path
+
+
+def _parent_read(path):
+    diagnostics: list = []
+    read = structure_from_cif(str(path), moment_ions=_IONS["Cr2WO6"],
+                              diagnostics=diagnostics)
+    return read.phases[0], [d for d in diagnostics
+                            if d.code == "CIF_MAGNETIC_PARENT_TAG_UNDEFINED"]
+
+
+@pytest.mark.parametrize("tag", ["_parent_space_group.name_H-M",
+                                 "_parent_space_group_name_H-M"])
+def test_the_undefined_parent_tag_is_read_where_alt_is_absent_and_named(
+        tmp_path, tag):
+    """Issue #1063, item 2: FullProf writes the parent symbol under
+    ``_parent_space_group.name_H-M``, which ``cif_mag.dic`` 0.9.9 does not
+    define, and every such file was refused as stating no space group.  The tag
+    can mean only ``name_H-M_alt``, so it is read where that is absent, and an
+    info diagnostic names the tag the symbol came from."""
+    reference, _ = _parent_read(_fixture(tmp_path, "Cr2WO6"))
+    phase, (named,) = _parent_read(
+        _parent_tags(tmp_path, f"{tag}  'P  4_2/m  n  m'"))
+    assert phase.space_group == reference.space_group
+    assert _stored(phase) == _stored(reference)
+    assert named.level == "info"
+    assert named.where == ["phases.0.space_group"]
+    assert tag in named.message and "'P  4_2/m  n  m'" in named.message
+
+
+def test_both_parent_tags_naming_one_setting_read_silently(tmp_path):
+    """The same setting spelled two ways is no contradiction, and the
+    dictionary's item is the one taken."""
+    reference, _ = _parent_read(_fixture(tmp_path, "Cr2WO6"))
+    phase, named = _parent_read(_parent_tags(
+        tmp_path, f"{_PARENT_ALT}\n_parent_space_group.name_H-M  'P 42/m n m'"))
+    assert named == []
+    assert phase.space_group == reference.space_group
+
+
+def test_both_parent_tags_naming_different_groups_are_refused_quoting_both(
+        tmp_path):
+    """Two parent symbols that disagree are a file contradicting itself, and
+    nothing in it says which is wrong, so neither is chosen."""
+    path = _parent_tags(
+        tmp_path, f"{_PARENT_ALT}\n_parent_space_group.name_H-M  'P 4/m m m'")
+    with pytest.raises(magcif.MagCifError) as refused:
+        structure_from_cif(str(path), moment_ions=_IONS["Cr2WO6"])
+    assert "'P  4_2/m  n  m'" in str(refused.value)
+    assert "'P 4/m m m'" in str(refused.value)
+
+
+def test_the_dictionary_parent_tag_alone_reads_as_before(tmp_path):
+    """The control: a file stating only ``name_H-M_alt``, as MAGNDATA writes
+    it, reads with no new diagnostic."""
+    phase, named = _parent_read(_fixture(tmp_path, "Cr2WO6"))
+    assert named == []
+    assert phase.space_group.startswith("P 42/m n m")
+
+
 # ===========================================================================
 # 5. what the reader says it did
 # ===========================================================================

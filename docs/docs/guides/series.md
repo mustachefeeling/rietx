@@ -25,6 +25,7 @@ SeriesResult: 7 pattern(s), rietveld, direction=forward
     SEQUENTIAL_PERSISTENT_FINDING at instrument.geometry.goniometer_radius_mm: info
     pass deliverable= to summary() for the rows that decide your purpose; every row is in result.diagnostics
   trajectory (T (K)):
+    largest step phases.0.cell.a 504.8σ at p001→p002 (series.steps)
     [1/7] p000 x=300 converged Rwp=0.0409
     [2/7] p001 x=400 converged Rwp=0.0409
     [3/7] p002 x=500 converged Rwp=0.0399

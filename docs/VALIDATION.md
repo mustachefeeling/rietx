@@ -115,11 +115,11 @@ WP-1103's design case on real data: the SRM 660c protocol, contaminated by injec
 
 `own_result` · dataset `srm660c`
 
-**Claims:** declaring a sharp intruder that overlaps sample peaks recovers the cell the same data gives when the intruder is not there; ignoring it costs the cell its precision, and since WP-2002 under a ppm of its value
+**Claims:** declaring a sharp intruder that overlaps sample peaks recovers the cell the same data gives when the intruder is not there; ignoring it inflates the cell's reported esd about tenfold, and since WP-2002 moves the cell under a ppm, which no assertion orders
 
-**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is the bias an unmodelled overlapping line adds, and the protocol's own +24 ppm offset from the certificate is common to every arm and cancels
+**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is what an unmodelled overlapping line does to the cell and its esd, and the protocol's own +24 ppm offset from the certificate is common to every arm and cancels
 
-**Measured:** declare -0.1 ppm against the clean arm, ignore -0.4 ppm (bar 20 ppm; the test asserts only that declaring is the closer); the ignore arm inflates the cell esd 9.9x (2.14e-05 -> 2.11e-04 A) and Rwp 4.4x (0.0874 -> 0.3837). The lines go in at the clean fit's ticks, which follow the displacement since WP-1908, 0.039 deg higher than before; 1.9.0 read -0.2 and +6.3 ppm and 10.1x, before WP-2002's width twin hold (#1113) moved the ignore arm's cell
+**Measured:** declare -0.1 ppm against the clean arm, ignore -0.4 ppm (bar 20 ppm on declare); the ignore arm inflates the cell esd 9.9x (2.14e-05 -> 2.11e-04 A) against a bar of 5x, and Rwp 4.4x (0.0874 -> 0.3837).  An esd scales with the misfit, so the inflation measures no bias (WP-2036). The lines go in at the clean fit's ticks, which follow the displacement since WP-1908, 0.039 deg higher than before; 1.9.0 read -0.2 and +6.3 ppm and 10.1x, before WP-2002's width twin hold (#1113) moved the ignore arm's cell
 
 **Diagnostics:** `EXTRA_PEAK_ON_REFLECTION`
 
@@ -792,6 +792,16 @@ A warm-started chain over the round robin: what changes when only the starting p
 **Referenced to:** real instruments sit near 0.01-0.05; the runaway it guards against reached 557.8 on 1.10.0 (WP-2045), so the bar of 1 is loose on purpose
 
 **Measured:** axial_sl 0.0082 at Rwp 0.1398, against 0.1373 for the independent fit (2026-10-25, macOS arm64); the parent tree fails it at 557.8
+
+#### `test_the_hostile_pairs_runaway_reports_its_stale_windows`
+
+`ceiling` · dataset `qarr`
+
+**Claims:** a regression bar, no accuracy claim: under the tolerance schedule before WP-2045, cpd-1b's warm stage ends with its frozen windows dropping over half the Bragg intensity, and every cpd-1a stage under the 2 % each window may drop
+
+**Referenced to:** the stage's own window_area_tol, 2 %, is the reporting threshold; the bar of 0.5 on the runaway is loose on purpose
+
+**Measured:** 73.4 % on cpd-1b's warm stage at axial_sl 557.8, and at most 1.32 % on cpd-1a (2026-10-25, macOS arm64, WP-2047)
 
 #### `test_series_exports`
 
@@ -1561,7 +1571,7 @@ A magnetic moment on real neutron data, and the refusal of one. The pair is one 
 
 **Referenced to:** the nuclear-only fit to the same 150 K pattern; the claim is inadmissibility (supported is False), not a value
 
-**Measured:** |m| 0.059 +/- 0.390 mu_B (0.15 sigma, bar 3); Rwp 0.099239 against 0.099242 nuclear-only, 3.0e-5 relative (bar 1e-3 relative). The esd grows as the modulus shrinks, since the moment's column vanishes at zero.  1.9.0's LM read 0.067 +/- 0.330 at 1.1e-5 relative, the modulus TRF stopped at (0.067 +/- 0.83), before WP-2002's closing stage (#1085); the esd read 3.24 before WP-1929 left the stationary polar angle out of the covariance
+**Measured:** |m| 0.067 +/- 0.330 mu_B (0.20 sigma, bar 3); Rwp 0.099241 against 0.099242 nuclear-only, 1.1e-5 relative (bar 1e-3 relative), both fitted with no closing stage; with one on the null alone, 1e-14 start nudges read 1.2e-3 at some starts, which was the closing stage (WP-2036, 2026-10-25, macOS arm64; Linux deff4c301). The esd grows as the modulus shrinks, since the moment's column vanishes at zero.  1.9.0's LM read the same 0.067 +/- 0.330 at 1.1e-5, the protocol having had no closing stage then either; TRF stopped at 0.067 +/- 0.83; the esd read 3.24 before WP-1929 left the stationary polar angle out of the covariance
 
 ### `tests/test_acceptance_magnetic_lamno3.py`
 

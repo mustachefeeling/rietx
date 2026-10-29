@@ -55,6 +55,8 @@ ranking over one population and is the regression gate, not a family.
 - **From WP-2002 (2026-10-19, PR #1050).** 2002's batch class B13 proposes handing 9 `background.diagnostics` constants to this WP, pending the maintainer's ruling: the seven `GHOST_*`, `_ANODE_MATCH_TOL` and `_KBETA`. `flag_ghosts` drops a flagged line from `PeakList.usable()` (`indexing/pick.py` ~55, 96, 191), which is an action, so their tiers are this WP's.
 - **From WP-1986 (2026-10-22, PR #1099), writing the indexing reference.** Two gate behaviours to rule on while tiering. (1) A candidate the ambiguity search never reached gets `geometric_ambiguity` (`indexing/consensus.py:627-632`), a refuting caveat, so under a binding whole-run ceiling every unreached candidate grades `low`; seven comments in `consensus.py`/`workflow.py` call that case *capping*, and `src/rietx/indexing/CLAUDE.md` § The scheduler says the streamed lists treat it as capping. Which is meant decides the wording WP-2013 fixes. (2) `VALIDATION_RESERVE_FRACTION` (`indexing/engines.py:2293-2309`) is there so the first click's shortlist arrives validated, and a default `index_pattern` on the bundled fluorapatite (2026-10-22, Linux `[dev]`, 130.7 s) validated none of its 12 candidates; the default qarr corundum run (121.3 s) entered four systems and ranked the certified R cell first.
 
+- 2026-10-26 issue triage: #1059 is the outside contributor's (mustachefeeling) claim on this WP. It starts after the gate ruling and after their open indexing PRs land, and runs `tests.bethanechol_benchmark` alone before and after. Checked against the tree at c0e32ab29: status ⬜, nothing started.
+
 ## Non-goals
 
 - Engine changes, a new engine, the narrowing and prior-counting items parked in ROADMAP

@@ -1798,6 +1798,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "source."
         ),
     ),
+    "CIF_MAGNETIC_PARENT_TAG_UNDEFINED": HelpEntry(
+        title="Parent space group read from an undefined tag",
+        description=(
+            "The file names its parent space group under "
+            "_parent_space_group.name_H-M, as FullProf writes it. The magnetic CIF "
+            "dictionary defines only _parent_space_group.name_H-M_alt, and the "
+            "undefined tag can mean nothing else, so the symbol was read from it. The "
+            "phase is the one the dictionary's tag would have given. A file that states "
+            "both tags with different groups is refused, because nothing in it says "
+            "which one is wrong."
+        ),
+    ),
     "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED": HelpEntry(
         title="Spherical moment uncertainties dropped",
         description=(
@@ -1857,7 +1869,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "tight pairs and would scatter as twice the atoms. The reader moved the site "
             "onto the special position. The usual cause is a relation such as (x, 2x, z) "
             "printed with one coordinate rounded. Check the coordinates against the "
-            "source."
+            "source. The occupancy is kept, so the site's atoms per cell change with its "
+            "multiplicity, and the message gives both counts. The reader merges only where "
+            "the occupancy at the position, summed over the atoms sharing it and each "
+            "times the images before over the images after, is above 1; otherwise it "
+            "keeps the stated site and says `SITE_TWINS_KEPT`."
         ),
     ),
     "CIF_SPECIES_NORMALISED": HelpEntry(
@@ -3291,6 +3307,20 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "with a smaller step."
         ),
     ),
+    "PATTERN_WEIGHT_UNUSABLE": HelpEntry(
+        title="A pdCIF weight column could not give σ",
+        description=(
+            "The file's `_pd_proc_ls_weight` column holds a negative entry, a missing "
+            "one (`?` or `.`) or no positive entry, so it cannot be read as w = 1/σ². "
+            "The reader fell back to the Poisson σ = √max(y, 1), as it does for a file "
+            "with no weights, and did not repair the column: it drops the whole column, "
+            "not only the bad entries, even where most weights are positive. The message "
+            "counts the negative and the missing entries separately; the code's value is "
+            "their sum (0 when the column holds no positive weight and no bad entry). "
+            "If the file's counting time varies across the scan, the Poisson σ is not "
+            "the deposit's; quote χ² and esds accordingly, or supply σ yourself."
+        ),
+    ),
     "PATTERN_X_AXIS_ASSUMED": HelpEntry(
         title="The scan axis was assumed to be 2θ",
         description=(
@@ -3505,6 +3535,20 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "comparison."
         ),
         anchor="theory/profiles.html#the-instrument-sample-width-split",
+    ),
+    "PHASE_HELD_IN_PATTERNS": HelpEntry(
+        title="A phase was held in some patterns of a joint fit",
+        description=(
+            "In a joint fit where a phase's structure or scale is per pattern, the "
+            "last stage held them in the patterns that cannot see the phase. The "
+            "message counts those patterns, and the held rows are named in where. In "
+            "those patterns the structure rows keep the values the stage started from "
+            "and carry no esd, and a held scale keeps the value handed in, so the "
+            "pattern measures no fraction of the phase. The patterns that see the "
+            "phase refine their own. This "
+            "records what the fit did and asks for nothing. PHASE_UNCONSTRAINED "
+            "covers a phase that no pattern sees."
+        ),
     ),
     "PHASE_UNCONSTRAINED": HelpEntry(
         title="The data cannot see this phase",
@@ -3737,6 +3781,19 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Measure the instrument on a standard, and hold that profile in this fit."
         ),
     ),
+    "RESTRAINT_PAIRS_STALE": HelpEntry(
+        title="Some contacts have no anti-bump row",
+        description=(
+            "At the end of the run, a phase's anti-bump restraints were checked against "
+            "the final coordinates, and some contacts closer than their minimum distance "
+            "have no row in the pair list. The list is built once, from the starting "
+            "coordinates, so a pair that drifted inside its minimum from outside the list "
+            "is not restrained. A contact already inside its minimum when the run "
+            "started, such as a bond you left out of the list, is not reported. Either rebuild the list with "
+            "`anti_bump_restraints` from these coordinates, or with a wider margin, and refit; or, if "
+            "the contact is real (a hydrogen bond, say), lower that species pair's minimum distance."
+        ),
+    ),
     "RESTRAINT_TENSION": HelpEntry(
         title="The data disagree with a restraint",
         description=(
@@ -3820,16 +3877,6 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "and the remaining patterns were never started. The fits that finished are "
             "complete and stand on their own. The trajectory is truncated, so its last "
             "point is not the end of the ramp. Run the series again to extend it."
-        ),
-    ),
-    "SEQUENTIAL_DISCONTINUITY": HelpEntry(
-        title="A parameter jumps between two patterns",
-        description=(
-            "A parameter changes between neighbouring patterns by far more than its "
-            "typical step in the series. Either the specimen changed there, as in a "
-            "transition or a new phase, or the chain failed and carried the error "
-            "forward. The trajectory is left as fitted. Check the fits on either side, "
-            "or refit the pair independently with `verify_discontinuities=True`."
         ),
     ),
     "SEQUENTIAL_MOMENT_HOLD": HelpEntry(
@@ -3950,6 +3997,55 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "printed."
         ),
     ),
+    "SITE_DOFS_RENUMBERED": HelpEntry(
+        title="Coordinate directions of a site renumbered",
+        description=(
+            "A site's coordinates moved onto or off a special position so that its "
+            "coordinate degrees of freedom changed (`dof.1` is y on the general position "
+            "and z on a mirror at y = 1/4, in either direction), and a hold, tie or free "
+            "path sat on one of them. Each follows its direction to the new number; one on "
+            "a direction the position now fixes or couples is dropped. The message names "
+            "every one that followed and every one that was dropped. Nothing was moved: "
+            "this is the bookkeeping of a site whose symmetry changed without a merge, "
+            "for instance onto a mirror within 5e-5, after a fit wrote the coordinate "
+            "back, or off one by an `edit` or a `checkout`."
+        ),
+    ),
+    "SITE_TWINS_KEPT": HelpEntry(
+        title="Near-duplicate atoms left as stored",
+        description=(
+            "A site lies within 5e-4 (fractional, per coordinate) of a special position, "
+            "so its symmetry images fall in tight pairs, and the occupancy at that "
+            "position, summed over the atoms sharing it and each times the images before "
+            "over the images after, is at most 1. The numbers read two ways: one atom "
+            "stated off its special position, or a split pair of part-atoms (#1088). "
+            "Nothing was moved, and the model counts the second reading. The message "
+            "gives the atoms per cell each reading implies, and the suggestion gives the "
+            "occupancy to state on the special position for each. Every boundary applies "
+            "the same gate: a project file, a CIF, a stored history and a model edit."
+        ),
+    ),
+    "SITE_TWINS_MERGED": HelpEntry(
+        title="Near-duplicate atoms merged onto a special position",
+        description=(
+            "A site lay within 5e-4 (fractional, per coordinate) of a special position, "
+            "so its symmetry images fell in tight pairs, and the occupancy at that "
+            "position, summed over the atoms sharing it and each times the images before "
+            "over the images after, is above 1: the unchanged site would put more than "
+            "one atom at one place. The site was moved onto the special position its "
+            "orbit collapses to. Coordinates the position fixes lose `vary`, and an "
+            "anisotropic tensor is projected onto the tensors the position allows; the "
+            "message says each. This changes the multiplicity, so it changes the density "
+            "and every weight fraction. A CIF read says the same thing as "
+            "`CIF_SITE_TWINS_MERGED`, and the two never both fire. The occupancy is kept, "
+            "so the site's atoms per cell change with its multiplicity, and the message "
+            "gives both counts. Check the coordinate against its source, since a special "
+            "position stated a few 1e-5 off is the usual cause. To keep a genuinely "
+            "displaced atom, state it more than 5e-4 (fractional) from the position. "
+            "A hold or tie on a coordinate degree of freedom that the position "
+            "renumbers follows it, or is dropped and named in the message."
+        ),
+    ),
     "SIZE_NORMALISED_ACROSS_WAVELENGTHS": HelpEntry(
         title="Shared size term scaled across wavelengths",
         description=(
@@ -4054,6 +4150,22 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "stays silent, because some models lack a component. Correct the name, or "
             "use a wildcard if the stage should reach a component that only some models "
             "declare."
+        ),
+    ),
+    "STAGE_WINDOWS_STALE": HelpEntry(
+        title="A stage's peaks outgrew the windows it was solved on",
+        description=(
+            "Each stage computes every peak over a window of points, sized when the "
+            "stage starts. A peak that moves or broadens while the stage solves spills "
+            "past its window, and the model loses that part of its intensity. The stage "
+            "can then fit the loss rather than the data, and still report that it "
+            "converged. This fires when the windows drop more of the intensity, at the "
+            "stage's answer, than each window is allowed to drop. It reports only the "
+            "stages whose answer reaches the result: the last one, and the one before "
+            "a plan's closing stage. An earlier stage records its loss too, and every "
+            "stage after it refits its answer on fresh windows. Treat the result as "
+            "unconfirmed, and refit from starting values nearer the data. On the case "
+            "measured, a further stage from the stage's answer ran further away."
         ),
     ),
     "STEPHENS_STRAIN_NOT_POSITIVE": HelpEntry(
@@ -5217,6 +5329,20 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "needs to reproduce the result's curves."
         ),
     ),
+    "StageResult.window_loss": HelpEntry(
+        title="Intensity outside stale windows",
+        description=(
+            "The share of the Bragg intensity this stage's profile windows dropped at "
+            "its answer, against windows sized there. The windows are sized where the "
+            "stage starts, so a peak that moved or broadened spills past them. "
+            "Negative where the peaks narrowed. Above the stage's window fraction it "
+            "feeds `STAGE_WINDOWS_STALE` on the last stage and the one before a closing "
+            "stage; an earlier stage records it without a warning, since the stages "
+            "after it refit its answer. Magnetic windows and extra peaks are not "
+            "measured. `None` means nobody looked. A joint fit records its worst "
+            "histogram."
+        ),
+    ),
     "StageResult.n_constraint_truncations": HelpEntry(
         title="Steps held on a constraint",
         description=(
@@ -5515,6 +5641,25 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "been accepted, so no fence judged it."
         ),
     ),
+    "SeriesEntry.seeded_from": HelpEntry(
+        title="Warm start from",
+        description=(
+            "The index of the pattern whose fitted state this pattern's warm rungs "
+            "started from: the last pattern accepted before it in the walk. A pattern "
+            "that stayed diverged after every rung is skipped, so its successor names "
+            "the pattern before it. It says where the warm start came from even when "
+            "the kept attempt is the cold rung. `None` where there was no warm start."
+        ),
+    ),
+    "SeriesEntry.floored": HelpEntry(
+        title="Moments floored",
+        description=(
+            "The moment modulus paths this pattern's kept attempt received at the "
+            "floor, because the pattern it warm-started from did not support them. "
+            "Empty when the kept attempt started cold and on a series with no moment. "
+            "`SEQUENTIAL_MOMENT_HOLD` names these patterns."
+        ),
+    ),
     "SeriesEntry.node_id": HelpEntry(
         title="Pattern history node",
         description=(
@@ -5574,18 +5719,25 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
     "SeriesResult.diagnostics": HelpEntry(
         title="Series findings",
         description=(
-            "Findings about the series as a whole, such as path dependence, "
-            "discontinuities, reseeds and patterns that failed. Each pattern's own "
-            "findings stay on its entry."
+            "Findings about the series as a whole, such as path dependence, reseeds "
+            "and patterns that failed. Each pattern's own findings stay on its entry, "
+            "and the steps between patterns are `steps`, not findings."
         ),
     ),
-    "SeriesResult.discontinuities": HelpEntry(
-        title="Flagged steps",
+    "SeriesResult.steps": HelpEntry(
+        title="Steps between patterns",
         description=(
-            "Every `SEQUENTIAL_DISCONTINUITY` finding as fields, in the same order: the "
-            "parameter, the two patterns it stepped between and the signed step. An "
-            "empty list is a series that flagged nothing; `None` means a document "
-            "written before the field."
+            "Every parameter's change between consecutive patterns, in esds of the "
+            "later fit, largest first: the path, the two patterns, the signed step and "
+            "its size in esds, which is `None` where the later fit measured no esd. A "
+            "step may be a phase transition, a sample shift, a beam dump or a wrong "
+            "model, and only the sample history can say which; rietx enforces no "
+            "threshold on it. A symmetry-mode refinement across the step is what "
+            "separates a transition from the rest. `fit(verify_steps=k)` refits the "
+            "two patterns of the k largest cold and independently and records "
+            "`cold_ratio`: near 1 the step is in the data, near 0 the chain made it. "
+            "Steps into or out of a rejected pattern are left out; `None` means a "
+            "document written before the field."
         ),
     ),
     "SeriesResult.relative_paths": HelpEntry(

@@ -195,6 +195,152 @@ only"). RIETAN-FP 3.12 manual, by full-text search (one hit, on secondary
 extinction). BGMN by the binary's keyword table, with no manual
 installed.
 
+## A sharp peak no phase accounts for
+
+Surveyed 2026-10-25 for WP-2036, on what `tests/test_acceptance_extra_peaks.py` should assert.
+
+- McCusker et al. (1999), *J. Appl. Cryst.* 32, 36, checked. §12.6: small unindexed peaks
+  found in other preparations too are probably not an impurity, though they may be the
+  sample holder's. Peaks that vary between preparations probably belong to a second phase,
+  which is identified and refined as a second phase where its structure is known. The paper
+  never recommends excluding the region, and quantifies no bias from leaving a peak
+  unmodelled. §10: e.s.d.'s assume counting statistics are the only error, and "reflect the
+  precision of the refined parameters and not their accuracy". An unmodelled peak is a
+  systematic error of the kind they say an e.s.d. cannot estimate.
+- GSAS-II 5.8.4, checked: background peaks, each with a refinable position, intensity and
+  Gaussian and Lorentzian width (`BkPkpos`, `BkPkint`, `BkPksig`, `BkPkgam`;
+  `GSASIIpwd.py:1093-1096`), are the same mechanism as a declared extra peak.
+- TOPAS, not read this session: `xo_Is` single peaks, recorded as prior art in WP-1103.
+
+So practice declares an intruder, or identifies its phase. What modelling it buys is claimed
+as a sound fit, not as a measured gain in accuracy. rietx's own measurement agrees: on the
+SRM 660c fixture, ignoring two holder lines moves the cell 0.4 ppm and reports an esd 9.9×
+the clean fit's. Rwp rises 4.4× in the same arm, and an esd scales with √χ², so the larger
+esd reports the worse fit; it does not measure the bias.
+
+## Sequential refinement
+
+Surveyed 2026-10-24 for WP-2003, one agent across the seven programs. A chain here is N
+separate refinements over an ordered series, one pattern at a time; a joint fit over the
+series (`multi.py`, parametric refinement) is not this. Only GitHub and PyPI answered from the
+session; the ILL, PSI, profex-xrd.org, topas-academic.com, Durham and readthedocs hosts were
+refused. So GSAS-II (tag `v5.8.4`), MAUD (tag `v3.07`) and EasyDiffraction (the 0.21.1 wheel)
+are read in their source, while FullProf, TOPAS and Profex rest on search-engine excerpts of
+their manuals and news pages and are marked inferred. RIETAN-FP's and BGMN's manuals were not
+reached.
+
+Where each pattern starts:
+
+| Program | Series mode | Next pattern starts from | What is carried | Le Bail or Pawley intensities |
+|---|---|---|---|---|
+| rietx | `refine_sequential` | the last accepted pattern's refined values (`carry=("*",)`); the first pattern runs the plan cold, later ones the plan collapsed into one stage freeing the same set (`refit="single"`) | every table entry, a coordinate as its site's displacement, rigid-body orientations and torsions, named variables; ties and holds are re-declared per pattern by `constrain`, never carried | carried (`carry_hkl_intensities=True`), matched by hkl (checked) |
+| GSAS-II | Controls, "Select datasets" (`Seq Data`) | the values stored for each histogram: `Copy2Next` ("Copy results to next histogram?") is off by default. A phase parameter starts from that histogram's result in an earlier sequential run, if there is one | with `Copy2Next` on, every varied parameter, renamed to the next histogram | with `Copy2Next` on, a Le Bail phase's F² are copied when the two reflection lists have the same length; otherwise an error is printed and nothing is copied (checked) |
+| EasyDiffraction | `fit_sequential` over a directory | the free parameters of the last successful fit, and the template's values until one succeeds | free parameters only; fixed ones keep the template's values | none: the worker collects parameter values only (checked) |
+| MAUD | no series mode; "Launch batch file" runs a CIF-style instruction loop, one analysis per row | the analysis file the row names, read afresh (checked). The batch dialog's default ("Uses the list (or just one)") names the listed file on every row and saves each result over it, so with one file listed each row reads what the previous row saved (inferred from the code, not run; how the data files then accumulate is not established). "Use from previous analysis for next" names the previous row's saved file outright | whatever the saved analysis file holds | whatever the saved file holds (inferred) |
+| FullProf | cyclic mode from the command line, `fp2k cyc <pcr> <datcode> <first> <last> …` (FullProf News 2004, 2005) | the previous pattern's output, which the workshop slides describe as the next one's input, with the same refinement conditions for every pattern (inferred) | the `.pcr`'s parameters (inferred) | not established |
+| TOPAS | none built in: `num_runs` reruns one INP and values pass between runs through `out` and `#include` (Technical Reference v8); a series is the user's batch file or, from v6, a `#list` macro (inferred) | what the user's script writes | the user's choice | the user's choice |
+| BGMN with Profex | Profex runs loaded projects one after another (Run, "Run batch refinement"); a batch that feeds one project's results to the next is described as a separate "sequential batch" workflow (inferred) | each project's own control file in a plain batch (inferred) | not established | not established |
+| RIETAN-FP | none found | not established; a third-party wrapper, RIETPY 0.2.0, chains runs and passes refined parameters on (its PyPI description, checked) | not established | not established |
+
+When a fit goes wrong:
+
+| Program | Restart on a bad fit | A pattern that fails | Does the failure seed the next? |
+|---|---|---|---|
+| rietx | a rung at a time, collapsed warm refit, then the full plan from the warm state, then the full plan cold, when the fit diverges or its Rwp exceeds `RESEED_FACTOR` (1.25) × the median Rwp of the accepted patterns; the best attempt is kept, convergence before Rwp and a truncated rung below any completed one (`reseed=True`, checked) | diverged after every rung: quarantined, `SEQUENTIAL_UNRECOVERED`. Every rung raised: `on_error="carry"` records it (`SERIES_PATTERN_FAILED`) and the chain goes on; `"skip"` starts the successor cold, `"raise"` stops. Converged above the fence: kept, `SEQUENTIAL_RWP_OUTLIER` | no: the successor starts from the last accepted pattern, and a quarantined pattern joins no median (checked) |
+| GSAS-II | none | a singular normal matrix ends the chain at that histogram ("Sequential refinement failed at histogram") and the histograms before it are written to the results table; an exception ends the run before that table is written (checked) | not applicable: the chain has stopped |
+| EasyDiffraction | none | an exception is caught and written as a failed row of `results.csv`, and the chain goes on (checked) | no: only a fit whose `fit_result.success` is true moves the start values (checked) |
+| MAUD | none | an exception that reaches the batch loop ends the batch; a fit that finishes, however poor, is saved and the next row runs (checked) | the next row reads whatever file it names (inferred) |
+| FullProf | not established | not established | not established |
+| TOPAS | none built in; a rule would be the user's macro (inferred) | the user's script | the user's script |
+| BGMN with Profex | none described | aborting a running project moves the batch on to the next one (manual 3.13, inferred) | not established |
+| RIETAN-FP | not established | not established | not established |
+
+Order and flags:
+
+| Program | Reverse order | Forward-backward comparison | Test on steps between neighbours |
+|---|---|---|---|
+| rietx | `direction="backward"`; `"forward"` by default | `direction="both"`, off by default, runs the chain each way and flags a parameter whose two trajectories differ by more than `PATH_DEPENDENCE_SIGMA` (3) combined esds, `SEQUENTIAL_PATH_DEPENDENT` | none since WP-2003: `SeriesResult.steps` lists every step in esds of the later fit, largest first, with no threshold and no diagnostic (until then `SEQUENTIAL_DISCONTINUITY`, at 5× the median absolute step and 3 combined esds from 5 points); `verify_steps=k` refits the k largest pairs cold, 0 by default (checked) |
+| GSAS-II | "Reverse order?" (`Reverse Seq`), off by default | none | none. The results table colours a last-cycle Δχ² above 1 % yellow and above 10 % red, only with `ShowCell` on (off by default); a user-run cluster analysis offers outlier detection on the data (checked) |
+| EasyDiffraction | `reverse`, off by default ("useful when starting values are better matched to the last file") | none | none (checked) |
+| MAUD | the row order of the instruction file | none | none (checked) |
+| FullProf | not established | not established | none described; the slides state the assumption that the refined parameters evolve continuously (inferred) |
+| TOPAS | the user's script | none built in | none built in (inferred) |
+| BGMN with Profex | not established | none described | none described (inferred) |
+| RIETAN-FP | not established | not established | not established |
+
+Anything else a series mode decides by itself:
+
+- rietx: stage seeds are zeroed on a warm start, so a neighbour's answer sitting on a floor is
+  not lifted; the collapsed first rung gets an evaluation budget of `first_rung_factor` (3.0) ×
+  the dearest converged first rung, once `FIRST_RUNG_SAMPLES` (3) have converged; a magnetic
+  moment the pattern does not support is floored before it seeds the next
+  (`SEQUENTIAL_MOMENT_HOLD`); the wavelength-calibration diagnostic measures from the series
+  root's declared λ, not the carried one; a cancelled
+  series returns what completed (`SEQUENTIAL_CANCELLED`); a finding on most patterns is
+  summarised once (`SEQUENTIAL_PERSISTENT_FINDING`) (checked).
+- GSAS-II refuses to start a sequential refinement that refines a phase's lattice parameters
+  or texture coefficients, and says to use the per-histogram Dij and C(L,N) instead. With
+  `Copy2Next` on it prints the variables added or removed when a histogram's vary list
+  differs. A variable outside `parmMinDict`/`parmMaxDict` is reset to its limit and frozen for
+  that histogram, and both dicts are empty by default. "Clear previous seq. results" is a
+  button, never automatic. Each histogram is fitted by `RefineCore`, the single fit's solver
+  (checked).
+- EasyDiffraction resumes a re-run from `results.csv`, skipping fitted files and starting from
+  the last successful row; with `max_workers` above 1 every file of a chunk starts from the
+  same values (checked).
+- MAUD's wizard indices above 1000 rerun the refinement wizard while GoF falls, zeroing the
+  minor phase on each pass. That removes phases; it is not a restart (checked).
+- FullProf appends to its summary file in cyclic mode, and `Rpa = -2` writes the refined
+  parameters to a `.SEQ` file (inferred).
+
+None of the seven restarts a pattern by itself, compares a chain with its reverse, or tests
+the step between neighbours. The rietx behaviours with a program default behind them are:
+
+- the warm start from the previous pattern: EasyDiffraction (checked) and FullProf's cyclic
+  mode (inferred). GSAS-II dissents (each histogram starts from its own values unless
+  `Copy2Next` is ticked), and MAUD's and Profex's batches start from the file each row names;
+- carrying on past a failed pattern from the last good one, and not seeding from the failure
+  (`on_error="carry"`, the quarantine's carry half): EasyDiffraction (checked). GSAS-II and
+  MAUD dissent: a failure ends the chain;
+- forward order, with reverse available and off: GSAS-II and EasyDiffraction (checked);
+- one refinement freeing the same set on every warm pattern (`refit="single"`): GSAS-II and
+  EasyDiffraction fit every pattern with one vary list (checked), and FullProf's slides ask for
+  the same conditions on every pattern (inferred). rietx alone stages the first pattern;
+- carrying extracted intensities with a warm start: GSAS-II does it, but only under its opt-in
+  `Copy2Next` (checked); no program carries them by default.
+
+rietx carries every entry where GSAS-II and EasyDiffraction carry the varied ones. A fixed
+entry holds the same value either way, so the two differ only where a fixed value changes
+during the chain. The behaviours with no program default behind them are rietx's own: the
+restart ladder with its Rwp fence (`RESEED_FACTOR`, the median, `_prefer`) and the first-rung
+budget; the quarantine's exclusion from the median; `direction="both"` and
+`SEQUENTIAL_PATH_DEPENDENT`; the discontinuity scan and its cold verification; and the moment
+floor and onset (`SEQUENTIAL_MOMENT_HOLD`, `SEQUENTIAL_MOMENT_ONSET`), the persistent-finding
+summary and the width-growth screen (`SEQUENTIAL_WIDTH_GROWTH`).
+
+## A pdCIF weight column with bad entries
+
+Surveyed 2026-10-26 for PR #1173, by the lead. The question: a `_pd_proc_ls_weight` column with
+mostly positive entries and a few negative or null (`?`, `.`) ones. Does a reader keep the good
+weights or drop the column?
+
+The dictionary (`cif_pd.dic` 2.5.1-dev, 2026-09-08, checked) gives the item
+`_enumeration.range 0.0:`, so a negative weight lies outside its definition. A zero marks "a
+data point not used for refinement". It states no meaning for a null.
+
+| Program | What it does with the column |
+|---|---|
+| rietx | Reads it as 1/σ² when every entry is ≥ 0 and one is positive; a zero excludes its own point. Any negative or null entry drops the whole column to the Poisson σ (checked, `io/formats/pdcif.py`) |
+| GSAS-II 5.8.4 | `G2pwd_CIF.py:300-306` turns a null into a weight of 0 and passes a negative through unchecked. The line that would use the result, `w = np.array(vl)`, is commented out (`:334`). The weights come from the intensity's own su, else √y, whatever the weight column holds (checked; PyCifRW parses `?` and `.` as `None` and `-0.5` as itself, ran) |
+| MAUD 3.07 | `CIFDataFile.java:161, 219` sets each weight from √I and reads no weight or su column (checked at tag v3.07) |
+| FullProf 8.20 | No pdCIF data input in the manual (checked) |
+| EasyDiffraction 0.21.1, cryspy 0.13.0 | No reader of `_pd_proc_ls_weight` in either package (checked by search) |
+| TOPAS, RIETAN-FP, BGMN | Not checked; no pdCIF data reader is known |
+
+No program surveyed uses a pdCIF weight column at all. rietx's whole-column fallback
+therefore never trusts the file less than practice does. GSAS-II's unused code shows one
+intent: a null weight means an excluded point.
+
 ## The tier-2 rows resting on a program default
 
 | Row | Programs that agree | Dissent |
@@ -222,6 +368,19 @@ section, TOPAS's Technical Reference by section and keyword as printed.
 | BGMN 4.2.23 | no cut seen to 22° from a peak (ran) | automatic ladder and closing run, manual §A.4 and Doebelin & Kleeberg (2015) J. Appl. Cryst. 48, 1573, §2; instrument function held, manual §2.1 | no roughness model, §6.4; B1, k1, k2, §5.5-5.6; limits by RG-CD active set, §5.1; no esd at a limit, §A.4; Profex's default limits, its UI reference §3.4.7 |
 | MAUD 3.07 | `_pd_proc_ls_peak_cutoff` default 30 HWHM, `R/diffr/PseudoVoigtPeak.java:267-268` | wizard stages, `R/comp/launchRefineWizard.java` and `FilePar.prepareWizard`; per-iteration holds, `COMP_STATUS` in `FilePar` | Caglioti bounds `InstrumentBroadeningPVCaglioti.initializeAsNew`; bounds not enforced, `FilePar.checkBound`, `LeastSquareFit` |
 | EasyDiffraction 0.21.1 | `cutoff_fwhm` default 0 (none), `cryspy/A_functions_base/powder_diffraction_const_wavelength.py:207`; crysfml `WDT 30`, `easydiffraction/analysis/calculators/crysfml.py:125` | everything per evaluation, `easydiffraction/analysis/calculators/cryspy.py:201, 349`; hkl margin `cryspy/procedure_rhochi/rhochi_pd.py:141-148` | widths unbounded, `variable.py:397-400`; H_G² floor, `powder_diffraction_const_wavelength.py:123` |
+
+Sequential refinement (WP-2003, read 2026-10-24):
+
+| Program | Where |
+|---|---|
+| rietx | `src/rietx/sequential.py`: `SequentialRefinement.fit` and its docstring, `refine_sequential`, `RESEED_FACTOR`, `FIRST_RUNG_FACTOR`, `_series_steps`, `PATH_DEPENDENCE_SIGMA`, `ON_ERROR_POLICIES`, `_ladder`, `_reseed_needed`, `_prefer`, `_carry_into`, `_fit_one` |
+| GSAS-II 5.8.4 | `SeqRefine`, `GSASIIstrMain.py:875-1196`: cell and texture refused `:910-918`; reverse `:923-924`; `Copy2Next`, the Le Bail copy and the earlier-run start `:980-1000`; vary-list change `:1038-1058`; stop on failure `:1098-1100`, singular matrix in a sequential fit `:376-391`; carried set `:1146-1162`; exception `:1169-1173`; results table written `:1178-1180`; `dropOOBvars` `:1123, 1198-1230`. Defaults `GSASIIobj.py:22, 27`; checkboxes and the clear button `GSASIIdataGUI.py:8158-8199`; Δχ² colouring `GSASIIseqGUI.py:1491-1499, 1818-1830`; cluster-analysis outliers `GSASIIseqGUI.py:2232-2249`; scripting `seqCopy`/`Reverse Seq` `GSASIIscriptable.py:3144-3152` |
+| EasyDiffraction 0.21.1 | `easydiffraction/analysis/sequential.py`: worker and caught errors `:73-170`, collected values `:330-375`, start values `:591-598`, reverse `:923-924`, resume `:1094-1110`, chunk size `:1146-1147`, one start per chunk `:1229-1233`, propagation `:1251-1262`, `fit_sequential` `:1265-1294`; defaults `easydiffraction/analysis/categories/sequential_fit/default.py:54-95` |
+| MAUD 3.07 | `src/it/unitn/ing/rista/util/batchProcess.java`: exception ends the batch `:111-187`, row loop `:261-514`, analysis read per row `:284-327`, refine and save `:562-575`, GoF loop `:591-613`; dialog defaults `src/it/unitn/ing/rista/awt/BatchFileDialog.java:181, 187, 243, 297, 398-453` |
+| FullProf | search-engine excerpts only, the hosts being refused: FullProf News 2004 and 2005 (`fp2k cyc …`), the cyclic-mode workshop slides `FullProf_seq.pdf` (cdifx.univ-rennes.fr), and the manual's note that the `.sum` file is appended to in cyclic mode |
+| TOPAS | search-engine excerpts only: Technical Reference v8 (`num_runs`, `out`, `#include`, `out_record`) and the Durham TOPAS wiki's `sequential_refinements` page; v9 not reached |
+| BGMN with Profex | search-engine excerpts only: Profex User Manual 3.13 (batch refinement, abort behaviour) and Part 3 UI reference 4.0, and the tutorial title "Profex XRD: Sequential batch refinements"; 5.7.2 and the BGMN manual not reached |
+| RIETAN-FP | manual not reached; RIETPY 0.2.0's PyPI description for the third-party wrapper |
 
 Found beside the questions, for rietx-bench rather than rietx: its BGMN case names
 `LAMBDA=cu_hoelzer97`, which has no `.ano` table, so that run has no anomalous dispersion
