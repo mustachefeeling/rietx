@@ -231,11 +231,19 @@ def test_the_runtest_guard_stands_down_where_jax_imports(monkeypatch, plain_modu
     assert report.outcome == "skipped"
 
 
+class _StubModule(pytest.Module):
+    """A ``Module`` the hook's ``isinstance`` accepts, its node id set directly.
+
+    pytest keeps the id under a private name that 9.2 renamed (``_nodeid`` to
+    ``_id``), so the stub owns the property rather than writing either."""
+
+    nodeid = property(lambda self: self.path.name)
+
+
 def _module(path, *, jax_only=False, shard=None):
-    module = object.__new__(pytest.Module)
+    module = object.__new__(_StubModule)
     module.config = SimpleNamespace(option=SimpleNamespace(shard=shard, jax_cases=jax_only))
     module.path = path
-    module._nodeid = path.name
     return module
 
 

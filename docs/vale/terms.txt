@@ -274,6 +274,7 @@ parameterisation
 parameterisations
 parameterises
 pentadiagonal
+planarity
 pointwise
 positivity
 precisions
