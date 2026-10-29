@@ -241,10 +241,10 @@ The floor never drops below the 15 Å³ default.
 Every other `SearchSpec` field passes through as a keyword.
 
 A formula is written as a chemist writes it, with brackets, `·` before water of crystallisation (`"CuSO4·5H2O"`) and decimal counts.
-A full stop that reads both as a decimal count and as a hydrate's dot is refused: `"CuSO4.5H2O"` could be 4.5 O or CuSO4 with 5 H2O, so `formula_unit_volume` raises `ValueError` naming `·`, and so does the same string with any whitespace before or inside the molecule (`"CuSO4.5 H2O"`, `"CuSO4.5 H2 O"`, a non-breaking space).
+A full stop that reads both as a decimal count and as a hydrate's dot is refused: `"CuSO4.5H2O"` could be 4.5 O or CuSO4 with 5 H2O, so `formula_unit_volume` raises `ValueError` naming `·`, whitespace before or inside the molecule included.
 That is a decimal count, with no leading zero in its fractional part, followed by a whole solvent molecule that ends the part: H2O, D2O, NH3, H2O2, HCl, CO2, CH3OH, CH4O, C2H5OH, C2H6O, CH3CN, C6H6 or C4H8O.
-Every other decimal count reads one way and is read as written: `"Fe2.95O4"`, `"Li1.05Mn1.95O4"`, `"Ca9.5(PO4)6F2"`, `"Mg0.5SiO3"`.
-A molecule that is not in that list, such as the one in `"ZnCl2.2C5H5N"`, also reads one way, as it did in 1.10.0 (2.2 Cl); write it with `·`.
+Every other decimal count is read as written: `"Fe2.95O4"`, `"Ca9.5(PO4)6F2"`, `"Mg0.5SiO3"`.
+A molecule outside that list (`"ZnCl2.2C5H5N"`) reads as it did in 1.10.0 (2.2 Cl); write it with `·`.
 
 `from_formula` raises `ValueError` when `min_volume` or `max_volume` is passed beside the formula, for a `z` that is not a whole number of at least 1 with its minimum no larger than its maximum, when the formula's ceiling falls below the floor, and for a formula or temperature `formula_unit_volume` refuses.
 
