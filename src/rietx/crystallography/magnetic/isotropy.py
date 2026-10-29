@@ -1135,8 +1135,9 @@ class Witness:
       four decades smaller (measured on the ``F -4 3 m`` Γ witness: 8.4e-7
       against 2.2e-10).
     * ``margin`` — μ = λ′/Γ for ``interior`` on the stack it was issued on,
-      λ′ = λ_min(M(ŷ)) − n ε |λ|_max (LAPACK Users' Guide § 4.7): the cone's
-      cosine bound, recomputed from the stack wherever it is read.
+      λ′ = λ_min(M(ŷ)) − n ε |λ|_max (Anderson et al. 1999, *LAPACK Users'
+      Guide*, 3rd ed., SIAM, § 4.7; :func:`_cone_margin`): the cone's cosine
+      bound, recomputed from the stack wherever it is read.
     """
 
     draw: int
@@ -3511,7 +3512,9 @@ def _cone_margin(grams: np.ndarray, y_hat: np.ndarray) -> tuple[float, float, fl
     """(λ′, Γ, μ) of a unit direction ŷ on a projected live stack scaled to max 1: every image point has cos(ŷ, I) ≥ μ.
 
     λ′ = λ_min(M(ŷ)) − n ε |λ|_max is the eigenvalue after its backward
-    error (LAPACK Users' Guide § 4.7, p(n) = n); Γ = (Σ_s ‖G_s‖₂²)^½ bounds
+    error |λ̂ − λ| ≤ p(n) ε ‖M‖₂, taken at p(n) = n (Anderson et al. 1999,
+    *LAPACK Users' Guide*, 3rd ed., SIAM, § 4.7, doi:10.1137/1.9780898719604;
+    the guide's own example takes p(n) = 1); Γ = (Σ_s ‖G_s‖₂²)^½ bounds
     ‖I(x)‖ by Γ‖x‖²; so ŷ·I(x) = xᵀM(ŷ)x ≥ λ′‖x‖² ≥ (λ′/Γ)‖I(x)‖ for every x
     (and tr(M(ŷ)X) ≥ λ′ tr X for every X ⪰ 0 of the relaxation).  μ ≤ 0
     means ŷ bounds nothing.
