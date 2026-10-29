@@ -544,6 +544,15 @@ ROWS: tuple[Row, ...] = (
     Row("CIF_MAGNETIC_NUCLEAR_GROUP", "code"),
     Row("CIF_MAGNETIC_NUCLEAR_SETTING", "code"),
     Row("CIF_MAGNETIC_NUMBER_MISMATCH", "code"),
+    Row("CIF_MAGNETIC_PARENT_TAG_UNDEFINED", "code", tier=1, ambiguity=1,
+        evidence=("a record of which tag was read: the file states its parent symbol only "
+                  "under _parent_space_group.name_H-M, which cif_mag.dic 0.9.9 does not "
+                  "define, with or without an alias, and which can mean only "
+                  "_parent_space_group.name_H-M_alt; the two tags naming different settings "
+                  "is refused (MagCifError), never chosen between (issue #1063, item 2)"),
+        response="info",
+        responds=("note that the parent symbol came from a tag no dictionary defines; the "
+                  "phase is the one the _alt tag would have built")),
     Row("CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED", "code"),
     Row("CIF_MAGNETIC_SYMMFORM", "code"),
     Row("CIF_MAGNETIC_UNIDENTIFIED", "code"),
@@ -802,6 +811,19 @@ ROWS: tuple[Row, ...] = (
                   "a strain, an instrument width) as less certain than its esd, and "
                   "re-collect at a step near FWHM/5 where it must be quotable"),
         scope=("qpa", "structure", "microstructure", "calibration", "magnetic")),
+    Row("PATTERN_WEIGHT_UNUSABLE", "code", tier=1, ambiguity=1,
+        evidence=("info; a report that fires exactly when a present weight column was not "
+                  "read. Where no entry is positive the fallback is the file's own (no "
+                  "sigma = 1/sqrt(w) for any point; the dictionary defines _pd_proc_ls_weight "
+                  "as the least-squares weight, w >= 0). Where only some entries are negative "
+                  "or null (? or .), dropping the whole column is a choice the reader makes, "
+                  "as 1.10.0 did; the report says the column was dropped and counts negative "
+                  "and missing entries separately. Yue ruled on 2026-10-26 to keep the whole-"
+                  "column fallback: no program surveyed uses a pdCIF weight column "
+                  "(docs/practice.md, A pdCIF weight column with bad entries, #1181)"),
+        response="info",
+        responds=("nothing: the weights are not used, sigma is the Poisson value, so quote "
+                  "chi2 and esds as for a pattern with no weights")),
     Row("PATTERN_X_AXIS_ASSUMED", "code"),
     Row("PATTERN_X_AXIS_IMPLAUSIBLE", "code"),
     Row("PATTERN_ZERO_WEIGHT_EXCLUDED", "code", tier=1, ambiguity=1,
@@ -892,6 +914,12 @@ ROWS: tuple[Row, ...] = (
     Row("RESOLUTION_UNCONSTRAINED", "code", response="warning",
         responds=("do not quote a width, a crystallite size or a strain from this fit; "
                   "calibrate the instrument on a standard first")),
+    Row("RESTRAINT_PAIRS_STALE", "code", tier=1, ambiguity=1, response="warning",
+        responds=("rebuild the anti-bump list from the answer's coordinates and refit before "
+                  "judging the named contacts, which no row restrained"),
+        evidence=("arithmetic: a pair distance against the caller's own anti-bump minimum r0, for "
+                  "a contact entered since the run began that no row restrains; a warning that "
+                  "names the pair, moves no value and gates nothing")),
     Row("RESTRAINT_TENSION", "code"),
     Row("RIGID_BODY_MISFIT", "code"),
     Row("RIGID_BODY_UNSUPPORTED", "code"),
@@ -940,6 +968,44 @@ ROWS: tuple[Row, ...] = (
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code", response="warning",
         responds=("check the site's multiplicity against the source before quoting a weight "
                   "fraction, a density or a site's occupancy from this fit")),
+    Row("SITE_DOFS_RENUMBERED", "code", tier=1, ambiguity=1,
+        response="warning",
+        responds=("check the fit's held and tied coordinates against the names the message gives "
+                  "before reading a refined coordinate or its esd"),
+        evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
+                  "between two structures, in either direction (a coordinate a fit or "
+                  "set_values left within reach of a special position, with no merge, or an "
+                  "edit or a checkout moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction and what "
+                  "was dropped because the position fixes or couples it. The direction of a "
+                  "DOF is the nullspace of the site group, so the map is derived, never "
+                  "chosen (#1014, rounds 5-6)")),
+    Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,
+        response="warning",
+        responds=("decide which reading of the site the file meant before quoting a weight "
+                  "fraction, a density or the site's occupancy from this fit"),
+        evidence=("arithmetic: fires exactly when a boundary, reader or model side, finds a "
+                  "site within TWIN_COORD_TOL of its special position and the occupancy at "
+                  "that position, summed over the atoms sharing it and each x (images before "
+                  "/ after), is <= 1, so the numbers read both as one atom off its position "
+                  "and as a split pair (#1088). It acts on nothing: it reports two readings "
+                  "with their occupancies and stops, because which one the file meant is a "
+                  "fact outside it (DESIGN.md Rules, 1, third kind; maintainer's review of "
+                  "#1014, round 4). One gate at every boundary, readers included "
+                  "(maintainer's ruling, round 5): GSAS-II drops an image only within 2e-4 "
+                  "fractional, FullProf and BGMN not at all")),
+    Row("SITE_TWINS_MERGED", "code", tier=1, ambiguity=1,
+        response="warning",
+        responds=("check the merged site's multiplicity and occupancy against the source before "
+                  "quoting a weight fraction, a density or the site's occupancy from this fit"),
+        evidence=("arithmetic: fires when a site within TWIN_COORD_TOL of its special "
+                  "position was moved onto it, and under the one gate at every boundary "
+                  "(reader or model side) only where the occupancy at the position, summed "
+                  "over the atoms sharing it, x (images before / after), exceeds 1: the "
+                  "unmerged model then puts more than one atom at one place. It reports the "
+                  "atoms per cell before and after (multiplicity x occupancy), and what "
+                  "became of a hold or tie on a renumbered coordinate DOF (maintainer's "
+                  "review of #1014, round 5; the GSAS-II citation of round 4 no longer "
+                  "supports the row)")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code", tier=1, ambiguity=1,
         response="info",
         responds=("nothing to correct: read the shared size column as histogram 0's "
@@ -1441,7 +1507,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL", "constant", value=0.001),
     Row("rietx.crystallography.cif.DUPLICATE_U_TOLERANCE", "constant", value=0.0002),
     Row("rietx.crystallography.cif.OCCUPANCY_TOLERANCE", "constant", value=0.01),
-    Row("rietx.crystallography.cif.TWIN_DISTANCE", "constant", value=0.02),
     Row("rietx.crystallography.dispersion.LINE_DISPERSION_TOL", "constant", value=0.01),
     Row("rietx.crystallography.dispersion.NEAR_EDGE_EV", "constant", value=50.0),
     Row("rietx.crystallography.fragments.COLLINEAR_TOL", "constant", value=1e-06),
@@ -1469,7 +1534,7 @@ ROWS: tuple[Row, ...] = (
                   "its positive arm (the same seeds refuse at 1)")),
     Row("rietx.crystallography.magnetic.isotropy._PROBE_RMS", "constant", tier=1, value=0.05,
         evidence=("numerical scale, 50x _PROBE_SYMPREC: the operation check fixes an answered child's group, and "
-                  "tests/test_distortion_candidates.py::test_the_probe_tolerance_and_scale_decide_no_child bounds the raise path (0.01 and "
+                  "tests/test_distortion_candidates.py::test_the_probe_tolerance_and_scale_decide_no_child bounds the refusal record (0.01 and "
                   "0.2 A: the same children at Gamma, R, X and M, no false DISTORTION_CHILD_LARGER)")),
     Row("rietx.crystallography.magnetic.isotropy._PROBE_SEED", "constant", tier="invariant", value=1419,
         evidence=("answer-invariant: tests/test_distortion_candidates.py::test_the_probe_seed_decides_no_child (seeds 1 and 2026, two whose "
@@ -1477,7 +1542,7 @@ ROWS: tuple[Row, ...] = (
                   "groups, (P, p) and child atoms at Gamma, R, X and M")),
     Row("rietx.crystallography.magnetic.isotropy._PROBE_SYMPREC", "constant", tier=1, value=0.001,
         evidence=("numerical tolerance: the operation check fixes an answered child's group, and "
-                  "tests/test_distortion_candidates.py::test_the_probe_tolerance_and_scale_decide_no_child bounds the raise path (1e-6: the "
+                  "tests/test_distortion_candidates.py::test_the_probe_tolerance_and_scale_decide_no_child bounds the refusal record (1e-6: the "
                   "same children at Gamma, R, X and M, no false DISTORTION_CHILD_LARGER); "
                   "tests/test_distortion_candidates.py::test_a_tolerance_at_the_probe_scale_finds_extra_operations its positive arm")),
     Row("rietx.crystallography.magnetic.isotropy._SPAN_GAP", "constant", value=(1e-12, 1e-06)),
@@ -1563,6 +1628,33 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS", "constant", value=30000000),
     Row("rietx.crystallography.symmetry.SITE_TOL", "constant", value=0.0001),
     Row("rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG", "constant", value=0.001),
+    Row("rietx.crystallography.symmetry.TWIN_COORD_TOL", "constant", tier=1, value=0.0005,
+        evidence=("arithmetic on the gate's role: under the one gate the reach decides only "
+                  "whether atoms that would overfill one place are the same place, so the "
+                  "bar is a distance. The reach bounds a site's offset from the position it lands on "
+                  "(where the group of operations that fix the axis has its fixed point past the "
+                  "reach, the site lands on the largest subgroup's fixed point that is within it, "
+                  "the nearest to the stated site where several of that order are, a mirror, "
+                  "rather than being refused), so "
+                  "5e-4 of a cell edge is an offset of 0.002 A on a 4 A axis and 0.02 A on a "
+                  "40 A one (fractional, so it follows the cell), and the pair of images on "
+                  "a mirror, twice the offset, is up to 0.004 A and 0.04 A apart; two "
+                  "different atoms share a cell at ~1 A. A fit's coordinate carries no "
+                  "precision, so none is assumed. The cell edge at which a real split pair "
+                  "0.2 A apart enters the reach is 200 A (0.2 / (2 x 5e-4); P m m m, "
+                  "c = 200 A, a site at z = 5e-4 gives a pair 0.200 A apart and merges "
+                  "8 -> 4)")),
+    Row("rietx.crystallography.symmetry.TWIN_DISTANCE", "constant", value=0.02,
+        evidence=("unaudited, for the maintainer's tier and approval. After #1014's round 4 it "
+                  "no longer decides a site's own twin (TWIN_COORD_TOL does); it remains the "
+                  "distance at which one *listed* site is another's image "
+                  "(CIF_SITE_LISTED_TWICE, #765), unchanged from main")),
+    Row("rietx.crystallography.symmetry._TWIN_SEARCH_FACTOR", "constant", tier=1, value=3.0,
+        evidence=("arithmetic: a rotation of a crystal-axes site group has entries 0 and +-1, so "
+                  "its rows sum to at most 2 in absolute value and |(R - I) d|inf <= 3 |d|inf; "
+                  "the operation search at 3 x TWIN_COORD_TOL therefore admits every operation "
+                  "an offset within TWIN_COORD_TOL can satisfy, and the snapped position is "
+                  "then held to TWIN_COORD_TOL itself")),
     Row("rietx.crystallography.symmetry._COINCIDENCE_TOL", "constant", value=1e-09),
     Row("rietx.crystallography.symmetry._GAMMA_HEX", "constant", value=120.0),
     Row("rietx.crystallography.symmetry._ORBIT_CHUNK_ELEMENTS", "constant", value=24000000),
@@ -1628,7 +1720,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.QUICK_TOTAL_BUDGET_SECONDS", "constant", value=120.0),
     Row("rietx.indexing.engines.SAME_SOLUTION_RTOL", "constant", value=0.001),
     Row("rietx.indexing.engines.SEARCH_POOL_MULTIPLE", "constant", value=2),
-    Row("rietx.indexing.engines.VALIDATION_RESERVE_FRACTION", "constant", value=0.08),
+    Row("rietx.indexing.engines.VALIDATION_RESERVE_FRACTION", "constant", tier=3, value=0.15,
+        evidence=("WP-2011, quick on the final tree, cheapest-first validation, Pawley, one run "
+                  "each (macOS arm64): at 0.08 11-BM NAC validated nothing on either spec (the "
+                  "panel scoring after the search's stop took the reserve: 4 s overrun + 6.5 s "
+                  "consensus); at 0.15 its true cell validated on both; at 0.20 also its leader. "
+                  "Zircon, FAP, corundum, LaB6 validated every checked cell at all three, with "
+                  "the same systems searched and incomplete; NAC's default spec lost the "
+                  "orthorhombic system at 0.15; one synchrotron pattern"),
+        grounds=("A share of the user's ceiling moved from search to the mandatory check; the "
+                 "smallest measured share that validates a heavy synchrotron pattern's true "
+                 "cell.  Set under the maintainer's delegation of 2026-10-28 (WP-2011)."),
+        approved="2026-10-28"),
     Row("rietx.indexing.engines.WIDTH_ALLOWANCE_FWHM", "constant", value=1.0),
     Row("rietx.indexing.engines.WIDTH_ALLOWANCE_QUANTILE", "constant", value=0.25),
     Row("rietx.indexing.engines._INDEX_MARGIN", "constant", value=1e-06),
@@ -1882,24 +1985,52 @@ ROWS: tuple[Row, ...] = (
         evidence=("WP-1459 (outside PR #453): the off-data ridge is as wide as the phase's "
                   "largest on-data intensity; the floor of 1 has no stated source and binds "
                   "only where that intensity is under 1 or absent; inline in "
-                  "build_pawley_restraint until the B14 lift"),
-        grounds=("Opt-in Pawley mode: acts only on reflections outside the data, whose "
-                 "intensity nothing constrains; kept at 1.0 (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                  "build_pawley_restraint until the B14 lift.  WP-2011 probe 9 (2026-10-28): "
+                  "with each pattern and its sigma divided by the maximum count, the ridge's "
+                  "scale fell to 0.005-0.095 on 11-BM NAC, GSAS-II FAP and CPD corundum and "
+                  "zircon, and to 0 on two synthetic LaB6 wrong cells, so the floor bound; "
+                  "on those six no unmatched count, status or Rwp moved.  Over all 14 cells "
+                  "no unmatched count or status moved and Rwp moved by at most 2e-4, bar "
+                  "synthetic LaB6's truth (0.164 to 0.262), which carries no off-data "
+                  "reflection, so not the floor: a unit dependence left to WP-2062"),
+        grounds=("On index_pattern's default path since WP-2011, where a validation fit "
+                 "carries off-data reflections (four of probe 9's nine true cells, two of "
+                 "its four wrong cells): acts only on reflections outside the data, "
+                 "whose intensity nothing constrains, and binding on a pattern scaled to a "
+                 "maximum of 1 moved none of the validation's readings; kept at 1.0 (WP-2011 "
+                 "ruling 3, 2026-10-28)."),
+        approved="2026-10-28"),
     Row("rietx.model.forward.PAWLEY_OVERLAP_FWHM_FRAC", "constant", tier=3, value=0.5,
         evidence=("WP-0306: 'the point past which least squares cannot apportion intensity'; LaB6 "
-                  "only (synchrotron and Cu, tests/test_pawley.py), never swept; second pass owed"),
-        grounds=("Opt-in Pawley mode: an overlapped group gets an equal-split restraint and is "
-                 "flagged PAWLEY_OVERLAP_UNRESOLVED rather than split confidently; kept at the "
-                 "LaB6 value (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                  "only (synchrotron and Cu, tests/test_pawley.py).  WP-2011 probe 9 "
+                  "(2026-10-28), the validation fit on 14 cells (SRM 660c, 11-BM NAC, GSAS-II "
+                  "FAP, six CPD pure phases, synthetic LaB6's truth and three wrong cells, CPD "
+                  "magnetite's P rival): 0.25 and 1.0 regroup reflections (zircon 12, 24, 30 "
+                  "grouped) and move no unmatched or absent count or status, and Rwp by at "
+                  "most 1e-4.  The sweep moved the line screen's testable mask too "
+                  "(extinction.testable_mask calls _overlap_groups).  The peak picker's copies "
+                  "(indexing/pick.py, peaks.py:308) are not swept"),
+        grounds=("On three default paths: the peak picker's duplicate and unresolved flags, "
+                 "the line screen's testable mask, and "
+                 "since WP-2011 every index_pattern validation, where an overlapped group gets "
+                 "an equal-split restraint and is flagged PAWLEY_OVERLAP_UNRESOLVED rather than "
+                 "split confidently.  The validation reads the group's sum, which the restraint "
+                 "leaves free, and its readings did not move over 0.25-1.0; kept at 0.5 "
+                 "(WP-2011 ruling 3, 2026-10-28)."),
+        approved="2026-10-28"),
     Row("rietx.model.forward.PAWLEY_OVERLAP_LAMBDA", "constant", tier=3, value=1.0,
         evidence=("WP-0306, WP-1459: unit weight, per-group intensity scaling; Cu LaB6 (221)/(300) "
                   "sum 0.6 % off, split esd ~112 %; without the off-data ridge a (6 0 2) reached "
-                  "1.45e8 against a median of 81; synthetic LaB6 and FAP only; second pass owed"),
-        grounds=("Opt-in Pawley mode: the weight acts only on directions the data do not "
-                 "constrain, and the group sum stays free; kept at 1.0 (B12, ruled 2026-10-19)."),
-        approved="2026-10-19"),
+                  "1.45e8 against a median of 81.  WP-2011 probe 9 (2026-10-28), the "
+                  "validation fit on the 14 cells PAWLEY_OVERLAP_FWHM_FRAC's row names: 0.1 and "
+                  "10 move no unmatched count or status, and Rwp by at most 7e-4 (CPD corundum "
+                  "at 10)"),
+        grounds=("On index_pattern's default path since WP-2011: the weight acts only on "
+                 "directions the data do not constrain (an overlapped group's split, and the "
+                 "off-data ridge toward zero), and the group sum stays free; the "
+                 "validation's readings did not move over two decades; kept at 1.0 (WP-2011 "
+                 "ruling 3, 2026-10-28)."),
+        approved="2026-10-28"),
     Row("rietx.model.forward.REFLECTION_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("reflection-list margin past the scan; measured 2026-10-21 on SRM 660c, FAP, cpd-1a and 11-BM NAC: fails on FAP (0.124 sigma at "
                   "129.98 deg, 0.016 esd) and cpd-1a (0.119 sigma, 0.103 esd on fluorite lor_strain), "
@@ -2148,6 +2279,14 @@ ROWS: tuple[Row, ...] = (
                   "rhombohedral and unreduced monoclinic (beta 135-150 deg) cells, where one "
                   "shell alone missed 72 of 2518 pairs within 4 A, tests/test_restraints.py "
                   "(WP-2002, 2026-10-21)")),
+    Row("rietx.model.restraints.PLANE_DEGENERATE_REL", "constant", tier=1, value=1e-06,
+        evidence=("arithmetic: the plane normal is the scatter matrix's smallest-eigenvalue "
+                  "eigenvector (Schomaker et al. 1959, Acta Cryst. 12, 600), undefined when "
+                  "that eigenvalue is degenerate, and its derivative grows as "
+                  "1/(lambda1 - lambda0) (Magnus 1985); 1e-6 of the largest eigenvalue is a "
+                  "conditioning floor, as rcond is: a 5 A set is refused only within ~5 mA "
+                  "of having no flattest direction; gates a refusal at compile, not a fit "
+                  "action")),
     Row("rietx.model.restraints._COINCIDENT_D2", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: any value between roundoff and the shortest real interatomic "
                   "d^2 gives the same image")),
@@ -2156,6 +2295,11 @@ ROWS: tuple[Row, ...] = (
                   "unsupported restraint targets; value chosen, not sqrt(eps)")),
     Row("rietx.model.restraints._DEG", "constant", tier=1, value=0.017453292519943295,
         evidence="arithmetic: pi/180"),
+    Row("rietx.model.restraints._SAME_CONTACT_A", "constant", tier=1, value=1e-06,
+        evidence=("arithmetic: symmetry copies of one contact sit at exactly one distance, so "
+                  "matching a contact to a listed row by distance is an identity test; 1e-6 A "
+                  "only absorbs float64 rounding (~1e-15 relative) and sits 1e3 below a "
+                  "bond-length esd of 1e-3 A")),
     Row("rietx.model.tof_spectrum.POINT_BY_POINT_ITYP", "constant", tier=1, value=10,
         evidence="format: GSAS Technical Manual p. 129, 222 define ITYP 10 (docstring)"),
     Row("rietx.optimize.bccg._CAUCHY_ARMIJO", "constant", tier=3, value=0.0001,
@@ -2169,6 +2313,17 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.optimize.bccg._CAUCHY_HALVINGS", "constant", tier=1, value=60,
         evidence=("arithmetic: 2^-60 = 8.7e-19 sits below fp64 epsilon, so no further halving "
                   "changes the point")),
+    Row("rietx.optimize.bccg._CHOLESKY_SHIFT", "constant", tier=2, value=0.001,
+        evidence=("Lin & Moré (1999) SIAM J. Sci. Comput. 21, 24, § 3 Algorithm 3.1 (checked "
+                  "2026-10-28): alpha_S = 1e-3, doubled until the factor exists, on a matrix "
+                  "scaled to unit column 2-norms; lm scales A to a unit diagonal, which differs, "
+                  "and they report 1e-6 gave similar results.  It moves the preconditioner; on a "
+                  "singular face, which of the equal-model points CG reaches")),
+    Row("rietx.optimize.bccg._CHOLESKY_SHIFTS", "constant", tier=1, value=40,
+        evidence=("arithmetic: one unshifted try, then 39 shifts up to 1e-3 * 2^38 = 2.7e8 "
+                  "times the diagonal; scaled to a unit diagonal, a semidefinite block's "
+                  "off-diagonal row sums are at most n - 1, so Gershgorin makes the shifted "
+                  "block positive definite for any n below 2.7e8")),
     Row("rietx.optimize.bccg._CONVERGED_FRACTION", "constant", tier=3, value=0.0001,
         evidence=("Coelho (2005) J. Appl. Cryst. 38, 455, § 2 termination (docstring; paper not on "
                   "disk)"),
@@ -2265,6 +2420,21 @@ ROWS: tuple[Row, ...] = (
         grounds=("B11 (ruled 2026-10-19): a budget is treated as not affecting the answer "
                  "once a test confirms its margin under both LM and TRF."),
         approved="2026-10-19"),
+    Row("rietx.optimize.least_squares.PAWLEY_SPARSE_DENSITY", "constant", tier=3, value=0.05,
+        evidence=("WP-2011: banded windows break even against dense BLAS at 0.05 at 5995 x 343 "
+                  "and 59498 x 2224 (macOS arm64); either side A agrees with the dense JtJ to "
+                  "2e-15; NAC candidates at 0.022-0.023 (monoclinic 47 s dense-built, 34 s "
+                  "sparse, one run each), FAP.XRA's closing stage at 0.38 (115 ms a build "
+                  "against 2 ms); past the cut the step has the exact (shifted) Cholesky factor "
+                  "and a projected search, measured on the ill-conditioned case past it: zircon "
+                  "and corundum as monoclinic (601, 576 columns, 0.06), 157 and 128 products a "
+                  "solve against 1204 and 1154, readings unchanged; two families; second pass "
+                  "owed (refits of three families on either side)"),
+        grounds=("A solver-path switch no refiner has a view on: which arithmetic forms JtJ, "
+                 "never which answer.  Confirmed under the maintainer's delegation of "
+                 "2026-10-28 ('use your best judgement'), once its unmeasured case was built "
+                 "(WP-2011, PR #1191)."),
+        approved="2026-10-28"),
     Row("rietx.optimize.least_squares.STATIONARY_ANGLE_LEVEL", "constant", tier=3, value=0.95,
         evidence=("the profile interval's own level, PARAMETER_INTERVAL_LEVEL, held equal by "
                   "test; at one angle its chi-bar-squared cut is the one-sided interval's 2.706 "
@@ -2573,6 +2743,10 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-19"),
     Row("rietx.refine.PAWLEY_UNRESOLVED_REL", "constant", value=0.3),
     Row("rietx.refine.RESONANT_ABSORBER_SEVERE_BARN", "constant", value=1000.0),
+    Row("rietx.refine.RESTRAINT_PAIRS_STALE_LISTED", "constant", tier="invariant", value=5,
+        evidence=("answer-invariant: shortens the spelled-out list only; the count, value and "
+                  "where are the same at any cap; tests/test_planarity_restraints.py::test_the_"
+                  "listing_cap_changes_the_message_and_nothing_else")),
     Row("rietx.refine.RESTRAINT_TENSION_SIGMA", "constant", value=3.0),
     Row("rietx.refine.ROUGHNESS_MIN_DEPRESSION", "constant", value=0.01),
     Row("rietx.refine.SCALE_B_SEPARATION_FLOOR", "constant", tier=1, value=6.324555320336758e-08,
@@ -2930,6 +3104,57 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.structure.RIGID_BODY_DRIFT_TOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: roundoff drift measured at <= 1e-14 A, tolerance 1e-6 A "
                   "(docstring); refusing at it protects against a hand-edited body atom")),
+    Row("rietx.schemas.structure.RIGID_BODY_INVARIANCE_TOL", "constant", tier=1,
+        evidence=("arithmetic on typed precision, as CIF_PRINTED_ROUNDING is: a coordinate "
+                  "typed to 3 decimals in A is off by at most 0.5e-3 A per axis, so a point by "
+                  "at most sqrt(3) x 0.5e-3 A (a rotation keeps that length), and a point and "
+                  "its partner may be off in opposite directions, so under any site operation an "
+                  "image misses by at most 2 x sqrt(3) x 0.5e-3 = sqrt(3) x 1e-3 = 1.73e-3 A. "
+                  "The bound is attained: under the 3-fold (x, y, z) -> (z, x, y), errors "
+                  "h(1, 1, -1) and h(1, -1, -1) with h = 0.5e-3 A miss by exactly sqrt(3) x "
+                  "1e-3 (a mirror cancels the rounding, 200 000 random points topped out at "
+                  "1.3e-3). add_body's default centre=True centres on the centroid's fixed part "
+                  "on a site, since the plain centroid adds (I - W) x its rounding error to "
+                  "each miss (2.0e-3 on P 3, 2.4e-3 on P 6 at corner errors). Tested: every "
+                  "3-decimal template is accepted on 2-, 3-, 4- and 6-fold sites, corners "
+                  "included, with centring on and off (tests/test_rigid_body_special.py). Not "
+                  "covered: a template converted from 4-decimal fractional coordinates in a "
+                  "cell of about 20 A can miss by up to 3.5e-3 A (computed, not measured); a "
+                  "genuinely asymmetric fragment misses by a bond-scale distance (WP-1807, "
+                  "#1005, the maintainer's ruling 2026-10-26)"),
+        value=0.0017320508075688772),
+    Row("rietx.schemas.structure.RIGID_BODY_OVERLAP_FACTOR", "constant", tier=3, value=0.7,
+        evidence=("RIGID_BODY_IMAGE_OVERLAP at table build: a space-group image of a body atom, "
+                  "other than on its own site, nearer than 0.7 x the covalent-radius sum to an "
+                  "atom of the same body (WP-1807, #876). The distance is arithmetic and the "
+                  "radii are Cordero et al. 2008 (gemmi covalent_r); the 0.7 is a free factor. "
+                  "Its window is sourced: the shortest legitimate same-body image distances are "
+                  "bonds (International Tables Vol. C § 9.5): C#C across a centre 1.18 A against "
+                  "1.02, X-ray O-H 0.82 against 0.68, N-H 0.86 against 0.71, N#N 1.10 against "
+                  "0.99; #876's doubled SO4 sat at 0.32 against 1.20. Positive arms: PbSO4 SO4 "
+                  "0.03 off the mirror (0.32 A, S 8, O 32) and on it (0 A), perhydropyrene "
+                  "(COD 1550439) listed whole (0 A, C 64, H 104); silent on perhydropyrene's "
+                  "half molecule (C1-C1' 1.505 A against 1.02), diacetylene (COD 1577467) and "
+                  "HKUST-1 on their sites (test_rigid_body_special.py). Exempt: an atom with a "
+                  "disorder_group, and a place whose occupancies sum to 1 or less (the atom and every "
+                  "distinct image within the limit of it: two half atoms on a mirror or three "
+                  "thirds on a 3-fold axis are a disorder model; a sum over 1 is #876's double "
+                  "count, still refused at full occupancy)"),
+        grounds=("rietx's own factor, chosen below every bond in the sourced list; the judge's "
+                 "check held it (the tightest legitimate same-body image distances, N#N 1.10 A "
+                 "against 0.99 and C#C 1.18 against 1.02, clear it), and GSAS-II's bond search "
+                 "takes 0.85 x its radius sum as the upper edge of a bond, a different use. Four "
+                 "materials, geometry rather than data, no failure case found on them. One "
+                 "refiner would dissent from the unexempted rule: modelling a molecule "
+                 "disordered across an element of any order by 1/|G_s| occupancy alone, "
+                 "with no disorder_group (an inversion centre, a mirror, a 3-fold axis); the "
+                 "occupancy exemption, summed over the place, admits it. Its edge by "
+                 "construction: a straddling atom more than half the threshold off the element "
+                 "(0.51 A for C-C) is not caught here, so a diacetylene tilted past about 42 "
+                 "deg passes this check and only add_body's template check refuses it "
+                 "(test_add_body_refuses_a_diacetylene_tilted_out_of_the_mirror); origin= on "
+                 "the element is the named exit."),
+        approved="2026-10-26"),
     Row("rietx.schemas.structure.RIGID_BODY_ROTATION_BOUND", "constant", tier=1, value=3.141592653589793,
         evidence=("arithmetic: the increment's Jacobian is singular only at |d omega| = 2 pi; +-pi "
                   "per component keeps |d omega| <= pi*sqrt(3) < 2 pi (docstring, WP-1803 review)")),
@@ -3824,6 +4049,8 @@ ROWS: tuple[Row, ...] = (
     Row("RECIPE_FIT_RANGE_CHANNELS.suggestion", "suggestion", value=1),
     Row("RESOLUTION_NOT_POSITIVE.suggestion", "suggestion", value=1),
     Row("RESOLUTION_UNCONSTRAINED.suggestion", "suggestion", value=1),
+    Row("RESTRAINT_PAIRS_STALE.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence="arithmetic: names the two remedies (the builder that makes the missing rows, or a lower species-pair minimum for a real contact) and picks neither"),
     Row("RESTRAINT_TENSION.suggestion", "suggestion", value=1),
     Row("RIGID_BODY_MISFIT.suggestion", "suggestion", value=1),
     Row("RIGID_BODY_UNSUPPORTED.suggestion", "suggestion", value=1),
@@ -3851,7 +4078,18 @@ ROWS: tuple[Row, ...] = (
     Row("SERIES_PATTERN_FAILED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence=("arithmetic: names the one step that reads the exception, the pattern fitted "
                   "on its own (sequential.py:2277)")),
+    Row("SITE_DOFS_RENUMBERED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: points at parameters() for the site, where the renumbered "
+                  "paths are listed; it states no value")),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION.suggestion", "suggestion", value=2),
+    Row("SITE_TWINS_KEPT.suggestion", "suggestion", tier=1, ambiguity=1, value=2,
+        evidence=("arithmetic: names the special-position occupancy each reading implies "
+                  "(occ for one atom off its position, occ x before/after for a split pair) "
+                  "and TWIN_COORD_TOL, read from the constant")),
+    Row("SITE_TWINS_MERGED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: names the coordinate's source and the restatement (more than "
+                  "TWIN_COORD_TOL from the position, read from the constant) that keeps a "
+                  "real displacement")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", tier=1, ambiguity=1,
         value=1,
         evidence=("arithmetic: names the conversion at a histogram's own wavelength "
@@ -4353,7 +4591,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL",
     "rietx.crystallography.cif.DUPLICATE_U_TOLERANCE",
     "rietx.crystallography.cif.OCCUPANCY_TOLERANCE",
-    "rietx.crystallography.cif.TWIN_DISTANCE",
     "rietx.crystallography.dispersion.LINE_DISPERSION_TOL",
     "rietx.crystallography.dispersion.NEAR_EDGE_EV",
     "rietx.crystallography.fragments.COLLINEAR_TOL",
@@ -4419,6 +4656,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS",
     "rietx.crystallography.symmetry.SITE_TOL",
     "rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG",
+    "rietx.crystallography.symmetry.TWIN_DISTANCE",
     "rietx.crystallography.symmetry._COINCIDENCE_TOL",
     "rietx.crystallography.symmetry._GAMMA_HEX",
     "rietx.crystallography.symmetry._ORBIT_CHUNK_ELEMENTS",
@@ -4496,7 +4734,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.indexing.engines.SearchSpec:shift_template",
     "rietx.indexing.engines.SearchSpec:systems",
     "rietx.indexing.engines.SearchSpec:total_budget_seconds",
-    "rietx.indexing.engines.VALIDATION_RESERVE_FRACTION",
     "rietx.indexing.engines.WIDTH_ALLOWANCE_FWHM",
     "rietx.indexing.engines.WIDTH_ALLOWANCE_QUANTILE",
     "rietx.indexing.engines._INDEX_MARGIN",

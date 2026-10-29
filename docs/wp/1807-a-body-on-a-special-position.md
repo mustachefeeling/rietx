@@ -1,6 +1,6 @@
 # WP-1807 — a body on a special position
 
-Milestone: rigid-bodies · Status: 🔄 2026-10-08 — the refusal by name landed from outside (PR #841); the stabiliser bases are open
+Milestone: rigid-bodies · Status: 🔄 2026-10-29 — R6 (stabiliser bases and the image-overlap refusal) merged from outside as PR #1005 (`8e871e93`), closing #876; the PNG task and the close to check
 Depends on: 1805
 Priority: P2 2026-10-11 — was P3: #876, the origin refusal advises a move that builds a doubled composition with nothing firing
 
@@ -95,6 +95,8 @@ is chunk R6 of issue #561, sized S.
 - Issue #561; PR #596.
 
 ## Handover log
+
+- **2026-10-29** (`/pr-review`) — R6 merged from outside as PR #1005 (`8e871e93`), closing #876. A rigid body on a special position takes its rotation and origin bases from the site stabiliser. The image-overlap refusal sums the occupancy of every image in one place, so a place of any order is held to one atom, and centring uses the centroid's projection onto the site's fixed space so the typed-precision bound holds on 2-, 3- and 6-fold sites. Left as follow-ups: the overlap check is now O(live² · |G|) in Python, unmeasured on a realistic body; and a body listing an atom and its mirror image explicitly at ¼ each counts ¾ in the place, as the pairwise rule did.
 
 - **2026-10-06** — created by WP-1803's re-cut, from #596's proposal.
 - **2026-10-08** — the refusal half of the first task landed from outside. PR #841
