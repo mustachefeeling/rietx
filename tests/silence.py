@@ -300,6 +300,74 @@ def _resolution_silent() -> list:
         + _resolution_findings(x=0.001, w=1e-3, free=True)))
 
 
+# ------------------------------------------------------------ the site-twin merge
+
+
+def _pbso4():
+    from tests.test_site_twins_merged import DATA, read_gsas2_gpx, to_structure
+    return to_structure(read_gsas2_gpx(DATA / "gsas2_pbso4.gpx"))
+
+
+def _s2_moved(dy: float):
+    from tests.test_site_twins_merged import _moved
+    structure = _pbso4()
+    return structure.model_copy(
+        update={"phases": [_moved(structure.phases[0], "S2", y=dy)]})
+
+
+def _merge_findings(structure) -> list:
+    from rietx.crystallography.twins import merge_site_twins
+    found: list = []
+    merge_site_twins(structure, diagnostics=found)
+    return found
+
+
+def _site_merged_fires():
+    return _merge_findings(_s2_moved(6e-5))
+
+
+def _site_merged_silent():
+    # on the mirror as stored, and a split pair far outside the reach
+    return _merge_findings(_pbso4()) + _merge_findings(_s2_moved(2e-2))
+
+
+def _site_kept_fires():
+    from rietx.schemas import Structure
+    from tests.test_site_twins_merged import _OFF, _PNMA, _phase
+    return _merge_findings(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
+
+
+def _site_kept_silent():
+    # a full atom the gate merges, and a half atom already on its position
+    from rietx.schemas import Structure
+    from tests.test_site_twins_merged import _OFF, _ON, _PNMA, _phase
+    return (_merge_findings(Structure(phases=[_phase(*_PNMA, _OFF, occ=1.0)]))
+            + _merge_findings(Structure(phases=[_phase(*_PNMA, _ON, occ=0.5)])))
+
+
+def _renumbered(y: float, *, hold: bool) -> list:
+    """O5 (Pnma 8d) set to ``y`` with y and z held, as ``set_values`` writes it."""
+    import rietx as rx
+    from tests.test_site_twins_merged import INSTRUMENT, _o5
+    structure = _pbso4()
+    j = _o5(structure.phases[0])
+    site = f"phases.0.atoms.{j}"
+    ref = rx.Refinement(structure, INSTRUMENT, history=False)
+    if hold:
+        ref.hold([f"{site}.dof.1", f"{site}.dof.2"])
+    ref.set_values({f"{site}.dof.1": y - structure.phases[0].atoms[j].y.value})
+    return ref._twin_findings
+
+
+def _dofs_renumbered_fires():
+    return _renumbered(0.25004, hold=True)
+
+
+def _dofs_renumbered_silent():
+    # no constraint to carry, and a move that renumbers nothing
+    return _renumbered(0.25004, hold=False) + _renumbered(0.3, hold=True)
+
+
 def _screen_diagnostics(status: str, net: float | None) -> list:
     """extinction_diagnostics for a screen that ranked no class, at the
     given status and background-subtracted reference Rwp.  A stub carries only
@@ -357,6 +425,34 @@ def _net_background_silent() -> list:
     """The same column returning to zero between its peaks, as a subtracted
     pattern does (``test_readers.py``'s T6)."""
     return _net_read(0.0)
+
+
+def _weight_read(weights: list[float]) -> list:
+    """A pdCIF with a total column and ``weights`` through ``rx.read_pattern``."""
+    import rietx as rx
+    from tests.test_readers import _TT, _Y, _write_pdcif
+
+    found: list = []
+    with tempfile.TemporaryDirectory() as tmp:
+        p = _write_pdcif(pathlib.Path(tmp) / "w.cif", {
+            "_pd_proc_2theta_corrected": _TT, "_pd_proc_ls_weight": weights,
+            "_pd_proc_intensity_total": _Y})
+        rx.read_pattern(p, diagnostics=found)
+    return found
+
+
+def _weight_unusable_fires() -> list:
+    """A weight column holding one negative entry."""
+    from tests.test_readers import _W
+
+    return _weight_read([-w if i == 2 else w for i, w in enumerate(_W)])
+
+
+def _weight_unusable_silent() -> list:
+    """The same column, all positive: read as 1/σ²."""
+    from tests.test_readers import _W
+
+    return _weight_read(list(_W))
 
 
 # ------------------------------------------------------------ the series and joint fit
@@ -487,6 +583,41 @@ def _windows_stale(axial_to: float | None) -> list:
         cost_final=1.0, window_loss=loss)])
 
 
+def _stale_structure(*, drift: bool):
+    """The carbons of ``tests/test_planarity_restraints.py`` with the bond
+    C1-C2 left out of the pair list, and the contact keys of where the run
+    started.  ``drift`` walks C5 from 4.0 to 2.5 A of C3, past r0 from outside
+    the list."""
+    from rietx.model.restraints import anti_bump_contact_keys
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.structure import Structure
+    from tests.test_planarity_restraints import _bonded_c
+
+    ph = _bonded_c(False).phases[0]
+    since = anti_bump_contact_keys(ph)
+    if drift:
+        ph = ph.model_copy(update={"atoms": [
+            *ph.atoms[:4],
+            ph.atoms[4].model_copy(update={"y": Parameter(value=0.70 + 2.5 / 12)})]})
+    return Structure(phases=[ph]), [since]
+
+
+def _stale_fires() -> list:
+    """A contact that was outside r0 at the start and came inside it with no
+    row restraining it."""
+    from rietx.refine import _restraint_pairs_stale_diagnostics
+
+    return _restraint_pairs_stale_diagnostics(*_stale_structure(drift=True))
+
+
+def _stale_silent() -> list:
+    """The same list where nothing moved: the bond the caller left out is
+    inside r0 from the start, and is theirs."""
+    from rietx.refine import _restraint_pairs_stale_diagnostics
+
+    return _restraint_pairs_stale_diagnostics(*_stale_structure(drift=False))
+
+
 SILENCE: dict[str, Pair] = {
     "CIF_SITE_LISTED_TWICE": Pair(
         _listed_twice_fires, _listed_twice_silent, "tests/test_cif_sites_coincide.py"),
@@ -509,15 +640,25 @@ SILENCE: dict[str, Pair] = {
         _net_background_fires, _net_background_silent, "tests/test_readers.py"),
     "PATTERN_UNDERSAMPLED": Pair(
         _undersampled_fires, _undersampled_silent, "tests/test_data_support.py"),
+    "PATTERN_WEIGHT_UNUSABLE": Pair(
+        _weight_unusable_fires, _weight_unusable_silent, "tests/test_readers.py"),
     "RESOLUTION_UNCONSTRAINED": Pair(
         _resolution_fires, _resolution_silent,
         "strategy.staged.check_resolution_supported (no test pinned it before)"),
+    "SITE_DOFS_RENUMBERED": Pair(
+        _dofs_renumbered_fires, _dofs_renumbered_silent, "tests/test_site_twins_merged.py"),
     "SEQUENTIAL_CANCELLED": Pair(
         _cancelled_fires, _cancelled_silent, "tests/test_sequential.py"),
     "SERIES_PATTERN_FAILED": Pair(
         _pattern_failed_fires, _pattern_failed_silent, "tests/test_series_error_policy.py"),
+    "RESTRAINT_PAIRS_STALE": Pair(
+        _stale_fires, _stale_silent, "tests/test_planarity_restraints.py"),
     "SITE_SNAPPED_TO_SPECIAL_POSITION": Pair(
         _snap_fires, _snap_silent, "tests/test_cif_stated_columns.py"),
+    "SITE_TWINS_KEPT": Pair(
+        _site_kept_fires, _site_kept_silent, "tests/test_site_twins_merged.py"),
+    "SITE_TWINS_MERGED": Pair(
+        _site_merged_fires, _site_merged_silent, "tests/test_site_twins_merged.py"),
     "STAGE_WINDOWS_STALE": Pair(
         functools.partial(_windows_stale, 0.3), functools.partial(_windows_stale, None),
         "tests/test_window_loss.py"),

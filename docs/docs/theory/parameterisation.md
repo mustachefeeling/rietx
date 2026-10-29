@@ -382,6 +382,50 @@ refined parameters, chained through the covariance of the origin, rotation and
 cell. A distance between two atoms of one body has no esd, because the template
 fixes it.
 
+A body whose origin sits on a special position lists one atom per image under
+the origin's site symmetry $G_o$, and the space group places the rest, as it
+does for any atom. Its origin keeps its site basis, and its rotation turns only
+about the axial directions $G_o$ leaves fixed. A rotation increment is an axial
+vector, which an operation with rotation part $R$ maps by $\det(R)\,R$ (the law
+a magnetic moment follows without time reversal {cite}`gallego2012`), so
+
+```{math}
+:label: par-body-site
+
+V \;=\; \bigcap_{g \in G_o} \ker\!\left(\det(R_g)\,R_g - I\right),
+\qquad
+E \;=\; \text{an orthonormal basis of } M V \,\cap\, \operatorname{span}(R_0 A),
+```
+
+{source}`rietx.crystallography.wyckoff.axial_basis`
+
+with $A$ the template's inertia axes. $\dim V$ is 0, 1 or 3, never 2:
+$\det(R)\,R$ is a proper rotation, and a proper rotation other than the
+identity fixes one line. So a body on a mirror or a 2-fold turns about one
+axis, a body on a centre turns freely, and a body on a site with two or more
+symmetry axes does not turn at all. A turn about a direction in $V$ commutes
+with every operation of $G_o$, so the listed atoms and their images move as one
+rigid set and stay on their sites through every stage and every commit, where
+the chart is the identity.
+
+Two refusals keep that true, both raised when the table is built and both
+naming the body and the atom. `RIGID_BODY_NOT_INVARIANT` refuses a body with an
+atom whose site symmetry its origin lacks, because a turn would push that atom
+off its symmetry element and the next stage would count its images twice. The
+same code refuses a torsion that moves an atom on a special position, a body
+on a site in rhombohedral axes, where the symmetry directions turn with the
+refined $\alpha$, and an `add_body` template that does not map onto itself
+under $G_o$. `RIGID_BODY_IMAGE_OVERLAP` refuses a body with a symmetry image
+of one of its atoms within {{ RIGID_BODY_OVERLAP_FACTOR }} times the
+covalent-radius sum of an atom of the same body, because such a body straddles
+a symmetry element and the cell would hold part of it twice. A body whose
+atoms carry a `disorder_group` is exempt, since that declares the overlap, and
+so is a place whose occupancies sum to 1 or less (the atom and every distinct image
+within the limit of it): two half atoms on a mirror, or three thirds on a 3-fold
+axis, are a disorder model, a sum over 1 is the double count. The
+remedy for both is to put the origin on the element the atoms share
+(`body_from_atoms(..., origin=...)`).
+
 A named-bond torsion turns a declared set of the body's atoms by an angle
 $\varphi$ about the line through two other body atoms, before the pose, in
 the right-handed sense from the first axis atom to the second (TOPAS's
@@ -448,6 +492,48 @@ $\sqrt{w}\,\max(0, d - d_{\max})/\sigma$ and an anti-bump
 $\sqrt{w}\,\min(0, d - d_{\min})/\sigma$, each zero on its flat side. An
 anti-bump pair list is built once from the starting coordinates and kept for
 the whole plan, so the number of restraint rows never changes between stages.
+The price is that a pair drifting inside $d_{\min}$ from outside the list has
+no row, so at plan end the phase is searched again at the answer's
+coordinates and any such pair is named (`RESTRAINT_PAIRS_STALE`). A contact
+already inside $d_{\min}$ where the run started, such as a bonded pair the
+caller left out of the list, is not named: it did not drift in.
+
+A planarity restraint on $N \ge 4$ atoms contributes one row per atom, its
+signed distance to their least-squares plane {cite}`schomaker1959`. With
+$\mathbf{D}_k = \mathbf{p}_k - \bar{\mathbf{p}}$ the Cartesian positions
+about their centroid and $\mathbf{n}$ the unit eigenvector of the smallest
+eigenvalue $\lambda$ of $M = \sum_k \mathbf{D}_k\mathbf{D}_k^\top$,
+
+```{math}
+:label: par-planarity
+
+r_k \;=\; \sqrt{w}\,\frac{d_k}{\sigma}, \qquad
+d_k = \mathbf{n}^\top\mathbf{D}_k, \qquad
+\sum_k d_k^2 = \lambda ,
+```
+
+{source}`rietx.model.restraints.restraint_residual`
+
+so the restrained quantity is order-free and needs no reference triple; TOPAS
+restrains the same geometry with `Flatten` and `AI_Flatten`
+{cite}`coelho2018topas`. Its derivative is the eigenvector's
+{cite}`magnus1985`: with $P = \sum_{i \ne 0} \mathbf{v}_i\mathbf{v}_i^\top /
+(\lambda_i - \lambda)$ the pseudo-inverse of $M - \lambda I$,
+
+```{math}
+:label: par-planarity-derivative
+
+\frac{\partial d_k}{\partial \mathbf{p}_m} \;=\;
+\mathbf{n}\,\Big(\delta_{km} - \frac{1}{N}
+- \mathbf{D}_m^\top P\,\mathbf{D}_k\Big) \;-\; d_m\,P\,\mathbf{D}_k ,
+```
+
+{source}`rietx.model.restraints.restraint_partials`
+
+chained to the fractional coordinates through the Cartesian frame and to the
+cell through the metric. $P$ needs the two smallest eigenvalues apart: a set
+whose points lie on a line, or spread alike in every direction (a regular
+tetrahedron's corners), has no plane, and compiling it raises.
 
 ## Weighting the restraints
 
