@@ -8,7 +8,9 @@ below is quoted in a comment from a real file at a real line so that the
 evidence for it is checkable. The corpus is the maintainer's own unpublished
 research data, so the files are cited as **corpus file 1** to **6** and the map
 from number to file is not public; the maintainer holds it in the private
-repository ``yue-here/rietx-corpus-map``. Where a real file is the *only*
+repository ``yue-here/rietx-corpus-map``. **Example file 1** and **2** are two
+files of FullProf's own distributed example set, cited by number for the same
+reason. Where a real file is the *only*
 evidence for a block's position, that is said, and where there is no evidence at all the construct is **refused
 by name** rather than parsed on a guess.
 
@@ -447,8 +449,8 @@ _BETA_COLUMNS = ("beta11", "beta22", "beta33", "beta12", "beta13", "beta23")
 #: says 12 for ``-4`` — so a 12-term ``-4`` file is refused at its third group
 #: rather than read on a guess. The position, right after LINE 14 (and LINE 15,
 #: refused here), is the manual's "The right place to input this line is
-#: detailed in the LINE 14", and FullProf's ``hobk.pcr`` writes its ``Nba = 0``
-#: pair exactly there. ``Nba = 1`` and ``-2`` also read LINE 17, but over a
+#: detailed in the LINE 14", and one of FullProf's own examples (example
+#: file 1) writes its ``Nba = 0`` pair exactly there. ``Nba = 1`` and ``-2`` also read LINE 17, but over a
 #: background from a companion ``.bac`` file, and are refused at the control
 #: line.
 _BACKGROUND_LINES = {
@@ -1804,8 +1806,9 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
     if phase.is_combined:
         # LINE 22: "Space group symbol must be given in the first 20 positions
         # of the line" and the comment "must start after the 20th column"
-        # (manual p. 95). Read by column for Jbt ±10 only, the one phase whose
-        # comment carries meaning, so every other phase keeps its old reading.
+        # (Rodríguez-Carvajal 2001, manual p. 95). Read by column for Jbt ±10
+        # only, the one phase whose comment carries meaning, so every other
+        # phase keeps its old reading.
         # A comment marker is cut first: `<--` written from column 20 would
         # otherwise leave its `<` inside the symbol's field.
         raw = sg_line.raw
@@ -1860,7 +1863,7 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
         cur, _SCALE_COLUMNS, f"phase {index} scale/shape line", trailing=1)
     if (phase.strain_model or 0) > 8:
         # FullProf's own writer labels the block that follows: "! 5 additional
-        # strain parameters (IstrainModel>8)" (its example lab.pcr).
+        # strain parameters (IstrainModel>8)" (example file 2 of FullProf's set).
         raise FullProfPcrError(
             f"{where}: Strain-Model = {phase.strain_model} adds a block of "
             f"strain parameters after the Pref/Asy line, a model rietx's "
@@ -2196,7 +2199,7 @@ def _read_combined_atom(cur: _Cursor, where: str, i: int, nat: int) -> FullProfA
             f"N_t = 1, which reads")
     if n_t == 1:
         # FullProf writes `<-MagPar` after the seven numbers with no comment
-        # marker (its example hobk.pcr), so the leading numeric run is read.
+        # marker (example file 1 of FullProf's set), so the leading numeric run is read.
         _, moment = cur.floats(f"atom {i} moment line",
                                at_least=len(_COMBINED_MOMENT_COLUMNS),
                                leading=True)
@@ -2700,7 +2703,7 @@ def combined_reading(model: FullProfModel, phase: FullProfPhase
                      ) -> MagneticReading | str | None:
     """A ``Jbt = ±10`` phase's moments on its own sites, or why they are not.
 
-    The manual's ``Jbt = ±10`` (p. 90) is a phase that "can contain nuclear
+    The manual's ``Jbt = ±10`` (Rodríguez-Carvajal 2001, p. 90) is a phase that "can contain nuclear
     and magnetic contributions", its atoms in LINE 25b (p. 105): every site's
     nuclear columns, and a moment line on the sites whose ``N_t`` is ±1. That
     is exactly a ``Jbt = 0`` phase and the ``Jbt = ±1`` phase restating it
@@ -2793,7 +2796,13 @@ def combined_reading(model: FullProfModel, phase: FullProfPhase
 
 
 def _lattice_absent(hkl, centrings) -> bool:
-    """Whether the lattice centring alone extinguishes ``hkl`` (Σ e^{2πi h·t} = 0)."""
+    """Whether the lattice centring alone extinguishes ``hkl`` (Σ e^{2πi h·t} = 0).
+
+    The structure factor of the centring translations t alone, F(h) = Σ e^{2πi
+    h·t}: it vanishes exactly where the lattice type is systematically absent
+    (the centred-lattice reflection conditions of *International Tables for
+    Crystallography* Vol. A, Hahn ed., 2005).
+    """
     import cmath
 
     import gemmi
@@ -2809,9 +2818,9 @@ def _combined_group(phase: FullProfPhase) -> tuple[str | None, str | None]:
 
     FullProf builds the phase's structure factor from the listed operators and
     generates its reflections from the symbol ("The reflections … will be
-    generated according to the space group symbol", manual p. 95), so the two
-    play different parts and FullProf's own examples write an extinction-free
-    symbol (``I -1``) over the full operator list. Two conditions make that
+    generated according to the space group symbol", Rodríguez-Carvajal 2001,
+    manual p. 95), so the two play different parts and FullProf's own examples
+    write an extinction-free symbol (``I -1``) over the full operator list. Two conditions make that
     reading the one FullProf computed, both measured with fp2k 8.20:
 
     * the **symbol extinguishes nothing its lattice does not**. A symbol with a
@@ -2834,6 +2843,9 @@ def _combined_group(phase: FullProfPhase) -> tuple[str | None, str | None]:
     except (RuntimeError, ValueError) as exc:
         return None, f"its symbol or a SYMM operator cannot be read: {exc}"
     centrings = [list(c) for c in symbol.cen_ops]
+    # |h|, |k|, |l| <= 4 is enough, not a tuned bound: a glide or screw
+    # condition shows at an index of 1 or 2 along its axis, so every
+    # systematic absence the symbol adds to its lattice's has a member inside.
     extinct = [hkl for hkl in itertools.product(range(-4, 5), repeat=3)
                if any(hkl) and symbol.is_systematically_absent(list(hkl))
                and not _lattice_absent(hkl, centrings)]
@@ -3195,7 +3207,19 @@ def _preferred_orientation(model: FullProfModel, phase: FullProfPhase,
       states for r, so nothing is flipped.
     * ``Nor = 0``, the exponential function (eq. 3.31),
       P = G₂ + (1 − G₂)·exp(−G₁α²). rietx has no such function, so a non-zero
-      G₁ is refused; at G₁ = 0 it is P ≡ 1 whatever G₂, and nothing is built.
+      G₁ is refused; at G₁ = 0 it is P ≡ 1 whatever G₂, and nothing is built —
+      unless G₁ carries a refine codeword, which is refused for the same
+      reason: the file refines a coefficient that nothing in the built model
+      can take.
+
+    The ``Nor = 1`` mapping is measured, not only read: fp2k 8.20 run on a
+    synthetic tetragonal file (March-Dollase G₁ = 0.6, axes 100, 001, 110, 101)
+    applies P as the mean over the reflection's symmetry equivalents, as rietx
+    does, and reads ``Pr1 Pr2 Pr3`` as reciprocal-lattice indices. Its 50
+    reflections above 100 counts agree with rietx's P to 1.1e-4, where the
+    representative-only P is off by up to 1.9 and the axis read as a
+    direct-space direction by 1.9
+    (``test_nor_1_reproduces_the_preferred_orientation_fullprof_applied``).
 
     ``Nor = 1`` at G₁ = 1 with G₁ held is also P ≡ 1 and builds nothing, so a
     file that differs from its ``Nor = 0`` twin only in that flag reads to the
@@ -3216,6 +3240,15 @@ def _preferred_orientation(model: FullProfModel, phase: FullProfPhase,
                 f"March-Dollase correction is FullProf's Nor = 1. Building "
                 f"without it would return intensities the refinement did not "
                 f"compute.")
+        if g1.codeword != 0.0:
+            raise FullProfPcrError(
+                f"{where}: Nor = 0 with Pref1 = 0 refined (codeword "
+                f"{g1.codeword!r}): the exponential function (FullProf manual "
+                f"eq. 3.31) is P = 1 at G1 = 0, but the file refines G1 under "
+                f"it, and rietx has no exponential function for that refine "
+                f"flag to reach. Building without it would drop a refined "
+                f"parameter in silence; its March-Dollase correction is "
+                f"FullProf's Nor = 1.")
         return None
     if g2 is not None and g2.value != 0.0:
         raise FullProfPcrError(

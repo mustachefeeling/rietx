@@ -110,6 +110,12 @@ def _pref(pref1="0.00000", pref2="0.00000", code1="0.00", code2="0.00") -> str:
         f"     {code1}     {code2}    81.00")
 
 
+def test_nor_0_at_g1_zero_held_reads_as_no_orientation(tmp_path):
+    """The positive arm of the refused refine flag: G1 = 0 held, P = 1."""
+    twin = _dump(_structure(_file(tmp_path, "nor0.pcr")))
+    assert _dump(_structure(_file(tmp_path, nor=0, phase=_pref()))) == twin
+
+
 def test_nor_1_at_its_identity_reads_as_the_nor_0_twin(tmp_path):
     """G1 = 1 is "no preferred orientation" under Nor = 1 as G1 = 0 is under
     Nor = 0 (manual p. 112), so the two files are one structure."""
@@ -139,14 +145,69 @@ def test_nor_1_is_march_dollase_with_r_g1(tmp_path, code, vary):
     # The exponential function rietx does not have: before this reader read
     # Nor, a non-zero Pref1 under Nor = 0 was built without it, in silence.
     (0, "0.30000", "0.00000", "Nor = 0 with Pref1 = 0.3.*exponential"),
+    # G1 = 0 is P = 1, but a refine flag on it reaches nothing rietx builds.
+    (0, "0.00000", "0.00000", "Nor = 0 with Pref1 = 0 refined.*exponential"),
     # G1 divides eq. 3.32; the schema would clamp it onto its pole guard.
     (1, "-0.5000", "0.00000", "Pref1 = -0.5.*positive"),
 ])
 def test_a_preferred_orientation_rietx_cannot_state_is_refused(
         tmp_path, nor, pref1, pref2, match):
-    path = _file(tmp_path, nor=nor, phase=_pref(pref1, pref2))
+    # The G1 = 0 row carries the refine flag; the others state it held.
+    code1 = "111.00" if (nor, pref1) == (0, "0.00000") else "0.00"
+    path = _file(tmp_path, nor=nor, phase=_pref(pref1, pref2, code1=code1))
     with pytest.raises(FullProfPcrError, match=match):
         _structure(path)
+
+
+#: FullProf 8.20 (fp2k, run as a black box on this fixture, Job 3, March-Dollase
+#: r = G1 = 0.6) intensity of each reflection under ``Nor = 1`` over the same
+#: file's ``Nor = 0`` intensity, i.e. P(hkl) as FullProf applied it, to the
+#: five digits the profile file prints. The 50 reflections above 100
+#: counts agree with the orbit-averaged P below to 1.1e-4 for the axes
+#: (1 0 0), (0 0 1), (1 1 0) and (1 0 1); the representative-only P is off by
+#: 0.8 to 1.9 on the first, third and fourth, and (1 0 1) read as a direct-space
+#: direction is off by 1.9.
+_FULLPROF_P = {
+    (1, 0, 0): {(0, 0, 2): 0.46477, (1, 0, 1): 1.14782, (1, 1, 0): 0.98033,
+                (2, 1, 0): 1.32102, (1, 1, 3): 0.60812, (3, 1, 0): 1.7174,
+                (2, 2, 3): 0.77845, (1, 0, 5): 0.50005},
+    (1, 0, 1): {(0, 0, 2): 0.63156, (1, 0, 1): 1.57414, (1, 1, 0): 0.79279,
+                (2, 1, 0): 0.89983, (1, 1, 3): 0.82662, (3, 1, 0): 0.99781,
+                (2, 2, 3): 0.86908, (1, 0, 5): 0.70434},
+}
+
+
+@pytest.mark.parametrize("axis", sorted(_FULLPROF_P))
+def test_nor_1_reproduces_the_preferred_orientation_fullprof_applied(
+        tmp_path, axis):
+    """The mapping Pref1 -> r and Pr1 Pr2 Pr3 -> axis, measured against the
+    program rather than read from the manual's eq. 3.32. The two things the
+    manual does not show are whether FullProf averages P over a reflection's
+    symmetry equivalents, as rietx does, and in which basis it reads the axis:
+    (2 1 0) and (3 1 0) sit in orbits whose members make different angles to
+    (1 0 0), and (1 0 1) is a different direction in the reciprocal lattice
+    than in the direct one when a != c (here 5.0 and 9.0 A)."""
+    import numpy as np
+
+    from rietx.crystallography.lattice import reciprocal_metric_tensor
+    from rietx.crystallography.symmetry import reflection_orbits
+    from rietx.model.preferred_orientation import march_dollase_factors, orbit_layout
+
+    phase = _pref("0.60000").replace(
+        " 0.0 0.0 1.0 ", " %.1f %.1f %.1f " % tuple(map(float, axis)))
+    built = _structure(_file(tmp_path, nor=1, phase=phase)).phases[0]
+    po = built.preferred_orientation
+    assert tuple(po.axis) == axis and po.r.value == 0.6
+    cell = built.cell
+    gstar = reciprocal_metric_tensor(cell.a.value, cell.b.value, cell.c.value,
+                                     90.0, 90.0, 90.0)
+    reps = np.array(sorted(_FULLPROF_P[axis]))
+    members, seg, counts = orbit_layout(
+        reflection_orbits(str(built.space_group), reps))
+    p = march_dollase_factors(members, seg, counts, np.array(axis, float),
+                              gstar, po.r.value)
+    expected = [_FULLPROF_P[axis][tuple(h)] for h in reps]
+    np.testing.assert_allclose(p, expected, rtol=5e-4)
 
 
 def test_a_non_integral_preferred_orientation_axis_is_refused(tmp_path):
