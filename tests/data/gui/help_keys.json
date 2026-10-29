@@ -181,6 +181,7 @@
   "diagnostics:PATTERN_SCAN_REVERSED",
   "diagnostics:PATTERN_SIGMA_CONSTANT",
   "diagnostics:PATTERN_UNDERSAMPLED",
+  "diagnostics:PATTERN_WEIGHT_UNUSABLE",
   "diagnostics:PATTERN_X_AXIS_ASSUMED",
   "diagnostics:PATTERN_X_AXIS_IMPLAUSIBLE",
   "diagnostics:PATTERN_ZERO_WEIGHT_EXCLUDED",
