@@ -276,6 +276,7 @@ Raftery
 [rR]esolvability
 [rR]eweighting
 Rexp
+Rez
 [rR]hombohedral
 Rietveld
 [rR]ietview
