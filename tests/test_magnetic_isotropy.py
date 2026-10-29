@@ -3069,6 +3069,46 @@ def test_a_stored_known_answer_witness_reverifies_from_its_literals(known_answer
     assert not isotropy._verify_witness(grams[a], witness)[0]
 
 
+@pytest.mark.xdist_group("magnetic-known-answer")
+def test_powder_equivalent_hands_the_callers_little_group_to_the_span_certificate(
+        known_answer_stack, monkeypatch):
+    """``powder_equivalent(little=…)`` is the group the domain operations are taken from, and nothing rebuilds it (review of #853, follow-up 1).
+
+    S1(rank 1)#1 → S1(a,b) is proved by the span certificate, so the pair
+    reaches :func:`isotropy._domain_patterns`.  With the caller's group,
+    every call receives that very object and ``little_group`` is never
+    called.  **Positive arm:** with none, the group is built exactly once,
+    in :func:`isotropy.powder_equivalent`, and that same object is the one
+    the domain operations read.  Both calls give one answer.  Before the
+    fix ``_powder_equivalent`` built a second group for the patterns.
+    """
+    found, reflections = known_answer_stack[0], known_answer_stack[1]
+    pick = {c.label: c for c in found}
+    a, b = pick["S1(rank 1)#1"], pick["S1(a,b)"]
+    built, seen = [], []
+    little_group, domain_patterns = irreps.little_group, isotropy._domain_patterns
+
+    def spy_little_group(*args, **kwargs):
+        built.append(little_group(*args, **kwargs))
+        return built[-1]
+
+    def spy_domain_patterns(candidate, little):
+        seen.append(little)
+        return domain_patterns(candidate, little)
+
+    monkeypatch.setattr(irreps, "little_group", spy_little_group)
+    monkeypatch.setattr(isotropy, "_domain_patterns", spy_domain_patterns)
+    mine = little_group(found.space_group, found.k)
+    given = isotropy.powder_equivalent(a, b, reflections, draws=1, restarts=4, little=mine)
+    assert seen and all(g is mine for g in seen)
+    assert built == []
+
+    seen.clear()
+    default = isotropy.powder_equivalent(a, b, reflections, draws=1, restarts=4)
+    assert len(built) == 1 and seen and all(g is built[0] for g in seen)
+    assert given == default
+
+
 def test_the_quote_target_is_never_below_the_accept_floor():
     """An anchor whose ratio is under 2·FARKAS_FLOOR must not drag the quoted point under the floor (review of #772, item 2)."""
     stack = np.array([np.diag([1.0, 0.0]), np.diag([0.0, 1.0])])

@@ -3246,6 +3246,22 @@ def _domain_patterns(candidate: MagneticCandidate, little: LittleGroup) -> list[
     return out
 
 
+def _domain_pattern_cache(canonical, little: LittleGroup):
+    """``index → _domain_patterns(canonical[index], little)``, each candidate's built once, on the first pair that needs it.
+
+    The one cache :func:`_classify` and :func:`_powder_equivalent` share;
+    ``little`` is the group the caller built the structure factors with.
+    """
+    images: dict[int, list[np.ndarray]] = {}
+
+    def patterns(index: int) -> list[np.ndarray]:
+        if index not in images:
+            images[index] = _domain_patterns(canonical[index], little)
+        return images[index]
+
+    return patterns
+
+
 def _containment(a: MagneticCandidate, grams_a: np.ndarray, grams_b: np.ndarray,
                  patterns_b: list[np.ndarray]) -> Containment | None:
     """image(A) ⊆ cone image(B) by an injection congruence G^A_s = c·EᵀG^B_sE, or None (:class:`Containment`).
@@ -4175,6 +4191,11 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     changes which point is quoted and what ``d`` reads, not what is
     proved: the gate and the fit's ``rtol`` stay unweighted.
 
+    ``little``, optional, is the little group of ``a``'s k (built from
+    ``a.space_group`` and ``a.k`` when None).  Both families' structure
+    factors and the span certificate's domain operations are taken from it,
+    so a caller holding the group passes it once and nothing rebuilds it.
+
     **Both sampled verdicts are statistical, for different reasons** (issue #455).
     What is exact: a family with no powder pattern at this d limit is
     equivalent to anything (below), and the verdict no longer depends on the
@@ -4227,35 +4248,31 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     fa = structure_factors(a, refl, little=little)
     fb = structure_factors(b, refl, little=little)
     return _powder_equivalent(a, b, fa, fb, gram(fa, refl.shells), gram(fb, refl.shells),
-                              refl, draws=_draws_for(a, b, draws), seed=seed, rtol=rtol,
-                              restarts=restarts, weights=weights)
+                              refl, little=little, draws=_draws_for(a, b, draws), seed=seed,
+                              rtol=rtol, restarts=restarts, weights=weights)
 
 
 def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
                        fa: np.ndarray, fb: np.ndarray, ga: np.ndarray, gb: np.ndarray,
-                       refl: ReflectionSet, *,
+                       refl: ReflectionSet, *, little: LittleGroup,
                        draws: int, seed: int, rtol: float, restarts: int,
                        weights: np.ndarray | None = None) -> bool:
     """:func:`powder_equivalent` on canonical candidates whose factors and grams are built.
 
     ``ga``/``gb`` are ``gram(fa, refl.shells)``/``gram(fb, refl.shells)``, the
     only form the certificates, the draws and the fits read, so each is built
-    once per candidate rather than once per draw.
+    once per candidate rather than once per draw.  ``little`` is the little
+    group ``fa`` and ``fb`` were built with, and the span certificate's
+    domain operations are taken from it too (:func:`_domain_pattern_cache`),
+    so the two never read different groups.
     """
     silent = [_silent(fa), _silent(fb)]
     dark = [_certificate_dark(ga, silent[0]), _certificate_dark(gb, silent[1])]
     spans = [_intensity_span(ga), _intensity_span(gb)]
     decided = _isometry_verdicts(0, 1, ga, gb, dark, spans, silent)
     if not decided:
-        little = _irreps.little_group(a.space_group, a.k)
-        images = {}
-
-        def patterns(index: int) -> list[np.ndarray]:
-            if index not in images:
-                images[index] = _domain_patterns((a, b)[index], little)
-            return images[index]
-
-        decided = _containment_verdicts(0, 1, (a, b), (ga, gb), dark, spans, silent, patterns)
+        decided = _containment_verdicts(0, 1, (a, b), (ga, gb), dark, spans, silent,
+                                        _domain_pattern_cache((a, b), little))
     there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
                                  draws=draws, seed=seed, rtol=rtol, restarts=restarts,
                                  weights=weights, decided=decided)
@@ -4464,13 +4481,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
     spans = [_intensity_span(g) for g in grams]
     parent = list(range(n))
     copies = list(range(n))
-    images: dict[int, list[np.ndarray]] = {}
-
-    def patterns(index: int) -> list[np.ndarray]:
-        # a candidate's domain images, built once, on the first pair that needs them
-        if index not in images:
-            images[index] = _domain_patterns(canonical[index], little)
-        return images[index]
+    patterns = _domain_pattern_cache(canonical, little)
 
     def find(i: int, tree: list[int] = parent) -> int:
         while tree[i] != i:
