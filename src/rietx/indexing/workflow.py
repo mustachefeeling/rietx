@@ -1239,7 +1239,8 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     cell of ``first``, an :class:`~rietx.schemas.indexing.IndexingResult`, at
     whatever grade it holds, since on a two-phase pattern the first phase's
     cell is graded down by the second phase's lines — is fitted to ``data`` by
-    the same Le Bail protocol that validated it (:func:`validate_by_lebail`),
+    a Le Bail fit (:func:`validate_by_lebail`'s plan, run in lebail mode
+    where validation itself runs Pawley since WP-2011),
     its widths seeded from ``peaks`` — the list the first search ran on, picked
     from ``data`` when not given.  Its calculated peaks are subtracted, the background kept, and what remains
     is picked with the instrument that fit refined: **at the first cell's width
