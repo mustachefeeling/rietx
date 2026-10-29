@@ -579,7 +579,7 @@ def test_an_unclaimed_binary_raw_names_six_vendors_and_picks_none(tmp_path):
                    "Shimadzu", "Stoe"):
         assert vendor in message
     # it says which this build reads, and offers a way out
-    assert "v3 and v4" in message and "PC-APD" in message
+    assert "v2 (single-range), v3 and v4" in message and "PC-APD" in message
     assert "ASCII" in message
     # and it names no vendor as *this* file's
     assert "is a Stoe" not in message
