@@ -2663,6 +2663,38 @@ def test_a_stored_synthetic_witness_reverifies_and_its_negation_does_not():
                                      witness=witness, dual=0.1))
 
 
+def test_a_witness_whose_stored_margin_is_wrong_does_not_reverify():
+    """:func:`isotropy._verify_witness` recomputes ``margin`` from ``interior`` and refuses a record that disagrees (review of #853, follow-up 2).
+
+    Everything else in the record is left as issued, so the margin is the
+    only thing that can refuse it.  **Positive arm:** the issued margin
+    re-verifies, and so does one moved by a tenth of the 4(n + S)ε rounding
+    allowance.  **Planted faults**, each refused: the margin doubled,
+    halved, zeroed, negated, NaN, and moved by ten allowances.  Before the
+    re-check every one of them re-verified.
+    """
+    from dataclasses import replace
+
+    _, parts = isotropy._farkas_certificate(SYNTHETIC_STACK, SYNTHETIC_OUT)
+    y = parts["y"]
+    witness = isotropy.Witness(
+        draw=1, t=tuple(SYNTHETIC_OUT), live=(0, 1, 2), y=tuple(y), weights=None,
+        kernel_dim=0, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"),
+        ratio=parts["ratio"], rounding_bound=parts["rounding_bound"], exact=True,
+        d=(1.0 / float(np.linalg.norm(y)), 1.0),
+        interior=tuple(parts["interior"]), margin=parts["margin"])
+    mu = witness.margin
+    allowance = 4.0 * (2 + 3) * float(np.finfo(np.float64).eps)    # n = 2 amplitudes, S = 3 shells
+    assert 1e-2 < mu < 1.0
+    for margin in (mu, mu + 0.1 * allowance, mu - 0.1 * allowance):
+        assert isotropy._verify_witness(SYNTHETIC_STACK, replace(witness, margin=margin))[0], margin
+    for margin in (2.0 * mu, 0.5 * mu, 0.0, -mu, float("nan"), mu + 10.0 * allowance):
+        holds, ratio, off = isotropy._verify_witness(SYNTHETIC_STACK, replace(witness, margin=margin))
+        assert not holds, margin
+        # the certificate itself still holds: the margin is what refused it
+        assert ratio >= isotropy.FARKAS_FLOOR and off <= 1e-12
+
+
 #: ``P m -3 m`` at (0, 0, ½), general site: 14 families, eight of them with a
 #: common kernel on their live shells (S5(a), S8(a) and the six S9/S10).
 PM3M_X = ("P m -3 m", P21C_SITE, P21C_K)
@@ -3059,7 +3091,7 @@ def test_a_stored_known_answer_witness_reverifies_from_its_literals(known_answer
         rounding_bound=7.9e-15, exact=True, d=(1.0 / float(np.linalg.norm(y)), 0.00495),
         # the quoted y's own direction: strictly inside the PSD cone (ratio 1e-10), so
         # a valid interior, with the small margin that goes with the quoted point
-        interior=tuple(y / float(np.linalg.norm(y))), margin=2.3e-11)
+        interior=tuple(y / float(np.linalg.norm(y))), margin=2.3156608666263582e-11)
     holds, ratio, off = isotropy._verify_witness(grams[b], witness)
     assert holds and ratio >= isotropy.FARKAS_FLOOR and off <= 1e-9
     assert witness.d[0] == pytest.approx(0.00494, rel=2e-3)
@@ -3067,6 +3099,9 @@ def test_a_stored_known_answer_witness_reverifies_from_its_literals(known_answer
     assert isotropy._verify_witness(np.einsum("ki,skl,lj->sij", q, grams[b], q), witness)[0]
     assert not isotropy._verify_witness(grams[b], replace(witness, y=tuple(-y)))[0]
     assert not isotropy._verify_witness(grams[a], witness)[0]
+    # the margin is part of the record: the 2.3e-11 this literal carried before the
+    # re-check (review of #853, follow-up 2) is 0.7 % off and no longer re-verifies
+    assert not isotropy._verify_witness(grams[b], replace(witness, margin=2.3e-11))[0]
 
 
 @pytest.mark.xdist_group("magnetic-known-answer")
@@ -3520,7 +3555,7 @@ def _f43m_witness():
         draw=106, t=F43M_WITNESS_T, live=F43M_WITNESS_LIVE, y=F43M_WITNESS_Y, weights=None,
         kernel_dim=0, kernel_residual=0.0, kernel_amplitude_ratio=float("inf"), ratio=6.1e-10,
         rounding_bound=6.0e-15, exact=True, d=(1.0 / float(np.linalg.norm(y)), 0.00524),
-        interior=F43M_WITNESS_INTERIOR, margin=8.42e-7)
+        interior=F43M_WITNESS_INTERIOR, margin=8.423242435045702e-07)
 
 
 @pytest.mark.xdist_group("magnetic-f43m")

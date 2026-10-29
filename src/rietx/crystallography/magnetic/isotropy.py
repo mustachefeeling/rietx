@@ -1137,7 +1137,8 @@ class Witness:
     * ``margin`` — μ = λ′/Γ for ``interior`` on the stack it was issued on,
       λ′ = λ_min(M(ŷ)) − n ε |λ|_max (Anderson et al. 1999, *LAPACK Users'
       Guide*, 3rd ed., SIAM, § 4.7; :func:`_cone_margin`): the cone's cosine
-      bound, recomputed from the stack wherever it is read.
+      bound, recomputed from the stack wherever it is read, and re-checked
+      against that recomputation by :func:`_verify_witness`.
     """
 
     draw: int
@@ -3842,13 +3843,27 @@ def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float,
     Rebuilds the (weighted) live stack from ``grams_b`` and the stored t,
     projects out its common kernel afresh, and requires |y·t̂ + 1| ≤ 1e-9,
     projected ratio ≥ :data:`FARKAS_FLOOR`, the exact LDLᵀ, the
-    full-stack guard ρ_max ≥ :data:`KERNEL_AMPLITUDE_RATIO`, and that the
+    full-stack guard ρ_max ≥ :data:`KERNEL_AMPLITUDE_RATIO`, that the
     stored ``interior`` is a unit vector whose M(ŷ) clears the same floor
-    on the projected stack (what the fit transfer rests on).  The stored
+    on the projected stack (what the fit transfer rests on), and that the
+    stored ``margin`` is the μ :func:`_cone_margin` recomputes for that
+    ``interior`` on that stack, to 4(n + S)ε (n amplitudes, S live shells).
+    That allowance is rounding only: μ = λ′/Γ, and each computation of
+    λ_min(M(ŷ)) carries at most n ε |λ|_max from the eigensolver and
+    S ε Σ_s|ŷ_s|‖G_s‖₂ from forming M(ŷ), both at most (n + S) ε Γ since
+    ‖ŷ‖ = 1 gives |λ|_max ≤ Σ_s|ŷ_s|‖G_s‖₂ ≤ Γ; two computations double it,
+    and the second factor of two covers Γ's own rounding and the kernel
+    projection's.  A margin off by more is a record that no longer
+    describes its own ``interior``, and the witness does not re-verify.
+    Measured on the 54 re-checks in the isotropy tests that hold (own
+    stacks, isometric copies, rule-2 ``via`` stacks and a random rotation;
+    macOS arm64): |Δμ| ≤ 2.8e-17 on the stack a witness was issued on or a
+    rotation of it, and 8.7e-16 at most across two families' float stacks
+    (the ``F -4 3 m`` witness, against an allowance of 1.2e-14 there).  The stored
     t is an intensity vector, so a change of either family's amplitude basis
-    leaves the check intact (M(y) and y·t move by congruence and not at
-    all) — which is also why a witness carried to an isometric copy of
-    ``b`` re-verifies against that copy's own stack.
+    leaves the check intact (M(y) and y·t move by congruence and μ is
+    invariant under it) — which is also why a witness carried to an
+    isometric copy of ``b`` re-verifies against that copy's own stack.
     """
     live = np.asarray(witness.live, dtype=np.int64)
     t = np.asarray(witness.t, dtype=np.float64)[live]
@@ -3859,12 +3874,15 @@ def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float,
     off = abs(float(y @ t_hat) + 1.0)
     ratio = _spectrum_ratio(projected, y)
     interior = np.asarray(witness.interior, dtype=np.float64)
+    shells, n = projected.shape[:2]
     holds = (residual <= INTENSITY_RTOL and off <= 1e-9 and ratio >= FARKAS_FLOOR
              and _exact_psd(projected, y)
              and _kernel_amplitude_ratio(g, y) >= KERNEL_AMPLITUDE_RATIO
              and interior.shape == y.shape
              and abs(float(np.linalg.norm(interior)) - 1.0) <= 1e-9
-             and _spectrum_ratio(projected, interior) >= FARKAS_FLOOR)
+             and _spectrum_ratio(projected, interior) >= FARKAS_FLOOR
+             and abs(_cone_margin(projected, interior)[2] - witness.margin)
+             <= 4.0 * (n + shells) * float(np.finfo(np.float64).eps))
     return bool(holds), ratio, off
 
 
