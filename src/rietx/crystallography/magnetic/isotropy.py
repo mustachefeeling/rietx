@@ -236,18 +236,28 @@ INTENSITY_RTOL = 1e-9
 CROSS_IRREP_DRAWS = 12
 WITHIN_IRREP_DRAWS = 3
 
-#: The isometry certificate's accept bound (issue #565, part 3): the relative
-#: congruence residual max_s ‖QᵀG^B_sQ − G^A_s‖_max / max|G^A| and the
-#: orthogonality deviation ‖QᵀQ − I‖₂ of the quoted Q must both be at most
-#: this.  Both are printed with the verdict, since an equality certificate
-#: is the direction a false answer silently drops a distinguishable model
-#: in.  Measured (macOS arm64 and Linux x86-64, d_min 1.5 Å): the rank-1
-#: copies of each irrep of the cubic ``P n -3 m:1`` and ``P m -3 m`` at
-#: (0, 0, ½) certify at residuals ≤ 3e-14 (the 2026-09-30 spike: 163
-#: certificates over six cubic sets at 9.8e-16 to 2.9e-14), while a pair
-#: that is not isometric has no intertwiner at all (an empty nullspace, the
-#: smallest relative singular value ≥ 7e-2), so the bound separates nothing
-#: measured and only fences round-off.
+#: The accept bound of both Gram-congruence certificates, one threshold for
+#: two uses.  **Isometry** (issue #565, part 3; :class:`Isometry`): the
+#: relative congruence residual max_s ‖QᵀG^B_sQ − G^A_s‖_max / max|G^A| and
+#: the orthogonality deviation ‖QᵀQ − I‖₂ of the quoted Q must both be at
+#: most this.  **Span containment** (part 4; :class:`Containment`,
+#: :func:`_containment`): the relative residual
+#: max_s ‖G^A_s − c·EᵀG^B_sE‖_max / max|G^A| of the quoted E must be at most
+#: this.  Every residual is printed with its verdict, since an equality or
+#: containment certificate is the direction a false answer silently drops a
+#: distinguishable model in.  Measured, isometry (macOS arm64 and Linux
+#: x86-64, d_min 1.5 Å): the rank-1 copies of each irrep of the cubic
+#: ``P n -3 m:1`` and ``P m -3 m`` at (0, 0, ½) certify at residuals ≤ 3e-14
+#: (the 2026-09-30 spike: 163 certificates over six cubic sets at 9.8e-16 to
+#: 2.9e-14), while a pair that is not isometric has no intertwiner at all
+#: (an empty nullspace, the smallest relative singular value ≥ 7e-2).
+#: Measured, span (macOS arm64): the 38 containments among 17 families of
+#: the ``F -4 3 m`` Γ general-site set at residuals 1.8e-15 to 1.4e-14, 23
+#: with the patterns in span (pattern residual ≤ 1e-15) and 15 through a
+#: least-squares E that reproduces the stack and not the patterns; 16 on the
+#: known answer at ≤ 4.7e-15; no congruence across two irreps on either
+#: set.  In both uses the bound separates nothing measured and only fences
+#: round-off.
 ISOMETRY_RESIDUAL = 1e-12
 
 #: The full-stack guard of a Farkas certificate (issue #565, part 3, the
@@ -3248,13 +3258,9 @@ def _containment(a: MagneticCandidate, grams_a: np.ndarray, grams_b: np.ndarray,
     Each E is then *checked* on the Gram
     stacks over every shell, and the first one whose congruence residual
     is at most :data:`ISOMETRY_RESIDUAL` is the certificate; the pattern
-    fit is where E comes from, never what proves it.  Measured on the
-    ``F -4 3 m`` Γ general-site set (38 containments among 17 families,
-    macOS arm64): residuals 1.8e-15 to 1.4e-14, 23 of them with the
-    patterns in span (pattern residual ≤ 1e-15) and 15 through a least
-    squares E that reproduces the stack and not the patterns; on the
-    known answer, 16 at ≤ 4.7e-15; no congruence across two irreps on
-    either set.
+    fit is where E comes from, never what proves it.  The residuals
+    measured for this use, on the ``F -4 3 m`` Γ set and the known answer,
+    are in that threshold's docstring, beside the isometry's.
     """
     n_a = a.free_amplitudes
     if n_a == 0 or not patterns_b or patterns_b[0].shape[0] == 0:
