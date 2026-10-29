@@ -585,21 +585,20 @@ def _windows_stale(axial_to: float | None) -> list:
 
 def _stale_structure(*, drift: bool):
     """The carbons of ``tests/test_planarity_restraints.py`` with the bond
-    C1-C2 left out of the pair list, and the contact keys of where the run
-    started.  ``drift`` walks C5 from 4.0 to 2.5 A of C3, past r0 from outside
-    the list."""
-    from rietx.model.restraints import anti_bump_contact_keys
+    C1-C2 left out of the pair list, and the phase as the run started.
+    ``drift`` walks C5 from 4.0 to 2.5 A of C3, past r0 from outside the
+    list; without it C5 moves to 3.9 A, still outside, so the search runs and
+    the bond the caller left out is all it could name."""
     from rietx.schemas.common import Parameter
     from rietx.schemas.structure import Structure
     from tests.test_planarity_restraints import _bonded_c
 
-    ph = _bonded_c(False).phases[0]
-    since = anti_bump_contact_keys(ph)
-    if drift:
-        ph = ph.model_copy(update={"atoms": [
-            *ph.atoms[:4],
-            ph.atoms[4].model_copy(update={"y": Parameter(value=0.70 + 2.5 / 12)})]})
-    return Structure(phases=[ph]), [since]
+    start = _bonded_c(False).phases[0]
+    ph = start.model_copy(update={"atoms": [
+        *start.atoms[:4],
+        start.atoms[4].model_copy(update={
+            "y": Parameter(value=0.70 + (2.5 if drift else 3.9) / 12)})]})
+    return Structure(phases=[ph]), [start]
 
 
 def _stale_fires() -> list:
@@ -611,8 +610,8 @@ def _stale_fires() -> list:
 
 
 def _stale_silent() -> list:
-    """The same list where nothing moved: the bond the caller left out is
-    inside r0 from the start, and is theirs."""
+    """The same list where C5 moved but stayed outside r0: the bond the caller
+    left out is inside r0 from the start, and is theirs."""
     from rietx.refine import _restraint_pairs_stale_diagnostics
 
     return _restraint_pairs_stale_diagnostics(*_stale_structure(drift=False))
