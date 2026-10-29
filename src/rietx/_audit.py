@@ -915,11 +915,19 @@ ROWS: tuple[Row, ...] = (
         responds=("do not quote a width, a crystallite size or a strain from this fit; "
                   "calibrate the instrument on a standard first")),
     Row("RESTRAINT_PAIRS_STALE", "code", tier=1, ambiguity=1, response="warning",
-        responds=("rebuild the anti-bump list from the answer's coordinates and refit before "
-                  "judging the named contacts, which no row restrained"),
+        responds=("before quoting a coordinate, or a fraction or moment read through them, "
+                  "either rebuild the anti-bump list from the answer's coordinates and refit, "
+                  "or, if a named contact is real, lower that species pair's minimum"),
         evidence=("arithmetic: a pair distance against the caller's own anti-bump minimum r0, for "
                   "a contact entered since the run began that no row restrains; a warning that "
-                  "names the pair, moves no value and gates nothing")),
+                  "names the pair, moves no value and gates nothing.  r0 for a contact is the "
+                  "strictest (largest) min_distance any row states for its species pair "
+                  "(model.restraints._inside_contacts), so it is always a number the caller "
+                  "wrote, and a species pair no row names is not searched.  Scope: the "
+                  "purposes whose numbers depend on atom coordinates (rietx.purposes.PURPOSES; "
+                  "qpa, structure, magnetic); a contact moves no line position, width or "
+                  "instrument term"),
+        scope=("qpa", "structure", "magnetic")),
     Row("RESTRAINT_TENSION", "code"),
     Row("RIGID_BODY_MISFIT", "code"),
     Row("RIGID_BODY_UNSUPPORTED", "code"),
@@ -2298,7 +2306,8 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: symmetry copies of one contact sit at exactly one distance, so "
                   "matching a contact to a listed row by distance is an identity test; 1e-6 A "
                   "only absorbs float64 rounding (~1e-15 relative) and sits 1e3 below a "
-                  "bond-length esd of 1e-3 A")),
+                  "bond-length esd of 1e-3 A.  The stale search's own dedupe of one atom pair's "
+                  "images (round(d, 6) in stale_anti_bump_pairs) bins at the same 1e-6 A")),
     Row("rietx.model.tof_spectrum.POINT_BY_POINT_ITYP", "constant", tier=1, value=10,
         evidence="format: GSAS Technical Manual p. 129, 222 define ITYP 10 (docstring)"),
     Row("rietx.optimize.bccg._CAUCHY_ARMIJO", "constant", tier=3, value=0.0001,
