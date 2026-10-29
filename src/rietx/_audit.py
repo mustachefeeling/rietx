@@ -968,6 +968,44 @@ ROWS: tuple[Row, ...] = (
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION", "code", response="warning",
         responds=("check the site's multiplicity against the source before quoting a weight "
                   "fraction, a density or a site's occupancy from this fit")),
+    Row("SITE_DOFS_RENUMBERED", "code", tier=1, ambiguity=1,
+        response="warning",
+        responds=("check the fit's held and tied coordinates against the names the message gives "
+                  "before reading a refined coordinate or its esd"),
+        evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
+                  "between two structures, in either direction (a coordinate a fit or "
+                  "set_values left within reach of a special position, with no merge, or an "
+                  "edit or a checkout moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction and what "
+                  "was dropped because the position fixes or couples it. The direction of a "
+                  "DOF is the nullspace of the site group, so the map is derived, never "
+                  "chosen (#1014, rounds 5-6)")),
+    Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,
+        response="warning",
+        responds=("decide which reading of the site the file meant before quoting a weight "
+                  "fraction, a density or the site's occupancy from this fit"),
+        evidence=("arithmetic: fires exactly when a boundary, reader or model side, finds a "
+                  "site within TWIN_COORD_TOL of its special position and the occupancy at "
+                  "that position, summed over the atoms sharing it and each x (images before "
+                  "/ after), is <= 1, so the numbers read both as one atom off its position "
+                  "and as a split pair (#1088). It acts on nothing: it reports two readings "
+                  "with their occupancies and stops, because which one the file meant is a "
+                  "fact outside it (DESIGN.md Rules, 1, third kind; maintainer's review of "
+                  "#1014, round 4). One gate at every boundary, readers included "
+                  "(maintainer's ruling, round 5): GSAS-II drops an image only within 2e-4 "
+                  "fractional, FullProf and BGMN not at all")),
+    Row("SITE_TWINS_MERGED", "code", tier=1, ambiguity=1,
+        response="warning",
+        responds=("check the merged site's multiplicity and occupancy against the source before "
+                  "quoting a weight fraction, a density or the site's occupancy from this fit"),
+        evidence=("arithmetic: fires when a site within TWIN_COORD_TOL of its special "
+                  "position was moved onto it, and under the one gate at every boundary "
+                  "(reader or model side) only where the occupancy at the position, summed "
+                  "over the atoms sharing it, x (images before / after), exceeds 1: the "
+                  "unmerged model then puts more than one atom at one place. It reports the "
+                  "atoms per cell before and after (multiplicity x occupancy), and what "
+                  "became of a hold or tie on a renumbered coordinate DOF (maintainer's "
+                  "review of #1014, round 5; the GSAS-II citation of round 4 no longer "
+                  "supports the row)")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS", "code", tier=1, ambiguity=1,
         response="info",
         responds=("nothing to correct: read the shared size column as histogram 0's "
@@ -1469,7 +1507,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL", "constant", value=0.001),
     Row("rietx.crystallography.cif.DUPLICATE_U_TOLERANCE", "constant", value=0.0002),
     Row("rietx.crystallography.cif.OCCUPANCY_TOLERANCE", "constant", value=0.01),
-    Row("rietx.crystallography.cif.TWIN_DISTANCE", "constant", value=0.02),
     Row("rietx.crystallography.dispersion.LINE_DISPERSION_TOL", "constant", value=0.01),
     Row("rietx.crystallography.dispersion.NEAR_EDGE_EV", "constant", value=50.0),
     Row("rietx.crystallography.fragments.COLLINEAR_TOL", "constant", value=1e-06),
@@ -1591,6 +1628,33 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS", "constant", value=30000000),
     Row("rietx.crystallography.symmetry.SITE_TOL", "constant", value=0.0001),
     Row("rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG", "constant", value=0.001),
+    Row("rietx.crystallography.symmetry.TWIN_COORD_TOL", "constant", tier=1, value=0.0005,
+        evidence=("arithmetic on the gate's role: under the one gate the reach decides only "
+                  "whether atoms that would overfill one place are the same place, so the "
+                  "bar is a distance. The reach bounds a site's offset from the position it lands on "
+                  "(where the group of operations that fix the axis has its fixed point past the "
+                  "reach, the site lands on the largest subgroup's fixed point that is within it, "
+                  "the nearest to the stated site where several of that order are, a mirror, "
+                  "rather than being refused), so "
+                  "5e-4 of a cell edge is an offset of 0.002 A on a 4 A axis and 0.02 A on a "
+                  "40 A one (fractional, so it follows the cell), and the pair of images on "
+                  "a mirror, twice the offset, is up to 0.004 A and 0.04 A apart; two "
+                  "different atoms share a cell at ~1 A. A fit's coordinate carries no "
+                  "precision, so none is assumed. The cell edge at which a real split pair "
+                  "0.2 A apart enters the reach is 200 A (0.2 / (2 x 5e-4); P m m m, "
+                  "c = 200 A, a site at z = 5e-4 gives a pair 0.200 A apart and merges "
+                  "8 -> 4)")),
+    Row("rietx.crystallography.symmetry.TWIN_DISTANCE", "constant", value=0.02,
+        evidence=("unaudited, for the maintainer's tier and approval. After #1014's round 4 it "
+                  "no longer decides a site's own twin (TWIN_COORD_TOL does); it remains the "
+                  "distance at which one *listed* site is another's image "
+                  "(CIF_SITE_LISTED_TWICE, #765), unchanged from main")),
+    Row("rietx.crystallography.symmetry._TWIN_SEARCH_FACTOR", "constant", tier=1, value=3.0,
+        evidence=("arithmetic: a rotation of a crystal-axes site group has entries 0 and +-1, so "
+                  "its rows sum to at most 2 in absolute value and |(R - I) d|inf <= 3 |d|inf; "
+                  "the operation search at 3 x TWIN_COORD_TOL therefore admits every operation "
+                  "an offset within TWIN_COORD_TOL can satisfy, and the snapped position is "
+                  "then held to TWIN_COORD_TOL itself")),
     Row("rietx.crystallography.symmetry._COINCIDENCE_TOL", "constant", value=1e-09),
     Row("rietx.crystallography.symmetry._GAMMA_HEX", "constant", value=120.0),
     Row("rietx.crystallography.symmetry._ORBIT_CHUNK_ELEMENTS", "constant", value=24000000),
@@ -3885,7 +3949,18 @@ ROWS: tuple[Row, ...] = (
     Row("SERIES_PATTERN_FAILED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence=("arithmetic: names the one step that reads the exception, the pattern fitted "
                   "on its own (sequential.py:2277)")),
+    Row("SITE_DOFS_RENUMBERED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: points at parameters() for the site, where the renumbered "
+                  "paths are listed; it states no value")),
     Row("SITE_SNAPPED_TO_SPECIAL_POSITION.suggestion", "suggestion", value=2),
+    Row("SITE_TWINS_KEPT.suggestion", "suggestion", tier=1, ambiguity=1, value=2,
+        evidence=("arithmetic: names the special-position occupancy each reading implies "
+                  "(occ for one atom off its position, occ x before/after for a split pair) "
+                  "and TWIN_COORD_TOL, read from the constant")),
+    Row("SITE_TWINS_MERGED.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
+        evidence=("arithmetic: names the coordinate's source and the restatement (more than "
+                  "TWIN_COORD_TOL from the position, read from the constant) that keeps a "
+                  "real displacement")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", tier=1, ambiguity=1,
         value=1,
         evidence=("arithmetic: names the conversion at a histogram's own wavelength "
@@ -4387,7 +4462,6 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.cif.CIF_STATED_MULTIPLICITY_SNAP_TOL",
     "rietx.crystallography.cif.DUPLICATE_U_TOLERANCE",
     "rietx.crystallography.cif.OCCUPANCY_TOLERANCE",
-    "rietx.crystallography.cif.TWIN_DISTANCE",
     "rietx.crystallography.dispersion.LINE_DISPERSION_TOL",
     "rietx.crystallography.dispersion.NEAR_EDGE_EV",
     "rietx.crystallography.fragments.COLLINEAR_TOL",
@@ -4453,6 +4527,7 @@ UNAUDITED_BASELINE: tuple[str, ...] = (
     "rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS",
     "rietx.crystallography.symmetry.SITE_TOL",
     "rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG",
+    "rietx.crystallography.symmetry.TWIN_DISTANCE",
     "rietx.crystallography.symmetry._COINCIDENCE_TOL",
     "rietx.crystallography.symmetry._GAMMA_HEX",
     "rietx.crystallography.symmetry._ORBIT_CHUNK_ELEMENTS",

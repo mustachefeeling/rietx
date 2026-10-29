@@ -300,6 +300,74 @@ def _resolution_silent() -> list:
         + _resolution_findings(x=0.001, w=1e-3, free=True)))
 
 
+# ------------------------------------------------------------ the site-twin merge
+
+
+def _pbso4():
+    from tests.test_site_twins_merged import DATA, read_gsas2_gpx, to_structure
+    return to_structure(read_gsas2_gpx(DATA / "gsas2_pbso4.gpx"))
+
+
+def _s2_moved(dy: float):
+    from tests.test_site_twins_merged import _moved
+    structure = _pbso4()
+    return structure.model_copy(
+        update={"phases": [_moved(structure.phases[0], "S2", y=dy)]})
+
+
+def _merge_findings(structure) -> list:
+    from rietx.crystallography.twins import merge_site_twins
+    found: list = []
+    merge_site_twins(structure, diagnostics=found)
+    return found
+
+
+def _site_merged_fires():
+    return _merge_findings(_s2_moved(6e-5))
+
+
+def _site_merged_silent():
+    # on the mirror as stored, and a split pair far outside the reach
+    return _merge_findings(_pbso4()) + _merge_findings(_s2_moved(2e-2))
+
+
+def _site_kept_fires():
+    from rietx.schemas import Structure
+    from tests.test_site_twins_merged import _OFF, _PNMA, _phase
+    return _merge_findings(Structure(phases=[_phase(*_PNMA, _OFF, occ=0.5)]))
+
+
+def _site_kept_silent():
+    # a full atom the gate merges, and a half atom already on its position
+    from rietx.schemas import Structure
+    from tests.test_site_twins_merged import _OFF, _ON, _PNMA, _phase
+    return (_merge_findings(Structure(phases=[_phase(*_PNMA, _OFF, occ=1.0)]))
+            + _merge_findings(Structure(phases=[_phase(*_PNMA, _ON, occ=0.5)])))
+
+
+def _renumbered(y: float, *, hold: bool) -> list:
+    """O5 (Pnma 8d) set to ``y`` with y and z held, as ``set_values`` writes it."""
+    import rietx as rx
+    from tests.test_site_twins_merged import INSTRUMENT, _o5
+    structure = _pbso4()
+    j = _o5(structure.phases[0])
+    site = f"phases.0.atoms.{j}"
+    ref = rx.Refinement(structure, INSTRUMENT, history=False)
+    if hold:
+        ref.hold([f"{site}.dof.1", f"{site}.dof.2"])
+    ref.set_values({f"{site}.dof.1": y - structure.phases[0].atoms[j].y.value})
+    return ref._twin_findings
+
+
+def _dofs_renumbered_fires():
+    return _renumbered(0.25004, hold=True)
+
+
+def _dofs_renumbered_silent():
+    # no constraint to carry, and a move that renumbers nothing
+    return _renumbered(0.25004, hold=False) + _renumbered(0.3, hold=True)
+
+
 def _screen_diagnostics(status: str, net: float | None) -> list:
     """extinction_diagnostics for a screen that ranked no class, at the
     given status and background-subtracted reference Rwp.  A stub carries only
@@ -577,6 +645,8 @@ SILENCE: dict[str, Pair] = {
     "RESOLUTION_UNCONSTRAINED": Pair(
         _resolution_fires, _resolution_silent,
         "strategy.staged.check_resolution_supported (no test pinned it before)"),
+    "SITE_DOFS_RENUMBERED": Pair(
+        _dofs_renumbered_fires, _dofs_renumbered_silent, "tests/test_site_twins_merged.py"),
     "SEQUENTIAL_CANCELLED": Pair(
         _cancelled_fires, _cancelled_silent, "tests/test_sequential.py"),
     "SERIES_PATTERN_FAILED": Pair(
@@ -585,6 +655,10 @@ SILENCE: dict[str, Pair] = {
         _stale_fires, _stale_silent, "tests/test_planarity_restraints.py"),
     "SITE_SNAPPED_TO_SPECIAL_POSITION": Pair(
         _snap_fires, _snap_silent, "tests/test_cif_stated_columns.py"),
+    "SITE_TWINS_KEPT": Pair(
+        _site_kept_fires, _site_kept_silent, "tests/test_site_twins_merged.py"),
+    "SITE_TWINS_MERGED": Pair(
+        _site_merged_fires, _site_merged_silent, "tests/test_site_twins_merged.py"),
     "STAGE_WINDOWS_STALE": Pair(
         functools.partial(_windows_stale, 0.3), functools.partial(_windows_stale, None),
         "tests/test_window_loss.py"),
