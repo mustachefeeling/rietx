@@ -202,7 +202,8 @@ def test_the_restraint_flattens_a_ring_the_data_hold_buckled():
     buckled ring (±0.15 Å): free coordinates and no restraint end buckled
     (0.148 Å rms measured), the same fit with the rows ends flat to its σ
     (1.2e-3 Å measured at σ = 1e-3 Å).  The 3e-3 bound's margin, measured
-    2026-10-29 on macOS arm64: this seed gives 1.228009e-3 Å, unchanged to
+    2026-10-29 on macOS arm64 and Linux x86_64 alike, every value the same to
+    the seven digits printed: this seed gives 1.228009e-3 Å, unchanged to
     seven digits with one start coordinate scaled by 1 + k·1e-14
     (k = ±1, ±3, ±7, 20), and noise seeds 0-19 span 1.167e-3 to 1.305e-3 Å
     (sd 3.7e-5), so the bound sits 46 sd above the worst of them."""
