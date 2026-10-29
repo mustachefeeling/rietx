@@ -1,6 +1,6 @@
 # WP-2034 — the satellite arm generates over `compile_model`'s window, not a copy of it
 
-Milestone: magnetic · Status: ⬜
+Milestone: magnetic · Status: 🔄 2026-10-27 — merged from outside as PR #1139 (`2cf63737`); the close is owed (✅ and the release record's narrative)
 Depends on: — (1908, closed: the apparent-position shift both windows widen by; 1326, closed: the arm)
 Priority: P3 2026-10-23 — a satellite that should be ranked can go unenumerated near either end of the range, unmeasured on a real pattern; the fix is one shared helper
 
@@ -61,6 +61,27 @@ under any emission line lands inside the fitted range is enumerated.
 - #1130: taken by @mustachefeeling, with the plan this WP's handover follows.
 
 ## Handover log
+
+- **2026-10-27** — PR #1139 (@mustachefeeling) merged as `2cf63737`, from the
+  `/pr-review` run of 2026-10-27. Every task above is ticked and the
+  contributor's 2026-10-23 entry below records the build. What the review
+  established:
+  - `generation_window` is `compile_model`'s old block moved unchanged, and
+    `compile_model` still generates at `min(lams)`, the frame the helper
+    returns in. So the model's own reflection lists cannot move, which agrees
+    with the contributor's 12 350 bit-identical windows.
+  - `_centring_forbidden_positions` now takes both bounds in the shortest
+    line's frame. Taking `d_max` at `max(lams)` beside the translated low
+    bound would have applied the low cutoff twice.
+  - The arm's cap moves from 179° to 180°, which can only add positions.
+  - Gate: merged onto main `feae4c75`, macOS arm64, Python 3.12.10,
+    `[dev,jax]`, nothing else running. Fast suite 11 952 passed, 199 skipped,
+    32 xfailed. The whole `-m slow` suite 417 passed, 14 skipped, 15 xfailed.
+    `origin/main` after the merge is content-identical to that tree.
+  - The claim issue #1130 is closed.
+  What it does not do: no real pattern in the tree has a satellite or lattice
+  image in the doublet strip, so the change is pinned by the synthetic tests
+  alone. The close (✅) is left to a maintainer session.
 
 - **2026-10-23** — done on `wp2034/satellite-window`, as planned on #1130
   (taken by @mustachefeeling).

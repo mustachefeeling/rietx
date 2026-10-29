@@ -1,4 +1,5 @@
 ---
+name: wp-handover
 description: End-of-session WP handover — record everything, review, verify, open the PR and watch it, report ready for /clear
 ---
 

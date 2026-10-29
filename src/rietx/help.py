@@ -1809,6 +1809,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "source."
         ),
     ),
+    "CIF_MAGNETIC_PARENT_TAG_UNDEFINED": HelpEntry(
+        title="Parent space group read from an undefined tag",
+        description=(
+            "The file names its parent space group under "
+            "_parent_space_group.name_H-M, as FullProf writes it. The magnetic CIF "
+            "dictionary defines only _parent_space_group.name_H-M_alt, and the "
+            "undefined tag can mean nothing else, so the symbol was read from it. The "
+            "phase is the one the dictionary's tag would have given. A file that states "
+            "both tags with different groups is refused, because nothing in it says "
+            "which one is wrong."
+        ),
+    ),
     "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED": HelpEntry(
         title="Spherical moment uncertainties dropped",
         description=(
@@ -1868,7 +1880,11 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "tight pairs and would scatter as twice the atoms. The reader moved the site "
             "onto the special position. The usual cause is a relation such as (x, 2x, z) "
             "printed with one coordinate rounded. Check the coordinates against the "
-            "source."
+            "source. The occupancy is kept, so the site's atoms per cell change with its "
+            "multiplicity, and the message gives both counts. The reader merges only where "
+            "the occupancy at the position, summed over the atoms sharing it and each "
+            "times the images before over the images after, is above 1; otherwise it "
+            "keeps the stated site and says `SITE_TWINS_KEPT`."
         ),
     ),
     "CIF_SPECIES_NORMALISED": HelpEntry(
@@ -3322,6 +3338,20 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "with a smaller step."
         ),
     ),
+    "PATTERN_WEIGHT_UNUSABLE": HelpEntry(
+        title="A pdCIF weight column could not give σ",
+        description=(
+            "The file's `_pd_proc_ls_weight` column holds a negative entry, a missing "
+            "one (`?` or `.`) or no positive entry, so it cannot be read as w = 1/σ². "
+            "The reader fell back to the Poisson σ = √max(y, 1), as it does for a file "
+            "with no weights, and did not repair the column: it drops the whole column, "
+            "not only the bad entries, even where most weights are positive. The message "
+            "counts the negative and the missing entries separately; the code's value is "
+            "their sum (0 when the column holds no positive weight and no bad entry). "
+            "If the file's counting time varies across the scan, the Poisson σ is not "
+            "the deposit's; quote χ² and esds accordingly, or supply σ yourself."
+        ),
+    ),
     "PATTERN_X_AXIS_ASSUMED": HelpEntry(
         title="The scan axis was assumed to be 2θ",
         description=(
@@ -3782,6 +3812,19 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Measure the instrument on a standard, and hold that profile in this fit."
         ),
     ),
+    "RESTRAINT_PAIRS_STALE": HelpEntry(
+        title="Some contacts have no anti-bump row",
+        description=(
+            "At the end of the run, a phase's anti-bump restraints were checked against "
+            "the final coordinates, and some contacts closer than their minimum distance "
+            "have no row in the pair list. The list is built once, from the starting "
+            "coordinates, so a pair that drifted inside its minimum from outside the list "
+            "is not restrained. A contact already inside its minimum when the run "
+            "started, such as a bond you left out of the list, is not reported. Either rebuild the list with "
+            "`anti_bump_restraints` from these coordinates, or with a wider margin, and refit; or, if "
+            "the contact is real (a hydrogen bond, say), lower that species pair's minimum distance."
+        ),
+    ),
     "RESTRAINT_TENSION": HelpEntry(
         title="The data disagree with a restraint",
         description=(
@@ -3983,6 +4026,55 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "within `rietx.crystallography.cif.CIF_PRINTED_ROUNDING` of the last digit, "
             "is read on it and not reported, so this fires on a deviation the file "
             "printed."
+        ),
+    ),
+    "SITE_DOFS_RENUMBERED": HelpEntry(
+        title="Coordinate directions of a site renumbered",
+        description=(
+            "A site's coordinates moved onto or off a special position so that its "
+            "coordinate degrees of freedom changed (`dof.1` is y on the general position "
+            "and z on a mirror at y = 1/4, in either direction), and a hold, tie or free "
+            "path sat on one of them. Each follows its direction to the new number; one on "
+            "a direction the position now fixes or couples is dropped. The message names "
+            "every one that followed and every one that was dropped. Nothing was moved: "
+            "this is the bookkeeping of a site whose symmetry changed without a merge, "
+            "for instance onto a mirror within 5e-5, after a fit wrote the coordinate "
+            "back, or off one by an `edit` or a `checkout`."
+        ),
+    ),
+    "SITE_TWINS_KEPT": HelpEntry(
+        title="Near-duplicate atoms left as stored",
+        description=(
+            "A site lies within 5e-4 (fractional, per coordinate) of a special position, "
+            "so its symmetry images fall in tight pairs, and the occupancy at that "
+            "position, summed over the atoms sharing it and each times the images before "
+            "over the images after, is at most 1. The numbers read two ways: one atom "
+            "stated off its special position, or a split pair of part-atoms (#1088). "
+            "Nothing was moved, and the model counts the second reading. The message "
+            "gives the atoms per cell each reading implies, and the suggestion gives the "
+            "occupancy to state on the special position for each. Every boundary applies "
+            "the same gate: a project file, a CIF, a stored history and a model edit."
+        ),
+    ),
+    "SITE_TWINS_MERGED": HelpEntry(
+        title="Near-duplicate atoms merged onto a special position",
+        description=(
+            "A site lay within 5e-4 (fractional, per coordinate) of a special position, "
+            "so its symmetry images fell in tight pairs, and the occupancy at that "
+            "position, summed over the atoms sharing it and each times the images before "
+            "over the images after, is above 1: the unchanged site would put more than "
+            "one atom at one place. The site was moved onto the special position its "
+            "orbit collapses to. Coordinates the position fixes lose `vary`, and an "
+            "anisotropic tensor is projected onto the tensors the position allows; the "
+            "message says each. This changes the multiplicity, so it changes the density "
+            "and every weight fraction. A CIF read says the same thing as "
+            "`CIF_SITE_TWINS_MERGED`, and the two never both fire. The occupancy is kept, "
+            "so the site's atoms per cell change with its multiplicity, and the message "
+            "gives both counts. Check the coordinate against its source, since a special "
+            "position stated a few 1e-5 off is the usual cause. To keep a genuinely "
+            "displaced atom, state it more than 5e-4 (fractional) from the position. "
+            "A hold or tie on a coordinate degree of freedom that the position "
+            "renumbers follows it, or is dropped and named in the message."
         ),
     ),
     "SIZE_NORMALISED_ACROSS_WAVELENGTHS": HelpEntry(
