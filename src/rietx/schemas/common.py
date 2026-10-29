@@ -583,6 +583,8 @@ from .._nearmiss import did_you_mean
 #: a ``DistortionMode`` per mode with ``amplitude: Parameter``).  Additive and
 #: defaulted to ``None``, exactly off, the 0.25 → 0.26 rule; written by
 #: ``displacive_statement``.  An older build refuses a phase carrying it.
+#: Also in 0.60 (WP-2011): ``LeBailValidation.mode``, additive, its default
+#: ``"lebail"`` being what every record written before it ran.
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

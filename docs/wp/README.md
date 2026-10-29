@@ -28,12 +28,13 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1542](1542-a-le-bail-background-left-at-its-seed.md) | A Le Bail background left at its seed | 2026-10-08 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1806](1806-first-public-case-acridine-form-ix.md) | First public case: acridine form IX | 2026-10-25 | P3 | [rigid-bodies](#rigid-bodies) |
-| [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
-| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 2026-10-12 | P3 | [rigid-bodies](#rigid-bodies) |
+| [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 2026-10-29 | P2 | [rigid-bodies](#rigid-bodies) |
+| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 2026-10-29 | P3 | [rigid-bodies](#rigid-bodies) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 2026-10-12 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 2026-10-26 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-12 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | 2026-10-08 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | 2026-10-29 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | 2026-10-13 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
@@ -43,9 +44,11 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1969](1969-an-exhaustive-search-that-ends-in-no-cell.md) | An exhaustive search that ends in no cell | 2026-10-24 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 2026-10-22 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-23 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | 2026-10-29 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1997](1997-the-direct-space-solver-on-main.md) | The direct-space solver on main: site classes, kernels, chemistry, engine and entry point | 2026-10-24 | P2 | [structure-solution](#structure-solution) |
 | [2003](2003-the-chain-actions.md) | The chain actions: what a series decides between patterns | 2026-10-26 | P2 | [generality](#generality-the-audits) |
 | [2006](2006-readers-crystallography-gui-and-the-dead-surface.md) | Readers, crystallography and GUI codes, and the dead surface | 2026-10-24 | P3 | [generality](#generality-the-audits) |
+| [2011](2011-a-candidate-is-judged-on-a-fit-that-converged.md) | A candidate is judged on a fit that converged | 2026-10-28 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 2026-10-21 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2028](2028-a-joint-fits-guards-see-every-histogram.md) | A joint fit's guards see every histogram | 2026-10-26 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2034](2034-the-satellite-window-is-compile-models-window.md) | The satellite arm generates over `compile_model`'s window, not a copy of it | 2026-10-27 | P3 | [magnetic](#magnetic) |
@@ -64,12 +67,10 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1467](1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | P2 | — ([1318](1318-strain-surface.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1514](1514-scoping-rigid-bodies.md) | Scoping rigid bodies: the milestone that makes the parameter map nonlinear | P2 | — ([1319](1319-structure-interchange.md), [1515](1515-scoping-structure-solution.md), [1516](1516-scoping-stacking-faults.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1515](1515-scoping-structure-solution.md) | Scoping structure solution: which routes, which corpus, how many milestones | P2 | — ([1514](1514-scoping-rigid-bodies.md), [1511](1511-which-cell-does-this-powder-support.md), [1513](1513-the-contacts-a-chemist-checks-by-eye.md) soft) | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
-| [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1955](1955-a-column-at-a-zero-aperture-and-a-column-the-matrix-cannot-see.md) | A column at a zero aperture, and a column the agreement matrix cannot see | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1964](1964-a-nonlinear-law-through-the-derived-block.md) | A nonlinear law over the pattern coordinates, through the derived block | P2 | [1325](1325-parametric-series.md), [1804](1804-the-derived-block.md) | [Unscheduled](#unscheduled-candidates-named-on-a-use-case-not-yet-on-a-measurement) |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1998](1998-a-suggestion-past-its-bound.md) | A suggestion whose gain lies past its bound | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1999](1999-a-held-cells-ties-leave-the-answer-with-it.md) | A held cell's ties leave the answer with it | P2 | — | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [2004](2004-the-fitreport-reasons-for-the-caller.md) | The FitReport reasons for the caller: its gates, actions and thresholds | P2 | [2002](2002-the-single-fit-actions.md), [2003](2003-the-chain-actions.md) | [generality](#generality-the-audits) |
@@ -83,6 +84,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2052](2052-a-fit-keeps-each-sites-multiplicity.md) | A fit keeps each site's multiplicity from start to answer | P2 | — ([1991](1991-a-site-and-its-own-image-are-one-atom.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2054](2054-the-report-names-asymmetry-with-fcj-off.md) | The report names an asymmetric residual the model cannot draw | P2 | — ([1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md), [2004](2004-the-fitreport-reasons-for-the-caller.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2060](2060-the-likelihood-interval-where-an-esd-cannot-be-read.md) | The likelihood interval where an esd cannot be read as one | P2 | — | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [2062](2062-pawley-is-the-structure-free-default.md) | Pawley is the structure-free default | P2 | [2011](2011-a-candidate-is-judged-on-a-fit-that-converged.md) ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 
 ## <a id="v0-3"></a>v0.3 — multi-phase workflows
 
@@ -426,9 +428,9 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1804](1804-the-derived-block.md) | The derived block: a nonlinear map applied after the affine one | ✅ 2026-10-23 | — | [1801](1801-rotation-mathematics.md), [1803](1803-the-body-seam-spike.md) |
 | [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | 🔄 2026-10-08 | P2 | [1802](1802-the-fragment-type.md), [1804](1804-the-derived-block.md) |
 | [1806](1806-first-public-case-acridine-form-ix.md) | First public case: acridine form IX | 🔄 2026-10-25 | P3 | [1805](1805-the-rigid-body.md) |
-| [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 🔄 2026-10-08 | P2 | [1805](1805-the-rigid-body.md) |
+| [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 🔄 2026-10-29 | P2 | [1805](1805-the-rigid-body.md) |
 | [1808](1808-torsions-on-named-rotatable-bonds.md) | Torsions on named rotatable bonds | ✅ 2026-10-11 | — | [1802](1802-the-fragment-type.md), [1805](1805-the-rigid-body.md) |
-| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 🔄 2026-10-12 | P3 | — |
+| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 🔄 2026-10-29 | P3 | — |
 | [1810](1810-hydrogens-riding-on-a-body.md) | Hydrogens riding on a body, CIF flags | ✅ 2026-10-23 | — | [1805](1805-the-rigid-body.md) ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
 | [1811](1811-bodies-in-a-series.md) | Bodies in a series | ⬜ | P3 | [1805](1805-the-rigid-body.md), [1333](1333-a-series-survives-one-pattern.md) |
 | [1812](1812-gui-textdoc-skill-and-manual-for-bodies.md) | GUI, textdoc, skill and manual for bodies | ⬜ | P4 | [1805](1805-the-rigid-body.md) |
@@ -494,7 +496,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 🔄 2026-10-03 | P2 | — ([1433](1433-the-inp-grammar-still-refused.md) soft) |
 | [1543](1543-a-gsas-gaussian-width-is-a-variance.md) | A GSAS Gaussian width is a variance | ✅ 2026-10-10 | — | — |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 🔄 2026-10-12 | P3 | — (#713 soft) |
-| [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | ⬜ | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) |
+| [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | 🔄 2026-10-29 | P2 | — ([1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) soft) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 🔄 2026-10-09 | P2 | [1319](1319-structure-interchange.md) |
 | [1942](1942-a-soft-restraint-on-a-sum-across-phases.md) | A soft restraint on a sum of parameters across phases | ⬜ | P3 | — |
 | [1943](1943-the-pbso4-round-robin-as-an-acceptance-case.md) | The PbSO₄ round robin as an acceptance case | ⬜ | P3 | — |
@@ -589,9 +591,9 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1976](1976-a-correction-summary-judged-at-the-drawn-angle.md) | A correction summary judged at the drawn angle | ✅ 2026-10-15 | — | — |
 | [1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md) | A flank lobe read as an unindexed peak | ⬜ | P2 | — |
 | [1989](1989-the-released-arm-keeps-riding-hydrogens-riding.md) | The rigid-body check's released arm keeps riding hydrogens riding | ⬜ | P2 | — ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
-| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | ⬜ | P2 | — |
+| [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | 🔄 2026-10-29 | P2 | — |
 | [1998](1998-a-suggestion-past-its-bound.md) | A suggestion whose gain lies past its bound | ⬜ | P2 | — |
-| [2011](2011-a-candidate-is-judged-on-a-fit-that-converged.md) | A candidate is judged on a fit that converged | ⬜ | P3 | [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) |
+| [2011](2011-a-candidate-is-judged-on-a-fit-that-converged.md) | A candidate is judged on a fit that converged | 🔄 2026-10-28 | P2 | [1956](1956-a-cell-pays-for-the-lines-it-predicts-and-the-pattern-lacks.md) |
 | [2012](2012-the-axial-ratios-are-interchangeable.md) | The two axial-divergence ratios are interchangeable, and a fit reports one branch | ⬜ | P2 | — |
 | [2028](2028-a-joint-fits-guards-see-every-histogram.md) | A joint fit's guards see every histogram | 🔄 2026-10-26 | P2 | — ([1325](1325-parametric-series.md), [1421](1421-the-result-reproduces-its-own-number.md) soft) |
 | [2029](2029-whether-the-centroid-fixes-a-polar-origin-by-default.md) | Whether the centroid fixes a polar origin by default | ⬜ | P3 | — ([1912](1912-a-polar-axis-has-no-origin.md) soft) |
@@ -607,6 +609,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [2054](2054-the-report-names-asymmetry-with-fcj-off.md) | The report names an asymmetric residual the model cannot draw | ⬜ | P2 | — ([1977](1977-a-flank-lobe-read-as-an-unindexed-peak.md), [2004](2004-the-fitreport-reasons-for-the-caller.md) soft) |
 | [2055](2055-a-picked-line-held-at-its-position-bound.md) | The picker holds a line shape the lab pattern does not have | ⬜ | P3 | — |
 | [2060](2060-the-likelihood-interval-where-an-esd-cannot-be-read.md) | The likelihood interval where an esd cannot be read as one | ⬜ | P2 | — |
+| [2062](2062-pawley-is-the-structure-free-default.md) | Pawley is the structure-free default | ⬜ | P2 | [2011](2011-a-candidate-is-judged-on-a-fit-that-converged.md) ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) |
+| [2063](2063-the-panel-scored-after-the-clock-spends-the-validation-reserve.md) | The FoM panel scored after the clock spends the validation reserve | ⬜ | P3 | — |
 
 ### <a id="unscheduled-a-long-run-is-not-one-fit"></a>A long run is not one fit
 
