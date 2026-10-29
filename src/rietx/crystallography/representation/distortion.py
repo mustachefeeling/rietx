@@ -1055,7 +1055,7 @@ def _site_modes(comp: IrrepModes, ref: _Reference, labels, whiten) -> list[tuple
 
     The parent's orbits are G-invariant, so each irrep's H-invariant subspace
     splits into its intersections with the fields on one orbit (the per-orbit
-    modes AMPLIMODES tabulates, Orobengoa et al. 2009 § 2.3).  The split is
+    modes AMPLIMODES tabulates, Orobengoa et al. 2009 § 2.3, *J. Appl. Cryst.* **42**, 820).  The split is
     orthogonal, so the modes stay orthonormal in the AMPLIMODES unit.  Where
     the global translation was removed at Γ, part of a polar irrep couples
     several orbits and cannot be split; that part keeps one basis, labelled
@@ -1109,7 +1109,14 @@ def _site_modes(comp: IrrepModes, ref: _Reference, labels, whiten) -> list[tuple
 
 
 def _lost_translations(big) -> list[np.ndarray]:
-    """The parent lattice vectors inside one child cell, one per coset of the child lattice."""
+    """The parent lattice vectors inside one child cell, one per coset of the child lattice.
+
+    The translations the child's cell hides: the parent group acts on a field
+    over the child cell only with them included, so the symmetry-adapted modes
+    are those of the whole parent group (Perez-Mato, Orobengoa & Aroyo 2010,
+    *Acta Cryst.* A**66**, 558, eqs. 3–4; Orobengoa et al. 2009, *J. Appl.
+    Cryst.* **42**, 820, § 2.2).
+    """
     inv = np.linalg.inv(big)
     corners = np.array([big @ np.array(c, float) for c in itertools.product((0, 1), repeat=3)])
     lo = np.floor(corners.min(axis=0)).astype(int)
@@ -1128,7 +1135,9 @@ def _parent_actions(parent, ref: _Reference, big, small) -> list[tuple[np.ndarra
     """Every operation of G modulo the child lattice, as (child-frame R, permutation).
 
     (g·u)_{n'} = R·u_{perm(n')}: the whole parent group, its lost translations
-    included, acting on a field over the child cell.
+    included, acting on a field over the child cell, the action whose
+    invariant subspaces are the modes (Perez-Mato, Orobengoa & Aroyo 2010,
+    *Acta Cryst.* A**66**, 558, eqs. 3–4).
     """
     inv = np.linalg.inv(big)
     rot_g, tran_g = _operations(_group(parent))
@@ -1148,7 +1157,13 @@ def _act(action, field: np.ndarray) -> np.ndarray:
 
 
 def _stabiliser_order(field: np.ndarray, actions) -> int:
-    """How many of ``actions`` leave ``field`` unchanged, to round-off."""
+    """How many of ``actions`` leave ``field`` unchanged, to round-off.
+
+    The order of the field's stabiliser in the parent group's action on the
+    child cell, which the seed checks against the child group's order so that
+    a seeded field keeps exactly H and no higher symmetry (Perez-Mato,
+    Orobengoa & Aroyo 2010, *Acta Cryst.* A**66**, 558).
+    """
     scale = max(float(np.abs(field).max()), 1e-300)
     return sum(1 for a in actions if float(np.abs(_act(a, field) - field).max())
                <= _RANK_TOL * scale)
@@ -1158,7 +1173,8 @@ def _generic_seed(n: int) -> list[np.ndarray]:
     """Directions to try for the seed, generic first: no two coefficients equal.
 
     Unit vectors; the first coefficient is positive in each (the driving
-    mode's sign is a domain choice, Perez-Mato 2010 § 7).
+    mode's sign is a domain choice, Perez-Mato, Orobengoa & Aroyo 2010 § 7,
+    *Acta Cryst.* A**66**, 558).
     """
     base = 1.0 + 0.618 * np.arange(n)
     out = []

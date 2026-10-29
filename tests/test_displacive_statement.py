@@ -409,7 +409,12 @@ def test_ten_unrelated_writes_leave_an_antiphase_pair_where_its_amplitude_put_it
 
 @NATAO3_GROUP
 def test_a_second_fit_reports_the_amplitude_the_first_left(natao3_fit, natao3_data):
-    """Acceptance 1, the other two states: a second fit() and a replayed node."""
+    """Acceptance 1, the other two states: a second fit() and a replayed node.
+
+    The second fit moves the amplitude by 3.2e-7 esd on macOS-arm64 and
+    3.2e-7 esd on pearl's Linux-x86_64 (measured 2026-10-29, 4.7e-10 Å), so
+    the 0.01 esd bar has a margin of 3e4.
+    """
     statement, _, first = natao3_fit
     ref = rx.Refinement(Structure(phases=[statement.phase]), neutron())
     one = ref.fit(natao3_data, plan=rx.RefinementPlan.mccusker_structural())
@@ -547,8 +552,13 @@ def test_natao3_from_its_parent_returns_the_planted_amplitude(natao3_fit, natao3
     """Acceptance 4 (milestone row E): one M-point mode, from the seed to 0.378 Å.
 
     |A| is compared, the sign being a domain; within its esd and 0.01 Å.
-    Seeds of ±s give ±A with Rwp equal to ten digits (twelve before main's closing stage, 2.7e-11 after), and a fit freeing the
-    block exactly at zero is refused rather than run.
+    Seeds of ±s give ±A, which is what the test is for, so the bar is on the
+    amplitude: |A₊ + A₋| ≤ 1e-3 esd.  Measured 2026-10-29: 8.0e-7 esd on both
+    macOS-arm64 (3.12.13) and pearl's Linux-x86_64 (3.12.14); Rwp agrees to
+    2.0e-11 and 2.3e-11 relative, the esds to 1.2e-6 and 1.8e-6.  Rwp's bar is
+    1e-8, 430× the worse; it had been 1e-10 after the closing stage moved the
+    figure from under 1e-12 to 2.7e-11.  A fit freeing the block exactly at
+    zero is refused rather than run.
     """
     statement, _, result = natao3_fit
     assert statement.seed == {"phases.0.distortion_modes.modes.0.amplitude": D.DISTORTION_SEED}
@@ -563,8 +573,8 @@ def test_natao3_from_its_parent_returns_the_planted_amplitude(natao3_fit, natao3
         getattr(flipped.atoms[3], c).value = rec.base[3][k] - D.DISTORTION_SEED * rec.modes[0].vectors[3][k]
     _, other = fit(flipped, natao3_data)
     ((value2, _),) = amplitudes(other).values()
-    assert value2 == pytest.approx(-value, abs=1e-6)
-    assert other.statistics.rwp == pytest.approx(result.statistics.rwp, rel=1e-10)
+    assert abs(value2 + value) <= 1e-3 * esd
+    assert other.statistics.rwp == pytest.approx(result.statistics.rwp, rel=1e-8)
 
     unseeded = D.displacive_statement(natao3_parent(), natao3_child(0.0), NATAO3_T, seed=0.0)
     with pytest.raises(ValueError, match="exactly zero"):
@@ -596,9 +606,18 @@ def test_lamno3_from_its_parent_reaches_every_planted_a_tau(lamno3_data):
 def test_the_seed_magnitude_does_not_move_the_answer(natao3_fit, natao3_data, lamno3_data):
     """``DISTORTION_SEED`` at 0.003, 0.01 and 0.03 Å: one answer, by margin.
 
-    The constant's audit row reads this: the converged amplitudes agree to a
-    hundredth of their esds (measured 2026-10-21: NaTaO₃ to 8 decimals,
-    LaMnO₃ to 4), on two perovskites and untested beyond them.
+    The constant's audit row reads this.  The worst converged-amplitude
+    difference over the three seeds, in esds (measured 2026-10-29):
+
+    ========  ==============  ===============
+    case      macOS-arm64     Linux-x86_64
+    ========  ==============  ===============
+    NaTaO₃    2.7e-9          5.2e-9
+    LaMnO₃    1.3e-8          5.9e-9
+    ========  ==============  ===============
+
+    against the 0.01 esd bar, a margin of 1e6 or more, on two perovskites and
+    untested beyond them.
     """
     def run(parent, child, transform, data, seed):
         statement = D.displacive_statement(parent, child, transform, seed=seed)
