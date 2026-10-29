@@ -3026,6 +3026,57 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.schemas.structure.RIGID_BODY_DRIFT_TOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: roundoff drift measured at <= 1e-14 A, tolerance 1e-6 A "
                   "(docstring); refusing at it protects against a hand-edited body atom")),
+    Row("rietx.schemas.structure.RIGID_BODY_INVARIANCE_TOL", "constant", tier=1,
+        evidence=("arithmetic on typed precision, as CIF_PRINTED_ROUNDING is: a coordinate "
+                  "typed to 3 decimals in A is off by at most 0.5e-3 A per axis, so a point by "
+                  "at most sqrt(3) x 0.5e-3 A (a rotation keeps that length), and a point and "
+                  "its partner may be off in opposite directions, so under any site operation an "
+                  "image misses by at most 2 x sqrt(3) x 0.5e-3 = sqrt(3) x 1e-3 = 1.73e-3 A. "
+                  "The bound is attained: under the 3-fold (x, y, z) -> (z, x, y), errors "
+                  "h(1, 1, -1) and h(1, -1, -1) with h = 0.5e-3 A miss by exactly sqrt(3) x "
+                  "1e-3 (a mirror cancels the rounding, 200 000 random points topped out at "
+                  "1.3e-3). add_body's default centre=True centres on the centroid's fixed part "
+                  "on a site, since the plain centroid adds (I - W) x its rounding error to "
+                  "each miss (2.0e-3 on P 3, 2.4e-3 on P 6 at corner errors). Tested: every "
+                  "3-decimal template is accepted on 2-, 3-, 4- and 6-fold sites, corners "
+                  "included, with centring on and off (tests/test_rigid_body_special.py). Not "
+                  "covered: a template converted from 4-decimal fractional coordinates in a "
+                  "cell of about 20 A can miss by up to 3.5e-3 A (computed, not measured); a "
+                  "genuinely asymmetric fragment misses by a bond-scale distance (WP-1807, "
+                  "#1005, the maintainer's ruling 2026-10-26)"),
+        value=0.0017320508075688772),
+    Row("rietx.schemas.structure.RIGID_BODY_OVERLAP_FACTOR", "constant", tier=3, value=0.7,
+        evidence=("RIGID_BODY_IMAGE_OVERLAP at table build: a space-group image of a body atom, "
+                  "other than on its own site, nearer than 0.7 x the covalent-radius sum to an "
+                  "atom of the same body (WP-1807, #876). The distance is arithmetic and the "
+                  "radii are Cordero et al. 2008 (gemmi covalent_r); the 0.7 is a free factor. "
+                  "Its window is sourced: the shortest legitimate same-body image distances are "
+                  "bonds (International Tables Vol. C § 9.5): C#C across a centre 1.18 A against "
+                  "1.02, X-ray O-H 0.82 against 0.68, N-H 0.86 against 0.71, N#N 1.10 against "
+                  "0.99; #876's doubled SO4 sat at 0.32 against 1.20. Positive arms: PbSO4 SO4 "
+                  "0.03 off the mirror (0.32 A, S 8, O 32) and on it (0 A), perhydropyrene "
+                  "(COD 1550439) listed whole (0 A, C 64, H 104); silent on perhydropyrene's "
+                  "half molecule (C1-C1' 1.505 A against 1.02), diacetylene (COD 1577467) and "
+                  "HKUST-1 on their sites (test_rigid_body_special.py). Exempt: an atom with a "
+                  "disorder_group, and a place whose occupancies sum to 1 or less (the atom and every "
+                  "distinct image within the limit of it: two half atoms on a mirror or three "
+                  "thirds on a 3-fold axis are a disorder model; a sum over 1 is #876's double "
+                  "count, still refused at full occupancy)"),
+        grounds=("rietx's own factor, chosen below every bond in the sourced list; the judge's "
+                 "check held it (the tightest legitimate same-body image distances, N#N 1.10 A "
+                 "against 0.99 and C#C 1.18 against 1.02, clear it), and GSAS-II's bond search "
+                 "takes 0.85 x its radius sum as the upper edge of a bond, a different use. Four "
+                 "materials, geometry rather than data, no failure case found on them. One "
+                 "refiner would dissent from the unexempted rule: modelling a molecule "
+                 "disordered across an element of any order by 1/|G_s| occupancy alone, "
+                 "with no disorder_group (an inversion centre, a mirror, a 3-fold axis); the "
+                 "occupancy exemption, summed over the place, admits it. Its edge by "
+                 "construction: a straddling atom more than half the threshold off the element "
+                 "(0.51 A for C-C) is not caught here, so a diacetylene tilted past about 42 "
+                 "deg passes this check and only add_body's template check refuses it "
+                 "(test_add_body_refuses_a_diacetylene_tilted_out_of_the_mirror); origin= on "
+                 "the element is the named exit."),
+        approved="2026-10-26"),
     Row("rietx.schemas.structure.RIGID_BODY_ROTATION_BOUND", "constant", tier=1, value=3.141592653589793,
         evidence=("arithmetic: the increment's Jacobian is singular only at |d omega| = 2 pi; +-pi "
                   "per component keeps |d omega| <= pi*sqrt(3) < 2 pi (docstring, WP-1803 review)")),
