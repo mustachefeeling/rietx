@@ -186,12 +186,14 @@ def test_the_preset_recovers_the_moment_and_every_biso(arms):
 
 def test_the_held_moment_is_the_one_mccusker_structural_spends_biso_on(arms):
     """Why the moment comes before the coordinates: held 20 % high, the O
-    Biso runs to 0.33 Å² (planted 0.6) on a flat direction; refined, it
-    does not."""
+    Biso has no support left (a flat direction: its esd is ~10^4 times the
+    freed fit's, 772 against 0.057 Å² on macOS arm64) and its value is only
+    where the solver stopped, so the claim is the esd, not the value."""
     held = {p.path: p for p in arms["mccusker_structural"][1].parameters}
     freed = {p.path: p for p in arms["magnetic_structural"][1].parameters}
     o = "phases.0.atoms.2.biso"
-    assert abs(held[o].value - TRUE_BISO["O"]) > 0.2
+    assert freed[o].stderr is not None and held[o].stderr is not None
+    assert held[o].stderr > 100 * freed[o].stderr
     assert abs(freed[o].value - TRUE_BISO["O"]) < 0.1
 
 
