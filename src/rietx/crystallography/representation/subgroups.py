@@ -4,7 +4,7 @@
 
 ::
 
-    maximal(group, kind="both", max_index=MAX_INDEX, *, index=None, supercell=None)
+    maximal(group, kind="both", max_index=None, *, index=None, supercell=None)
                                               -> tuple[MaximalSubgroup, ...]
     is_maximal(group, symbol, transform)      -> bool
 
@@ -67,7 +67,7 @@ import gemmi
 import numpy as np
 import spglib
 
-from ..magnetic.operators import _rational_inverse
+from ..magnetic.operators import _rational_determinant, _rational_inverse
 from ..symmetry import as_group
 from ..wyckoff import SPGLIB_REFUSALS
 from .irreps import _row_hnf
@@ -96,11 +96,24 @@ _PROBE_POINTS = (
     (Fraction(821, 10007), Fraction(3179, 10009), Fraction(4317, 10037)),
 )
 
+#: spglib's matrix and origin come back as floats; the bound on the denominator that
+#: recovers each is the larger of the floor (every t-subgroup, index <= 4) and
+#: the per-index factor times the subgroup's index (12p leaves room above a hexagonal
+#: origin at 3p and an inversion centre's half of it).
+_PROBE_DENOMINATOR_FLOOR = 48
+_PROBE_DENOMINATOR_PER_INDEX = 12
+
 #: A generic metric, averaged over G's point group into one G preserves.
 _GENERIC_METRIC = ((1.0, 0.13, 0.07), (0.13, 1.21, 0.11), (0.07, 0.11, 1.43))
 
 
 # ---------------------------------------------------------------- exact algebra
+
+#: A float entry of a (P, p) is snapped to the nearest ratio with a denominator up to this
+#: (every ITA origin and cell is 1/2, 1/3, 1/4, 1/6, 1/8, 1/12 or 1/24 of a lattice
+#: vector), and refused when it lies farther than ``_FLOAT_SNAP_TOL`` from any.
+_FLOAT_DENOMINATOR_MAX = 48
+_FLOAT_SNAP_TOL = 1e-9
 
 def _q(value) -> Fraction:
     """A ``Fraction`` with Python integers inside (numpy ints break hashing)."""
@@ -108,6 +121,15 @@ def _q(value) -> Fraction:
         return Fraction(int(value.numerator), int(value.denominator))
     if isinstance(value, (int, np.integer)):
         return Fraction(int(value))
+    if isinstance(value, (float, np.floating)):
+        # a float is its nearest binary fraction, so 1/3 arrives as 6004799503160661/2**54
+        # and would match nothing: snap to the nearest ratio with a small denominator,
+        # and refuse a number that is none (a 0.123456 typed for a quarter)
+        snapped = Fraction(float(value)).limit_denominator(_FLOAT_DENOMINATOR_MAX)
+        if abs(float(snapped) - float(value)) > _FLOAT_SNAP_TOL:
+            raise ValueError(f"{value!r} is not a rational with denominator <= "
+                             f"{_FLOAT_DENOMINATOR_MAX}; pass a Fraction or a ratio of integers")
+        return snapped
     return Fraction(value)
 
 
@@ -136,10 +158,8 @@ def _inv(a):
     return tuple(tuple(_q(v) for v in row) for row in _rational_inverse([list(r) for r in a]))
 
 
-def _det(a) -> Fraction:
-    return (a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
-            - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
-            + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]))
+class _NotIntegral(ValueError):
+    """A matrix that must be integral is not: the object it came from is not a group element."""
 
 
 def _int_mat(a):
@@ -150,7 +170,7 @@ def _int_mat(a):
         for v in row:
             v = _q(v)
             if v.denominator != 1:
-                raise ValueError(f"{a} is not an integer matrix")
+                raise _NotIntegral(f"{a} is not an integer matrix")
             r.append(int(v))
         out.append(tuple(r))
     return tuple(out)
@@ -423,32 +443,39 @@ def _subspaces(p):
     return [tuple(tuple(v) for v in line) for line in lines], planes
 
 
-def _span(basis, p) -> frozenset:
-    return frozenset(
-        tuple(sum(c * v[i] for c, v in zip(coeffs, basis)) % p for i in range(3))
-        for coeffs in itertools.product(range(p), repeat=len(basis)))
+def _within(vectors, basis, p) -> bool:
+    """Whether every vector lies in the F_p span of ``basis`` (rank test, no p^d vectors held)."""
+    if not basis:
+        return not any(any(c % p for c in v) for v in vectors)
+    rows, _ = _rref([list(b) for b in basis], p)
+    rank = len(rows)
+    return all(len(_rref(rows + [list(v)], p)[0]) == rank for v in vectors)
 
 
 def _invariant(basis, mats, p) -> bool:
-    span = _span(basis, p)
-    return all(tuple(sum(M[i][k] * u[k] for k in range(3)) % p for i in range(3)) in span
-               for M in mats for u in basis)
+    return _within([[sum(M[i][k] * u[k] for k in range(3)) % p for i in range(3)]
+                    for M in mats for u in basis], basis, p)
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=32)
 def _invariant_subspaces(mats: tuple, p: int):
-    """Every proper P-invariant subspace of F_p³ (the zero space included), with its span."""
+    """The bases of every proper P-invariant subspace of F_p³ (the zero space, ``()``, included).
+
+    Bases only: a plane's span is p² vectors, and a cache of them for every
+    plane would hold 2 863 × 2 809 vectors at p = 53.
+    """
     lines, planes = _subspaces(p)
-    out = [((), frozenset([(0, 0, 0)]))]
-    for basis in lines + planes:
-        if _invariant(basis, mats, p):
-            out.append((basis, _span(basis, p)))
-    return out
+    return [()] + [basis for basis in lines + planes if _invariant(basis, mats, p)]
+
+
+def _below(small, large, p) -> bool:
+    """Whether the subspace with basis ``small`` lies strictly inside the one with ``large``."""
+    return len(small) < len(large) and _within(small, large, p)
 
 
 def _maximal_invariant(mats: tuple, p: int):
     found = _invariant_subspaces(mats, p)
-    return [basis for basis, span in found if not any(span < other for _, other in found)]
+    return [b for b in found if not any(_below(b, other, p) for other in found)]
 
 
 # ---------------------------------------------------------------- generation
@@ -610,28 +637,34 @@ def _probe(H: _Group, metric: np.ndarray, points):
     return cell, positions, numbers
 
 
-def _standardise(H: _Group, metric: np.ndarray):
-    """(number, symbol, (P, p)) of H, checked exactly against spglib's setting."""
-    failure = "spglib names no group for the probe"
-    for points in (_PROBE_POINTS, tuple(reversed(_PROBE_POINTS))):
-        cell, positions, numbers = _probe(H, metric, points)
-        try:
-            data = spglib.get_symmetry_dataset((cell, positions, numbers), symprec=_PROBE_SYMPREC)
-        except SPGLIB_REFUSALS:
-            data = None
-        if data is None:
-            continue
-        std, symbol, number = _standard(int(data.hall_number))
-        M = tuple(tuple(Fraction(float(x)).limit_denominator(48) for x in row)
-                  for row in data.transformation_matrix)
-        o = tuple(Fraction(float(x)).limit_denominator(48) for x in data.origin_shift)
-        P = _mm(H.L, _inv(M))
-        p = _short_origin(tuple(-x for x in _mv(P, o)), H)
-        if H.transformed(P, p).key() == std.key():
-            return number, symbol, (P, p)
-        failure = (f"spglib's {symbol!r} under P = {_text(P)}, p = {_text(p)} is not the "
-                   "subgroup's operation list")
-    raise RuntimeError(f"no exact standard setting for a subgroup: {failure}; this is a bug")
+def _standardise(H: _Group, metric: np.ndarray, index: int = 1):
+    """(number, symbol, (P, p)) of H, checked exactly against spglib's setting.
+
+    spglib returns floats; the rational each stands for has a denominator that
+    grows with H's index in G (an inversion centre at a/2 of a p-fold
+    supercell is 1/2p in H's own axes, a hexagonal origin 1/3p), so the bound
+    that recovers it does too.  The exact comparison below accepts or raises.
+    """
+    bound = max(_PROBE_DENOMINATOR_FLOOR, _PROBE_DENOMINATOR_PER_INDEX * index)
+    cell, positions, numbers = _probe(H, metric, _PROBE_POINTS)
+    try:
+        data = spglib.get_symmetry_dataset((cell, positions, numbers), symprec=_PROBE_SYMPREC)
+    except SPGLIB_REFUSALS:
+        data = None
+    if data is None:
+        raise RuntimeError("no exact standard setting for a subgroup: spglib names no group "
+                           "for the probe; this is a bug")
+    std, symbol, number = _standard(int(data.hall_number))
+    M = tuple(tuple(Fraction(float(x)).limit_denominator(bound) for x in row)
+              for row in data.transformation_matrix)
+    o = tuple(Fraction(float(x)).limit_denominator(bound) for x in data.origin_shift)
+    P = _mm(H.L, _inv(M))
+    p = _short_origin(tuple(-x for x in _mv(P, o)), H)
+    if H.transformed(P, p).key() != std.key():
+        raise RuntimeError(f"no exact standard setting for a subgroup: spglib's {symbol!r} under "
+                           f"P = {_text(P)}, p = {_text(p)} is not the subgroup's operation "
+                           "list; this is a bug")
+    return number, symbol, (P, p)
 
 
 def _short_origin(p, H: _Group):
@@ -711,9 +744,14 @@ class MaximalSubgroup:
         Both are rebuilt in G's coordinates and compared as operation sets
         with their lattices, exactly, so two transformations the affine
         normaliser of H relates (A1's and spglib's, say) agree, and a wrong
-        origin or a transposed axis does not.
+        origin or a transposed axis does not.  A (P, p) under which ``symbol``'s
+        operations are not integral in G's axes (a wrong basis) describes no
+        subgroup of G, so the answer is ``False``.
         """
-        return _rebuild(symbol, transform).key() == _rebuild(self.symbol, self.transform).key()
+        try:
+            return _rebuild(symbol, transform).key() == _rebuild(self.symbol, self.transform).key()
+        except _NotIntegral:
+            return False
 
     def __str__(self) -> str:
         return (f"[{self.index}] {self.kind} {self.symbol} ({self.number})  "
@@ -763,19 +801,21 @@ def _primes(n: int) -> list[int]:
     return out
 
 
-def maximal(group, kind: str = "both", max_index: int = MAX_INDEX, *,
+def maximal(group, kind: str = "both", max_index: int | None = None, *,
             index: int | None = None, supercell=None) -> tuple[MaximalSubgroup, ...]:
     """Every maximal subgroup of ``group`` asked for, with its class and (P, p).
 
     By default, every maximal subgroup of index ≤ ``max_index``: at the
-    default 4 that is every non-isomorphic one (A1 Lemma 1.2.8.2.2) and the
+    default (:data:`MAX_INDEX`, 4) that is every non-isomorphic one (A1 Lemma 1.2.8.2.2) and the
     isomorphic ones of index 2, 3 and 4.  ``index=n`` gives exactly those of
     index n, isomorphic ones of any prime-power index included.
     ``supercell=P`` (columns in ``group``'s fractions, integer combinations of
     its lattice) gives every maximal subgroup that keeps the translations of
     the cell P: the t-subgroups, and each k-subgroup whose lattice contains
     P's columns, at whatever index that implies.  ``kind`` is ``"t"``,
-    ``"k"`` or ``"both"``.
+    ``"k"`` or ``"both"``.  ``max_index`` bounds only the default search, so
+    giving it with ``index=`` or ``supercell=`` raises, as does an ``index``
+    that is not a positive integer.
 
     The method is the module docstring's (ITA A1, Wondratschek & Müller
     2011, ch. 1.2 and 2.1); the (P, p) is spglib's standard setting (Togo,
@@ -785,6 +825,15 @@ def maximal(group, kind: str = "both", max_index: int = MAX_INDEX, *,
     """
     if kind not in ("t", "k", "both"):
         raise ValueError(f"kind must be 't', 'k' or 'both', not {kind!r}")
+    if index is not None:
+        if isinstance(index, bool) or not isinstance(index, (int, np.integer)) or index < 1:
+            raise ValueError(f"index must be a positive integer, not {index!r}")
+        index = int(index)
+    if max_index is not None and (index is not None or supercell is not None):
+        raise ValueError("max_index bounds the default search only; it cannot be combined "
+                         "with index= or supercell=")
+    if max_index is None:
+        max_index = MAX_INDEX
     G = _group_of(group)
     found: list[tuple[str, _Group, int, int | None]] = []
     want_t = kind in ("t", "both")
@@ -796,14 +845,13 @@ def maximal(group, kind: str = "both", max_index: int = MAX_INDEX, *,
         if not all(v.denominator == 1 for row in rel for v in row):
             raise ValueError(f"the supercell {_text(P)} has a column that is not a lattice "
                              "vector of the group")
-        size = abs(_det(rel))
+        size = abs(_rational_determinant(rel))
         if size == 0:
             raise ValueError(f"the supercell {_text(P)} is singular")
         cols = [tuple(int(rel[i][j]) for i in range(3)) for j in range(3)]
 
         def keep(U, p):
-            span = _span(U, p) if U else frozenset([(0, 0, 0)])
-            return all(tuple(c % p for c in col) in span for col in cols)
+            return _within(cols, U, p)
 
         if want_t:
             found += [("t", H, n, pr) for H, n, pr in _t_subgroups(G)]
@@ -832,7 +880,7 @@ def maximal(group, kind: str = "both", max_index: int = MAX_INDEX, *,
     metric = _metric(G)
     rows = []
     for (k, H, n, pr), c in zip(found, cls):
-        number, symbol, transform = _standardise(H, metric)
+        number, symbol, transform = _standardise(H, metric, n)
         rows.append((k, n, number, symbol, transform, c, sizes[c], pr, H.key()))
     first = {}
     rows.sort(key=lambda r: (r[0] != "t", r[1], -r[2], r[5], r[8]))
@@ -864,11 +912,14 @@ def is_maximal(group, symbol: str, transform) -> bool:
     over F_p means its image U in L/pL is a maximal invariant subspace.
     """
     G = _group_of(group)
-    H = _rebuild(symbol, transform)
+    where = (f"{symbol} under P = {_text(_mat(transform[0]))}, "
+             f"p = {_text(tuple(_q(x) for x in transform[1]))}")
+    try:
+        H = _rebuild(symbol, transform)
+    except _NotIntegral:  # a wrong basis: its operations are not integral in G's axes
+        raise ValueError(f"{where} is not a subgroup of the group") from None
     if not H.is_subgroup_of(G):
-        raise ValueError(f"{symbol} under P = {_text(_mat(transform[0]))}, "
-                         f"p = {_text(tuple(_q(x) for x in transform[1]))} is not a "
-                         f"subgroup of the group")
+        raise ValueError(f"{where} is not a subgroup of the group")
     same_lattice = G.translations_in(H)
     same_points = set(H.reps) == set(G.reps)
     if same_lattice and same_points:
@@ -878,7 +929,7 @@ def is_maximal(group, symbol: str, transform) -> bool:
     if not same_points:
         return False  # H < H·T(G) < G
     rel = _int_mat(_mm(G.Linv, H.L))
-    size = abs(int(_det(tuple(tuple(Fraction(v) for v in r) for r in rel))))
+    size = abs(int(_rational_determinant(tuple(tuple(Fraction(v) for v in r) for r in rel))))
     power = _prime_power(size)
     if power is None:
         return False
@@ -892,8 +943,7 @@ def is_maximal(group, symbol: str, transform) -> bool:
     image = _rref([[c % p for c in col] for col in cols], p)[0]
     mats = tuple(sorted(_int_mat(_mm(_mm(G.Linv, W), G.L))
                         for W in _generators(list(G.reps))))
-    U = frozenset(_span([tuple(r) for r in image], p)) if image else frozenset([(0, 0, 0)])
-    for _, span in _invariant_subspaces(mats, p):
-        if U < span:
-            return False
+    U = tuple(tuple(r) for r in image)
+    if any(_below(U, other, p) for other in _invariant_subspaces(mats, p)):
+        return False
     return True

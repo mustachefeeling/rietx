@@ -9,7 +9,7 @@ from its own symbol and (P, p) by
 :func:`~rietx.crystallography.representation.subgroups.is_maximal`.  It is a
 script and not a ``slow`` row because the maintainer asked for it outside the
 suite (#806, 2026-10-26); measured 2026-10-27 on an M-series Mac, one
-process: 9291 subgroups, 45 CPU-s, 1.3 s at most for one group.
+process: 9291 subgroups, 40-60 CPU-s, 1-2 s at most for one group.
 
 Run it::
 
@@ -26,17 +26,15 @@ import argparse
 import sys
 import time
 
-import gemmi
 import spglib
 
-from rietx.crystallography.representation.subgroups import is_maximal, maximal
+from rietx.crystallography.representation.subgroups import _standard, is_maximal, maximal
 
 
 def standard_symbol(number: int) -> str:
     """spglib's default setting of a type, as gemmi spells it."""
     hall = next(h for h in range(1, 531) if spglib.get_spacegroup_type(h).number == number)
-    return gemmi.find_spacegroup_by_ops(
-        gemmi.symops_from_hall(spglib.get_spacegroup_type(hall).hall_symbol)).xhm()
+    return _standard(hall)[1]
 
 
 def main(argv=None) -> int:

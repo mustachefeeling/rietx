@@ -25,7 +25,7 @@ checks P⁻¹HP against that setting exactly.  What is pinned, and against what:
 * **All 230 types** at index ≤ 4: every subgroup standardises exactly (inside
   :func:`maximal`, which raises otherwise), is re-derived from its own symbol
   and (P, p) as maximal by :func:`is_maximal`, and every class is complete.
-  3767 subgroups, 1104 t and 2663 k, about 20 CPU-s in all (0.6 s at most for
+  3767 subgroups, 1104 t and 2663 k, about 15-30 CPU-s in all (a second or less for
   one group), so the sweep runs in the fast suite.
 """
 
@@ -36,10 +36,10 @@ from fractions import Fraction
 
 import gemmi
 import pytest
-import spglib
 
 from rietx.crystallography.representation import subgroups as S
 from rietx.crystallography.representation.subgroups import MaximalSubgroup, is_maximal, maximal
+from tests.subgroups_benchmark import standard_symbol
 
 I3 = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
 ZERO = (0, 0, 0)
@@ -312,15 +312,9 @@ def test_the_probe_tolerance_decides_no_subgroup(monkeypatch):
 
 # ---------------------------------------------------------------- all 230 types
 
-def _standard_symbol(number: int) -> str:
-    hall = next(h for h in range(1, 531) if spglib.get_spacegroup_type(h).number == number)
-    return gemmi.find_spacegroup_by_ops(
-        gemmi.symops_from_hall(spglib.get_spacegroup_type(hall).hall_symbol)).xhm()
-
-
 @pytest.mark.parametrize("number", range(1, 231))
 def test_every_maximal_subgroup_of_index_at_most_four_standardises_exactly(number):
-    group = _standard_symbol(number)
+    group = standard_symbol(number)
     result = maximal(group)
     assert result
     sizes = Counter(s.conjugacy_class for s in result)
@@ -328,3 +322,63 @@ def test_every_maximal_subgroup_of_index_at_most_four_standardises_exactly(numbe
         assert s.index <= S.MAX_INDEX
         assert sizes[s.conjugacy_class] == s.class_size  # every class is whole
         assert is_maximal(group, s.symbol, s.transform)
+
+
+# ---------------------------------------------------------------- review round (#1189)
+
+@pytest.mark.parametrize("group, p", [("P -1", 29), ("P -1", 53), ("P 6/m m m", 17),
+                                       ("P 6/m m m", 29), ("P -3 m 1", 29)])
+def test_an_isomorphic_series_standardises_past_the_floor_of_the_denominator_bound(group, p):
+    """The inversion centre of a p-fold supercell sits at 1/2p in the child's axes, a
+    hexagonal origin at 3p: the old bound of 48 failed the first from p = 29 (the
+    hexagonal p = 17 row is a non-regression: spglib's float happened to round)."""
+    result = maximal(group, index=p, kind="k")
+    assert result
+    assert all(s.index == p and s.prime == p and is_maximal(group, s.symbol, s.transform)
+               for s in result)
+
+
+def test_the_p_minus_1_supercell_of_index_29_gives_29_subgroups():
+    result = maximal("P -1", supercell=((29, 0, 0), (0, 1, 0), (0, 0, 1)), kind="k")
+    assert len(result) == 29  # the same as 5a and 13a give 5 and 13
+
+
+def test_a_wrong_basis_answers_false_and_is_maximal_names_the_refusal():
+    im3m = next(s for s in maximal("P m -3 m") if s.symbol.startswith("I m -3 m"))
+    wrong = (diag(2, 1, 1), ZERO)  # its rebuilt operations are not integral in G's axes
+    assert im3m.describes("I m -3 m", wrong) is False
+    assert [s.describes("I m -3 m", wrong) for s in maximal("P m -3 m")].count(True) == 0
+    with pytest.raises(ValueError, match="is not a subgroup of the group"):
+        is_maximal("P m -3 m", "I m -3 m", wrong)
+
+
+def test_a_float_origin_is_snapped_to_the_ratio_it_stands_for():
+    s = next(s for s in maximal("P 31 1 2", kind="t")
+             if s.symbol.startswith("C 1 2 1") and s.origin == "0,0,1/3")
+    P, p = s.transform
+    floats = (tuple(tuple(float(v) for v in r) for r in P), tuple(float(x) for x in p))
+    assert p[2] == Fraction(1, 3) and floats[1][2] == 1 / 3
+    assert s.describes(s.symbol, floats)  # the binary fraction of 1/3 matched nothing before
+    assert not s.describes(s.symbol, (P, (0.0, 0.0, 0.0)))
+    assert S._q(1 / 3) == Fraction(1, 3)
+    with pytest.raises(ValueError, match="not a rational with denominator"):
+        S._q(0.123456)
+
+
+def test_max_index_and_index_are_checked_against_each_other_and_themselves():
+    with pytest.raises(ValueError, match="cannot be combined"):
+        maximal("P 1", max_index=9, index=5)
+    with pytest.raises(ValueError, match="cannot be combined"):
+        maximal("P 1", max_index=9, supercell=diag(2, 1, 1))
+    for bad in (4.0, -3, 0, True):
+        with pytest.raises(ValueError, match="positive integer"):
+            maximal("P 1", index=bad)
+    assert len(maximal("P 1", max_index=3)) == 3 ** 2 + 3 + 1 + 2 ** 2 + 2 + 1
+
+
+def test_the_invariant_subspace_cache_holds_bases_not_spans():
+    inversion = (((-1, 0, 0), (0, -1, 0), (0, 0, -1)),)
+    found = S._invariant_subspaces(inversion, 13)
+    assert len(found) == 1 + 183 + 183  # every line and plane of F_13^3 is invariant under -1
+    assert all(isinstance(b, tuple) and len(b) <= 2 for b in found)  # never p^d vectors
+    assert S._invariant_subspaces.cache_info().maxsize is not None
