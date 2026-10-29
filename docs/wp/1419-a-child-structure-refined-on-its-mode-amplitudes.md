@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: 🔄 2026-10-22 — C1's mode basis (PR #950) and C2's `distortion_candidates` (PR #996) landed from outside, on C0a #842 and C0b #889, with #1002's `primary` fix (PR #1022); task 2 is next
+Milestone: magnetic · Status: 🔄 2026-10-22 — C1's mode basis (PR #950) and C2's `distortion_candidates` (PR #996) landed from outside, on C0a #842 and C0b #889, with #1002's `primary` fix (PR #1022); task 2 is next; #996's follow-ups (refusals beside the answer) merged as PR #1135 (`f2ca3bc9`)
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -606,6 +606,8 @@ every shipped fixture are bit-identical.
   `operator-list-basis`, as a reference implementation only.
 
 ## Handover log
+
+- **2026-10-29** (`/pr-review`) — #996's follow-ups merged from outside as PR #1135 (`f2ca3bc9`): `distortion_candidates` returns a candidate whose child it refuses, with `refusal` (a `DistortionRefusal`) and `child`, `transform` and `basis` `None`, where 1.10.0 raised `ValueError` for the whole call. A draw keeping fewer operations than the isotropy group reads `DISTORTION_CHILD_SMALLER`, and the code is chosen from every draw. This changes what a released call does, so its note is under 1.11.0 § Changed. C2's derived cell (#1108) and C3a's amplitude block (#1107) are still open PRs with review items.
 
 - **2026-10-22** — PR #996 (outside contributor, chunk C2 of #286's proposal)
   merged as `d01ae735`. `magnetic.isotropy.distortion_candidates(parent, k,

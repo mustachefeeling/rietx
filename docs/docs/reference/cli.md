@@ -59,7 +59,7 @@ The last block is the run's diagnostics, where a truncated search says so.
 | `--shift-allowance` | a measured systematic 2θ shift in degrees. Without one the engines assume 0.05° and cap every candidate's confidence, because a cell found inside a widened window absorbs the shift |
 | `--formula` | the specimen's chemical formula, with `·` before a hydrate. Each candidate is checked for a whole number of formula units and `INDEX_Z_NOT_INTEGER` reports one that is not; the search is not narrowed |
 | `--temperature` | the pattern's temperature in K for `--formula`'s volumes, 298 by default |
-| `--no-validate` | skip the whole-profile Le Bail validation, which caps every candidate at `medium` |
+| `--no-validate` | skip the whole-profile validation fit, which caps every candidate at `medium` |
 | `--json FILE` | also write the whole `IndexingResult` as JSON |
 
 Anything the pattern reader repaired or assumed goes to stderr before the answer.
@@ -71,7 +71,7 @@ A reversed scan or a dropped duplicate changes every number under it.
 
 ```console
 $ rietx index corundum.prn --wavelength 1.540596 --ceiling
-worst case: 1518 s   (search 630 + probe 360, arithmetic on the per-system budgets; + validation 12 fits x 0.6-44 s, a measured range — Le Bail cost is data-dependent)
+worst case: 1518 s   (search 630 + probe 360, arithmetic on the per-system budgets; + validation 12 fits x 0.6-44 s, a measured range — the fit's cost is data-dependent)
 measured typical: 4-440 s per real dataset (searches finish their systems early far more often than not)
 a --total-budget binds within ~10 s (the longest uninterruptible stretch)
 ```
