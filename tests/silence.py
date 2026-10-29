@@ -515,6 +515,41 @@ def _windows_stale(axial_to: float | None) -> list:
         cost_final=1.0, window_loss=loss)])
 
 
+def _stale_structure(*, drift: bool):
+    """The carbons of ``tests/test_planarity_restraints.py`` with the bond
+    C1-C2 left out of the pair list, and the contact keys of where the run
+    started.  ``drift`` walks C5 from 4.0 to 2.5 A of C3, past r0 from outside
+    the list."""
+    from rietx.model.restraints import anti_bump_contact_keys
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.structure import Structure
+    from tests.test_planarity_restraints import _bonded_c
+
+    ph = _bonded_c(False).phases[0]
+    since = anti_bump_contact_keys(ph)
+    if drift:
+        ph = ph.model_copy(update={"atoms": [
+            *ph.atoms[:4],
+            ph.atoms[4].model_copy(update={"y": Parameter(value=0.70 + 2.5 / 12)})]})
+    return Structure(phases=[ph]), [since]
+
+
+def _stale_fires() -> list:
+    """A contact that was outside r0 at the start and came inside it with no
+    row restraining it."""
+    from rietx.refine import _restraint_pairs_stale_diagnostics
+
+    return _restraint_pairs_stale_diagnostics(*_stale_structure(drift=True))
+
+
+def _stale_silent() -> list:
+    """The same list where nothing moved: the bond the caller left out is
+    inside r0 from the start, and is theirs."""
+    from rietx.refine import _restraint_pairs_stale_diagnostics
+
+    return _restraint_pairs_stale_diagnostics(*_stale_structure(drift=False))
+
+
 SILENCE: dict[str, Pair] = {
     "CIF_SITE_LISTED_TWICE": Pair(
         _listed_twice_fires, _listed_twice_silent, "tests/test_cif_sites_coincide.py"),
@@ -546,6 +581,8 @@ SILENCE: dict[str, Pair] = {
         _cancelled_fires, _cancelled_silent, "tests/test_sequential.py"),
     "SERIES_PATTERN_FAILED": Pair(
         _pattern_failed_fires, _pattern_failed_silent, "tests/test_series_error_policy.py"),
+    "RESTRAINT_PAIRS_STALE": Pair(
+        _stale_fires, _stale_silent, "tests/test_planarity_restraints.py"),
     "SITE_SNAPPED_TO_SPECIAL_POSITION": Pair(
         _snap_fires, _snap_silent, "tests/test_cif_stated_columns.py"),
     "STAGE_WINDOWS_STALE": Pair(
