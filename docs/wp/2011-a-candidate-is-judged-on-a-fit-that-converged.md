@@ -559,8 +559,8 @@ cubic I cell in this run, which sits second on both shortlists.
       probes 10 and 11's cause and options. **Decided 2026-10-28 (3rd
       session), under the maintainer's delegation** ("consider a user's needs
       … use your best judgement"): **go**, with validation cheapest first and
-      a 15 % reserve, which validates NAC's true cell under `quick` (the 3rd
-      session's handover entry).
+      a 15 % reserve, which validates NAC's true cell under `quick` (the 2026-10-29
+      handover entry).
 - [x] Option (c), asked for 2026-10-28: the Pawley step solve in sparse form,
       its projected CG preconditioned by an incomplete LU above the BVLS cut,
       and A built from the frozen window pattern (probes 12-15, § Option (c)
@@ -664,7 +664,7 @@ validates no fewer candidates than on `main`.
 
 ## Handover log
 
-### 2026-10-28 (3rd session) — the go, decided: Pawley validates NAC's true cell under `quick`
+### 2026-10-29 — the go, decided: Pawley validates NAC's true cell under `quick` (3rd session, begun 2026-10-28)
 
 The indexer now checks its shortlist with a Pawley fit by default, and on the
 heavy synchrotron pattern that blocked the go, NAC's true cell gets checked
