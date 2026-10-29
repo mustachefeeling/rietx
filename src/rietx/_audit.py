@@ -975,8 +975,10 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
                   "between two structures, in either direction (a coordinate a fit or "
                   "set_values left within reach of a special position, with no merge, or an "
-                  "edit or a checkout moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction and what "
-                  "was dropped because the position fixes or couples it. The direction of a "
+                  "edit or a checkout moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction (a hold onto "
+                  "the coupled direction where the position couples coordinates, round 6's "
+                  "follow-up) and what was dropped because the position fixes it, or couples "
+                  "it under a tie. The direction of a "
                   "DOF is the nullspace of the site group, so the map is derived, never "
                   "chosen (#1014, rounds 5-6)")),
     Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,

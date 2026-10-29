@@ -2608,9 +2608,10 @@ class Refinement:
         its coordinate DOFs, so a hold on ``dof.1`` (y on the general position)
         would read z on the mirror and keep the wrong coordinate fixed with
         nothing saying so.  Each register
-        follows its DOFs (:func:`~.crystallography.twins.carry_constraints`),
-        and what cannot follow is dropped and named in the site's
-        ``SITE_TWINS_MERGED`` message.
+        follows its DOFs (:func:`~.crystallography.twins.carry_constraints`;
+        a hold onto the coupled direction where the position couples
+        coordinates), and what cannot follow is dropped and named in the
+        site's ``SITE_TWINS_MERGED`` message.
         """
         if "_user_holds" not in self.__dict__:
             return            # construction: no constraint has been declared yet
