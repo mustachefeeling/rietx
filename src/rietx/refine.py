@@ -46,6 +46,14 @@ from .crystallography.magnetic.moments import (
 )
 from .crystallography.magnetic.scattering import check_group_is_structure_symmetry
 from .crystallography.symmetry import reflection_label, reflection_label_row
+from .crystallography.twins import (
+    NumberingMoves,
+    carry_constraints,
+    carry_state_constraints,
+    coordinate_snapshot,
+    merge_site_twins,
+    numbering_moves,
+)
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
 from .history.store import fingerprint
@@ -2366,6 +2374,12 @@ class Refinement:
         self._backend = backend
         self._solver = solver
         self.structure = structure.model_copy(deep=True)
+        #: ``SITE_TWINS_MERGED`` findings a verb has made and no result has
+        #: yet carried (#1007): the schema is strict and has no channel, so a
+        #: verb that takes a structure in merges its twin sites and the next
+        #: ``fit``/``run_stage`` says so (:meth:`_drain_twin_findings`).
+        self._twin_findings: list[Diagnostic] = []
+        self._merge_twins()
         # A magnetic group has to be a symmetry of the structure it decorates
         # (issue #597).  Judged here, where a statement enters a fit, and not
         # on the schema or at compile: a refined phase whose group-related
@@ -2663,6 +2677,71 @@ class Refinement:
         tree.set_head(node.id)
         return self
 
+    def _merge_twins(self) -> None:
+        """Put every twin site of the working structure on its special position.
+
+        The one call every verb that brings a structure in makes
+        (construction, :meth:`edit`, :meth:`set_values`, :meth:`checkout`):
+        ``Phase`` validation is strict and moves nothing, and a coordinate
+        assigned after a phase was built never re-validates it.  What moved is
+        held in ``_twin_findings`` for the next result.
+        """
+        before = self.structure
+        found: list[Diagnostic] = []
+        self.structure = merge_site_twins(self.structure, diagnostics=found)
+        self._carry_twin_moves(numbering_moves(before, self.structure), found)
+        self._twin_findings.extend(found)
+
+    def _carry_twin_moves(self, moves: dict, found: list[Diagnostic]) -> None:
+        """Carry holds, user ties and free paths through the DOF renumbering of a merge.
+
+        A site whose symmetry changes (onto or off a special position) renumbers
+        its coordinate DOFs, so a hold on ``dof.1`` (y on the general position)
+        would read z on the mirror and keep the wrong coordinate fixed with
+        nothing saying so.  Each register
+        follows its DOFs (:func:`~.crystallography.twins.carry_constraints`),
+        and what cannot follow is dropped and named in the site's
+        ``SITE_TWINS_MERGED`` message.
+        """
+        if "_user_holds" not in self.__dict__:
+            return            # construction: no constraint has been declared yet
+        sites = sorted({path.rsplit(".dof.", 1)[0] for path in moves})
+        for site in sites:
+            site_moves = {p: m for p, m in moves.items()
+                          if p.rsplit(".dof.", 1)[0] == site}
+            holds, ties, free, notes = carry_constraints(
+                site_moves, holds=sorted(self._user_holds), ties=self._ties,
+                free_paths=self._free_paths)
+            self._user_holds = set(holds)
+            self._ties = ties
+            self._free_paths = free
+            self._held = [new for p in self._held
+                          if (new := (site_moves[p][0] if p in site_moves else p))]
+            if not notes:
+                continue
+            # the findings and the paths the caller sees read the new numbering
+            site = moves.new_site(site) if isinstance(moves, NumberingMoves) else site
+            for n, d in enumerate(found):
+                if d.code == "SITE_TWINS_MERGED" and d.where == [site]:
+                    found[n] = d.model_copy(update={
+                        "message": d.message + " Constraints: "
+                        + "; ".join(notes) + "."})
+                    break
+            else:
+                found.append(Diagnostic(
+                    level="warning", code="SITE_DOFS_RENUMBERED", where=[site],
+                    message=(f"site {site} changed its site symmetry, so its coordinate "
+                             f"directions were renumbered: " + "; ".join(notes)
+                             + "."),
+                    suggestion="check the holds and ties on this site's "
+                               "coordinates against parameters()."))
+
+    def _drain_twin_findings(self) -> list[Diagnostic]:
+        """The merges no result has reported yet; each is reported once."""
+        out, self._twin_findings = self._twin_findings, []
+        # a site left as stored is found again by every verb that follows
+        return list({(d.code, tuple(d.where), d.message): d for d in out}.values())
+
     def _restore_state(self, state: RefinementState) -> None:
         """Make ``state`` the working state; ``checkout`` and keep-best share it.
 
@@ -2687,6 +2766,7 @@ class Refinement:
         # state whose pin had quietly expired (WP-1435)
         self._user_holds = set(state.holds)
         self._pending_reflections = [r.model_copy(deep=True) for r in state.reflections]
+        self._merge_twins()
         self._invalidate_fit()
 
     def branch(self, node_id: str | None = None) -> "Refinement":
@@ -2761,6 +2841,10 @@ class Refinement:
         # rather than aliased so a later ``edit`` on either side cannot mutate
         # the other's reference.
         ref._declared_wavelengths = list(self._declared_wavelengths)
+        # ``ref`` was built from this structure and merged it on construction,
+        # before it held any constraint; they follow its DOFs now
+        ref._carry_twin_moves(numbering_moves(self.structure, ref.structure),
+                              ref._twin_findings)
 
     def edit(self, *, structure: Structure | None = None,
              instrument: Instrument | None = None, label: str = "") -> str | None:
@@ -2797,6 +2881,11 @@ class Refinement:
         if instrument is not None:
             require_two_theta(None, "Refinement.edit()", instrument=instrument)
         candidate = self.structure if structure is None else structure
+        # a proposed structure meets the twin merge before its table is built,
+        # since moving a site changes the symmetry its table is checked against
+        merged: list[Diagnostic] = []
+        if structure is not None:
+            candidate = merge_site_twins(candidate, diagnostics=merged)
         # No magnetic-group judgement here: ``edit`` receives refined state
         # plus one change (the GUI's funnel for every model edit), which is the
         # case :func:`_refined_state` exists for (issue #597).
@@ -2812,6 +2901,7 @@ class Refinement:
         # register it leaves is the one the node carries, and a tie that stopped
         # applying is said once — at the edit that ended it — instead of on
         # every listing afterwards (WP-1070).
+        self._carry_twin_moves(numbering_moves(self.structure, candidate), merged)
         self._declare_variables(table)
         applied = self._apply_ties(table)
         self._ties = {p: s for p, s in self._ties.items() if p in applied}
@@ -2825,7 +2915,8 @@ class Refinement:
         # ``_apply_holds`` gives is the saying-so.
         self._apply_holds(table)
         if structure is not None:
-            self.structure = structure.model_copy(deep=True)
+            self.structure = candidate.model_copy(deep=True)
+            self._twin_findings.extend(merged)
         if instrument is not None:
             self.instrument = instrument.model_copy(deep=True)
             # An instrument edit is a deliberate redefinition of the instrument
@@ -3083,6 +3174,8 @@ class Refinement:
             by_path[path].value = float(value)
         table.refresh_ties()  # dependents follow their sources (b←a, x←dof)
         self._write_back(table)
+        # a value set next to its own image is the twin case #1007 describes
+        self._merge_twins()
         # the fitted curve and statistics described the *old* values
         self._invalidate_fit()
         if self.history is None:
@@ -3142,7 +3235,13 @@ class Refinement:
         parameter nothing writes is the shape WP-1076 removes, and one added
         here would fail no test.
         """
+        before = coordinate_snapshot(self.structure)
         table.apply_to_models(self.structure, self.instrument)
+        # a coordinate written within reach of a special position renumbers
+        # its DOFs, and the constraints must follow wherever it was written
+        # (#1014, round 5)
+        self._carry_twin_moves(numbering_moves(before, self.structure),
+                               self._twin_findings)
         if not self._variables:
             return
         values = {e.path: e.value for e in table.entries}
@@ -5229,6 +5328,10 @@ class Refinement:
             # `fit(plan="profile_only")` refines no biso — and the GUI's plan panel
             # now names the difference, since nothing a user could read said it.
             table = self._prepare_table(restore=False)
+            # the contacts inside r₀ before any stage moves an atom, which
+            # RESTRAINT_PAIRS_STALE needs to tell a drifted pair from one the
+            # caller left out of the list on purpose
+            stale_since = _anti_bump_contacts_at_start(self.structure, mode)
 
             # the λ this Refinement was constructed with (or last edited to), so a
             # second λ-freeing call reports the cumulative move from the truly
@@ -5238,7 +5341,8 @@ class Refinement:
             declared_wavelengths = list(self._declared_wavelengths)
 
             diagnostics: list[Diagnostic] = (
-                _symmetry_silence_diagnostics(self.structure, mode)
+                self._drain_twin_findings()
+                + _symmetry_silence_diagnostics(self.structure, mode)
                 + _dispersion_diagnostics(self.structure, self.instrument)
                 + _resonant_absorber_diagnostics(self.structure,
                                                  self.instrument)
@@ -5298,6 +5402,10 @@ class Refinement:
             diagnostics.extend(_unknown_path_diagnostics(
                 stage_results, [e.path for e in table.entries]))
             diagnostics.extend(_window_loss_diagnostics(stage_results))
+            if mode == "rietveld":
+                # after the write-back: the search reads the answer's coordinates
+                diagnostics.extend(_restraint_pairs_stale_diagnostics(
+                    self.structure, stale_since))
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -5769,6 +5877,7 @@ class Refinement:
 
         try:
             table = self._prepare_table(restore=True)
+            stale_since = _anti_bump_contacts_at_start(self.structure, mode)
             # the constructed (or last-edited) λ, not the value the previous stage
             # left behind: a second λ-freeing stage reports cumulatively, matching
             # the joint path, rather than a delta from its own predecessor (WP-1134).
@@ -5803,7 +5912,8 @@ class Refinement:
                     # way out — or was cancelled, which reaches here with no
                     # ``fit_end`` to say so — recorded itself ``done``.
                     stream.close()  # we created it from a path/callable
-            diagnostics = order + _guard_diagnostics(guard)
+            diagnostics = (self._drain_twin_findings() + order
+                           + _guard_diagnostics(guard))
             diagnostics.extend(_covariance_diagnostics(stage.name, outcome,
                                                        answer=True))
             if mode == "pawley":
@@ -5819,6 +5929,9 @@ class Refinement:
             self._model = model
             self._write_back(table)
             self._record_free_paths(table)
+            if mode == "rietveld":
+                diagnostics.extend(_restraint_pairs_stale_diagnostics(
+                    self.structure, stale_since))
 
             stage_result = StageResult(
                 name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
@@ -10682,6 +10795,66 @@ def _roughness_regime_diagnostics(model: CompiledModel,
     return out
 
 
+#: how many stale pairs a ``RESTRAINT_PAIRS_STALE`` message spells out; the
+#: count is always given in full
+RESTRAINT_PAIRS_STALE_LISTED = 5
+
+
+def _anti_bump_contacts_at_start(structure: Structure, mode: str) -> list:
+    """Per phase, the contacts inside r₀ now (``None`` where nothing is searched)."""
+    from .model.restraints import anti_bump_contact_keys
+
+    if mode != "rietveld":
+        return [None] * len(structure.phases)
+    return [anti_bump_contact_keys(ph) for ph in structure.phases]
+
+
+def _restraint_pairs_stale_diagnostics(structure: Structure,
+                                       since: list) -> list[Diagnostic]:
+    """``RESTRAINT_PAIRS_STALE`` — a contact inside r₀ that no row restrains.
+
+    The anti-bump pair list is built by the caller, once, so the plan's row
+    count never moves (WP-1809's handover); the cost is that a pair which
+    drifts inside its minimum from outside the list is not restrained.  At
+    plan end each phase with an anti-bump row is searched at the answer's
+    coordinates (:func:`rietx.model.restraints.stale_anti_bump_pairs`), and
+    one warning per phase names what it found, closest-inside first.
+    ``since`` is the contacts inside r₀ where the run *started*
+    (:func:`~rietx.model.restraints.anti_bump_contact_keys`, per phase): the
+    list does not remember what it was built from, so a contact already inside
+    r₀ then — a bond the caller left out of the list — is theirs and never
+    named, which makes "entered" true.  ``run_stage`` runs it too, one stage's
+    start being its own ``since``.
+    """
+    from .model.restraints import stale_anti_bump_pairs
+
+    out: list[Diagnostic] = []
+    for phase, before in zip(structure.phases, since, strict=True):
+        if before is None:
+            continue
+        stale = stale_anti_bump_pairs(phase, since=before)
+        if not stale:
+            continue
+        lab = [a.label for a in phase.atoms]
+        shown = "; ".join(f"{lab[i]}–{lab[j]} {d:.3f} Å (r₀ {r0:.3g})"
+                          for i, j, d, r0 in stale[:RESTRAINT_PAIRS_STALE_LISTED])
+        more = len(stale) - RESTRAINT_PAIRS_STALE_LISTED
+        out.append(Diagnostic(
+            level="warning", code="RESTRAINT_PAIRS_STALE",
+            where=sorted({f"{phase.name} {lab[k]}" for i, j, _, _ in stale
+                          for k in (i, j)}),
+            value=float(len(stale)),
+            message=(f"phase {phase.name!r}: {len(stale)} contact(s) came inside "
+                     f"their anti-bump minimum during the run and have no row "
+                     f"in the pair list: "
+                     f"{shown}" + (f"; and {more} more" if more > 0 else "")),
+            suggestion="rebuild the list with anti_bump_restraints from these "
+                       "coordinates (or with a wider margin) and refit; or, if "
+                       "the contact is real, lower that species pair's minimum "
+                       "distance"))
+    return out
+
+
 def _restraint_where(row, structure: Structure) -> list[str]:
     if row.path is not None:
         return [row.path]
@@ -10735,7 +10908,13 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
                 f"but the tree was recorded against {expected[:8]}")
 
     state = node.state
-    structure = state.structure.model_copy(deep=True)
+    twins: list[Diagnostic] = []
+    structure = merge_site_twins(state.structure.model_copy(deep=True),
+                                 diagnostics=twins)
+    moves = numbering_moves(state.structure, structure)
+    if moves:
+        state = state.model_copy(deep=True)
+        carry_state_constraints(state, moves, twins)
     instrument = state.instrument.model_copy(deep=True)
     table = ParameterTable(structure, instrument)
     for name, prm in state.variables.items():
@@ -10801,7 +10980,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     result = _build_result(
         model, table, table.x0(), mode=state.mode,
         status=node.metrics.status or "converged", stage_results=[],
-        diagnostics=list(node.diagnostics), structure=structure,
+        diagnostics=twins + list(node.diagnostics), structure=structure,
         # ``PHASE_UNCONSTRAINED`` read against the threshold the stage ran
         # at, or the default where the node is not a stage (WP-2002, B1)
         phase_support_sigma=node.action.phase_support_sigma,

@@ -193,7 +193,7 @@ jobs:
       - id: scope
         env:
           EVENT: ${{ github.event_name }}
-          PLANNING: '^(docs/(wp|milestones|releases)/|docs/(ROADMAP|DESIGN)\.md$|tests/test_docs_consistency\.py$|\.claude/(commands|agents|skills/issue-review)/|\.claude/settings\.json$|\.claude/hooks/(handover_owed|no_top_level_cd|session_start|worktree_create|worktree_only|worktree_remove|wp_claim)\.py$)'
+          PLANNING: '^(docs/(wp|milestones|releases)/|docs/(ROADMAP|DESIGN)\.md$|tests/test_docs_consistency\.py$|\.claude/(agents|skills/(issue-review|pr-review|steward|wp-handover|wp-start))/|\.claude/settings\.json$|\.claude/hooks/(handover_owed|no_top_level_cd|session_start|worktree_create|worktree_only|worktree_remove|wp_claim)\.py$)'
         run: |
           scope=code
           if [ "$EVENT" = pull_request ]; then
@@ -219,7 +219,7 @@ jobs:
     #
     # The session machinery under .claude/ joined the planning set on
     # 2026-10-06, measured the same way over one fast run on main 443c0c1a.
-    # Nothing opens the commands, the agent definition, the issue-review skill
+    # Nothing opens the slash-command skills, the agent definition
     # or settings.json except test_no_stale_name's `git grep`.  The hooks
     # listed by name are imported or run only by test_workflow_hooks.  Three
     # paths stay code.  test_session_usage imports session_usage.py.
@@ -235,7 +235,7 @@ jobs:
     # (docs/reference_pages.py), so test_reference_pages reads it, and so does
     # test_manual's page-contract check, which renders the generated bodies.
     #
-    # test_closed_wp_writes reads .claude/commands/wp-handover.md, to check that
+    # test_closed_wp_writes reads .claude/skills/wp-handover/SKILL.md, to check that
     # the handover step that runs closed_wp_writes.py is still there (WP-1994).
     needs: changes
     if: needs.changes.outputs.scope == 'docs'
