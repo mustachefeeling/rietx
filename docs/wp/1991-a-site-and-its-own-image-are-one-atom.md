@@ -1,6 +1,6 @@
 # WP-1991 — a site and its own image are one atom on every route
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-29 — merged from outside as PR #1014 (`b0019706`), closing #1007; the tasks to be checked against it and the WP closed
 Track: What fires, and what stays silent
 Depends on: —
 Priority: P2 2026-10-16 — a doubled composition with nothing firing, but only on a stored, hand-edited or code-built coordinate; a refined coordinate cannot drift there, and the CIF route already merges it
@@ -84,6 +84,8 @@ CLAUDE.md, "a silent correction is a reader's to make").
 - Issues #1007, #765, #876, #215.
 
 ## Handover log
+
+- **2026-10-29** (`/pr-review`) — merged from outside as PR #1014 (`b0019706`) after nine rounds, closing #1007. A site whose images coincide is merged onto its special position on every route, not only CIF reads, under one F-independent gate (`TWIN_COORD_TOL`), with `SITE_TWINS_MERGED`/`SITE_TWINS_KEPT` and `SITE_DOFS_RENUMBERED`. Where several subgroups of one order have a fixed point in reach, the nearest wins (round 8). `TWIN_DISTANCE` moved to `symmetry.py` and stays on `UNAUDITED_BASELINE`. One note for later: the tie-break measures in fractional max-norm, as the reach does, so on a cell with unequal axes the Cartesian nearest can differ.
 
 - **2026-10-16** — created, from the 2026-10-16 issue triage (issue #1007).
   Checked against the tree at `138d55dc`: reproduced, S doubles from

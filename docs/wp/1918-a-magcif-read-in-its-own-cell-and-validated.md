@@ -1,6 +1,6 @@
 # WP-1918 — a magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-29 — FullProf's `_parent_space_group.name_H-M` spelling read, from outside as PR #1193 (`cd1c39ff`); the six maintainer decisions and I-a onwards open
 Track: Coming from another code
 Depends on: — (1911 soft: the structure-level setting transform the BNS restatement uses)
 Priority: P2 2026-10-08 — a refusal that fires on readable files: 615 of the 900 supercell refusals name a double count the file does not have
@@ -237,6 +237,8 @@ transcriptions were deliberately not copied. TOPAS is a black box.
   the CIF writer.
 
 ## Handover log
+
+- **2026-10-29** (`/pr-review`) — merged from outside as PR #1193 (`cd1c39ff`): where `_parent_space_group.name_H-M_alt` is absent, the reader takes FullProf's `_parent_space_group.name_H-M`, which `cif_mag.dic` does not define, and says so with `CIF_MAGNETIC_PARENT_TAG_UNDEFINED` (info, tier 1). Two tags naming different groups raise `MagCifError` quoting both. Review noted one gap for this WP: `magcif.py` promises the known tags as lists (`READ_TAGS`, `IGNORED_TAGS`, `PRIVATE_TAGS`), and this tag is in none of them, so the completeness oracle cannot see it. None of this WP's tasks is ticked by it; the six decisions stand.
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issues #757
   and #758). Checked against the tree at `5d1f5f67`:
