@@ -544,6 +544,15 @@ ROWS: tuple[Row, ...] = (
     Row("CIF_MAGNETIC_NUCLEAR_GROUP", "code"),
     Row("CIF_MAGNETIC_NUCLEAR_SETTING", "code"),
     Row("CIF_MAGNETIC_NUMBER_MISMATCH", "code"),
+    Row("CIF_MAGNETIC_PARENT_TAG_UNDEFINED", "code", tier=1, ambiguity=1,
+        evidence=("a record of which tag was read: the file states its parent symbol only "
+                  "under _parent_space_group.name_H-M, which cif_mag.dic 0.9.9 does not "
+                  "define, with or without an alias, and which can mean only "
+                  "_parent_space_group.name_H-M_alt; the two tags naming different settings "
+                  "is refused (MagCifError), never chosen between (issue #1063, item 2)"),
+        response="info",
+        responds=("note that the parent symbol came from a tag no dictionary defines; the "
+                  "phase is the one the _alt tag would have built")),
     Row("CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED", "code"),
     Row("CIF_MAGNETIC_SYMMFORM", "code"),
     Row("CIF_MAGNETIC_UNIDENTIFIED", "code"),

@@ -613,7 +613,9 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
     metadata.  The nuclear space group's type comes from
     ``_parent_space_group.name_H-M_alt``, because a magCIF has no ordinary
     ``_space_group_name_H-M_alt`` at all and gemmi therefore resolves no space
-    group for one; its setting is checked against the file's own operators
+    group for one (FullProf's undefined ``_parent_space_group.name_H-M`` is
+    read where ``_alt`` is absent, and named:
+    :func:`~rietx.crystallography.magcif.parent_space_group`); its setting is checked against the file's own operators
     (:func:`~rietx.crystallography.magcif.resolve_nuclear_symmetry`).  Two magnetic constructs are **refused by name** rather than
     half-read: a modulated structure (any ``_atom_site_moment_Fourier`` or
     special-function loop) and a structure stated in a *supercell* of its
@@ -713,14 +715,16 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             "has no single data block to read a space group from")
         hm = (doc_block.find_value("_symmetry_space_group_name_H-M")
               or doc_block.find_value("_space_group_name_H-M_alt")
-              or (magcif.parent_space_group(doc_block) if block is not None
-                  else None))
+              or (magcif.parent_space_group(doc_block, path,
+                                            diagnostics=diagnostics)
+                  if block is not None else None))
         if hm is None and block is not None:
             raise magcif.MagCifError(
                 f"{path} states a magnetic structure and no space group this "
                 f"reader can resolve: neither an ordinary "
                 f"_space_group_name_H-M_alt nor the magCIF "
-                f"_parent_space_group.name_H-M_alt. The magnetic operator list "
+                f"_parent_space_group.name_H-M_alt (or its undefined spelling "
+                f"{magcif.PARENT_HM_UNDEFINED}). The magnetic operator list "
                 f"alone cannot supply it — a type-III magnetic group is an "
                 f"index-2 subgroup of the parent, so the nuclear symmetry is "
                 f"strictly *higher* than the operators state, and a phase "

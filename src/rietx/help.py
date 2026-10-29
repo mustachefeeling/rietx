@@ -1798,6 +1798,18 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "source."
         ),
     ),
+    "CIF_MAGNETIC_PARENT_TAG_UNDEFINED": HelpEntry(
+        title="Parent space group read from an undefined tag",
+        description=(
+            "The file names its parent space group under "
+            "_parent_space_group.name_H-M, as FullProf writes it. The magnetic CIF "
+            "dictionary defines only _parent_space_group.name_H-M_alt, and the "
+            "undefined tag can mean nothing else, so the symbol was read from it. The "
+            "phase is the one the dictionary's tag would have given. A file that states "
+            "both tags with different groups is refused, because nothing in it says "
+            "which one is wrong."
+        ),
+    ),
     "CIF_MAGNETIC_SPHERICAL_ESD_NOT_STORED": HelpEntry(
         title="Spherical moment uncertainties dropped",
         description=(
