@@ -94,6 +94,18 @@ _SIGMA_MAX = float(np.sqrt(np.finfo(np.float64).max))
 #: 1e-12 moves the moment by 1e-12 of its modulus.
 _MOMENT_REFRAME_TOL = 1e-12
 
+#: The exact invariance test of :meth:`ParameterTable._refuse_body_off_its_sites`,
+#: in units of ``symmetry.SITE_TOL``.  For an operation fixing both a body atom
+#: and its origin (mod the lattice), R(p − o) − (p − o) is a lattice vector
+#: plus the two positions' residuals from their sites, each at most SITE_TOL
+#: per component (``site_orbit``'s step 1).  On the atom's own element the
+#: vector is zero and the miss at most 2 × SITE_TOL, a bound reached and never
+#: exceeded on 25 site pairs in 17 groups, hexagonal and cubic included; on
+#: an element a lattice vector away it is at least 1 − 2 × SITE_TOL.  Any factor
+#: from 2 to 1/SITE_TOL − 2 refuses the same inputs; 4 keeps a factor of two
+#: from the attained bound, so float rounding there cannot decide.
+_BODY_SITE_MISS_FACTOR = 4.0
+
 
 def _is_wavelength(path: str) -> bool:
     return (path.startswith("instrument.source.lines.")
@@ -1688,12 +1700,12 @@ class ParameterTable:
                 # in the unwrapped body coordinates, else the atom's element is
                 # a lattice vector from the origin's (-1 at (0,0,0) and at
                 # (½,0,0); 2-folds at x = 0 and ½).  Both positions are known
-                # to SITE_TOL, and a true miss is a lattice vector, so 4 × it
-                # is a rounding bound
+                # to SITE_TOL, and a true miss is a lattice vector, so
+                # _BODY_SITE_MISS_FACTOR × it is a rounding bound
                 d = at - np.array(where, dtype=np.float64)
                 for g in orbit.stabilizer_ops:
                     miss = rots[int(g)] @ d - d
-                    if float(np.abs(miss).max()) > 4.0 * SITE_TOL:
+                    if float(np.abs(miss).max()) > _BODY_SITE_MISS_FACTOR * SITE_TOL:
                         raise ValueError(
                             f"RIGID_BODY_NOT_INVARIANT: rigid body {body.name!r} has "
                             f"its atom {label!r} at {tuple(float(v) for v in at)} on "
