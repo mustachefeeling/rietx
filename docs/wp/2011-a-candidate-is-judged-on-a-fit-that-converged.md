@@ -724,6 +724,16 @@ probes 16-22 in `docs/wp/2011-probe/`):
   row in `docs/milestones/process.md`; selective policy at 300-450K peak:
   −5 %.
 
+- Tests, on `origin/main` merged in (7cbec0332), macOS arm64, `[dev]`,
+  nothing else running: fast 11 877 passed, 272 skipped, 32 xfailed, 1
+  failed (8:44); full 12 288 passed, 283 skipped, 47 xfailed, 1 failed
+  (39:03). Both totals are +4 on the 2nd session's, this session's four
+  added cases (two of `test_under_a_ceiling_validation_runs_cheapest_first`,
+  two in `test_bccg.py`); no new skip. The one failure in each is WP-2035's
+  reduce case from the local hypothesis database (its `### Inherited`),
+  failing on the base too. Added tests' cost (local junit): the ceiling test
+  5.2 s a case (it runs a small dichotomy search and two fits; the file's
+  other cases do the same), the rest under 0.3 s.
 - Replayed at the measured 15 % clock (7.3 s left on NAC, probe 18's
   policies on probe 16's costs): equal slices in rank order validate
   nothing on either spec; cheapest first validates the true cell on both.
