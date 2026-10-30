@@ -1210,20 +1210,20 @@ def index_pattern(peaks: PeakList | None = None, *,
 #: first cell's subtracted profile at its position is more than this multiple
 #: of the line's own height there.  A profile fit misses by a fraction of the
 #: intensity it models, so the difference it leaves is derivative-shaped and
-#: scales with the first phase's local intensity: measured on synthetic Si +
-#: MgO (λ 0.8257 Å, MgO at 0.3 of the Si scale), the pairs the picker made
-#: either side of Si (111) and on its other lines sat on 5-60 times their own
-#: height of Si profile, and every MgO line under 0.2 of it, one of them 2.3
-#: FWHM from a Si line, where no width cut separates the two.  A second
-#: phase's line under a stronger first-phase line cannot be told from that
-#: misfit, and the one-phase fit gives its intensity to the first phase's
-#: reflection anyway.
+#: scales with the first phase's local intensity.  A second phase's line under
+#: a stronger first-phase line cannot be told from that misfit, and the
+#: one-phase fit gives its intensity to the first phase's reflection anyway.
 #:
-#: Measured on two synthetic pairs only, Si with MgO (scales 0.05-0.3) and Si
-#: with NaCl (0.1), and untested beyond them: MgO's own lines stood on at most
-#: 0.54 of their height of Si profile at 0.1 and 0.17 at 0.3, but one at 1.22
-#: at 0.05, so that line is flagged at that scale; picks that are neither a
-#: second-phase line nor on Si's profile are not separated by this ratio at all.
+#: Measured with the Pawley fit (#1043, against a multi-phase Rietveld
+#: reference per pattern).  It separates on two real families and not on the
+#: third.  11-BM LaB6 + cBN: 0 of 79 true second-phase lines flagged, 31 of 31
+#: misfit picks (ratios from 3.1).  GSAS-II's CuCr2O4 + CuO (11-BM, 6.8 K): 1
+#: of 40 and 6 of 6 (from 3.3).  The IUCr CPD round robin's sample 1 (lab Cu
+#: Kα, three phases): 30 of 500 true lines flagged, true ratios up to 13.5,
+#: and 57 of 67 misfit picks.  SRM 660c alone: all 28 usable picks are
+#: misfit, the lowest at 1.04.  On synthetic Si + MgO and Si + NaCl the Pawley
+#: residue holds no misfit pick and the second phase's lines stand on at most
+#: 0.46 of their height.
 RESIDUE_MISFIT_RATIO = 1.0
 
 

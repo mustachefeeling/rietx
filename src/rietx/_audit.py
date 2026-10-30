@@ -1726,8 +1726,9 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.DRIVEN_MIN_LINES", "constant", tier=1,
         evidence="Arithmetic: the triclinic reciprocal metric Q(hkl) has six independent "
                  "components, so fewer than six driven lines cannot determine every "
-                 "lattice a search may be asked for; a floor below which flagged lines are "
-                 "taken back, not a tuned optimum.",
+                 "lattice a search may be asked for; a floor below which `weak_line` picks are "
+                 "taken back, not a tuned optimum. A flag in PEAK_NEVER_DRIVEN_FLAGS "
+                 "(`residue_misfit`) is never taken back.",
         value=6),
     Row("rietx.indexing.engines.ENGINE_POOL_MULTIPLE", "constant", value=5),
     Row("rietx.indexing.engines.INLIER_DOF_MARGIN", "constant", value=4),
@@ -1847,18 +1848,23 @@ ROWS: tuple[Row, ...] = (
                   "first-cell profile under it exceeds RESIDUE_MISFIT_RATIO times the pick's own "
                   "height (strictly greater; a pick of zero height is flagged on any profile "
                   "under it). A flagged pick stays usable and is charged to the grade, but never "
-                  "drives the search. Measured on two synthetic pairs (PR #1043, Si + MgO at "
-                  "scales 0.05, 0.1, 0.3 and Si + NaCl at 0.1): MgO's own lines stood on at most "
-                  "1.22 (scale 0.05, one line flagged), 0.54 (0.1) and 0.17 (0.3) of their "
-                  "height of Si profile, NaCl's on at most 0.08; the first-version misfit picks "
-                  "stood on 5-60 times their own height"),
-        grounds=("rietx's own choice; no program or paper default to rest it on. Measured on two "
-                 "synthetic pairs only, no real two-phase family. At the edge a true "
-                 "second-phase line on a first phase's flank is flagged (MgO at 0.05, ratio "
-                 "1.22): it is scored but cannot drive, which can cost it its rank; the ratio "
-                 "does not separate misfit picks from picker junk where it sits. Unanimity: the "
-                 "dissenter (a minor phase on a major phase's flank) is served because the line "
-                 "stays, flagged and graded, rather than dropped")),
+                  "drives the search. Measured with the residue fit in VALIDATION_MODE (Pawley; "
+                  "PR #1043), each pick classed against a multi-phase Rietveld fit of its "
+                  "pattern: 11-BM LaB6 + cBN, 0 of 79 true second-phase lines flagged and 31 of "
+                  "31 misfit picks (ratios from 3.1); GSAS-II SeqRefine CuCr2O4 + CuO (11-BM, "
+                  "6.8 K, CuO 1.1 wt %), 1 of 40 and 6 of 6 (from 3.3); IUCr CPD round robin "
+                  "sample 1 (lab Cu Ka; corundum, zincite, fluorite), 30 of 500 and 57 of 67, "
+                  "true lines reaching 13.5; SRM 660c alone, all 28 usable picks misfit, the "
+                  "lowest at 1.04. Synthetic Si + MgO (0.05-0.3) and Si + NaCl (0.1): no misfit "
+                  "pick, second-phase lines at most 0.46"),
+        grounds=("rietx's own choice; no program or paper default to rest it on. The two 11-BM "
+                 "families (one beamline, so not unrelated) separate at any ratio from 2.3 to "
+                 "3.1, and 1.0 flags one true line of 119; the lab family (CPD sample 1) is not "
+                 "separated by any ratio, so there it labels about 6 % of true minor-phase lines "
+                 "and misses 15 % of the misfit. SRM 660c's misfit sits 4 % above 1.0. A flagged "
+                 "true line is scored but cannot drive, which can cost it its rank. Unanimity: "
+                 "the dissenter (a minor phase on a major phase's flank) is served because the "
+                 "line stays, flagged and graded, rather than dropped")),
     Row("rietx.indexing.workflow.VALIDATION_METRIC_REL", "constant", value=0.01),
     Row("rietx.indexing.workflow.VALIDATION_SLACK_BOUNDS_DEG", "constant", value=(0.3, 6.0)),
     Row("rietx.io.formats.pdcif.NET_BACKGROUND_MIN_SIGMA", "constant", tier=3, value=5.0,
