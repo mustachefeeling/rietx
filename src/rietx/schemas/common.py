@@ -591,6 +591,11 @@ from .._nearmiss import did_you_mean
 #: ``displacive_statement``.  An older build refuses a phase carrying it.
 #: Also in 0.60 (WP-2011): ``LeBailValidation.mode``, additive, its default
 #: ``"lebail"`` being what every record written before it ran.
+#: Also in 0.60 (WP-1419 C4a): ``RefinementResult.distortion_totals``, one
+#: ``DistortionTotal`` per irrep block of a phase on mode amplitudes (A_τ, its
+#: esd and label, T², ``driving``, the sign convention, the largest
+#: displacement), additive and defaulted to ``None`` where no phase carries
+#: ``distortion_modes``.
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

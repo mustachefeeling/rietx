@@ -74,7 +74,6 @@ from .model.forward import (
     window_loss,
 )
 from .model.geometry import cell_volumes, geometry_table
-from .report.distortion import distortion_totals as _distortion_totals
 from .model.microstructure import microstructure_table
 from .model.origin import CompiledOrigin, OriginPhaseRows, compile_origin
 from .model.profiles.caglioti import (
@@ -131,6 +130,7 @@ from .params.vector import (
     is_variable_path,
     retired_spelling,
 )
+from .report.distortion import distortion_totals as _distortion_totals
 from .report.magnetic import (
     magnetic_width_findings,
     moment_angle_stationary_diagnostics,
