@@ -25,8 +25,8 @@ claims only what its evidence allows, and the message says which tier matched.
   never labels its abscissa r.
 - **A writer's header**, whatever its suffix: PDFgetX2 opens with a ``History
   written`` line and a ``Get_XPDF`` banner; PDFgetX3 with a ``[DEFAULT]``
-  configuration section holding a ``qmaxinst`` key or a ``diffpy.pdfgetx``
-  version.  Every output either writes is on a Q or an r axis.  The banner is
+  configuration section, bare (2.1.0) or behind ``#`` (1.0), holding a
+  ``qmaxinst`` key or a PDFgetX3 version.  Every output either writes is on a Q or an r axis.  The banner is
   read here because PDFgetX2's ``#L`` line sits past the 4 kB sniff window in
   real files (about 6 kB in), so the labels alone would miss them.
 - **The suffix alone**: a ``.gr``, ``.sq`` or ``.fq`` with neither.  A bare
@@ -92,9 +92,13 @@ _PDFGETX2_HISTORY = re.compile(r"\AHistory written:")
 _PDFGETX2_BANNER = re.compile(r"^#+[ \t]*Get_XPDF[ \t]*#+[ \t\r]*$", re.M)
 
 #: PDFgetX3's header: its configuration section and one key only it writes.
-_PDFGETX3_SECTION = re.compile(r"\A\s*\[DEFAULT\][ \t\r]*$", re.M)
+#: Version 1.0 writes the block behind ``#`` (``#[DEFAULT]``, ``#qmaxinst = 27``,
+#: ``#version = pdfgetx3-1.0-…``); 2.1.0 writes it bare (``version =
+#: diffpy.pdfgetx-2.1.0``).  Both are matched.
+_PDFGETX3_SECTION = re.compile(r"\A\s*#?\[DEFAULT\][ \t\r]*$", re.M)
 _PDFGETX3_KEY = re.compile(
-    r"^(?:qmaxinst[ \t]*=|version[ \t]*=[ \t]*diffpy\.pdfgetx)", re.M)
+    r"^#?(?:qmaxinst[ \t]*=|version[ \t]*=[ \t]*(?:diffpy\.pdfgetx|pdfgetx3))",
+    re.M)
 
 #: What a caller can do, the same in every message.
 _REMEDY = (

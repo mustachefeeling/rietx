@@ -812,7 +812,7 @@ ROWS: tuple[Row, ...] = (
         evidence=("error; a refusal by file shape (issue #1240). It fires when the file's own "
                   "#L line labels its first two columns r and G/g, or Q and S/F; when its "
                   "header is PDFgetX2's (a 'History written' line and the Get_XPDF banner) or "
-                  "PDFgetX3's ([DEFAULT] with qmaxinst or a diffpy.pdfgetx version); or, with "
+                  "PDFgetX3's ([DEFAULT], bare or behind #, with qmaxinst or a PDFgetX3 version); or, with "
                   "neither, on a .gr/.sq/.fq suffix, which the message says matched the name "
                   "only. An abscissa labelled r or Q is not 2θ by definition, so reading it as "
                   "2θ is wrong arithmetic, and no reader in the build reads G(r), S(Q) or F(Q) "

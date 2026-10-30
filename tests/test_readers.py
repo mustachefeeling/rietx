@@ -713,6 +713,14 @@ _TOTAL_SCATTERING_SHAPES = {
     "x3.gr": (_pdfgetx3("gr", "r(Å)  G(Å$^{-2}$)", _R), "G(r)", "PDFgetX3"),
     "x3.sq": (_pdfgetx3("sq", "Q(Å$^{-1}$)  S(a.u.)", _Q), "S(Q)", "PDFgetX3"),
     "x3.fq": (_pdfgetx3("fq", "Q(Å$^{-1}$)  F(Å$^{-1}$)", _Q), "F(Q)", "PDFgetX3"),
+    # PDFgetX3 1.0 writes its configuration block behind "#", with CRLF ends;
+    # the #L line is cut so only the header can claim it
+    "x3v1.gr": ("".join("#" + line + "\r\n" for line in _pdfgetx3(
+        "gr", "x", []).replace("version = diffpy.pdfgetx-2.1.0",
+                                "version = pdfgetx3-1.0-r2152-20130314")
+        .split("#### start data")[0].splitlines())
+        + "#### start data\r\n#S 1\r\n" + _rows(_R).replace("\n", "\r\n"),
+        "G(r)", "PDFgetX3"),
     "bare.gr": ("".join(f"{a:.4f} {0.3 * a:.4f}\n" for a in _R), "G(r)",
                 "matched on the name and not the columns"),
 }
