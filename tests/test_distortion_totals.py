@@ -66,7 +66,7 @@ STREAM = {"gamma_null": 1, "zone_null": 2, "gamma_plant": 10, "zone_plant": 20}
 
 
 # --------------------------------------------------------------------------
-# helpers (C4b's tests reuse them)
+# helpers (the verdict's tests reuse them)
 # --------------------------------------------------------------------------
 
 def _protocol():
@@ -763,7 +763,7 @@ def scatter(name, seeds=SEEDS):
 @pytest.mark.parametrize("name", [
     "gamma",
     pytest.param("zone", marks=pytest.mark.xfail(strict=True, reason=(
-        "measured 2026-10-30 (pearl, 40 seeds): SD 0.00595 A against a median esd of "
+        "measured 2026-10-30 (Linux x86-64, 40 seeds): SD 0.00595 A against a median esd of "
         "0.00864 A, ratio 0.689, below the band; 0.778 with the Berar-Lelann factor "
         "(f 1.10-1.14 on white noise) taken out; reported for a ruling, band not moved")))])
 def test_the_esd_of_a_tau_describes_its_scatter_over_40_seeds(name):
@@ -775,7 +775,7 @@ def test_the_esd_of_a_tau_describes_its_scatter_over_40_seeds(name):
     side of 1.  Both blocks sit well above 2 esd, where the label says the esd
     means something.
 
-    Measured 2026-10-30 (pearl, Linux x86-64, the build report): Γ 0.926
+    Measured 2026-10-30 (Linux x86-64): Γ 0.926
     (A_τ 0.1312 ± SD 0.0072 for 0.1244 planted), zone-boundary 0.689 (0.2301 ±
     0.0060 for 0.2220), outside the band, so that arm is an expected failure
     until it is ruled on.  The diagonal-only esd (the block's off-diagonal

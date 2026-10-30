@@ -48,7 +48,7 @@ A child stated on mode amplitudes (`Phase.distortion_modes`) reports per irrep b
 | `DistortionTotal` between modes of one block | Read a correlation inside one block as physics. It is the basis; `a_tau`, `esd`, `t2` and every `DistortionBlockTest` number are basis-invariant |
 | `DistortionBlockTest.lambda_p` small | Read it as "the block is present". Λ holds its size on white-noise nulls, but under model misfit it can call a block that absorbs the misfit (Hypothesis: from the design's misfit argument, no public counter-case measured) |
 | `DistortionBlockTest.delta_bic` | Hold several blocks one at a time and add the answers. A gain two blocks share is charged twice alone; pass them as one set in `hold` to measure it |
-| `DistortionBlockTest.a_det` | Read it as calibrated. On LaMnO₃ white noise it was +2 % (five-mode Γ block), +9 to +12 % (ten-mode zone-boundary block) and +48 % (one mode of a 57-mode P1 child) off the 50 % point at bar 6, and it is uncalibrated on misfit (Measured: WP-1419 F5 arms) |
+| `DistortionBlockTest.a_det` | Read it as calibrated. On LaMnO₃ white noise it was +2 % (five-mode Γ block), +9 to +12 % (ten-mode zone-boundary block) and +48 % (one mode of a 57-mode P1 child) off the 50 % point at bar 6, and it is uncalibrated on misfit (Measured: WP-1419, LaMnO₃ synthetic arms) |
 | `DistortionBlockTests.restarts` non-empty | Read the rows against the fit you passed in. A restricted refit fell below it, so the full fit was refitted; the rows compare against `DistortionBlockTests.restarted_result` |
 
 ## Moment codes
