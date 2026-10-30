@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import cmath
+import dataclasses
 import math
 from fractions import Fraction as F
 
@@ -401,6 +402,72 @@ def test_line_atol_sits_in_a_gap_of_the_relative_singular_values(monkeypatch):
     kept = [x for x in seen if x > inc.LINE_ATOL]
     assert dropped and kept
     assert max(dropped) < 1e-12 and min(kept) > 1e-3
+
+
+def _cut_and_groups(lops):
+    """The relative singular values ``_null`` cuts over the isotropy search of
+    each order parameter, and the groups found (order-free: the irreps' order
+    follows their λ-dependent characters)."""
+    seen = []
+    real = inc._null
+
+    def recording(m, tol=inc.LINE_ATOL):
+        if m.size:
+            sv = np.linalg.svd(m, compute_uv=False)
+            seen.extend(float(x) / max(1.0, float(sv[0])) for x in sv)
+        return real(m, tol)
+
+    inc._null = recording
+    try:
+        groups = sorted(sorted((len(g.group), g.dimension, tuple(sorted(g.stabiliser)))
+                               for g in inc.isotropy_superspace_groups(lop)) for lop in lops)
+    finally:
+        inc._null = real
+    return np.sort(seen), groups
+
+
+def test_line_atol_gap_does_not_move_with_lambda_near_a_rational():
+    """The second-λ control #1060's review asked for.  λ enters the matrices
+    ``_null`` sees through k·v, so a λ a hair off a rational is where the gap
+    above could close.  It cannot: v ↦ e^{2πiλd·v} is a character of G_k
+    (dR = d), so on the ε = +1 operations it cancels against D(g)'s
+    factor-system phase, and on the ε = −1 ones (dR = −d) it is one common
+    phase, an internal-origin shift and the same orthogonal similarity on
+    every matrix.  So the relative singular values are λ-free to rounding:
+    at ½ and ½ + 1e-10 as at 1/√7 here, and on the nine ``DELTA_GRID``
+    lines at ½, ⅓, ¼ and ± 1e-10, 1e-8, 1e-6 none falls in [1e-14, 6.5e-2).
+
+    Positive arm: build the irreps at λ and apply k·v at λ + ε, a phase the
+    character no longer cancels.  It puts singular values between πε/4 and
+    πε in front of ``_null``.  At ε = 1e-10 they are cut and the groups
+    stand; at 1e-7 they are kept, no fixed point survives and the search
+    finds no group for any irrep.  So the recording sees a λ phase where
+    there is one, and ``LINE_ATOL`` decides between the two answers (the
+    change falls between ε = 5e-9 and 1e-8; from ε ≈ 2e-7 ``_frac``'s own
+    1e-7 refuses the δ instead)."""
+    sg, q, lam = "P n m a", "(0,0,γ)", 1 / math.sqrt(7)
+    base = [inc.line_order_parameter(i) for i in inc.line_irreps(sg, q, [lam])]
+    s_ref, g_ref = _cut_and_groups(base)
+    assert s_ref[s_ref <= inc.LINE_ATOL].max() < 1e-13
+    assert s_ref[s_ref > inc.LINE_ATOL].min() > 1e-2
+    for near in (0.5, 0.5 + 1e-10):
+        s, g = _cut_and_groups([inc.line_order_parameter(i)
+                                for i in inc.line_irreps(sg, q, [near])])
+        assert g == g_ref, near
+        assert len(s) == len(s_ref) and np.abs(s - s_ref).max() < 1e-12, near
+
+    def phase_off(eps):
+        ext, _ = ir.extended_little_group_on_line(sg, q, [lam + eps])
+        return _cut_and_groups([dataclasses.replace(lop, extended=ext) for lop in base])
+
+    s, g = phase_off(1e-10)
+    band = s[(s > 1e-13) & (s < 1e-2)]
+    assert len(band) and band.max() < inc.LINE_ATOL
+    assert g == g_ref
+    s, g = phase_off(1e-7)
+    band = s[(s > 1e-13) & (s < 1e-2)]
+    assert len(band) and band.min() > inc.LINE_ATOL
+    assert all(g_ref) and not any(g)
 
 
 def test_a_symbol_in_rhombohedral_axes_is_refused_by_name():
