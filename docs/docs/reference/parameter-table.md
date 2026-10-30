@@ -194,7 +194,7 @@ A fit of a phase carrying `Phase.distortion_modes` returns one `DistortionTotal`
 | `DistortionTotal.esd_label` | "linearised; undefined at A_τ = 0 and Rice-biased below about 2 esd", on every block |
 | `DistortionTotal.t2` | Hotelling's T² = Aᵀ·Cov⁻¹·A over the block's amplitudes, with m beside it and no p |
 | `DistortionTotal.driving` | whether a displacement inside this block alone has the child's own group |
-| `DistortionTotal.sign_convention` | which sign the amplitudes carry: the fitted domain, unmapped |
+| `DistortionTotal.sign_convention` | which sign the amplitudes carry: the fitted domain, as the fit left it |
 | `DistortionTotal.largest_displacement` | the largest atomic displacement the block puts on the child, Å |
 
 `esd` and `t2` are `None` where the fit measured no covariance for the block: an amplitude not freed, a column the data cannot see, or, for `esd`, `a_tau` exactly 0.
@@ -216,7 +216,7 @@ It returns a `DistortionBlockTests`, with one `DistortionBlockTest` per item in 
 | `DistortionBlockTest.m` | the number of free amplitudes held |
 | `DistortionBlockTest.delta_bic` | ΔBIC at N/f², f the restricted fit's, as `compare_freed` charges it; positive favours the blocks |
 | `DistortionBlockTest.lambda_`, `DistortionBlockTest.lambda_p` | Λ = Δχ²/(χ²<sub>red</sub>·f²) with the full fit's χ²<sub>red</sub> and f, and its upper-tail p against χ²<sub>m</sub> |
-| `DistortionBlockTest.chi2_restricted`, `DistortionBlockTest.chi2_full` | both fits' unreduced χ² |
+| `DistortionBlockTest.chi2_restricted`, `DistortionBlockTest.chi2_full` | the χ² of each fit, not reduced |
 | `DistortionBlockTest.esd_inflation_restricted`, `DistortionBlockTest.esd_inflation_full`, `DistortionBlockTest.chi2_red_full`, `DistortionBlockTest.n_points` | the numbers the two statistics were computed from |
 | `DistortionBlockTest.a_det` | the predicted smallest amplitude of the held set whose ΔBIC reaches the bar, Å, when a bar was passed |
 | `DistortionBlockTest.wall_s` | the restricted refit's wall time |
@@ -231,12 +231,12 @@ The call then refits the full model from that restricted optimum, with the held 
 The full χ² falls at every restart, so the loop has no cap; a restart that does not lower it is recorded and ends the loop.
 After a restart the rows compare against the restarted fit, which is `DistortionBlockTests.restarted_result`; otherwise that field is `None`.
 
-`detectability_bar` has no default, and without it no A_det is computed (`DistortionBlockTests.detectability_bar` records the one used).
-A_det = min over the held modes j of A<sub>0</sub>·[χ²<sub>red</sub>·f²·(m·ln(N/f²) + bar)/λ<sub>j</sub>(A<sub>0</sub>)]<sup>1/p<sub>j</sub></sup>, with χ²<sub>red</sub> the full fit's and f the restricted fit's.
+`detectability_bar` has no default, and without it `a_det` is not computed (`DistortionBlockTests.detectability_bar` records the one used).
+The detectability amplitude is the minimum over the held modes j of A<sub>0</sub>·[χ²<sub>red</sub>·f²·(m·ln(N/f²) + bar)/λ<sub>j</sub>(A<sub>0</sub>)]<sup>1/p<sub>j</sub></sup>, with χ²<sub>red</sub> the full fit's and f the restricted fit's.
 λ<sub>j</sub> is one predict per mode at A<sub>0</sub> = `rietx.report.distortion.DETECTABILITY_PROBE` (0.1 Å) from the restricted optimum, on the file's σ.
 p<sub>j</sub> is 4 for a mode the pattern has no first-order term along at that structure, which `AmplitudeAction.even` reads from the structure's symmetry, and 2 otherwise.
 `rietx.report.detectability_target` and `rietx.report.detectability_amplitude` are the two steps.
-Measured against the strength at which half of the planted seeds gave ΔBIC above a bar of 6, on LaMnO₃ synthetic white noise, A_det was off by +2 % on a five-mode Γ block, +9 to +12 % on a ten-mode zone-boundary block, and +48 % on a one-mode block of a 57-mode P1 child, whose signal the other free modes absorb; it is uncalibrated on misfit.
+Measured against the strength at which half of the planted seeds gave ΔBIC above a bar of 6, on LaMnO₃ synthetic white noise, `a_det` was off by +2 % on a five-mode Γ block, +9 to +12 % on a ten-mode zone-boundary block, and +48 % on a one-mode block of a 57-mode P1 child, whose signal the other free modes absorb; it is uncalibrated on misfit.
 
 `rietx.crystallography.representation.distortion.amplitude_action` returns the `AmplitudeAction` of a phase on mode amplitudes: the parent group acting on its mode fields over the child cell.
 `AmplitudeAction.stabiliser` gives the operations that leave a set of amplitudes unchanged, the structure's own symmetry, and `AmplitudeAction.even` the modes along which the pattern has no first-order term there.
