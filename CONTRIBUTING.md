@@ -83,8 +83,9 @@ the tier and evidence left for you to fill in.
 
 The tiers are defined in `docs/milestones/generality.md` § The rule. Tier 1
 is physics or arithmetic. Tier 2 is established practice: a citation that
-validated it, or the same action taken by default in GSAS-II, FullProf or
-TOPAS. Tier 3 is rietx's own choice. `invariant` is an efficiency setting
+validated it, or the same action taken by default in one of the seven
+programs the rule names (GSAS-II, FullProf, TOPAS, RIETAN-FP, BGMN, MAUD and
+EasyDiffraction). Tier 3 is rietx's own choice. `invariant` is an efficiency setting
 that cannot change an answer, and it names the test asserting its margin.
 `caller` is an action that runs only when the caller turns it on. A code,
 an action or a default also states its kind of ambiguity, from
@@ -97,6 +98,14 @@ against each of those rows, and the case for any action the change removes
 or leaves to the caller. A tier-3 row, and a tier-2 automatic action, waits
 for the maintainer's dated ruling in its `approved` field. The maintainer
 may write that field into your branch.
+
+**Land the machinery first.** Machinery is what a caller operates: a model,
+a fit, a reported quantity. A heuristic is a choice rietx makes for the
+caller. A pull request that adds a tier-3 row waits on the maintainer's
+ruling, so a machinery pull request adds none. A number the machinery needs
+is physics or arithmetic (tier 1), established practice (tier 2), or a
+required argument on a verb no default path calls (`caller`). The tier-3
+default follows in its own pull request. Adopted 2026-10-30 from #1224.
 
 ## The agent skill
 
