@@ -258,9 +258,11 @@ With every $s_j = 0$ the child's metric is $P^{\top} G_{\mathrm{p}} P$.
 A real lattice needs $G'$ positive definite. Writing $G_{\mathrm{p}} = L\,C\,L$
 with $C$ the cosine matrix of the parent's angles, that holds exactly when
 $C + 2E$ is positive definite. A sufficient condition for any combination of the
-$n$ amplitudes is $|s_j| < \lambda_{\min}(C) / (2 n \lVert E_j \rVert_2)$. A freed
-amplitude is held to a fixed fraction of that bound, one half, so the bound
-sits strictly inside the cone.
+$n$ amplitudes is $|s_j| < \lambda_{\min}(C) / (2 n \lVert E_j \rVert_2)$, since
+$\lambda_{\min}(C + 2E) \ge \lambda_{\min}(C) - \lVert 2E \rVert_2$ (Weyl's inequality).
+A freed amplitude is bounded a relative $10^{-9}$ inside that box, so the metric
+at the bound is still positive definite to working precision. A tighter bound
+on a strain is the caller's.
 
 ## The wavelength–cell degeneracy
 

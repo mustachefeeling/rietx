@@ -497,15 +497,19 @@ _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 #: trip's zero and far below any edit a person makes.
 PARENT_CELL_DRIFT_TOL = 1e-9
 
-#: How much of the child metric's smallest eigenvalue a freed ``Phase.parent_cell``
-#: strain may use up (WP-1419, review of #1108): the amplitude box of
+#: How far inside the positive-definite box a freed ``Phase.parent_cell`` strain
+#: is bounded, relative to the box (WP-1419, review of #1108).  The box of
 #: :meth:`ParameterTable._guard_strain_domain` is the sufficient condition
-#: Σⱼ 2|sⱼ|·‖Eⱼ‖₂ < λ_min(C) scaled by this fraction, so the bound sits strictly
-#: inside the cone.  At 1.0 the box edge is a singular metric, and the default
-#: LM driver lands a value exactly on a bound.  Any value in (0, 1) keeps the
-#: metric positive definite; ½ is the midpoint, rietx's own choice, and moves
-#: no answer unless a strain reaches it.
-PARENT_STRAIN_PD_FRACTION = 0.5
+#: Σⱼ 2|sⱼ|·‖Eⱼ‖₂ < λ_min(C) (Weyl's inequality: λ_min(C + 2E) ≥ λ_min(C) − ‖2E‖₂),
+#: which is arithmetic.  Its edge itself can be a singular metric, and the
+#: default LM driver lands a value exactly on a bound, so the bound sits this
+#: fraction inside it: at the edge λ_min(C + 2E) ≥ PARENT_STRAIN_PD_MARGIN·λ_min(C),
+#: some six decades above the round-off of an ``eigvalsh`` of a matrix of order
+#: one.  A numerical floor, not a choice of how far a lattice may strain: the
+#: package bounds a strain where the model is defined, and a tighter, physical
+#: bound is the caller's (``Parameter.min``/``max`` on the strain, kept where
+#: tighter).  #1224 moved this from a tier-3 fraction of ½.
+PARENT_STRAIN_PD_MARGIN = 1e-9
 
 #: Fraction of the value a stage *starts from* that a cell length may travel
 #: within that stage, and an additive pad in Å so a small cell is not held
@@ -1516,11 +1520,12 @@ class ParameterTable:
         (a negative diagonal under ``sqrt`` is a NaN mid-solve, and the
         cosine clip in ``cell_from_metric`` would hide the off-diagonal case).
         A **freed** strain is bounded in :meth:`bounds`, per amplitude, at
-        PARENT_STRAIN_PD_FRACTION·λ_min(C)/(2·n·‖Eⱼ‖₂): the sum of the n amplitudes' spectral norms then
-        stays under λ_min(C), which keeps C + 2E positive definite for any
-        combination.  A sufficient box, not the cone itself, and derived from
-        the parent's cell at this build (re-read each stage, like every
-        bound) rather than a tuned number.  A parent angle freed in the same
+        (1 − PARENT_STRAIN_PD_MARGIN)·λ_min(C)/(2·n·‖Eⱼ‖₂): the sum of the n
+        amplitudes' spectral norms then stays under λ_min(C), which keeps
+        C + 2E positive definite for any combination (Weyl's inequality).
+        A sufficient box, not the cone itself, and derived from the parent's
+        cell at this build (re-read each stage, like every bound) rather than
+        a tuned number.  A parent angle freed in the same
         stage moves λ_min within the stage; the stage's next build re-reads it.
         """
         if len(basis) == 0:
@@ -1549,7 +1554,7 @@ class ParameterTable:
             # E is symmetric, so its spectral norm is its largest |eigenvalue|
             norm = float(np.max(np.abs(lapack.eigvalsh(e_j))))
             if norm > 0.0:
-                self._strain_domain[path] = (PARENT_STRAIN_PD_FRACTION * lam_min
+                self._strain_domain[path] = ((1.0 - PARENT_STRAIN_PD_MARGIN) * lam_min
                                              / (2.0 * len(basis) * norm))
 
     def _collect_texture(self, base: str, sg, phase) -> None:

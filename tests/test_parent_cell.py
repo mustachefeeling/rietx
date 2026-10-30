@@ -799,6 +799,26 @@ def test_a_freed_strain_is_bounded_where_the_metric_stays_positive_definite():
     assert STRAIN_0 not in table.free_paths
 
 
+def test_the_strain_bound_is_the_weyl_box_less_a_numerical_floor():
+    """The bound is arithmetic, not a chosen fraction (#1224): Weyl's box
+    λ_min(C)/(2·n·‖E‖₂), a relative ``PARENT_STRAIN_PD_MARGIN`` inside it.
+    The positive arm is the box's own edge, where this child's metric is
+    singular, so the floor is what keeps the bound inside the lattices."""
+    from rietx.params.vector import PARENT_STRAIN_PD_MARGIN
+
+    table = _cm_table()
+    table.set_vary([STRAIN_0], True)
+    hi = table.bounds()[1][table.free_paths.index(STRAIN_0)]
+    e = np.asarray(table._cell_blocks[0].basis[0])
+    n = len(table._cell_blocks[0].basis)
+    box = 1.0 / (2.0 * n * float(np.max(np.abs(np.linalg.eigvalsh(e)))))  # C = I here
+    assert hi == pytest.approx((1.0 - PARENT_STRAIN_PD_MARGIN) * box, rel=1e-14)
+    edge = min(np.linalg.eigvalsh(np.eye(3) + 2.0 * s * box * e)[0] for s in (1.0, -1.0))
+    assert abs(edge) < 1e-14                      # the box's edge: a singular metric
+    at_bound = min(np.linalg.eigvalsh(np.eye(3) + 2.0 * s * hi * e)[0] for s in (1.0, -1.0))
+    assert at_bound >= 0.5 * PARENT_STRAIN_PD_MARGIN  # the bound: positive definite
+
+
 def test_a_stored_strain_past_the_cone_is_refused_by_name():
     phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
     phase.parent_cell.strain[0].value = 5.0

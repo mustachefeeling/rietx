@@ -2766,13 +2766,13 @@ ROWS: tuple[Row, ...] = (
         evidence=("linear-algebra round-off: R.v - v of an allowed mode vector is ~1e-15, a "
                   "forbidden one O(1) (docstring, WP-1419); tests/test_distortion_block.py::"
                   "test_a_mode_vector_its_site_does_not_allow_is_refused")),
-    Row("rietx.params.vector.PARENT_STRAIN_PD_FRACTION", "constant", tier=3, value=0.5,
-        evidence=("arithmetic for the sufficient box: sum 2|s_j|.|E_j|_2 < lambda_min(C) keeps the child "
-                  "metric positive definite, and a fraction below 1 keeps the bound off the singular "
-                  "edge; the value 1/2 is the midpoint and untuned (test_parent_cell.py)"),
-        grounds=("rietx's own fraction, thin: any value in (0, 1) is correct and it moves no answer "
-                 "unless a strain reaches it; waiting on the maintainer's dated approval "
-                 "(PR #1108 review item 5).")),
+    Row("rietx.params.vector.PARENT_STRAIN_PD_MARGIN", "constant", tier=1, value=1e-09,
+        evidence=("numerical floor: the box sum 2|s_j|.|E_j|_2 < lambda_min(C) keeps the child metric "
+                  "positive definite (Weyl's inequality, Horn & Johnson, Matrix Analysis, 2nd ed., "
+                  "Thm 4.3.1), and its edge can be singular; the bound sits a relative 1e-9 inside it, "
+                  "so at the edge lambda_min(C + 2E) >= 1e-9 lambda_min(C), about six decades above "
+                  "eigvalsh round-off, as STEPHENS_CONE_TOL. A tighter strain bound is the caller's "
+                  "(Parameter.min/max, kept where tighter). test_parent_cell.py")),
     Row("rietx.params.vector.PARENT_CELL_DRIFT_TOL", "constant", tier=1, value=1e-09,
         evidence=("numerical floor: the builder and every write-back store the derived child cell itself, "
                   "so a stored cell agrees to the bit; 1e-9 relative sits above a 1e-13 round-off and below "
