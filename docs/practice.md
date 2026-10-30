@@ -407,6 +407,53 @@ The paper gives no timings.
 Not determined: TOPAS v9 and its Pawley overlap rule, FullProf's current manual, the Profex
 5.7.2 manual. MAUD, BGMN and RIETAN-FP were not run.
 
+## Machinery and the heuristics that drive it
+
+Surveyed 2026-10-30 by the lead for issue #1224, which proposes landing machinery (what an
+agent operates) before heuristics (the automatic route through it). Software engineering
+calls this the separation of mechanism and policy. Read in full only where marked checked.
+
+| Source | What it does or says | Read |
+|---|---|---|
+| Wulf et al. (1974) Commun. ACM 17, 337, HYDRA's design principle 2 | Separating mechanism from policy "leaves the complex decisions in the hands of the person who should make them". A kernel holds mechanisms, and "policy decisions certainly are not" in it. It credits Brinch Hansen (1970) for the argument | checked (OCR of the scan) |
+| Levin et al. (1975) SOSP 5, 132 | Complete separation is impractical. The scheduler keeps a parametrised policy in the kernel, so the policy outside sets its parameters | inferred from two course summaries; paper not reached |
+| scikit-learn, Buitinck et al. (2013) arXiv:1309.0238, §2.1 and §4 | Every estimator parameter has a "sensible default" giving "a baseline solution", for non-experts. Every parameter is a public constructor argument. Model selection (`GridSearchCV`) is a meta-estimator built only from that public interface | checked |
+| cctbx and PHENIX, Grosse-Kunstleve & Adams (2003) IUCr Comput. Comm. Newsl. 1 | "PHENIX depends on the cctbx, but not vice versa", which keeps the toolbox a reusable library. High-level refinement protocols are written in Python above it | search excerpt; page refused (403) |
+| TOPAS, Coelho (2018) J. Appl. Cryst. 51, 210 | A least-squares kernel driven by an input language whose macros, `topas.inc` among them, carry the refinement recipes as text a user reads and overrides | bibliographic only; inferred from the input format |
+| X Window System, via Raymond (2003) *The Art of Unix Programming* | X's designers shipped "mechanism, not policy". Users met inconsistent interfaces as a result | secondary blog quoting the book |
+| Sadowski et al. (2018) ICSE-SEIP, Google's code review | Small changes get first feedback in a median under an hour, very large ones in about 5 hours; the median change is about 24 lines | secondary summaries; paper not reached |
+
+What it adds up to. The principle has been settled since the 1970s. Two refinements matter for a
+rietx rule. First, mechanism is allowed a default (scikit-learn, Levin) provided the default is
+an exposed, overridable parameter; rietx's form of that condition is the audit tier, so a
+default that needs no ruling (tier 1 or 2), or a required argument on an opt-in verb (a `caller`
+row), can land with its machinery. Second, policy has to follow: X shows the cost of mechanism
+shipped with no policy, and scikit-learn's defaults exist for the non-expert. rietx separates per
+audit row, finer than cctbx's per-package split, because its thresholds sit inside machinery
+modules. No test in the tree checks import direction between the two (checked by grep).
+
+## Grading the evidence behind a heuristic
+
+Surveyed 2026-10-30 by the lead, asked whether the audit's tiers (`docs/milestones/
+generality.md` § The rule) match how other fields grade the evidence behind a model choice.
+None of the sources below is a Rietveld program, since none of the seven grades its own
+defaults.
+
+| Source | What it grades | Its counterpart in the tiers | Read |
+|---|---|---|---|
+| GRADE, Guyatt et al. (2008) BMJ 336, 924 | Quality of evidence, and separately the strength of a recommendation | The tier grades a statistic or threshold, and the judgement ground decides the action whatever its tier | abstract and summaries; that a strong recommendation may rest on weak evidence is recalled from later GRADE papers, not checked |
+| Sandia PCMM, Pilch, Oberkampf & Trucano (2007) SAND2007-5948 | Four maturity levels on six elements, one of them uncertainty quantification and sensitivity analysis | No element: a consequence axis was considered and not taken (generality.md § Decisions, 2026-10-20) | Sandia's abstract; level criteria not read |
+| NASA-STD-7009A (2016) | Five levels per factor, among them input pedigree, use history and results robustness | Pedigree is the tier. Use history is tier 2's program default | NASA summaries; the handbook's level criteria not read |
+| Sculley et al. (2015) NeurIPS 28 | Names fixed thresholds and configuration as hidden debt | The reason the table exists | secondary summaries |
+| Simmons, Nelson & Simonsohn (2011); Steegen et al. (2016) | Each analysis choice is a degree of freedom; a multiverse analysis reports the answer across every reasonable choice | The three-family ground with its stated failing case; no multiverse | secondary summaries |
+
+Measured on the tree at 44de0f62a: 1266 rows; 871 `unaudited` under the shrink-only baseline,
+149 tier 1, 41 tier 2, 142 tier 3, 44 `invariant`, 19 `caller`. Of the 41 tier-2 rows, 40 cite
+a dated source and one (`StageResult.window_area_tol`) rests on program defaults alone. All 142
+tier-3 rows carry an `approved` date. That date is not tied to the row's value: a value retuned
+under the same tier keeps it, and `tests/audit_delta.py` prints the change for the judge
+without failing on it.
+
 ## The tier-2 rows resting on a program default
 
 | Row | Programs that agree | Dissent |

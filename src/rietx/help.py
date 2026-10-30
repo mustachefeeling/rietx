@@ -3824,7 +3824,8 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "in units of its own uncertainty. The data and your prior knowledge "
             "disagree. The fit averages the two. That costs a slightly worse Rwp and "
             "hides the conflict. Loosen the restraint, correct its target, or accept "
-            "that the data should override the prior."
+            "that the data should override the prior. A planarity restraint gives one "
+            "finding, naming the atoms that sit out of its plane, worst first."
         ),
     ),
     "RIGID_BODY_MISFIT": HelpEntry(

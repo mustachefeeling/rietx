@@ -579,7 +579,7 @@ def test_an_unclaimed_binary_raw_names_six_vendors_and_picks_none(tmp_path):
                    "Shimadzu", "Stoe"):
         assert vendor in message
     # it says which this build reads, and offers a way out
-    assert "v3 and v4" in message and "PC-APD" in message
+    assert "v2 (single-range), v3 and v4" in message and "PC-APD" in message
     assert "ASCII" in message
     # and it names no vendor as *this* file's
     assert "is a Stoe" not in message
@@ -2704,18 +2704,17 @@ def test_a_range_declaring_more_points_than_the_file_holds_is_refused(tmp_path):
         rx.read_pattern(p)
 
 
-@pytest.mark.parametrize("magic,version", [(b"RAW ", 1), (b"RAW2", 2)])
 def test_an_undescribed_raw_version_is_refused_by_its_version_not_a_traceback(
-        magic, version, tmp_path):
-    """v1 has no description at all and v2 exactly one, uncorroborated — so
-    both are named rather than guessed at.  A parser written from a single
-    description with no file to check it against is how a reader comes to return
-    a plausible wrong pattern, which is what this whole seam exists to stop."""
-    p = tmp_path / f"v{version}.raw"
-    p.write_bytes(magic + b"\x00" * 4000)
+        tmp_path):
+    """v1 has no description at all, so it is named rather than guessed at.  A
+    parser written with nothing to check it against is how a reader comes to
+    return a plausible wrong pattern, which is what this whole seam exists to
+    stop."""
+    p = tmp_path / "v1.raw"
+    p.write_bytes(b"RAW " + b"\x00" * 4000)
 
     assert identify_format(p).name == "bruker_raw"
-    with pytest.raises(ValueError, match=f"RAW version {version}"):
+    with pytest.raises(ValueError, match="RAW version 1.*no description"):
         rx.read_pattern(p)
 
 
@@ -2760,6 +2759,163 @@ def test_the_alternate_range_marker_is_read_the_same_way(tmp_path):
                    marker=160)
 
     assert len(rx.read_pattern(p).two_theta) == 60
+
+
+# --------------------------------------------------------------------------- #
+# .raw v2 (RAW2) — two agreeing descriptions and one real file (WP-2059)
+#
+# The real file, Durham's `Pbso4.raw`, carries no licence and is never vendored:
+# `tests/local_data.py` registers it, and the last test here reads it only where
+# it has been fetched.  Every other v2 file is packed by `write_raw2` from its
+# own literal offsets, with the counts of the same pattern as GSAS-II's tutorial
+# holds it in `gsas2_pbso4.gpx` (in the tree under the GSAS-II licence).
+# --------------------------------------------------------------------------- #
+
+
+def _pbso4_xray_from_the_gpx():
+    """The X-ray histogram of ``gsas2_pbso4.gpx``: 6000 points, 10-159.975°."""
+    import numpy as np
+
+    from rietx.io.projects.gsas2 import _read_tree
+
+    tree = _read_tree(DATA / "gsas2_pbso4.gpx")
+    hist = next(item[0] for item in tree if isinstance(item[0], list)
+                and str(item[0][0]).startswith("PWDR PBSO4.XRA"))
+    x, y = (np.asarray(a, dtype=float) for a in hist[1][1][:2])
+    return x, y
+
+
+def test_a_v2_file_reads_to_the_counts_it_was_packed_with(tmp_path):
+    from tests.writers_xrd import write_raw2
+
+    x, y = _pbso4_xray_from_the_gpx()
+    p = write_raw2(tmp_path / "pbso4.raw", y, start=10.0, step=0.025)
+
+    assert identify_format(p).name == "bruker_raw"
+    notes: list = []
+    d = rx.read_pattern(p, diagnostics=notes)
+    assert d.intensity == y.tolist()
+    assert len(d.two_theta) == 6000
+    # float32 start and step, as the file holds them: 0.025 is not exact in
+    # float32, so the last point is 159.975 to within that rounding
+    assert d.two_theta == pytest.approx(x.tolist(), abs=1e-5)
+    assert d.sigma is None                       # whole counts: Poisson is right
+    assert d.metadata["format"] == "bruker_raw"
+    assert d.metadata["scan_count"] == "1"
+    assert notes == []
+    assert [s.n_points for s in list_scans(p)] == [6000]
+
+
+def test_the_v2_data_offset_is_the_header_length_the_file_declares(tmp_path):
+    """The real file's block header is 68 bytes; another length moves the data,
+    and a reader holding 0x144 as a constant reads the counts from inside it."""
+    from tests.writers_xrd import write_raw2
+
+    y = [500.0 + i % 13 for i in range(300)]
+    p = write_raw2(tmp_path / "long_header.raw", y, header_length=100)
+
+    assert p.stat().st_size == 0x100 + 100 + 4 * 300
+    assert rx.read_pattern(p).intensity == y
+
+
+def test_v2_counts_are_the_files_with_none_raised_to_one(tmp_path):
+    """GSAS-II raises every count below 1 to 1; the counts here are the file's.
+
+    A zero count is a measurement, and a value the arithmetic cannot call a
+    count is withheld a σ and reported, as for the other two versions."""
+    from tests.writers_xrd import write_raw2
+
+    whole = write_raw2(tmp_path / "zeros.raw", [0.0, 3.0, 0.0, 7.0] * 20)
+    assert rx.read_pattern(whole).intensity[:4] == [0.0, 3.0, 0.0, 7.0]
+
+    notes: list = []
+    scaled = write_raw2(tmp_path / "scaled.raw", [0.25, -2.0, 4.5, 9.0] * 20)
+    d = rx.read_pattern(scaled, diagnostics=notes)
+    assert d.intensity[:4] == [0.25, -2.0, 4.5, 9.0]
+    assert [n.code for n in notes] == ["PATTERN_INTENSITY_SCALED"]
+
+
+def _set_header_length(p, value):
+    raw = bytearray(p.read_bytes())
+    raw[0x100:0x102] = value.to_bytes(2, "little")
+    p.write_bytes(bytes(raw))
+
+
+#: Each gate's broken twin: the writer's keywords, then a byte edit after it,
+#: then the words the refusal must contain.  The intact twin of every case is
+#: the same call without the break, and it has to read first.
+_V2_BROKEN = {
+    "two blocks": (dict(blocks=2), None, "declares 2 blocks, a multi-range v2"),
+    "no blocks": (dict(blocks=0), None, "declares 0 blocks"),
+    "no points": (dict(points=0, counts=[]), None, "declares 0 points"),
+    "a byte past the counts": (dict(trailing=b"\x00"), None,
+                               "would end at offset 484, and the file is 485"),
+    "a point count one too many": (dict(points=41), None,
+                                   "and 41 points, so its counts would end"),
+    "a header length that moves the data": (
+        {}, lambda p: _set_header_length(p, 72),
+        "declares a length of 72 bytes"),
+    "the last count cut short": (
+        {}, lambda p: p.write_bytes(p.read_bytes()[:-2]),
+        "would end at offset 484, and the file is 482 bytes"),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_V2_BROKEN))
+def test_each_v2_gate_refuses_its_broken_twin_by_name(case, tmp_path):
+    """Every gate is one a real file can fail, and each is shown failable: the
+    twin without the break reads to its counts first, so a refusal here is the
+    gate's and not the writer's."""
+    from tests.writers_xrd import write_raw2
+
+    options, edit, refusal = _V2_BROKEN[case]
+    counts = options.pop("counts", [100.0 + i for i in range(40)])
+    intact = write_raw2(tmp_path / "intact.raw", [100.0 + i for i in range(40)])
+    assert rx.read_pattern(intact).intensity == [100.0 + i for i in range(40)]
+
+    broken = write_raw2(tmp_path / "broken.raw", counts, **options)
+    if edit is not None:
+        edit(broken)
+    assert identify_format(broken).name == "bruker_raw"
+    with pytest.raises(ValueError, match=refusal) as caught:
+        rx.read_pattern(broken)
+    assert "broken.raw" in str(caught.value)
+
+
+def test_the_real_v2_file_reads_to_its_6001_pinned_counts():
+    """Durham's ``Pbso4.raw``, where it has been fetched (local-only, WP-2059).
+
+    The pin is this published file's own numbers, stated against the gpx
+    histogram of the same pattern so no count is retyped: the two agree at 5998
+    of their 6000 common points, the RAW file reads 278 and 276 where the gpx
+    has 275 at 143.375° and 153.725°, and it has one more point, 368 counts at
+    160°.  TOPAS, run as a black box on the file, returned the same 6001
+    (issue #1164)."""
+    import numpy as np
+
+    from tests import local_data
+
+    where = local_data.dataset("durham-topas/pbso4")
+    if where is None:
+        pytest.skip("Pbso4.raw is not fetched: python -m tests.local_data "
+                    "durham-topas/pbso4")
+
+    x, y = _pbso4_xray_from_the_gpx()
+    expected = y.copy()
+    for angle, raw_count in ((143.375, 278.0), (153.725, 276.0)):
+        at = int(np.argmin(abs(x - angle)))
+        assert abs(x[at] - angle) < 1e-6 and expected[at] == 275.0
+        expected[at] = raw_count
+    expected = np.append(expected, 368.0)
+
+    notes: list = []
+    d = rx.read_pattern(where / "Pbso4.raw", diagnostics=notes)
+    assert len(d.intensity) == 6001
+    assert d.intensity == expected.tolist()
+    assert d.two_theta[0] == 10.0
+    assert d.two_theta[-1] == pytest.approx(160.0, abs=1e-5)
+    assert d.sigma is None
+    assert notes == []
 
 
 # --------------------------------------------------------------------------- #
