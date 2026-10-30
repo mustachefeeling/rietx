@@ -5,9 +5,10 @@ Interpretation, written before the runs:
 ==============================  ==========================================  ===========================
 arm                             expected                                    if not
 ==============================  ==========================================  ===========================
-synthetic Si + MgO (0.3 scale)  the second result ranks cF 4.2112 in its    the pass cannot find a
-                                top three, carries no cell of the Si        second phase: the feature
-                                lattice, and the first result is untouched  does not work
+synthetic Si + MgO (0.3 scale)  the second result ranks cF 4.2112 first,     the pass cannot find a
+                                carries no cell of the Si lattice, flags    second phase: the feature
+                                none of MgO's lines, and the first result   does not work
+                                is untouched
 synthetic Si alone              no candidate, ``INDEX_DATA_INSUFFICIENT``   misfit or picker junk is
                                                                             reported as a phase
 SRM 660c LaB6 (real), cubic     no candidate                                the same, on real data
@@ -110,7 +111,13 @@ def test_a_result_with_no_cell_has_nothing_to_subtract():
 def test_the_second_phase_is_indexed_from_what_the_first_cell_leaves():
     """Positive arm: MgO at 0.3 of the Si scale.  The first pass ranks Si's
     cell first (graded down by the MgO lines, which is why the default first
-    cell is rank 1 at any grade); its residue gives MgO's cell back first."""
+    cell is rank 1 at any grade); its residue gives MgO's cell back first.
+
+    The residue is the validation fit's, Pawley since #1191.  Under the Le
+    Bail fit this pass ran before, the residue kept 20 picks of Si misfit
+    beside MgO's 13 lines (8 of them under the misfit ratio, so driving), and
+    MgO's cell ranked third behind the 2·a₀ cF and √2·a₀ cI cells those
+    lines let into M20's first twenty."""
     from tests.test_acceptance_indexing import _skip_unless_finished
 
     first, second = _passes(0.3)
@@ -118,22 +125,23 @@ def test_the_second_phase_is_indexed_from_what_the_first_cell_leaves():
     assert _is(first.candidates[0], SI_A), first.candidates[0].cell
     assert second.diagnostics[0].code == "INDEX_RESIDUE_PASS"
     assert second.candidates, [d.code for d in second.diagnostics]
-    # the misfit lines are flagged, not dropped (they are scored, so they sit
-    # in M20's first twenty lines and the 2·a₀ cF and √2·a₀ cI siblings rank
-    # above the truth at this scale, which is third; at 0.05 and 0.1 it is
-    # first): the truth is in the top three, and no candidate is the Si cell
-    assert any(_is(c, MGO_A) for c in second.candidates[:3]), \
-        [c.cell[0] for c in second.candidates]
+    # the Pawley residue holds MgO's lines and no Si misfit: the truth ranks
+    # first and no candidate is the Si cell
+    assert _is(second.candidates[0], MGO_A), \
+        [(c.cell[0], c.centring) for c in second.candidates]
     assert not any(_is(c, SI_A) for c in second.candidates)
+    # MgO's lines stand on at most 0.08 of their height of Si profile here,
+    # so none is flagged residue_misfit
     note = second.diagnostics[0]
-    assert note.where and "flagged residue_misfit" in note.message
+    assert not note.where, note.where
 
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("indexing-residue")
 def test_a_single_phase_pattern_leaves_no_second_result():
-    """Negative arm: Si alone leaves nothing the picker keeps once the misfit
-    standing on Si's own profile is dropped, so the second result abstains."""
+    """Negative arm: Si alone leaves no line in the Pawley residue, so the
+    second result abstains (under the Le Bail fit the picker kept 15 lines of
+    misfit, every one flagged and none driving)."""
     first, second = _passes(None)
     assert _is(first.candidates[0], SI_A)
     assert not second.candidates
@@ -147,7 +155,9 @@ def test_a_single_phase_pattern_leaves_no_second_result():
 @pytest.mark.xdist_group("indexing-residue")
 def test_the_certified_lab6_pattern_leaves_no_second_result():
     """Negative arm on real data: SRM 660c, searched cubic as the acceptance
-    rows search it.  Its residue is the first fit's misfit and nothing else."""
+    rows search it.  Its residue is the first fit's misfit and nothing else:
+    every usable pick stands on more than its own height of LaB6 profile, so
+    every one is flagged ``residue_misfit`` and none drives the search."""
     from rietx.indexing.pick import pick_peaks
     from tests.test_acceptance_indexing import (
         REAL_DATA_BUDGET_SECONDS,
@@ -161,14 +171,16 @@ def test_the_certified_lab6_pattern_leaves_no_second_result():
                           spec=spec, preset="full")
     second = index_residue(first, data, ins, spec=spec, preset="full")
     assert not second.candidates, [(c.system, c.cell) for c in second.candidates]
-    assert second.diagnostics[0].code == "INDEX_RESIDUE_PASS"
+    note = second.diagnostics[0]
+    assert note.code == "INDEX_RESIDUE_PASS"
+    assert note.where and "flagged residue_misfit" in note.message
 
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("indexing-residue")
 def test_a_cell_that_does_not_fit_the_pattern_leaves_no_residue():
     """The width-law guard: Si's own cell stretched by 1 % misplaces every
-    line, its Le Bail fit buys the misfit with widths far past the list's, and
+    line, its fit buys the misfit with widths far past the list's, and
     nothing is picked.  Without the guard the picker ran at those widths (145 s
     on #933's reproducer, whose first cell is a wrong cubic I one)."""
     ins, data = _pattern(None)
