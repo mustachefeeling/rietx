@@ -583,6 +583,12 @@ from .._nearmiss import did_you_mean
 #: and defaulted to ``None``, "not recorded", the 0.25 → 0.26 rule;
 #: ``index_pattern`` writes the first two on every result, ``pick_peaks`` and
 #: ``fit_peaks`` the third on every list.
+#: Also in 0.60 (WP-1419 C3a): ``Phase.distortion_modes``, a child stated as
+#: its parent plus absolute mode amplitudes (``DistortionModes``: the parent
+#: group, the transform, the reference metric, one base position per atom and
+#: a ``DistortionMode`` per mode with ``amplitude: Parameter``).  Additive and
+#: defaulted to ``None``, exactly off, the 0.25 → 0.26 rule; written by
+#: ``displacive_statement``.  An older build refuses a phase carrying it.
 #: Also in 0.60 (WP-2011): ``LeBailValidation.mode``, additive, its default
 #: ``"lebail"`` being what every record written before it ran.
 SCHEMA_VERSION = "0.60"
