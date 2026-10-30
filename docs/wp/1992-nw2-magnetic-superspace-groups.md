@@ -1,6 +1,6 @@
 # WP-1992 — N-W2 (group half): magnetic superspace groups generated from the operators
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-30 — built and merged from outside as PR #1060 (`44de0f62`), with the `LINE_ATOL` second-λ control as PR #1227 (`c6c75653`); every task is ticked and the type-4 count (4651 against 4653) stays a strict xfail, so the close is the maintainer's
 Track: Data and metadata in, a structure out
 Depends on: — (N-W1 landed as PR #682; 1419 soft, the `representation/` package it extends)
 Priority: P3 2026-10-16 — library code with a contributor ready to build it, but no user-visible result until N-W5 (the magnetic Fourier forward model) lands on it
@@ -111,3 +111,4 @@ redistribution, so rietx ships a generator and pins published counts.
   Skill: none, the package stays unexported. spgrep stays in the `dev` extra:
   l. 43's "a dependency" reads "a test oracle" (noted on the PR).
 
+- **2026-10-30** (`/pr-review`) — PR #1227 merged from outside (`c6c75653`): the second-λ control that round 2 of #1060 (merged as `44de0f62`, with no merge record in this log) asked for on `LINE_ATOL`. It changes no value. λ reaches `_null` only through the character e^(2πiλd·v) of G_k. That character cancels on the ε = +1 operations and is one common internal-origin shift on the ε = −1 ones, which `_gauge` already removes. The nine `DELTA_GRID` lines were run at 23 values of λ (½, ⅓ and ¼, each ± 1e-10, 1e-8 and 1e-6, beside 1/√7 and 1/√5): 207 runs, every value cut below 1e-14, every value kept at least 0.0654, the same groups at every λ. A positive arm breaks the phase by ε: `_null` cuts it up to about 3e-9, and from 1e-8 up the isotropy search finds no group, so 1e-8 decides. The `LINE_ATOL` row keeps tier 1 and its value, with its evidence extended. Gotcha: the order of `line_irreps`' output changes near λ = ½ (36 of the 207 runs), so a comparison must ignore irrep order. The new test, `test_line_atol_gap_does_not_move_with_lambda_near_a_rational`, is in the fast tier. Not covered: the 230-group sweep, since the control runs the nine lines only. Every task here was already ticked, and the Status line still read ⬜ after #1060, so it now reads in progress until the maintainer closes the WP. Gate (a stack of eleven PRs on main `b40bc994`, tree `307eff83`; macOS arm64, `[dev,jax]`, Python 3.12): 13 217 passed, 216 skipped, 48 xfailed, 0 failed, with ruff, the `-W` manual build and the GUI ladder green.

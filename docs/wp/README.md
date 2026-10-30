@@ -20,8 +20,8 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 2026-10-25 | P3 | [magnetic](#magnetic) |
 | [1339](1339-where-the-improvement-lives.md) | Where the improvement lives | 2026-10-12 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 2026-10-25 | P2 | [magnetic](#magnetic) |
-| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-22 | P2 | [magnetic](#magnetic) |
-| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-22 | P3 | [magnetic](#magnetic) |
+| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 2026-10-30 | P2 | [magnetic](#magnetic) |
+| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 2026-10-30 | P3 | [magnetic](#magnetic) |
 | [1468](1468-what-the-polyhedra-still-miss.md) | What the polyhedra still miss, and the controls a chemist would reach for | 2026-10-03 | P3 | [Unscheduled](#unscheduled-render-what-the-fit-already-knows) |
 | [1530](1530-the-topas-readers-last-silences.md) | The TOPAS reader's last silences: a macro-opened dataset, a line it does not know, a held background | 2026-10-03 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1539](1539-the-declared-optics-reach-every-caller.md) | The declared optics reach every caller and every reader | 2026-10-03 | P4 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
@@ -29,12 +29,13 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1805](1805-the-rigid-body.md) | `RigidBody`: schema, collector, anchored rotation, the body's own rows | 2026-10-08 | P2 | [rigid-bodies](#rigid-bodies) |
 | [1806](1806-first-public-case-acridine-form-ix.md) | First public case: acridine form IX | 2026-10-25 | P3 | [rigid-bodies](#rigid-bodies) |
 | [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 2026-10-29 | P2 | [rigid-bodies](#rigid-bodies) |
-| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 2026-10-29 | P3 | [rigid-bodies](#rigid-bodies) |
+| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 2026-10-30 | P3 | [rigid-bodies](#rigid-bodies) |
 | [1909](1909-a-line-on-a-falling-flank.md) | A line on a falling flank, at a third of its own esd | 2026-10-12 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1910](1910-the-extinction-screen-at-a-small-cell-error.md) | The extinction screen at a small cell error, and the other centring | 2026-10-26 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1911](1911-the-foreign-writers-state-what-the-other-program-reads.md) | The foreign writers state what the other program reads: the setting, the scale, the free set | 2026-10-12 | P3 | [Unscheduled](#unscheduled-coming-from-another-code) |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | 2026-10-08 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1918](1918-a-magcif-read-in-its-own-cell-and-validated.md) | A magCIF the reader refuses today is read in its own cell, and one validator checks it on the way in and out | 2026-10-29 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
+| [1919](1919-maximal-subgroups-generated-from-the-operators.md) | Maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators | 2026-10-30 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1924](1924-a-monoclinic-search-inside-its-ceiling.md) | A monoclinic search stays inside its ceiling and its memory | 2026-10-13 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
 | [1931](1931-the-background-order-scan-runs-to-its-cap.md) | The background order scan runs to its cap | 2026-10-12 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [1933](1933-the-cif-module-beyond-the-structure-block.md) | The CIF module beyond the structure block: the pattern block, the multi-block layout, and the validation hook | 2026-10-09 | P2 | [Unscheduled](#unscheduled-coming-from-another-code) |
@@ -45,18 +46,20 @@ names hard dependencies, and *soft* marks a preferred order.
 | [1986](1986-guides-and-theory-move-over-and-the-old-tree-retires.md) | Guides and Theory move over, and the old tree retires | 2026-10-22 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1988](1988-a-pr-put-up-for-review-is-watched.md) | A PR put up for review is watched by the session that opened it | 2026-10-23 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [1991](1991-a-site-and-its-own-image-are-one-atom.md) | A site and its own image are one atom on every route | 2026-10-29 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
+| [1992](1992-nw2-magnetic-superspace-groups.md) | N-W2 (group half): magnetic superspace groups generated from the operators | 2026-10-30 | P3 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [1997](1997-the-direct-space-solver-on-main.md) | The direct-space solver on main: site classes, kernels, chemistry, engine and entry point | 2026-10-24 | P2 | [structure-solution](#structure-solution) |
 | [2003](2003-the-chain-actions.md) | The chain actions: what a series decides between patterns | 2026-10-26 | P2 | [generality](#generality-the-audits) |
 | [2006](2006-readers-crystallography-gui-and-the-dead-surface.md) | Readers, crystallography and GUI codes, and the dead surface | 2026-10-24 | P3 | [generality](#generality-the-audits) |
 | [2011](2011-a-candidate-is-judged-on-a-fit-that-converged.md) | A candidate is judged on a fit that converged | 2026-10-28 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2019](2019-each-fast-leg-runs-what-only-it-can-see.md) | Each fast leg runs what only it can see, and the tail is cut again | 2026-10-21 | P2 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2028](2028-a-joint-fits-guards-see-every-histogram.md) | A joint fit's guards see every histogram | 2026-10-26 | P2 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
-| [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md) | A formula's volume window fits inorganic cells, and a hydrate parses | 2026-10-23 | P2 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
+| [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md) | A formula's volume window fits inorganic cells, and a hydrate parses | 2026-10-30 | P2 | [Unscheduled](#unscheduled-data-and-metadata-in-a-structure-out) |
 | [2034](2034-the-satellite-window-is-compile-models-window.md) | The satellite arm generates over `compile_model`'s window, not a copy of it | 2026-10-27 | P3 | [magnetic](#magnetic) |
 | [2035](2035-a-reduced-cell-is-its-inputs-exact-image.md) | A reduced cell is its input's exact image, near a right angle too | 2026-10-26 | P3 | [Unscheduled](#unscheduled-what-fires-and-what-stays-silent) |
 | [2036](2036-main-is-green-on-every-nightly-leg.md) | Main is green on every nightly leg: a full suite that finishes, two Windows tooling tests, and answers that move with the platform | 2026-10-25 | P3 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2041](2041-a-tutorial-shows-the-indexer-abstain.md) | A tutorial shows the indexer abstain | 2026-10-24 | P4 | [Unscheduled](#unscheduled-the-repo-s-own-process) |
 | [2045](2045-a-runaway-fit-ends-without-an-expensive-closing-stage.md) | A runaway fit ends without an expensive closing stage | 2026-10-25 | P2 | [Unscheduled](#unscheduled-a-long-run-is-not-one-fit) |
+| [2059](2059-a-bruker-raw-v2-file-reads.md) | A Bruker RAW v2 file reads, checked against two descriptions and one real file | 2026-10-30 | P3 | [Unscheduled](#unscheduled-the-formats-a-lab-still-has) |
 
 ## Next, by priority
 
@@ -400,8 +403,8 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1328](1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ✅ 2026-10-03 | — | [1327](1327-magnetic-structure.md) ([1118](1118-foreign-model-files.md) soft) |
 | [1329](1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | 🔄 2026-10-25 | P3 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
 | [1343](1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | 🔄 2026-10-25 | P2 | [1327](1327-magnetic-structure.md) ([1326](1326-satellites-without-a-moment.md) soft) |
-| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-10-22 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
-| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 🔄 2026-10-22 | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
+| [1418](1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-10-30 | P2 | #290, [1326](1326-satellites-without-a-moment.md), [1327](1327-magnetic-structure.md) |
+| [1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | 🔄 2026-10-30 | P3 | [1418](1418-the-magnetic-structure-is-determined.md) ([1327](1327-magnetic-structure.md) soft) |
 | [2034](2034-the-satellite-window-is-compile-models-window.md) | The satellite arm generates over `compile_model`'s window, not a copy of it | 🔄 2026-10-27 | P3 | — |
 
 ## <a id="rietview"></a>rietview — the structure figure an agent composes
@@ -430,7 +433,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1806](1806-first-public-case-acridine-form-ix.md) | First public case: acridine form IX | 🔄 2026-10-25 | P3 | [1805](1805-the-rigid-body.md) |
 | [1807](1807-a-body-on-a-special-position.md) | A body on a special position | 🔄 2026-10-29 | P2 | [1805](1805-the-rigid-body.md) |
 | [1808](1808-torsions-on-named-rotatable-bonds.md) | Torsions on named rotatable bonds | ✅ 2026-10-11 | — | [1802](1802-the-fragment-type.md), [1805](1805-the-rigid-body.md) |
-| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 🔄 2026-10-29 | P3 | — |
+| [1809](1809-tether-planarity-and-anti-bump-restraints.md) | Tether, planarity and anti-bump restraints, pairs frozen per plan | 🔄 2026-10-30 | P3 | — |
 | [1810](1810-hydrogens-riding-on-a-body.md) | Hydrogens riding on a body, CIF flags | ✅ 2026-10-23 | — | [1805](1805-the-rigid-body.md) ([1806](1806-first-public-case-acridine-form-ix.md) soft) |
 | [1811](1811-bodies-in-a-series.md) | Bodies in a series | ⬜ | P3 | [1805](1805-the-rigid-body.md), [1333](1333-a-series-survives-one-pattern.md) |
 | [1812](1812-gui-textdoc-skill-and-manual-for-bodies.md) | GUI, textdoc, skill and manual for bodies | ⬜ | P4 | [1805](1805-the-rigid-body.md) |
@@ -501,7 +504,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1942](1942-a-soft-restraint-on-a-sum-across-phases.md) | A soft restraint on a sum of parameters across phases | ⬜ | P3 | — |
 | [1943](1943-the-pbso4-round-robin-as-an-acceptance-case.md) | The PbSO₄ round robin as an acceptance case | ⬜ | P3 | — |
 | [1973](1973-a-topas-spherical-harmonics-texture-reads-in.md) | A TOPAS spherical-harmonics texture reads in | ⬜ | P3 | [1960](1960-spherical-harmonics-texture.md), #131 |
-| [2057](2057-the-o2-form-factor-names-its-source.md) | The O²⁻ form factor names the fit it came from | ⬜ | P4 | — |
+| [2057](2057-the-o2-form-factor-names-its-source.md) | The O²⁻ form factor names the fit it came from | ✅ 2026-10-30 | — | — |
 | [2058](2058-the-pcr-reader-takes-npatt-and-jbt-10.md) | The FullProf `.pcr` reader takes three control flags, `Jbt ±10` and `NPATT` | ⬜ | P3 | — |
 
 ### <a id="unscheduled-the-fit-has-no-reference"></a>The fit has no reference
@@ -647,7 +650,7 @@ Not started and rated P1 or P2. The rest are in the tables below.
 |---|---|---|---|---|
 | [1407](1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals | ✅ 2026-09-13 | — | — |
 | [1416](1416-read-xy-reads-the-files-shape.md) | `read_xy` reads the file's shape | 🛑 2026-09-24 | — | — |
-| [2059](2059-a-bruker-raw-v2-file-reads.md) | A Bruker RAW v2 file reads, checked against two descriptions and one real file | ⬜ | P3 | — |
+| [2059](2059-a-bruker-raw-v2-file-reads.md) | A Bruker RAW v2 file reads, checked against two descriptions and one real file | 🔄 2026-10-30 | P3 | — |
 
 ### <a id="unscheduled-render-what-the-fit-already-knows"></a>Render what the fit already knows
 
@@ -697,12 +700,12 @@ Not started and rated P1 or P2. The rest are in the tables below.
 | [1516](1516-scoping-stacking-faults.md) | Scoping stacking faults: DIFFaX files first, a native model when it earns one | ⬜ | P3 | [1512](1512-a-simulated-diffuse-curve-is-a-component.md) ([1514](1514-scoping-rigid-bodies.md), [1515](1515-scoping-structure-solution.md) soft) |
 | [1517](1517-the-eight-steers-replayed.md) | The eight steers, replayed: does the package raise what the person caught? | ⬜ | P3 | — |
 | [1913](1913-what-the-benchmark-agents-wrote-by-hand.md) | What the benchmark agents wrote by hand: a mixed site, a special-position retry loop, and `.esd` | 🔄 2026-10-08 | P3 | — |
-| [1919](1919-maximal-subgroups-generated-from-the-operators.md) | Maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
+| [1919](1919-maximal-subgroups-generated-from-the-operators.md) | Maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators | 🔄 2026-10-30 | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
 | [1921](1921-the-users-own-structure-database-indexed.md) | The user's own structure database, indexed: is this phase or this cell already known? | ⬜ | P3 | — |
 | [1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md) | What the chemist declares reaches the extinction screen | ✅ 2026-10-23 | — | — ([1910](1910-the-extinction-screen-at-a-small-cell-error.md) soft) |
-| [1992](1992-nw2-magnetic-superspace-groups.md) | N-W2 (group half): magnetic superspace groups generated from the operators | ⬜ | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
+| [1992](1992-nw2-magnetic-superspace-groups.md) | N-W2 (group half): magnetic superspace groups generated from the operators | 🔄 2026-10-30 | P3 | — ([1419](1419-a-child-structure-refined-on-its-mode-amplitudes.md) soft) |
 | [1993](1993-nw3-satellites-at-a-real-q.md) | N-W3: satellites at a real q, to order m, with (h k l m) rows | ⬜ | P3 | — ([1992](1992-nw2-magnetic-superspace-groups.md) soft) |
-| [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md) | A formula's volume window fits inorganic cells, and a hydrate parses | 🔄 2026-10-23 | P2 | — ([1510](1510-what-the-chemist-knows-reaches-the-search.md) soft) |
+| [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md) | A formula's volume window fits inorganic cells, and a hydrate parses | 🔄 2026-10-30 | P2 | — ([1510](1510-what-the-chemist-knows-reaches-the-search.md) soft) |
 | [2033](2033-a-declared-z-filters-the-extinction-class.md) | A declared Z or density filters an extinction class's members | ⬜ | P3 | — ([1967](1967-what-the-chemist-declares-reaches-the-extinction-screen.md), [2030](2030-a-formulas-volume-window-fits-inorganic-cells.md) soft) |
 
 ### <a id="unscheduled-the-repo-s-own-process"></a>The repo's own process
