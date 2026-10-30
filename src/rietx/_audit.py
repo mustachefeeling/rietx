@@ -156,6 +156,7 @@ WALKED: dict[str, int] = {
     "io/formats/gsas.py": 2006,
     "io/formats/pdcif.py": 2006,
     "io/formats/peaklist.py": 2006,
+    "io/formats/total_scattering.py": 2006,
     "io/instrument_profile.py": 2006,
     "io/projects/fullprof.py": 2006,
     "io/projects/registry.py": 2006,
@@ -807,6 +808,20 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
+    Row("PATTERN_TOTAL_SCATTERING", "code", tier=1, ambiguity=1,
+        evidence=("error; a refusal by file shape (issue #1240). It fires when the file's own "
+                  "#L line labels its first two columns r and G/g, or Q and S/F; when its "
+                  "header is PDFgetX2's (a 'History written' line and the Get_XPDF banner) or "
+                  "PDFgetX3's ([DEFAULT] with qmaxinst or a diffpy.pdfgetx version); or, with "
+                  "neither, on a .gr/.sq/.fq suffix, which the message says matched the name "
+                  "only. An abscissa labelled r or Q is not 2θ by definition, so reading it as "
+                  "2θ is wrong arithmetic, and no reader in the build reads G(r), S(Q) or F(Q) "
+                  "(#192 is fenced). An ordinary 2θ .xy, one whose comment mentions G(r), and a "
+                  "Q-axis .chi are not claimed (tests/test_readers.py)"),
+        response="error",
+        responds=("nothing to fit: open the diffraction pattern the reduction started from, or "
+                  "rename a 2θ scan that only carries a .gr, .sq or .fq suffix"),
+        scope=("all",)),
     Row("PATTERN_UNDERSAMPLED", "code", response="warning",
         responds=("read an intensity- or width-derived number (a fraction, an ADP, a size, "
                   "a strain, an instrument width) as less certain than its esd, and "
