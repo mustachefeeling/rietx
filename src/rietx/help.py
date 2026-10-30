@@ -1478,7 +1478,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "the subtracted first phase's profile than its own height, so it is as likely "
             "the first cell's misfit as a line of a second phase. It stays usable, so the "
             "second result counts it as a line no candidate explains and grades "
-            "accordingly, but it never drives the search. The height rule was measured on two synthetic pairs, Si with MgO and Si with NaCl, and is untested beyond them."
+            "accordingly, but it never drives the search. The height rule separates the misfit from true lines on two 11-BM mixtures; on the IUCr CPD lab mixtures it flags about 6 % of true minor-phase lines and misses 15 % of the misfit."
         ),
     ),
     "unresolved_split": HelpEntry(
@@ -2807,7 +2807,8 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "INDEX_RESIDUE_PASS": HelpEntry(
         title="This result indexes what another cell left of the pattern",
         description=(
-            "`index_residue` fitted the named cell to the pattern by Le Bail, subtracted "
+            "`index_residue` fitted the named cell to the pattern with the validation's own "
+            "Pawley fit, subtracted "
             "its peaks, picked the remainder at that fit's widths and indexed it. Picks "
             "standing on more of the subtracted profile than their own height are "
             "flagged `residue_misfit` as that fit's misfit, and `where` lists them; they "
@@ -2816,12 +2817,15 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "widths more than three times the list's own, the cell does not describe the "
             "pattern and nothing was picked; the message says so. A candidate here is a "
             "second phase only if it earns a grade of its own. A residue too short to "
-            "search abstains, which is the answer on a single-phase pattern (SRM 660c and "
-            "synthetic Si left no usable residue line). Refine both phases together "
+            "search abstains, which is the answer on a single-phase pattern (synthetic Si "
+            "left no pick, SRM 660c only flagged ones). Measured on real mixtures with "
+            "the largest phase subtracted, it found LaB6 first under 11-BM's cBN but no "
+            "second phase in the eight IUCr CPD lab mixtures. Refine both phases together "
             "before you quote either cell. The misfit cut, one height of subtracted "
-            "profile (`RESIDUE_MISFIT_RATIO`), was measured on two synthetic pairs "
-            "(Si + MgO, Si + NaCl), untested beyond them; a second phase's line under a "
-            "stronger first-phase line is flagged with the misfit, scored but not driving."
+            "profile (`RESIDUE_MISFIT_RATIO`), separates misfit from true lines on two "
+            "11-BM mixtures but not on the IUCr CPD lab mixtures, where it flags about 6 % "
+            "of true minor-phase lines; a second phase's line under a stronger first-phase "
+            "line is flagged with the misfit, scored but not driving."
         ),
     ),
     "INDEX_MULTIPLE_SOLUTIONS": HelpEntry(
