@@ -27,6 +27,22 @@ checks P⁻¹HP against that setting exactly.  What is pinned, and against what:
   and (P, p) as maximal by :func:`is_maximal`, and every class is complete.
   3767 subgroups, 1104 t and 2663 k, about 15-30 CPU-s in all (a second or less for
   one group), so the sweep runs in the fast suite.
+
+**Wyckoff positions and splittings** (the second half):
+
+* **The reference set** (validation).  Splittings ITA A1 prints, quoted from the
+  page images: ch. 1.6 pp. 47-49 (AlB₂ → ZrBeSi and CaIn₂, pyrite → PdS₂ and
+  NiAsS, PdS₂ → PtGeSe, rutile → trirutile) and ch. 3.1 pp. 468 and 470 (Cmmm →
+  Immm in two settings, and the closed forms of the I-4m2 and P4₂/n series at
+  p = 3, 5, 7, the latter in both origin choices).  Each is computed in A1's own
+  (P, p), so its labels compare exactly, and the subgroup is also one
+  :func:`maximal` generates.
+* **The frame map** (verification).  spglib labels atoms in its own frame; in
+  the 17 Hall settings where that frame permutes letters, the letters agree
+  with spglib's on its own standard cell, and differ without the map.
+* **Slow, all 230 types** (about 3-4 CPU-min in all, so ``slow``, per group): the
+  1731 positions, the same positions in each of the 530 Hall settings, and
+  Σ m_H = m_G·|det P| on all 33 792 rows at index ≤ 4.
 """
 
 from __future__ import annotations

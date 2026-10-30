@@ -56,7 +56,7 @@ the subgroup they describe (:meth:`MaximalSubgroup.describes`), never
 entry by entry.  Two-origin types come out in spglib's default, origin
 choice 1, and rhombohedral ones on hexagonal axes.
 
-**Wyckoff positions** (ITA A, Wondratschek 2016, § 1.4.4; A1 ch. 3.1) are the
+**Wyckoff positions** (Souvignier et al. 2016, ITA A § 1.4.4.2; A1 ch. 3.1) are the
 classes of points whose site-symmetry groups are conjugate in G, found on the
 1/24 grid of a Hall setting's conventional cell and joined by an exact test
 (a point is on a position when an image of it lies on the fixed component of
@@ -1010,8 +1010,8 @@ class WyckoffPositions:
     """The Wyckoff positions of a space group, found from its operations.
 
     The positions themselves come from the group's operations alone: points
-    whose site-symmetry groups are conjugate in G form one position (ITA A,
-    Wondratschek 2016, § 1.4.4).  The letters are ITA's labelling convention,
+    whose site-symmetry groups are conjugate in G form one position
+    (Souvignier et al. 2016, ITA A § 1.4.4.2).  The letters are ITA's labelling convention,
     not theory, and are spglib's for the setting ``standard`` (Togo,
     Shinohara & Tanaka 2024).  When the group is given in one of spglib's 530
     Hall settings that is its own setting and ``transform`` is the identity;
@@ -1407,7 +1407,7 @@ def wyckoff_positions(group) -> WyckoffPositions:
     ``group`` is any symbol gemmi resolves, a ``gemmi.SpaceGroup`` or an
     :class:`~rietx.crystallography.symmetry.OperatorGroup`, in any setting.
     The positions are the classes of points whose site-symmetry groups are
-    conjugate in the group (ITA A, Wondratschek 2016, § 1.4.4), found on the
+    conjugate in the group (Souvignier et al. 2016, ITA A § 1.4.4.2), found on the
     1/24 grid of the conventional cell and identified exactly; over the 230
     types they number 1731, ITA's total.  The letters are spglib's (Togo,
     Shinohara & Tanaka 2024), stated as belonging to the setting and (P, p)
@@ -1456,8 +1456,8 @@ def wyckoff_splitting(group, sub) -> WyckoffSplitting:
     or any subgroup as a pair ``(symbol, (P, p))``, r_group = P·r_sub + p,
     maximal or not.  For each position of G a generic point's G-orbit is
     decomposed into H-orbits, each mapped by (P, p) into H's setting and
-    identified there exactly (A1, Müller 2011, ch. 3.1; the method of
-    WYCKSPLIT, Aroyo 2011, ch. 1.7 § 1.7.4).  The result carries the (P, p)
+    identified there exactly (Müller 2011, ITA A1 ch. 3.1; the procedure
+    Aroyo, Perez-Mato, Capillas & Wondratschek 2011 describe in A1 § 1.7.4).  The result carries the (P, p)
     H's labels belong to (A1 § 3.1.1.6.5), and every row is checked against
     Σ m_H = m_G·|det P|.  Raises ``ValueError`` when ``sub`` is not a
     subgroup of ``group``.
