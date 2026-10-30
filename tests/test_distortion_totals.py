@@ -500,8 +500,10 @@ def _rotated(phase, modes, q):
 
 
 #: the bar for "unchanged under the rotation": two converged fits of one model in
-#: two parametrisations (measured 2026-10-30, macOS arm64: see the docstring)
-ROTATION_REL = 1e-6
+#: two parametrisations.  Measured 2026-10-30 (macOS arm64): A_τ 2.0e-8, esd
+#: 8.4e-8, T² 1.9e-7, Δχ² 1.3e-13, ΔBIC 1.0e-11, Λ 6.5e-9 relative; a 50×
+#: margin on the widest, against a diagonal form that moves by 37 %
+ROTATION_REL = 1e-5
 
 
 @BT1
@@ -627,6 +629,11 @@ def test_a_det_meets_the_bisected_crossing(which):
     measured 1.1 % (p = 4) and 2.7 % (p = 2) plus A_DET_MARGIN.  The row's
     ``a_det`` is that formula at the call's own target.  Positive arm: the
     other exponent misses by more than 25 %.
+
+    Measured 2026-10-30 (macOS arm64), largest |offset| per held block: Γ
+    child S6 1.66 % (p = 4), identity 2.44 % (p = 2); zone-boundary child S1
+    0.56 % (p = 4), identity 1.40 % (p = 2).  The other exponent misses the
+    block's crossing by a factor 2.4, 5.9, 1.8 and 4.9.
     """
     truth, start = child(which)
     _, inst, tt, sigma = bt1_nuclear()
