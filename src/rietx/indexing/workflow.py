@@ -328,6 +328,14 @@ def validation_plan(candidate: CellCandidate, instrument: Instrument,
     and saves 1-8 s a run.  The shared pre-fit F1 asked for needs a
     cell-free width law fitted to the peak list; until that lands,
     ``validate_by_lebail(freeze_profile=True)`` is the caller's choice.
+    against 5 free (WP-2011).  Across the acceptance corpus's real families
+    and both PbSO₄ histograms (#941's follow-ups, re-measured under the
+    Pawley fit on the same searches) freezing moves no candidate's rank or
+    grade, raises the true cell's Rwp 1.1-4.9× (1.5-5.7× under Le Bail),
+    narrows the best rival's Rwp over it on 8 of 13 runs and widens it on
+    none, and changes a run's time by -9 to +9 s.  The shared pre-fit F1
+    asked for needs a cell-free width law fitted to the peak list; until that
+    lands, ``validate_by_lebail(freeze_profile=True)`` is the caller's choice.
 
     **The cell is held.**  ``profile_only`` — the ordinary structure-free plan — frees
     ``phases.*.cell.*``, and it must not here: the candidate *is* the hypothesis
