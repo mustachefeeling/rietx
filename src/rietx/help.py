@@ -5465,10 +5465,8 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
         description=(
             "Each row this stage moved before solving, with the value it started at. A "
             "freed row sitting on a floor starts at the stage's `seed`, and an all-zero "
-            "Stephens block is put on its isotropic ray by `strain_seed`. A free moment "
-            "angle that starts on a direction the symmetry fixes is moved off it by "
-            "0.02 rad, since a fit cannot leave that point where it is a maximum. An "
-            "empty mapping lifted nothing; `None` means a result stored before the field."
+            "Stephens block is put on its isotropic ray by `strain_seed`. An empty "
+            "mapping lifted nothing; `None` means a result stored before the field."
         ),
     ),
     "StageResult.moment_angle_tests": HelpEntry(

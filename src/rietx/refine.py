@@ -39,7 +39,6 @@ from .background.diagnostics import (
 )
 from .crystallography.magnetic.moments import (
     MOMENT_DIRECTION_SUPPORT,
-    SEED_TILT,
 )
 from .crystallography.magnetic.moments import (
     MOMENT_DOF_PATH as _MOMENT_DOF,
@@ -1440,96 +1439,6 @@ def _hold_flat_moments(model: CompiledModel, table: ParameterTable
     if held:
         table.set_vary(held, False)
     return held, found, turned
-
-
-def _stationary_moment_angles(model: CompiledModel, table: ParameterTable,
-                              candidates: list[str]) -> dict[str, bool]:
-    """Per ``candidates`` column that is a moment angle this model can judge,
-    whether it sits where the pattern is even in it — a direction the symmetry
-    fixes (WP-1327).  A column the model cannot judge is absent, which is not
-    a verdict: a joint fit asks every histogram and an X-ray one sees no moment.
-
-    A column is a candidate when every model path it moves is a moment angle
-    (``dof1``/``dof2``), all and never any, with a variable dropped first, as
-    ``least_squares._moment_angle_columns`` reads it.  It is stationary when
-    its ∂(p²⟨|F_⊥|²⟩) — the per-reflection derivative its analytic column is
-    built from (``CompiledModel.moment_f2_grads``), summed through C — is at
-    most ``MOMENT_DIRECTION_SUPPORT`` of the largest |μ|·∂/∂μ of the sites it
-    moves: the tip displacement of a turn against the same displacement along
-    the moment, the flat-direction probe's comparison
-    (:func:`_flat_moment_scan`), at the floor the stationary-angle test uses.
-    Exactly zero by symmetry there, and order one of the modulus anywhere
-    else, so the floor decides nothing in between.  A site whose modulus
-    moves nothing is skipped: every direction of it is flat, which is the
-    hold's to say.
-    """
-    if model.mode != "rietveld":
-        return {}
-    free = table.free_paths
-    reach = table.column_reach()
-    C = table.constraint_block()[0].tocsc()
-    values = None
-    grads: dict[int, dict[tuple[int, int], np.ndarray]] = {}
-    out: dict[str, bool] = {}
-    for path in candidates:
-        if path not in reach:
-            continue
-        moved = [q for q in reach[path] if not is_variable_path(q)]
-        if not moved or not all(_MOMENT_DOF.match(q) and not q.endswith(".dof0")
-                                for q in moved):
-            continue
-        if values is None:
-            values = table.decode(table.x0())
-        c = free.index(path)
-        column = reference = 0.0
-        for q in moved:
-            ip, j, k = (int(x) for x in re.match(
-                r"^phases\.(\d+)\.atoms\.(\d+)\.moment\.dof(\d+)$", q).groups())
-            if model.phases[ip].magnetic is None:
-                continue
-            if ip not in grads:
-                grads[ip] = model.moment_f2_grads(ip, values)
-            g = grads[ip]
-            column += float(C[table._paths[q], c]) * g[(j, k)]
-            mu = abs(values[f"phases.{ip}.atoms.{j}.moment.dof0"])
-            reference = max(reference, mu * float(np.linalg.norm(g[(j, 0)])))
-        if reference > 0.0:
-            out[path] = (float(np.linalg.norm(column))
-                         <= MOMENT_DIRECTION_SUPPORT * reference)
-    return out
-
-
-def _seed_stationary_moment_angles(model: CompiledModel, table: ParameterTable,
-                                   freed: list[str]) -> dict[str, float]:
-    """Move each freed moment angle off a symmetry-stationary start (WP-1327).
-
-    A moment seeded on a direction the symmetry fixes starts its angle where
-    the pattern is even in it, so the angle's exact column is zero there and
-    no step of a solver driven by it moves the angle.  Where that direction is
-    a *maximum* along the angle the fit stays on it: on
-    ``test_magnetic_moment_frame``'s P 1 2/m 1 fixture, seeded at
-    (2.5, 0, 2.5), two fits stopped at φ = 0 with χ² 10.9 and 3.7 above the
-    minima at φ = ±0.047.  The peak chain's forward difference walked off by
-    its truncation (½·r″·h), which is not a mechanism anyone chose.  So each
-    column :func:`_stationary_moment_angles` finds is moved by
-    ``moments.SEED_TILT`` rad before the solve — ``tilted_seed``'s step for
-    the same stationary point, measured there (WP-1418).  Where the direction
-    is a minimum the fit returns to it, and the stationary-angle test reads it
-    as before.  Returns ``{column: value it starts at}``, the
-    ``StageResult.seeded`` record's third writer; empty, and nothing touched,
-    where no angle starts on such a point.
-    """
-    verdicts = _stationary_moment_angles(
-        model, table, [p for p in freed if p in set(table.free_paths)])
-    stationary = [p for p, at in verdicts.items() if at]
-    seeded: dict[str, float] = {}
-    for path in stationary:
-        entry = table.entries[table._paths[path]]
-        entry.value = float(entry.value) + SEED_TILT
-        seeded[path] = entry.value
-    if seeded:
-        table.refresh_ties()
-    return seeded
 
 
 def _only_moves(reached: list[str], prefixes: tuple[str, ...],
@@ -4647,9 +4556,6 @@ class Refinement:
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
-        # after the holds, on what they left free: an angle the flat probe held
-        # is not a stationary point to leave but a direction nobody can see
-        seeded.update(_seed_stationary_moment_angles(model, table, freed))
         self._held = list(held)
 
         if events is not None:

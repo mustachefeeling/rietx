@@ -6,20 +6,20 @@ forward model — so nothing about a real specimen is asserted.
 
 **What is new.**  ``_make_jacobian`` used to send every ``…moment.dof<k>``
 column to the peak-chain finite difference, which re-runs ``phase_peaks`` at
-a perturbed θ.  ``_moment_column`` now builds it from
+a perturbed θ.  ``_moment_column`` now builds a **modulus** column from
 ``scattering.d_magnetic_f2_d_dofs`` (∂|F_⊥|² = 2·Re[(P·F)ᴴ·∂F], with ∂F the
 forward orbit sum of one atom at ∂m/∂d) chained through the same intensity
 factors as the coordinate columns.  The derivation is in the WP-1327
 handover and the spike's ``DERIVATION.md``.
 
-**The angle seed.**  An exact angle column is zero at a symmetry-fixed seed,
-and where that direction is a maximum along the angle a solver cannot leave
-it; the forward difference escaped only by its truncation.  So the runners
-move such a start by ``SEED_TILT`` before the stage
-(``refine._seed_stationary_moment_angles``, recorded in
-``StageResult.seeded``).  The last section holds both arms: without the seed
-two pinned fits stall, and a fit that never starts on such a point is
-bit-identical with and without it.
+**Angles are built and checked here, and not dispatched.**  The derivative
+covers them (the same function returns their rows), and every test below
+holds the angle columns ``_moment_column`` builds to the same oracle.  The
+dispatch declines them by name (``_moment_reach_ok``'s docstring), because
+an exact angle column is zero at a symmetry-fixed seed and a solver cannot
+leave it where it is a maximum, which the forward difference escaped only by
+its truncation; ``test_an_exact_angle_column_cannot_leave_a_symmetric_seed``
+pins that measured reason, so the decline cannot outlive it unnoticed.
 
 **Why the oracle is exact, not a forward difference.**  F is linear in every
 moment, the moment is linear in the modulus and in (cos α, sin α) for each
@@ -35,7 +35,7 @@ each.
 **Positive arms.**  A doubled ∂m/∂μ, a sign-flipped ∂m/∂angle and a
 projection taken along the wrong axis must each fail the oracle bar, and the
 replaced peak-chain column must too — a bar that cannot fail would certify
-anything.  The seed's positive arm is the stall it prevents.
+anything.
 """
 
 from __future__ import annotations
@@ -269,9 +269,9 @@ def _oracle_errors(name):
 @pytest.mark.parametrize("name", ALL_STATES)
 def test_the_dispatch_takes_the_branch_exactly_where_it_claims(name):
     """Which columns the analytic branch claims, asserted — not inferred
-    from agreement, which a peak-chain column would also give: every moment
-    column of a supported phase, moduli and angles, and nothing on a split
-    draw with live extinction.  And a claimed column *is* the built one."""
+    from agreement, which a peak-chain column would also give: every
+    modulus column of a supported phase, no angle, nothing on a split draw
+    with live extinction.  And a claimed column *is* the built one."""
     model, table = _cached(name)
     supported = model.moment_grad_supported(0)
     assert supported is (name != "split_extinction_live")
@@ -290,7 +290,7 @@ def test_the_dispatch_takes_the_branch_exactly_where_it_claims(name):
     finally:
         lsq._moment_column = real
     cols = _moment_columns(table)
-    want = [c for c, _kind, _ in cols] if supported else []
+    want = [c for c, kind, _ in cols if kind == "modulus"] if supported else []
     assert sorted(taken) == want, (taken, want)
     for c, _kind, reach in cols:
         if c in want:
@@ -406,44 +406,26 @@ def test_a_wrong_projection_fails_the_oracle(monkeypatch):
     assert max(errs) > 1e3 * ORACLE_BAR, errs
 
 
-# ======================================================== the angle seed
+# ======================================================== why angles decline
 
-def _frame_fit(beta0, *, seed=True):
-    """``test_magnetic_moment_frame``'s fit from β₀ — P 1 2/m 1, the moment
-    seeded at its truth (2.5, 0, 2.5), so the azimuth starts at exactly 0 —
-    with the stationary-angle seed on or removed."""
-    import sys
+def test_an_exact_angle_column_cannot_leave_a_symmetric_seed():
+    """The measured reason ``_moment_reach_ok`` declines an angle.
 
-    import rietx.multi as M
+    ``test_magnetic_moment_frame``'s fixture (P 1 2/m 1, n = 3, the moment
+    seeded at its truth (2.5, 0, 2.5), so the azimuth starts at exactly 0,
+    a direction the b-axis mirror makes the pattern even about).  There the
+    exact azimuth column is roundoff — measured 2.3e-16 of the modulus
+    column — so no step of a solver driven by it moves the azimuth, while
+    the peak chain's forward difference reads ½·r″·h, measured 7.6e-7 of it,
+    and walks off.  With the analytic azimuth dispatched (measured
+    2026-10-28 before the decline), that file's fits from β₀ = 101.1° and
+    103.0° stopped at φ = 0 with χ² 10.9 and 3.7 above the minima at
+    φ = ±0.047 the peak chain reaches, and failed its pinned |m|.  When an angle is seeded
+    off its stationary point before the stage that frees it, this test is
+    the one to change, and the angle can join the branch.
+    """
     import tests.test_magnetic_moment_frame as T
 
-    refine = sys.modules["rietx.refine"]
-    instrument = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.25)
-    data, scale = T._simulate(instrument, seed=7)
-    real = (refine._seed_stationary_moment_angles,
-            M._seed_stationary_moment_angles_multi)
-    if not seed:
-        refine._seed_stationary_moment_angles = lambda *a, **k: {}
-        M._seed_stationary_moment_angles_multi = lambda *a, **k: {}
-    try:
-        return T._fit((instrument, data, scale), beta0, T.PLAN_3)
-    finally:
-        (refine._seed_stationary_moment_angles,
-         M._seed_stationary_moment_angles_multi) = real
-
-
-AZIMUTH = "phases.0.atoms.0.moment.dof2"
-
-
-def test_the_stationary_start_is_found_and_only_it():
-    """The detector on the frame fixture's start: the azimuth sits at the
-    b-mirror's stationary point (column ≤ 1e-6 of the modulus's), the polar
-    angle does not; and on ``n2_plane``'s generic start nothing does."""
-    import sys
-
-    import tests.test_magnetic_moment_frame as T
-
-    refine = sys.modules["rietx.refine"]
     instrument = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.25)
     data, scale = T._simulate(instrument, seed=7)
     structure = rx.Structure(phases=[T._phase(101.0, scale=scale)])
@@ -452,57 +434,20 @@ def test_the_stationary_start_is_found_and_only_it():
     table.set_vary(T.BASE + T.MOMENT, True)
     model = compile_model(structure, instrument, data,
                           moving_paths=set(table.moving_paths))
-    verdict = refine._stationary_moment_angles(model, table, table.free_paths)
-    assert verdict == {"phases.0.atoms.0.moment.dof1": False, AZIMUTH: True}
-    model, table = _cached("n2_plane")
-    assert refine._stationary_moment_angles(model, table, table.free_paths) == {
-        "phases.0.atoms.0.moment.dof1": False}
-
-
-@pytest.mark.parametrize("beta0", [101.1, 103.0])
-def test_without_the_seed_the_exact_angle_column_is_never_left_off_its_start(beta0):
-    """The positive arm: with the seed the azimuth is recorded as seeded and
-    the fit reaches the minimum; without it nothing is recorded and χ² is no
-    better than the seeded fit's.
-
-    What the unseeded fit does *beyond* that is roundoff: the exact azimuth
-    column is 2.3e-16 of the modulus column at the start, and whether the
-    solver is carried off 0 by it depends on the platform. Measured
-    2026-10-28 on darwin/arm64 it stalls (χ²_red 0.981277 and 0.979269 against
-    0.978208 seeded, |φ| = 0), while on CI's linux/x86_64 it reaches
-    |φ| = 0.047 unaided. So the stall is printed, never asserted; the seed's
-    record and the seeded minimum are.
-    """
-    _ref, unseeded = _frame_fit(beta0, seed=False)
-    _ref, seeded = _frame_fit(beta0, seed=True)
-    phi = {r.path: r.value for r in unseeded.parameters}[AZIMUTH]
-    print(f"beta0 {beta0}: unseeded chi2 {unseeded.statistics.chi2:.6f} phi {phi:.2e}; "
-          f"seeded chi2 {seeded.statistics.chi2:.6f}")
-    assert not any(AZIMUTH in (st.seeded or {}) for st in unseeded.stages)
-    assert unseeded.statistics.chi2 >= seeded.statistics.chi2 * (1 - 1e-9)
-    moment_stage = next(st for st in seeded.stages if st.name == "moment")
-    assert AZIMUTH in moment_stage.seeded
-    assert abs({r.path: r.value for r in seeded.parameters}[AZIMUTH]) > 0.03
-
-
-def test_a_fit_off_every_stationary_point_is_untouched_by_the_seed():
-    """The negative arm: a fit whose angles never start on a symmetry-fixed
-    direction seeds nothing and is bit-identical with the seed removed."""
-    import sys
-
-    refine = sys.modules["rietx.refine"]
-    real = refine._seed_stationary_moment_angles
-    with_seed = _fit_arm(True)
-    refine._seed_stationary_moment_angles = lambda *a, **k: {}
-    try:
-        without = _fit_arm(True)
-    finally:
-        refine._seed_stationary_moment_angles = real
-    assert not any(".moment." in p for st in with_seed.stages
-                   for p in (st.seeded or {}))
-    assert with_seed.statistics.chi2 == without.statistics.chi2
-    assert [(p.path, p.value, p.stderr) for p in with_seed.parameters] == [
-        (p.path, p.value, p.stderr) for p in without.parameters]
+    theta = table.x0()
+    free = table.free_paths
+    base = "phases.0.atoms.0.moment"
+    azimuth, modulus = free.index(f"{base}.dof2"), free.index(f"{base}.dof0")
+    assert abs(theta[azimuth]) < 1e-15        # 0 up to the frame's rounding
+    cols = {c: reach for c, _k, reach in _moment_columns(table)}
+    built = _built_column(model, table, theta, azimuth, cols[azimuth])
+    norm = np.linalg.norm(_built_column(model, table, theta, modulus,
+                                        cols[modulus]))
+    fd = _make_jacobian(model, table)(theta)[:, azimuth]
+    print(f"azimuth/modulus: exact {np.linalg.norm(built) / norm:.1e}, "
+          f"peak chain {np.linalg.norm(fd) / norm:.1e}")
+    assert np.linalg.norm(built) < 1e-13 * norm
+    assert np.linalg.norm(fd) > 1e-9 * norm
 
 
 # ======================================================== a whole fit
@@ -549,7 +494,7 @@ def test_a_fit_reaches_the_same_minimum_and_esds_either_way():
     χ², the values on the scale of their esds, and the esds.
 
     Measured 2026-10-28 (darwin/arm64): χ² to 2.1e-16 relative, values to
-    3.9e-9 esd, esds to 2.3e-6 relative.  The esd bar leaves ~10×.  The χ²
+    1.0e-9 esd, esds to 5.9e-7 relative.  The esd bar leaves ~10×.  The χ²
     and value bars are wider on purpose: the difference between two
     converged fits senses where each solver stopped (tests/CLAUDE.md
     § Budgets in tests), so they are set at what "the same minimum" means —
@@ -577,4 +522,4 @@ def test_a_fit_reaches_the_same_minimum_and_esds_either_way():
         de = max(de, abs(p.stderr - q.stderr) / p.stderr)
     print(f"max |dv|/esd {dv:.1e}, max rel d(esd) {de:.1e}")
     assert dv < 1e-4
-    assert de < 3e-5
+    assert de < 6e-6

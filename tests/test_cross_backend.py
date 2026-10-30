@@ -695,13 +695,16 @@ def _state_magnetic_angles_tied():
     """WP-1327's analytic moment branch on the shapes ``magnetic`` lacks.
 
     ``magnetic`` frees one modulus on a one-dimensional subspace.  The branch
-    also claims the angles (``d_moment_d_dofs``' azimuth rows) and any column
-    whose reach is moment DOFs of one phase: an affine tie between two sites'
-    moduli and a named variable driving an azimuth are new ways to widen C
-    onto it, which is what obliges a row here (root CLAUDE.md § Backends).
-    ``test_moment_jacobian`` holds every column of the same state to an exact
-    oracle; here the ``fd`` opinion meets the assembled Jacobian, and the
-    traced rows decline by name as on ``magnetic``.
+    claims any column whose reach is moment **moduli** of one phase, so an
+    affine tie between two sites' moduli is a new way to widen C onto it,
+    which is what obliges a row here (root CLAUDE.md § Backends).  The angles
+    beside it — a site's own azimuth, and a named variable driving the other
+    site's — are columns the dispatch declines by name and builds on the peak
+    chain (``_moment_reach_ok``), so this row also holds that the decline
+    leaves them right.  ``test_moment_jacobian`` holds every column of the
+    same state to an exact oracle; here the ``fd`` opinion meets the
+    assembled Jacobian, and the traced rows decline by name as on
+    ``magnetic``.
     """
     from tests.test_moment_jacobian import M0, M1, PLANE, _build, _ortho
 

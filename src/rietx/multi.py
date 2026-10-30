@@ -27,7 +27,6 @@ import numpy as np
 
 from . import runs
 from .backend.api import backend_dtype_note
-from .crystallography.magnetic.moments import SEED_TILT
 from .crystallography.symmetry import reflection_label_row
 from .crystallography.twins import merge_site_twins
 from .history.events import _attach_progress, as_event_stream
@@ -125,7 +124,6 @@ from .refine import (
     _site,
     _size_flag_diagnostics,
     _species_fallback_diagnostics,
-    _stationary_moment_angles,
     _strain_flag_diagnostics,
     _symmetry_silence_diagnostics,
     _uncorrected,
@@ -936,40 +934,6 @@ def _hold_flat_moments_multi(models, mtable
     return held, found, turned
 
 
-def _seed_stationary_moment_angles_multi(models, mtable, freed: list[str]
-                                         ) -> dict[str, float]:
-    """The single-histogram :func:`rietx.refine._seed_stationary_moment_angles`,
-    jointly (WP-1327).
-
-    An angle column is stationary when every histogram that can judge it says
-    so — all, never any, since one histogram's live column gives the joint
-    solve a gradient — and at least one can.  It is moved by
-    ``moments.SEED_TILT`` in every histogram's table that carries it, and the
-    combined columns are rebuilt, the x0 they hand the solve being cached.
-    """
-    freed_set = set(freed)
-    verdicts: dict[str, list[bool]] = {}
-    for model, table in zip(models, mtable.tables, strict=True):
-        candidates = [p for p in table.free_paths if p in freed_set]
-        for path, at in _stationary_moment_angles(model, table, candidates).items():
-            verdicts.setdefault(path, []).append(at)
-    stationary = [p for p, v in verdicts.items() if v and all(v)]
-    seeded: dict[str, float] = {}
-    for table in mtable.tables:
-        by_path = {e.path: e for e in table.entries}
-        moved = False
-        for path in stationary:
-            if path in by_path:
-                by_path[path].value = float(by_path[path].value) + SEED_TILT
-                seeded[path] = by_path[path].value
-                moved = True
-        if moved:
-            table.refresh_ties()
-    if seeded:
-        mtable._rebuild_columns()
-    return seeded
-
-
 def _rehold_flat_moments_multi(models, mtable, moment_held: list[str],
                                start_values: list[dict[str, float]],
                                turned: list[str]
@@ -1624,10 +1588,6 @@ class MultiHistogramRefinement:
                 if held:
                     held_set = set(held)
                     freed = [p for p in declared_freed if p not in held_set]
-                # the single-histogram runner's angle seed, on what the holds
-                # left free (WP-1327)
-                seeded.update(_seed_stationary_moment_angles_multi(
-                    models, self.mtable, freed))
                 self._emit_stage_start(stream, stage, index, n_stages, models,
                                        freed=freed, held=held,
                                        unknown_paths=unknown_paths,

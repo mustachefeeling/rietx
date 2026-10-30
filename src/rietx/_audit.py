@@ -1190,14 +1190,7 @@ ROWS: tuple[Row, ...] = (
                   "regime (scale x2.1, ROUGHNESS_OUTSIDE_REGIME) and corundum's Biso moves 0.26 "
                   "esd; no program supplies a Pitschke start (FullProf's examples start at "
                   "1.2-1.5; docs/practice.md). Since B14 the field also records "
-                  "Stage.strain_seed's Stephens rows, whose start is STRAIN_SEED_PPM's row. "
-                  "Since WP-1327 it also records a free moment angle moved by moments.SEED_TILT "
-                  "off a symmetry-stationary start (column <= MOMENT_DIRECTION_SUPPORT of its "
-                  "modulus's): unseeded, test_magnetic_moment_frame's P 1 2/m 1 fits from beta0 "
-                  "101.1 and 103.0 stopped at phi = 0 with chi2 10.9 and 3.7 above the minima at "
-                  "phi = +/-0.047, seeded they reach them; a fit off every such point is "
-                  "bit-identical (tests/test_moment_jacobian.py); tilted_seed's step for the same "
-                  "stationary point (WP-1418)"),
+                  "Stage.strain_seed's Stephens rows, whose start is STRAIN_SEED_PPM's row"),
         grounds=("The seeding action is the stage's, recorded in the field; Suortti's start is "
                  "answer-invariant and Pitschke's is kept at 0.3 because from 0.3 the fit reaches "
                  "the switched-off branch inside the model's valid range, while from 0 the lower "
