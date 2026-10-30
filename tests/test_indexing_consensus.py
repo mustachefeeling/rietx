@@ -712,6 +712,41 @@ def test_a_supercell_the_pattern_shows_rises_above_its_parent_and_a_phantom_does
         assert ordered[0] is (child if first == "child" else parent)
 
 
+def test_the_check_screens_each_cell_on_its_own_corrected_lines(cubic_peaks,
+                                                                monkeypatch):
+    """WP-2030, on #941's containment check: which lines a parent indexes is
+    read on the parent's own shift correction, never the child's.
+
+    ``screen_for`` hands each candidate its own ``scored_positions``; a parent
+    read on the child's lines indexes none of them and every extra the child
+    sees reads unexplained, which is "supported" for the wrong reason.
+    """
+    from rietx.indexing import screen
+    from rietx.indexing.engines import scored_positions
+
+    double = (TRUE_A, TRUE_A, 2 * TRUE_A, 90.0, 90.0, 90.0)
+    parent = _candidate(TRUE_A).model_copy(update={
+        "shift_template": "constant", "shift_coefficient": 0.03})
+    child = _candidate(TRUE_A, cell=double, system="tetragonal",
+                       lattice_group="P 4/m m m", volume=2 * TRUE_A ** 3)
+    seen = []
+    real = screen.screen_candidate
+
+    def spy(pattern, cell, system, centring, **kwargs):
+        seen.append((tuple(cell), kwargs["q_obs"]))
+        return real(pattern, cell, system, centring, **kwargs)
+
+    monkeypatch.setattr(screen, "screen_candidate", spy)
+    supercell_checks([parent, child], cubic_peaks, q_match=cubic_peaks.q_esd(),
+                     k_sigma=3.0)
+    by_cell = dict(seen)
+    assert np.array_equal(by_cell[tuple(float(v) for v in parent.cell)],
+                          scored_positions(cubic_peaks, parent)[0])
+    assert np.array_equal(by_cell[tuple(float(v) for v in child.cell)],
+                          scored_positions(cubic_peaks, child)[0])
+    assert not np.array_equal(*by_cell.values())
+
+
 def test_a_phantom_supercell_is_refuted_graded_down_and_told_where_to_look(
         cubic_peaks):
     """The check on a list, the caveat it raises, and the message that names it.
@@ -808,7 +843,7 @@ def test_absent_reflections_reads_the_fitted_background():
 @pytest.mark.parametrize("factor,expect_absent,expect_unmatched", [
     (1.0, 0, 0),                     # the truth
     (2.0, "most", 0),                # doubled cell: the oversized signature
-    (1.01, 0, "many"),               # wrong metric: caught from the other side
+    (1.01, "some", "many"),          # wrong metric: caught from both sides
 ])
 def test_le_bail_validation_separates_the_failure_modes(lab6_pattern, factor,
                                                         expect_absent,
@@ -816,19 +851,25 @@ def test_le_bail_validation_separates_the_failure_modes(lab6_pattern, factor,
     """The measurement the module's reasoning rests on, pinned.
 
     Read it by column rather than by row: Rwp is decisive on a wrong *metric* and
-    nearly silent on an *oversized* cell, where only ``predicted_but_absent``
-    sees it; the wrong metric is caught instead by ``unmatched_observed``.  That
-    is why all three travel together and why none of them is the score.
+    silent on an *oversized* cell, where only ``predicted_but_absent`` sees it;
+    the wrong metric is caught instead by ``unmatched_observed``.  That is why
+    all three travel together and why none of them is the score.  Under the
+    Pawley fit (WP-2011) the wrong metric's background stays near the truth, so
+    the fitted-background count sees its displaced lines too (14 of 28); the Le
+    Bail fit's sank, and that count read 0.
 
-    The bars are qualitative on purpose (``most``, ``many``) — the exact counts
-    are noise-seed-dependent and quoted in the module docstring, whereas what must
-    not regress is the *separation*.
+    The bars are qualitative on purpose (``most``, ``some``, ``many``) — the
+    exact counts are noise-seed-dependent and quoted in the module docstring,
+    whereas what must not regress is the *separation*.
     """
     validation = validate_by_lebail(_candidate(TRUE_A * factor), lab6_pattern,
                                    _instrument())
     assert validation.status == "converged"
+    assert validation.mode == "pawley"
     if expect_absent == 0:
         assert validation.predicted_but_absent == 0
+    elif expect_absent == "some":
+        assert validation.predicted_but_absent > 0
     else:
         assert validation.predicted_but_absent > 0.5 * validation.n_reflections
     if expect_unmatched == 0:
@@ -837,6 +878,44 @@ def test_le_bail_validation_separates_the_failure_modes(lab6_pattern, factor,
         assert validation.unmatched_observed > 20
     assert len(validation.predicted_but_absent_two_theta) == \
         validation.predicted_but_absent
+
+
+def test_the_validation_fits_a_supercell_as_well_as_its_parent(lab6_pattern):
+    """Why ``rwp`` is silent on an oversized cell, pinned (WP-2011).
+
+    The doubled cell predicts a line at every position the truth does, so a
+    converged decomposition gives it the truth's fit and more freedom besides.
+    One Le Bail pass read 0.354 against 0.234 here: a gap its stall made, which
+    the diagnostics quoted as if the lattice had.
+    """
+    truth = validate_by_lebail(_candidate(TRUE_A), lab6_pattern, _instrument())
+    doubled = validate_by_lebail(_candidate(2.0 * TRUE_A), lab6_pattern,
+                                 _instrument())
+    assert doubled.rwp == pytest.approx(truth.rwp, rel=0.01), (
+        doubled.rwp, truth.rwp)
+
+
+def test_the_validation_record_names_its_fit_on_every_path(lab6_pattern,
+                                                            monkeypatch):
+    """``LeBailValidation.mode``'s two writers and its default (WP-2011).
+
+    A record from before schema 0.60 has no key and was a Le Bail fit, so the
+    default reads ``"lebail"``; both writers in ``validate_by_lebail`` name
+    the fit that ran, the failed path included.
+    """
+    from rietx.refine import Refinement
+    from rietx.schemas.indexing import LeBailValidation
+
+    old = LeBailValidation.model_validate(
+        {"rwp": 0.2, "gof": 1.5, "space_group": "P m -3 m", "n_reflections": 28})
+    assert old.mode == "lebail"
+
+    def raises(self, *a, **kw):
+        raise ValueError("a fit the physics refuses")
+
+    monkeypatch.setattr(Refinement, "fit", raises)
+    failed = validate_by_lebail(_candidate(TRUE_A), lab6_pattern, _instrument())
+    assert failed.status == "failed" and failed.mode == "pawley"
 
 
 def test_layer0_unmatched_calc_cannot_serve_as_the_absent_detector(lab6_pattern):

@@ -1,6 +1,6 @@
 # WP-1809 — Tether, planarity and anti-bump restraints, pairs frozen per plan
 
-Milestone: rigid-bodies · Status: 🔄 2026-10-12 — tether and anti-bump merged as #888, the caller building the pair list; planarity and `RESTRAINT_PAIRS_STALE` open
+Milestone: rigid-bodies · Status: 🔄 2026-10-29 — planarity and `RESTRAINT_PAIRS_STALE` merged from outside as PR #995 (`737963bc`); the tasks to be checked against it and the WP closed
 Depends on: —
 Priority: P3 2026-10-06 — needs no body; it can run beside WP-1804
 
@@ -108,6 +108,8 @@ issue #561, sized M. It needs no body.
 - Issue #561; PR #596; issue #777 and PR #778 (the minimum-image shift).
 
 ## Handover log
+
+- **2026-10-29** (`/pr-review`) — R8b merged from outside as PR #995 (`737963bc`): planarity restraint rows (the plane normal as the scatter matrix's smallest-eigenvalue eigenvector, Schomaker et al. 1959; `PLANE_DEGENERATE_REL`), and `RESTRAINT_PAIRS_STALE` at plan end, whose suggestion names both remedies (rebuild the list, or lower a real contact's species-pair minimum) and picks neither. Gated with seven other PRs on `bab2839c`: fast 12 213 passed, slow 417 passed. Left with the contributor, not blocking: a `scope` if a stale contact should not warn a QPA-only reader; the stale search's cost on a realistic molecular phase (it runs twice a fit); a sentence making r₀ (the strictest `min_distance` for the pair) visible in the audit row; and `rms[True] < 3e-3`'s margin on Linux.
 
 - **2026-10-12** — tether and anti-bump, the first half of R8, built by
   @mustachefeeling in PR #888 (seven `WP-1809:` commits) and merged by the

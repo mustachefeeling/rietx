@@ -289,6 +289,8 @@ summary).
 
 ## Handover log
 
+- **2026-10-29** (`/pr-review`) — family D's data merged from outside as PR #1162 (`843e27bf`): the Co₃O₄ D1B quench series under `tests/data/d1b_co3o4_quench/`, with its provenance, licence, errata and the planted known-bad patterns, which the test builds in memory. Review established two things for this WP. `read_pattern` passes a NaN block through with only `PATTERN_DEAD_CHANNELS` on two channels, so nothing names the NaNs (#1187 owns that, and the planted file is its fixture). And no code path sets `"diverged"` today, so the quarantine cannot fire on this family yet. Family B (#1163) waits on a rebase over this one's README section. No task here is ticked by it.
+
 ### 2026-10-26 (fourth session) — X16 fixed in the LM driver, X17 traced to a zero aperture, the quarantine's record, C4 demoted
 
 The 40-pattern freeze (X16) was not a chain defect. It was a one-line tolerance bug in the
