@@ -730,7 +730,7 @@ def test_a_restricted_fit_below_the_full_one_restarts_the_full_fit():
 # A_τ's esd against its scatter (test 7)
 # --------------------------------------------------------------------------
 
-#: the planted strengths, in A_need of the block's easiest mode (C4b's arms)
+#: the planted strengths, in A_need of the block's easiest mode (the verdict's planted arms)
 PLANT = {"gamma": (GAMMA, 3.0), "zone": (ZONE, 4.0)}
 SEEDS = range(40)
 
