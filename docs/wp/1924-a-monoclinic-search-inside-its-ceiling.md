@@ -95,6 +95,14 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
   memory** bound. They widen its scope past monoclinic, and its title and the
   scheduling box (WP-1959 landed 2026-10-14, box not ticked) are the working
   session's to settle.
+  *Decided 2026-10-30 by the maintainer* (reply: issuecomment-6536104575):
+  phase 2 keeps running on a truncated frontier for now; once a row bound caps
+  its memory it costs time only, which the budget bounds. The reporter is asked
+  to count, over their benchmark, the overflowed units whose phase 2 accepted
+  the true cell; if none did, the unit stops at overflow. The orthorhombic
+  acceptance question is not judged; they are asked for the unindexed-line
+  distribution over the accepted leaves, the best ten's M₂₀, and the search
+  window in effect.
 
 - **2026-10-16, from the issue triage (#780): the reporter's 2026-10-14 02:33Z
   measurements for this WP's scheduling task are in no WP file.** Figures are
