@@ -15,9 +15,13 @@ adaptive and 20/50 fixed at 18–48 DOF).  Its top temperature is the spread
 (standard deviation) of J over uniform random structures on the same search
 space, measured per run (:func:`random_spread`), so the hottest replica moves
 between basins of the depth random structures differ by.  The span from top
-to bottom is :data:`LADDER_SPAN` and each rung's move size is
-:data:`STEP_ANG` interpolated geometrically, both measured
-(``tests/test_solve_engine.py`` names the run).  :meth:`Ladder.predicted_swap`
+to bottom is the caller's ``span`` and each rung's move size the caller's
+``step`` pair interpolated geometrically.  **The engine chooses none of its
+search settings** (#1224: a machinery change adds no tier-3 number): the
+span, the move sizes, the exchange probability, the swap cadence and the
+random-structure count are required arguments, the values the S2a acceptance
+ran and their measurements are ``tests/test_solve_engine.py``'s, and the
+defaults land with the solve entry point.  :meth:`Ladder.predicted_swap`
 gives Earl & Deem's (2005, *Phys. Chem. Chem. Phys.* 7, 3910, eq. 3, Kofke's)
 Gaussian estimate ⟨A⟩ = erfc[½·C_v^½·(1 − ρ)/(1 + ρ²)^½], ρ = T_i/T_{i+1}, at
 the harmonic C_v = n_par/2, beside the measured rate: #562 found the measured
@@ -26,7 +30,7 @@ it is reported and never gated.
 
 **A sweep** proposes one move per replica, on one unit chosen uniformly among
 those that move (a free site's move is a site exchange with probability
-:data:`EXCHANGE` where it has a partner), and evaluates every replica in one
+``exchange`` where it has a partner), and evaluates every replica in one
 batched call: a one-atom move through
 :meth:`~rietx.solve.moves.Scattering.orbit_sums_one`, a fragment or an
 exchange through :meth:`~rietx.solve.moves.Scattering.orbit_sums` on the atoms
@@ -64,32 +68,7 @@ from scipy.special import erfc
 
 from .moves import Clash, Scattering, SearchSpace
 
-#: T_top/T_bottom of the planned ladder.  Measured (S2a report, 2026-10-18,
-#: 16 seeds a row, 6 replicas): on NAC at 5 000 sweeps with the exchange on,
-#: spans 10, 30 and 100 recovered 14/16 and 300 13/16; on the synthetic
-#: acridine case at 600 sweeps, 10 gave 14/16, 30 16/16 and 100 15/16, and at
-#: 300 sweeps 30 gave 15/16 against 300's 12/16.
-LADDER_SPAN = 30.0
-
-#: Move size σ (Å) at the bottom and the top rung, interpolated geometrically
-#: in between.  Measured (S2a report's move-size table, span 300): bottoms of
-#: 0.02, 0.05, 0.1 and 0.2 Å against tops of 0.5, 1 and 2 Å recovered the
-#: acridine case 13–16/16 at 600 sweeps, (0.05, 1.0) and (0.2, 2.0) 16/16;
-#: on NAC no table lifted 2 000 sweeps above 5/16, which the site exchange did.
-STEP_ANG = (0.05, 1.0)
-
-#: Probability that a free site's move is a site exchange instead, where it
-#: has a partner (:meth:`~rietx.solve.moves.SearchSpace.partners`).  Measured
-#: on NAC, span 30, 16 seeds: 0 → 6/16 at 5 000 sweeps and 11/16 at 20 000;
-#: 0.05, 0.1 and 0.25 → 14–15/16 and 16/16.
-EXCHANGE = 0.1
-
-#: Random structures drawn to measure the top temperature.
-N_RANDOM = 64
-
-#: Sweeps between neighbour exchanges, and between full rebuilds of the
-#: running orbit sums.
-SWAP_EVERY = 10
+#: Sweeps between full rebuilds of the running orbit sums.
 REFRESH_EVERY = 1000
 
 
@@ -131,9 +110,11 @@ class SearchProblem:
         return (chi2 + self.clash.weight * e) / self.floor, chi2, e
 
 
-def random_spread(problem: SearchProblem, rng: np.random.Generator,
-                  n: int = N_RANDOM) -> tuple[float, float]:
+def random_spread(problem: SearchProblem, rng: np.random.Generator, *,
+                  n: int) -> tuple[float, float]:
     """(std, median) of J over ``n`` uniform random structures."""
+    if not n >= 2:
+        raise ValueError(f"a spread needs at least two random structures, not {n}")
     j, _, _ = problem.evaluate(problem.space.random(rng, n))
     return float(np.std(j)), float(np.median(j))
 
@@ -152,7 +133,7 @@ class Ladder:
 
     @classmethod
     def planned(cls, t_top: float, n_par: int, n_replicas: int, *,
-                span: float = LADDER_SPAN, step: tuple[float, float] = STEP_ANG,
+                span: float, step: tuple[float, float],
                 record: dict | None = None) -> Ladder:
         """The geometric ladder from t_top/span to t_top over ``n_replicas``."""
         if n_replicas < 2:
@@ -212,10 +193,14 @@ class SeedRun:
 
 
 def temper(problem: SearchProblem, ladder: Ladder, *, seed: int, sweeps: int,
-           swap_every: int = SWAP_EVERY, refresh_every: int = REFRESH_EVERY,
-           exchange: float = EXCHANGE, wall_seconds: float | None = None,
+           swap_every: int, exchange: float, refresh_every: int = REFRESH_EVERY,
+           wall_seconds: float | None = None,
            start: np.ndarray | None = None) -> SeedRun:
     """Run one seed of parallel tempering (module docstring)."""
+    if not (swap_every >= 1 and int(swap_every) == swap_every):
+        raise ValueError(f"swap_every {swap_every!r} must be a whole number of sweeps, at least 1")
+    if not 0.0 <= exchange <= 1.0:
+        raise ValueError(f"exchange {exchange} is a probability, in [0, 1]")
     space, sc, cost, clash = problem.space, problem.scattering, problem.cost, problem.clash
     n_rep = len(ladder.temperatures)
     rng = np.random.default_rng(seed)
@@ -354,6 +339,6 @@ def polish(problem: SearchProblem, visit: Visit, *, maxiter: int = 200) -> Visit
     return Visit(u[0], float(j[0]), float(chi2[0]), float(e[0]))
 
 
-__all__ = ["EXCHANGE", "LADDER_SPAN", "N_RANDOM", "REFRESH_EVERY", "STEP_ANG", "SWAP_EVERY", "Ladder",
+__all__ = ["REFRESH_EVERY", "Ladder",
            "SearchProblem", "SeedRun", "TemperingRefused", "Visit", "polish",
            "random_spread", "temper"]

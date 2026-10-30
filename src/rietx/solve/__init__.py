@@ -11,7 +11,7 @@ and the |F|² and clash term it sees through the compiled kernels or their numpy
 oracles; :mod:`~rietx.solve.tempering`, the planned ladder, one seed of parallel
 tempering with its acceptance record, and the polish; and
 :mod:`~rietx.solve.cluster`, distinct solutions under the group's Euclidean
-normaliser and the ranked list with provisional grades and no structure.
+normaliser and the ranked list with its evidence, no grade and no structure.
 Nothing here is exported from :mod:`rietx`; the package becomes public, as a
 provisional module, with the entry point that returns candidates.
 """

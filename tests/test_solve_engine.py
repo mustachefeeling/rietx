@@ -21,8 +21,12 @@ broken variant that made it fail (the S2a report records which and how):
 4. **Swap acceptance is reported per neighbour pair**, and the record can
    tell a ladder whose pairs always swap from one whose pairs rarely do.
 
-The move sizes, the span and the exchange rate are the module constants'
-measurements (``solve/tempering.py``); the slow tests read them, never a copy.
+The engine takes its search settings as required arguments and chooses none
+(#1224): the span, the move sizes, the exchange probability, the swap cadence,
+the random-structure count and the clustering RMSD below are the values every
+bar here ran at, each with its measurement, so a bar states the settings it
+holds at.  Their defaults, and the grades read off the ranked list, land with
+the solve entry point.
 """
 
 import math
@@ -74,6 +78,29 @@ NAC_SWEEPS = 20000
 NAC_LIMITS = (2.0, 24.0)
 SEEDS = (0, 1, 2, 3)
 REPLICAS = 6
+
+# The search settings every bar runs at (#1153's body has the tables).
+#: T_top/T_bottom.  Measured (16 seeds a row, 6 replicas): on NAC at 5 000
+#: sweeps with the exchange on, spans 10, 30 and 100 recovered 14/16 and 300
+#: 13/16; on the acridine-shaped case at 600 sweeps, 10 gave 14/16, 30 16/16
+#: and 100 15/16, and at 300 sweeps 30 gave 15/16 against 300's 12/16.
+SPAN = 30.0
+#: Move size σ (Å) at the bottom and top rung.  Measured at span 300: bottoms
+#: 0.02-0.2 Å against tops 0.5-2 Å recovered the acridine case 13-16/16 at 600
+#: sweeps, (0.05, 1.0) and (0.2, 2.0) 16/16; on NAC no pair lifted 2 000 sweeps
+#: above 5/16, which the site exchange did.
+STEP = (0.05, 1.0)
+#: Site-exchange probability.  Measured on NAC, span 30, 16 seeds: 0 → 6/16 at
+#: 5 000 sweeps and 11/16 at 20 000; 0.05, 0.1 and 0.25 → 14-15/16 and 16/16.
+EXCHANGE = 0.1
+#: Sweeps between neighbour exchanges; every measurement ran at 10.
+SWAP_EVERY = 10
+#: Random structures behind the top temperature; std error near 9 %.
+N_RANDOM = 64
+#: Clustering RMSD (Å): half #677's 0.7 Å single-site bar, three times the
+#: 0.10 Å recovery bar.
+CLUSTER_TOL = 0.35
+RUN = dict(swap_every=SWAP_EVERY, exchange=EXCHANGE)
 
 
 @pytest.fixture(autouse=True)
@@ -239,8 +266,8 @@ def _recovered(problem, run, eq, xt) -> tuple[float, float, tp.Visit]:
 
 
 def _ladder(problem, n=REPLICAS):
-    t_top, _median = tp.random_spread(problem, np.random.default_rng(12345))
-    return tp.Ladder.planned(t_top, problem.space.n_par, n)
+    t_top, _median = tp.random_spread(problem, np.random.default_rng(12345), n=N_RANDOM)
+    return tp.Ladder.planned(t_top, problem.space.n_par, n, span=SPAN, step=STEP)
 
 
 # ===================================================================================
@@ -322,7 +349,7 @@ def test_running_sums_stay_on_a_rebuild(acr, nac, on):
     of a seed differ from a rebuild by rounding only (J units)."""
     compiled.set_enabled(on)
     for problem in (acr[0], nac[0]):
-        run = tp.temper(problem, _ladder(problem), seed=5, sweeps=400, refresh_every=10 ** 9)
+        run = tp.temper(problem, _ladder(problem), **RUN, seed=5, sweeps=400, refresh_every=10 ** 9)
         assert run.drift <= 1e-10
         assert run.moves == 400 * REPLICAS
 
@@ -330,8 +357,8 @@ def test_running_sums_stay_on_a_rebuild(acr, nac, on):
 def test_a_seed_reruns_bit_for_bit(acr):
     problem = acr[0]
     lad = _ladder(problem)
-    a = tp.temper(problem, lad, seed=11, sweeps=150)
-    b = tp.temper(problem, lad, seed=11, sweeps=150)
+    a = tp.temper(problem, lad, **RUN, seed=11, sweeps=150)
+    b = tp.temper(problem, lad, **RUN, seed=11, sweeps=150)
     assert [v.j for v in a.best] == [v.j for v in b.best]
     assert np.array_equal(a.swap_accepts, b.swap_accepts)
 
@@ -409,7 +436,7 @@ def test_a_seed_on_a_special_position_is_refused_by_name(nac):
         sp.check_seed(u)
     assert err.value.reason == "special_position_seed"
     with pytest.raises(SearchRefused):
-        tp.temper(problem, _ladder(problem), seed=0, sweeps=1, start=u[0])
+        tp.temper(problem, _ladder(problem), **RUN, seed=0, sweeps=1, start=u[0])
     u[0, b.lo:b.hi] += (0.01, 0.03, 0.07)
     sp.check_seed(u)
 
@@ -498,7 +525,7 @@ def test_equivalent_solutions_are_one_cluster_and_different_ones_two(acr, nac):
     sols = [cl.Solution(xt, 1.0, 1.0, 0.0, seed=0),
             cl.Solution(copies[5], 1.0001, 1.0001, 0.0, seed=1),
             cl.Solution(xturn, 2.0, 2.0, 0.0, seed=2)]
-    assert [c.seeds for c in cl.cluster(sols, eq, sp.species)] == [(0, 1), (2,)]
+    assert [c.seeds for c in cl.cluster(sols, eq, sp.species, tol=CLUSTER_TOL)] == [(0, 1), (2,)]
 
     problem, xn, _ = nac
     sp, sc = problem.space, problem.scattering
@@ -515,64 +542,89 @@ def test_equivalent_solutions_are_one_cluster_and_different_ones_two(acr, nac):
     sols = [cl.Solution(xn, 1.1, 1.1, 0.0, seed=0),
             cl.Solution(enantiomer, 1.1, 1.1, 0.0, seed=1),
             cl.Solution(swapped, 1.4, 1.4, 0.0, seed=2)]
-    assert [c.seeds for c in cl.cluster(sols, eq, sp.species)] == [(0, 1), (2,)]
-    assert [c.seeds for c in cl.cluster(sols, proper, sp.species)] == [(0,), (1,), (2,)]
+    assert [c.seeds for c in cl.cluster(sols, eq, sp.species, tol=CLUSTER_TOL)] == [(0, 1), (2,)]
+    assert [c.seeds for c in cl.cluster(sols, proper, sp.species, tol=CLUSTER_TOL)] == [(0,), (1,), (2,)]
 
 
 # ===================================================================================
-# grades (provisional)
+# the ranked list: evidence, no grade
 # ===================================================================================
 def _sol(x, chi2, seed, shift=0.0):
     return cl.Solution(np.asarray(x) + shift, chi2, chi2, 0.0, seed=seed)
 
 
-def test_provisional_grades(acr):
+def test_the_ranked_list_carries_evidence_and_no_grade(acr):
+    """Each entry carries the seeds, the spread, the margin to the next and,
+    given a control arm, the RMSD from its best leader and that leader's
+    χ²_data, which is what a grade would be read from; nothing on it is a
+    verdict.  The control's RMSD separates a different structure (well past
+    the clustering RMSD) from the same one (zero), the positive arm."""
     problem, _u, xt = acr
     sp = problem.space
     eq = cl.equivalences(sp.group, sp.g)
     far = sp.xyz(sp.random(np.random.default_rng(9), 1))[0]
-    kw = dict(floor=1.0, labels=sp.labels, species=sp.species)
-    # one seed: low
-    one = cl.rank(cl.cluster([_sol(xt, 1.0, 0)], eq, sp.species), **kw)
-    assert one[0].grade == "low" and "single_seed" in one[0].caveats
-    # two seeds, the next cluster far worse: high; that one low
+    kw = dict(floor=0.5, labels=sp.labels, species=sp.species)
+    one = cl.rank(cl.cluster([_sol(xt, 1.0, 0)], eq, sp.species, tol=CLUSTER_TOL), **kw)
+    assert one[0].seeds == (0,) and one[0].n_members == 1 and one[0].margin_to_next is None
+    assert one[0].chi2_ratio == pytest.approx(2.0)
+    assert one[0].control_rmsd_ang is None and one[0].control_chi2_data is None
     two = cl.rank(cl.cluster([_sol(xt, 1.0, 0), _sol(xt, 1.0, 1), _sol(far, 3.0, 2),
-                              _sol(far, 3.0, 3)], eq, sp.species), **kw)
-    assert [r.grade for r in two] == ["high", "low"]
-    assert two[0].thresholds_version == cl.THRESHOLDS_VERSION
-    assert two[0].margin_to_next == pytest.approx(2.0)
-    assert not hasattr(two[0], "structure")
-    # a rival within the margin: medium
-    riv = cl.rank(cl.cluster([_sol(xt, 1.0, 0), _sol(xt, 1.0, 1), _sol(far, 1.03, 2),
-                              _sol(far, 1.03, 3)], eq, sp.species), **kw)
-    assert riv[0].grade == "medium" and "rival" in riv[0].caveats
-    # the control arm finds a different structure 20 % better: the leader is capped
-    lead = cl.cluster([_sol(xt, 1.0, 0), _sol(xt, 1.0, 1)], eq, sp.species)
-    ctrl = cl.cluster([_sol(far, 0.8, 4, ), _sol(far, 0.8, 5)], eq, sp.species)
-    capped = cl.rank(lead, control=ctrl, eq=eq, **kw)
-    assert capped[0].grade == "low" and "prior_excludes_better_fit" in capped[0].caveats
-    # ... and not when the control's leader is the same structure, or only 5 % better
-    same = cl.cluster([_sol(xt, 0.8, 4), _sol(xt, 0.8, 5)], eq, sp.species)
-    assert cl.rank(lead, control=same, eq=eq, **kw)[0].grade == "high"
-    close = cl.cluster([_sol(far, 0.95, 4), _sol(far, 0.95, 5)], eq, sp.species)
-    assert cl.rank(lead, control=close, eq=eq, **kw)[0].grade == "high"
+                              _sol(far, 3.0, 3)], eq, sp.species, tol=CLUSTER_TOL), **kw)
+    assert [r.seeds for r in two] == [(0, 1), (2, 3)]
+    assert two[0].margin_to_next == pytest.approx(2.0) and two[1].margin_to_next is None
+    for gone in ("structure", "grade", "caveats", "thresholds_version"):
+        assert not hasattr(two[0], gone)
+    lead = cl.cluster([_sol(xt, 1.0, 0), _sol(xt, 1.0, 1)], eq, sp.species, tol=CLUSTER_TOL)
+    ctrl = cl.cluster([_sol(far, 0.8, 4), _sol(far, 0.8, 5)], eq, sp.species, tol=CLUSTER_TOL)
+    other = cl.rank(lead, control=ctrl, eq=eq, **kw)[0]
+    assert other.control_chi2_data == pytest.approx(0.8)
+    assert other.control_rmsd_ang > CLUSTER_TOL
+    same = cl.cluster([_sol(xt, 0.8, 4), _sol(xt, 0.8, 5)], eq, sp.species, tol=CLUSTER_TOL)
+    assert cl.rank(lead, control=same, eq=eq, **kw)[0].control_rmsd_ang < 1e-9
+    with pytest.raises(ValueError, match="equivalence set"):
+        cl.rank(lead, control=ctrl, **kw)
+
+
+def test_the_engine_chooses_no_search_setting(acr):
+    """#1224: every search setting is the caller's.  Leaving one out is a
+    TypeError, never a default, and an impossible value is refused by name."""
+    problem = acr[0]
+    eq = cl.equivalences(problem.space.group, problem.space.g)
+    with pytest.raises(TypeError):
+        cl.cluster([], eq, problem.space.species)
+    with pytest.raises(ValueError, match="tol"):
+        cl.cluster([], eq, problem.space.species, tol=0.0)
+    with pytest.raises(TypeError):
+        tp.Ladder.planned(2.0, 10, 6)
+    with pytest.raises(TypeError):
+        tp.random_spread(problem, np.random.default_rng(0))
+    with pytest.raises(ValueError, match="at least two"):
+        tp.random_spread(problem, np.random.default_rng(0), n=1)
+    lad = _ladder(problem)
+    with pytest.raises(TypeError):
+        tp.temper(problem, lad, seed=0, sweeps=1)
+    with pytest.raises(ValueError, match="probability"):
+        tp.temper(problem, lad, swap_every=SWAP_EVERY, exchange=1.5, seed=0, sweeps=1)
+    with pytest.raises(ValueError, match="swap_every"):
+        tp.temper(problem, lad, swap_every=0, exchange=EXCHANGE, seed=0, sweeps=1)
 
 
 # ===================================================================================
 # the ladder and the swap record (bar 4)
 # ===================================================================================
 def test_the_planned_ladder():
-    lad = tp.Ladder.planned(2.0, 10, 6)
+    lad = tp.Ladder.planned(2.0, 10, 6, span=SPAN, step=STEP)
     assert lad.temperatures[-1] == pytest.approx(2.0)
-    assert lad.temperatures[-1] / lad.temperatures[0] == pytest.approx(tp.LADDER_SPAN)
+    assert lad.temperatures[-1] / lad.temperatures[0] == pytest.approx(SPAN)
     ratios = lad.temperatures[1:] / lad.temperatures[:-1]
     assert np.allclose(ratios, ratios[0])
-    assert lad.steps[0] == pytest.approx(tp.STEP_ANG[0])
-    assert lad.steps[-1] == pytest.approx(tp.STEP_ANG[1])
+    assert lad.steps[0] == pytest.approx(STEP[0])
+    assert lad.steps[-1] == pytest.approx(STEP[1])
+    assert lad.record["span"] == SPAN and lad.record["step_ang"] == STEP
     pred = lad.predicted_swap()
     assert pred.shape == (5,) and np.allclose(pred, pred[0]) and 0.0 < pred[0] < 1.0
     with pytest.raises(ValueError):
-        tp.Ladder.planned(2.0, 10, 1)
+        tp.Ladder.planned(2.0, 10, 1, span=SPAN, step=STEP)
 
 
 def test_swap_acceptance_is_reported_per_neighbour_pair(acr):
@@ -580,18 +632,18 @@ def test_swap_acceptance_is_reported_per_neighbour_pair(acr):
     ladder's record shows a pair below 1, and a ladder of equal temperatures,
     where every exchange is accepted, records exactly 1 on every pair."""
     problem = acr[0]
-    run = tp.temper(problem, _ladder(problem), seed=1, sweeps=400)
+    run = tp.temper(problem, _ladder(problem), **RUN, seed=1, sweeps=400)
     acc = run.swap_acceptance
     assert acc.shape == (REPLICAS - 1,)
     assert np.all(run.swap_attempts == 20) and np.all((acc >= 0.0) & (acc <= 1.0))
     assert np.any(acc < 1.0)
     flat = tp.Ladder(np.full(REPLICAS, 1.0), np.full(REPLICAS, 0.2), problem.space.n_par)
-    assert np.all(tp.temper(problem, flat, seed=1, sweeps=200).swap_acceptance == 1.0)
+    assert np.all(tp.temper(problem, flat, **RUN, seed=1, sweeps=200).swap_acceptance == 1.0)
 
 
 def test_polish_never_worsens(acr):
     problem = acr[0]
-    run = tp.temper(problem, _ladder(problem), seed=2, sweeps=50)
+    run = tp.temper(problem, _ladder(problem), **RUN, seed=2, sweeps=50)
     for v in run.best:
         assert tp.polish(problem, v).j <= v.j + 1e-12
 
@@ -616,7 +668,7 @@ def test_the_rigid_fragment_is_recovered_from_two_seeds(acr, on):
     lad = _ladder(problem)
     hits, raw_hits, sols = 0, 0, []
     for seed in SEEDS:
-        run = tp.temper(problem, lad, seed=seed, sweeps=ACR_SWEEPS, wall_seconds=3600.0)
+        run = tp.temper(problem, lad, **RUN, seed=seed, sweeps=ACR_SWEEPS, wall_seconds=3600.0)
         assert run.stopped is None and run.moves == ACR_SWEEPS * REPLICAS
         assert (run.compiled["orbit_sums"] > 0) == on
         rmsd, raw, pol = _recovered(problem, run, eq, xt)
@@ -625,7 +677,7 @@ def test_the_rigid_fragment_is_recovered_from_two_seeds(acr, on):
         sols.append(cl.Solution(sp.xyz(pol.u[None])[0], pol.j, pol.chi2, pol.clash, seed))
     assert hits >= 2
     assert raw_hits >= 2
-    ranked = cl.rank(cl.cluster(sols, eq, sp.species), floor=problem.floor,
+    ranked = cl.rank(cl.cluster(sols, eq, sp.species, tol=CLUSTER_TOL), floor=problem.floor,
                      labels=sp.labels, species=sp.species)
     assert cl.align(eq, xt, ranked[0].xyz, sp.species).rmsd <= RECOVERY_ANG
     assert len(ranked[0].seeds) >= 2
@@ -642,7 +694,7 @@ def test_nac_is_recovered_from_its_pawley_intensities(nac):
     lad = _ladder(problem)
     hits = raw_hits = 0
     for seed in SEEDS:
-        run = tp.temper(problem, lad, seed=seed, sweeps=NAC_SWEEPS, wall_seconds=3600.0)
+        run = tp.temper(problem, lad, **RUN, seed=seed, sweeps=NAC_SWEEPS, wall_seconds=3600.0)
         assert run.stopped is None
         rmsd, raw, _pol = _recovered(problem, run, eq, xt)
         hits += rmsd <= RECOVERY_ANG

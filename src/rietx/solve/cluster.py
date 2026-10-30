@@ -43,26 +43,22 @@ rather than by label makes a fragment's own symmetry (acridine's mirror) and
 the swap of two same-species sites invisible, as they are to the data.
 
 **Clusters** (:func:`cluster`) are formed greedily in order of J: a solution
-joins the first cluster whose leader is within :data:`CLUSTER_RMSD_ANG`, or
+joins the first cluster whose leader is within the caller's ``tol`` (Å), or
 starts one.  **Ranking** (:func:`rank`) returns the clusters as a list with
 their evidence — χ²_data, χ²/χ²_floor, the raw clash term, the seeds that
 found each, the spread inside it, the margin to the next — and **no
 structure**: a candidate is coordinates and evidence, never a model to refine
 from without reading the list.
 
-**Grades are provisional** under :data:`THRESHOLDS_VERSION`, whose constants
-are declared and not measured on any public held-out set (WP-1515's
-2026-09-30 review).  Three rules from #562's amendments:
-
-* a cluster found by one seed only is ``low`` (``single_seed``);
-* the leader is ``high`` only with no other cluster within
-  :data:`RIVAL_MARGIN` of its χ²_data (amendment (d)1, ``rival``);
-* **the prior-off control arm** (amendment (c)): when the leader of the
-  control seeds, run with every prior at zero weight, is structurally
-  different from the prior-on leader and its χ²_data is lower by
-  :data:`CONTROL_BETTER` or more, the prior-on leader is capped at ``low``
-  (``prior_excludes_better_fit``).  A share rule cannot see a wrong structure
-  that satisfies its prior perfectly; the data can.
+**No grade, and no threshold of the package's own** (#1224: a machinery
+change adds no tier-3 number).  The rules #562's amendments name — a cluster
+one seed found, a rival within a margin of the leader's χ²_data, and the
+prior-off control arm (amendment (c)) — are verdicts on this evidence, and
+they land with their constants beside the solve entry point.  What the
+control rule reads is here: given the clustering of the control seeds, run
+with every prior at zero weight, each entry carries its RMSD from the
+control's best leader and that leader's χ²_data, so a wrong structure that
+satisfies its prior perfectly shows as a lower χ²_data somewhere else.
 
 Nothing here is exported from :mod:`rietx`.
 """
@@ -71,7 +67,6 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass, field
-from typing import Literal
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -81,33 +76,8 @@ from ..crystallography.symmetry import _group_arrays, group_key
 from ..crystallography.wyckoff import floating_origin_basis
 from ..optimize import lapack
 
-#: Two solutions within this RMSD (Å) after alignment are one cluster.
-#: Declared: half the 0.7 Å single-site bar of #677's archive run, and above
-#: the 0.10 Å recovery bar of the S2a acceptance by a factor of three.
-CLUSTER_RMSD_ANG = 0.35
-
-#: A second cluster within this fraction of the leader's χ²_data is a rival
-#: (#562 amendment (d)1).  Declared, not measured.
-RIVAL_MARGIN = 0.05
-
-#: The control leader must beat the prior-on leader's χ²_data by this
-#: fraction to cap it (#562 amendment (c)).  Declared, not measured.
-CONTROL_BETTER = 0.10
-
-#: Seeds a cluster needs before it can be graded above ``low``.
-MIN_SEEDS = 2
-
-#: The versioned contract the grades ship under: a change to any constant
-#: above is a new version.
-THRESHOLDS_VERSION = "s2a-provisional-1"
-
-THRESHOLDS = {"cluster_rmsd_ang": CLUSTER_RMSD_ANG, "rival_margin": RIVAL_MARGIN,
-              "control_better": CONTROL_BETTER, "min_seeds": MIN_SEEDS}
-
 _ISOMETRY_RTOL = 1e-6
 _CELLS27 = np.array(list(itertools.product((-1, 0, 1), repeat=3)), dtype=np.float64)
-
-Grade = Literal["high", "medium", "low"]
 
 
 # ----------------------------------------------------------------------
@@ -334,9 +304,11 @@ class Cluster:
         return tuple(sorted({m.seed for m in self.members}))
 
 
-def cluster(solutions, eq: Equivalence, species, *,
-            tol: float = CLUSTER_RMSD_ANG) -> list[Cluster]:
-    """Greedy clusters in order of J (module docstring)."""
+def cluster(solutions, eq: Equivalence, species, *, tol: float) -> list[Cluster]:
+    """Greedy clusters in order of J (module docstring); ``tol`` is the RMSD
+    (Å) after alignment within which a solution joins a leader."""
+    if not tol > 0.0:
+        raise ValueError(f"tol {tol} must be a positive RMSD in Å")
     out: list[Cluster] = []
     for s in sorted(solutions, key=lambda s: s.j):
         for c in out:
@@ -352,10 +324,12 @@ def cluster(solutions, eq: Equivalence, species, *,
 
 @dataclass(frozen=True)
 class RankedSolution:
-    """One cluster in the ranked list, with its evidence and a provisional grade.
+    """One cluster in the ranked list, with its evidence and no grade.
 
     No structure: ``xyz`` and ``labels`` are the leader's coordinates, to be
-    read beside the rest of the list."""
+    read beside the rest of the list.  ``control_rmsd_ang`` is this leader's
+    RMSD (Å) from the control arm's best leader and ``control_chi2_data``
+    that leader's χ²_data, both ``None`` when no control was given."""
 
     rank: int
     labels: tuple[str, ...]
@@ -369,56 +343,36 @@ class RankedSolution:
     n_members: int
     spread_ang: float
     margin_to_next: float | None     # (χ²_next − χ²)/χ², None for the last
-    grade: Grade
-    caveats: tuple[str, ...]
-    thresholds_version: str = THRESHOLDS_VERSION
+    control_rmsd_ang: float | None
+    control_chi2_data: float | None
 
 
 def rank(clusters: list[Cluster], *, floor: float, labels, species,
          control: list[Cluster] | None = None,
          eq: Equivalence | None = None) -> list[RankedSolution]:
     """The ranked list, best χ²_data first among the prior-on clusters, with
-    the provisional grades (module docstring).  ``control`` is the clustering
-    of the prior-off seeds; ``eq`` is needed to compare the two leaders."""
+    their evidence (module docstring).  ``control`` is the clustering of the
+    prior-off seeds; ``eq`` is needed to compare each leader with its best."""
     cl = sorted(clusters, key=lambda c: c.leader.chi2)
-    out = []
-    lead = cl[0].leader if cl else None
-    control_caps = False
-    if control and lead is not None:
+    c0 = None
+    if control:
         if eq is None:
             raise ValueError("comparing the control arm needs the equivalence set")
         c0 = min(control, key=lambda c: c.leader.chi2).leader
-        different = align(eq, lead.xyz, c0.xyz, species).rmsd > CLUSTER_RMSD_ANG
-        control_caps = different and c0.chi2 <= (1.0 - CONTROL_BETTER) * lead.chi2
+    out = []
     for i, c in enumerate(cl):
         s = c.leader
-        caveats = []
         nxt = cl[i + 1].leader.chi2 if i + 1 < len(cl) else None
         margin = None if nxt is None else (nxt - s.chi2) / s.chi2
-        if len(c.seeds) < MIN_SEEDS:
-            caveats.append("single_seed")
-        if i > 0 and (s.chi2 - lead.chi2) / lead.chi2 > RIVAL_MARGIN:
-            caveats.append("worse_than_leader")
-        rivals = [o for j, o in enumerate(cl) if j != i
-                  and abs(o.leader.chi2 - s.chi2) <= RIVAL_MARGIN * min(o.leader.chi2, s.chi2)]
-        if rivals:
-            caveats.append("rival")
-        if i == 0 and control_caps:
-            caveats.append("prior_excludes_better_fit")
-        if {"single_seed", "worse_than_leader", "prior_excludes_better_fit"} & set(caveats):
-            grade: Grade = "low"
-        elif caveats:
-            grade = "medium"
-        else:
-            grade = "high"
         out.append(RankedSolution(
             rank=i + 1, labels=tuple(labels), species=tuple(species), xyz=s.xyz.copy(),
             chi2_data=s.chi2, chi2_ratio=s.chi2 / floor, clash_raw=s.clash, j=s.j,
             seeds=c.seeds, n_members=len(c.members), spread_ang=c.spread,
-            margin_to_next=margin, grade=grade, caveats=tuple(caveats)))
+            margin_to_next=margin,
+            control_rmsd_ang=None if c0 is None else align(eq, s.xyz, c0.xyz, species).rmsd,
+            control_chi2_data=None if c0 is None else c0.chi2))
     return out
 
 
-__all__ = ["CLUSTER_RMSD_ANG", "CONTROL_BETTER", "MIN_SEEDS", "RIVAL_MARGIN",
-           "THRESHOLDS", "THRESHOLDS_VERSION", "Alignment", "Cluster", "Equivalence",
-           "RankedSolution", "Solution", "align", "cluster", "equivalences", "rank"]
+__all__ = ["Alignment", "Cluster", "Equivalence", "RankedSolution", "Solution", "align",
+           "cluster", "equivalences", "rank"]
