@@ -1,6 +1,6 @@
 # WP-1924 — A monoclinic search stays inside its ceiling and its memory
 
-Milestone: unscheduled · Status: 🔄 2026-10-13 — the frontier's memory fixed and #895 landed, acceptance and bethanechol run on the merged tree; the ceiling's scheduling remains
+Milestone: unscheduled · Status: 🔄 2026-10-30 — claimed by @yue-here
 Track: A long run is not one fit
 Depends on: 1959 (the grid compiled, this WP's last task); 1520 soft (the same units' leaf cost)
 Priority: P2 2026-10-08 — a defect that fires wrongly: a declared ceiling overrun and a multi-GB peak on a clean 61-line monoclinic pattern, with the workaround of capping the volume and the systems by hand; the reporter's 9 GB and 25.8 GB are the reason it is not P3
