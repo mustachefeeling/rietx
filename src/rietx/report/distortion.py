@@ -50,8 +50,9 @@ EVEN_EXPONENT = 4
 LINEAR_EXPONENT = 2
 
 #: Printed on every :class:`~rietx.schemas.results.DistortionTotal`: what a
-#: linearised esd of a norm is, whatever the block's size (Rice 1944 for the
-#: bias of a norm's estimate near zero).
+#: linearised esd of a norm is, whatever the block's size (the bias of a norm
+#: estimated near zero is the Rice distribution's: Rice (1944), *Bell Syst.
+#: Tech. J.* **23**, 282).
 ESD_LABEL = "linearised; undefined at A_τ = 0 and Rice-biased below about 2 esd"
 #: Which sign the amplitudes carry.  Only relative signs are measured; a lost
 #: parent operation maps the structure onto a domain with the same pattern and
@@ -82,7 +83,13 @@ def distortion_blocks(phase) -> dict[BlockKey, list[int]]:
 
 
 def hotelling_t2(amplitudes, covariance) -> float | None:
-    """Aᵀ·Cov⁻¹·A, or ``None`` where Cov is not positive definite (Hotelling 1931)."""
+    """Aᵀ·Cov⁻¹·A, or ``None`` where Cov is not positive definite.
+
+    Hotelling (1931), *Ann. Math. Statist.* **2**, 360.  Reported with m and no
+    p: at a block whose truth may be zero χ² is even in the amplitudes, so this
+    is about 4 × the likelihood ratio there (:data:`ESD_LABEL`'s neighbour in
+    ``rietx.help``).
+    """
     a = np.asarray(amplitudes, dtype=np.float64)
     try:
         chol = np.linalg.cholesky(np.asarray(covariance, dtype=np.float64))
