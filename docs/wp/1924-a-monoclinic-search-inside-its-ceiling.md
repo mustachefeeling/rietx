@@ -47,6 +47,55 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 
 ### Inherited
 
+- **2026-10-30, from the issue triage (#780): with the per-unit limit lifted,
+  dichotomy's memory grows without bound by two more routes, and a cancel can
+  wait on the dedup.** The reporter's comments of 2026-10-30 16:56Z and 18:20Z,
+  one private triclinic benchmark pattern, `SearchSpec(budget_seconds=1e9,
+  total_budget_seconds=18000)`, `preset="full"`, compiled tier on (run at
+  `e016f187d`, Linux x86_64, 1 thread; diagnosed at `44de0f62a`, macOS). Figures
+  are theirs and were not re-run here: the pattern is private and the run grows
+  to tens of GB. Three mechanisms, each confirmed by reading the tree at
+  `d35ffeda7`:
+  1. **The grid frontier is bounded by cells, not rows.** `_grid_pass` caps
+     `len(nxt)` at `MAX_GRID_CELLS` (400 000), and each child carries its
+     parent's `kept` list, so the resident size is the sum of the distinct
+     parents' lists, which nothing bounds. Triclinic, dichotomy alone: 1.8 GB at
+     `budget_seconds=60`, 3.1 GB and still rising at 180; the full run reached
+     18.4 GB at 103 min and was killed, returning nothing. The first grid pass
+     overflowed at 215 s (135 811 boxes), its 400 010 cells referencing 43.9 GB
+     of lists if each were counted alone. After an overflow `_search_one` still
+     runs phase 2 on the truncated frontier (`frontier is None` is the only
+     early return). Their proposals: (a) a row bound beside the cell bound,
+     taking the existing `complete=False` path, so `INDEX_SEARCH_INCOMPLETE`
+     reads "outgrew a size cap"; (b) end the unit at overflow rather than run
+     phase 2 on a part of the domain, which they leave to the maintainer as a
+     recall question.
+  2. **`found` is unbounded inside a unit.** `DEDUP_EVERY` (2 000) is applied in
+     `search_dichotomy` between systems (`dichotomy.py:780`), never inside
+     `_search_one`; trial_error dedups at `len(found) > 2000` inside its loop
+     (`trial_error.py:443`). Orthorhombic on the same pattern: 6 819 accepted
+     leaves in 300 s, 6 816 distinct after dedup, about 11 KB each pickled; one
+     orthorhombic unit reached 7 GB at 70 min on Linux. They note that 6 816
+     distinct orthorhombic lattices in five minutes may mean the acceptance rule
+     is loose for a long list, and leave that judgement to the maintainer.
+  3. **A cancel waits on an unguarded dedup.** `_search_one` honours the token,
+     then `search_dichotomy` dedups the whole harvest (and `rank_candidates`
+     dedups again unless `deduped`); `dedup_groups` takes no `cancel`. Measured
+     0.11, 0.29, 1.05 and 10.7 s at 500, 1 000, 2 000 and 6 819 candidates,
+     about n² as `dedup_groups`' docstring describes for distinct lattices. On
+     Linux the process grew from 7.2 to 8.2 GB for minutes after the cancel and
+     was killed.
+  Also restated: one trial_error base runs for minutes between budget reads
+  (282 s on a 60 s budget, identical at 180 s), the 2026-10-16 entry's
+  proposal (2) on a second engine. The default 30 s `budget_seconds` cuts all
+  three before they matter, so they reach a caller who raises it, and end in an
+  OOM kill rather than an `INDEX_BUDGET_EXHAUSTED` result. Their harness now
+  cancels on its own RSS cap. They offer to rerun any diagnostic on the
+  pattern. This WP owns them: its Goal is a search inside a stated time **and
+  memory** bound. They widen its scope past monoclinic, and its title and the
+  scheduling box (WP-1959 landed 2026-10-14, box not ticked) are the working
+  session's to settle.
+
 - **2026-10-16, from the issue triage (#780): the reporter's 2026-10-14 02:33Z
   measurements for this WP's scheduling task are in no WP file.** Figures are
   the reporter's (32 GB Mac, load 2-8, `#930`'s head, numpy grid, before PR
