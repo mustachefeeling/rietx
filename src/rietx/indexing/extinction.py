@@ -164,7 +164,8 @@ N_A_CM3_PER_A3 = 0.602214076
 #: Z (WP-2033, ruled by the maintainer on PR #1140).  The density is the
 #: error of a **measurement**, not the 8 % scatter of a volume estimated from
 #: atom counts (:data:`~rietx.indexing.diagnostics.Z_INTEGER_TOLERANCE`): a
-#: pycnometric or flotation density is good to about 1 %.  Z ∝ ρ·V, so the
+#: pycnometric or flotation density is taken to be good to about 1 % (a
+#: working figure; no source for it has been checked).  Z ∝ ρ·V, so the
 #: fraction carries over, the cell's own volume being far better known.  At
 #: Z ≳ 50 two whole numbers fit that window and the density no longer names
 #: one, which :func:`declared_z` reports as ambiguity, never as contradiction.

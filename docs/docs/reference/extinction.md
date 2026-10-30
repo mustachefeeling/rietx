@@ -241,7 +241,7 @@ print(prior.declared())          # {'sohncke': True}
 | `ExtinctionPrior.sohncke` | `True`: only Sohncke groups, with no inversion, mirror or glide (an enantiopure chiral compound); `False`: only the others |
 | `ExtinctionPrior.centrosymmetric` | `True` or `False`: only groups with, or without, an inversion centre (a second-harmonic signal says `False`) |
 | `ExtinctionPrior.polar` | `True`: only the polar groups, whose point group leaves a direction fixed (a pyroelectric response); `False`: only the others |
-| `ExtinctionPrior.z` | formula units per cell; with `formula`, removes the groups whose orbits cannot hold that content |
+| `ExtinctionPrior.z` | formula units per cell; with `formula` and `ordered`, removes the groups whose orbits cannot hold that content, otherwise names them |
 | `ExtinctionPrior.density` | measured density in g/cm³, which fixes Z through the formula weight and the screened cell's volume; needs `formula` |
 | `ExtinctionPrior.formula` | the formula unit, written as a chemist writes it (`"Cu12Sb4S13"`); a fractional count declares a shared site |
 | `ExtinctionPrior.ordered` | `True`: every site is one element at full occupancy, so a group whose orbits cannot hold the declared content is removed; needs `formula` |
@@ -278,7 +278,7 @@ Where no sum of the group's orbit multiplicities makes Z at all (P 2₁/m at Z =
 A `density` gives Z = ρ·V·N_A / M on the screened cell, `ExtinctionScreen.z_from_density`.
 It must sit within {{ DENSITY_Z_TOLERANCE_PCT }} % of the declared `z`, the error of a measured density, or, with none declared, of exactly one whole number, and `ExtinctionScreen.z` is the Z the filter used.
 When it sits outside that of the declared `z`, or of every whole number, nothing is filtered by Z, `ExtinctionScreen.density_contradicts_z()` is `True`, `EXTINCTION_PRIOR_APPLIED` is a warning and `best_or_none` abstains.
-When several whole numbers fit (above Z ≈ 50), nothing is filtered by Z either, `ExtinctionScreen.z_candidates` lists them, and the screen does not abstain: declare `z` to filter.
+When several whole numbers fit (above Z ≈ {{ DENSITY_Z_AMBIGUOUS_ABOVE }}), nothing is filtered by Z either, `ExtinctionScreen.z_candidates` lists them, and the screen does not abstain: declare `z` to filter.
 A screen that never computed a Z (cancelled, failed) does not say the density contradicts it.
 
 ## On real data

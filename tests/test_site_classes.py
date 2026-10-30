@@ -174,7 +174,11 @@ def test_holds_is_a_placement_existing():
     """``holds`` answers what :func:`count_site_assignments` counts, for every
     count up to twice the general multiplicity, at most 24: the existence
     question needs no count, and the counting side's cost grows with the count
-    (the full range took 46 s, so it is trimmed here rather than marked slow)."""
+    (the uncapped range took tens of seconds on a laptop, 46 s once, so it is
+    capped here rather than marked slow).  The cap leaves unchecked the counts
+    25 to 384 on ``F m -3 m`` (general multiplicity 192) and 25 to 48 on
+    ``I 21 3`` and ``P 6/m m m`` (24), where ``holds`` is not compared with
+    the count; ``P 1 21/m 1`` and ``P -1`` are covered whole."""
     for setting in ("F m -3 m", "P 1 21/m 1", "I 21 3", "P 6/m m m", "P -1"):
         classes = site_classes(setting)
         top = min(2 * max(c.multiplicity for c in classes), 24)

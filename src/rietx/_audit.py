@@ -1821,12 +1821,17 @@ ROWS: tuple[Row, ...] = (
         grounds="Kept on both grounds, ruled 2026-10-21 (PR #939).",
         approved="2026-10-21"),
     Row("rietx.indexing.extinction._MODULI", "constant", value=(2, 3, 4, 6)),
-    Row("rietx.indexing.extinction.DENSITY_Z_TOLERANCE", "constant", tier=2,
-        evidence="Ruled by the maintainer on PR #1140 (2026-10-27): a measured density is "
-                 "good to about 1 % (pycnometric or flotation), so that is the error of Z "
-                 "= rho*V*N_A/M, the cell volume being far better known.  Tested against "
-                 "a handbook density of NaCl (2.165 g/cm3, CRC Handbook of Chemistry and "
-                 "Physics), not the density computed from the same cell (WP-2033).",
+    Row("rietx.indexing.extinction.DENSITY_Z_TOLERANCE", "constant", tier=3,
+        evidence="A measured density is taken to be good to about 1 %, so that is the "
+                 "error of Z = rho*V*N_A/M, the cell volume being far better known.  "
+                 "Tested on NaCl against a handbook density (2.165 g/cm3), which agrees "
+                 "with the computed one to 0.1 % and so cannot show that 1 % fits a "
+                 "real measurement.  No source stating the error of pycnometric or "
+                 "flotation density has been checked (WP-2033).",
+        grounds="Our own chosen number: 1 % replaces the 8 % that is the scatter of a "
+                "volume estimated from atom counts, the maintainer's ruling on PR #1140 "
+                "(2026-10-27) that a measured density has an error of its own.  Waiting "
+                "on a cited source for that error, or on the maintainer's tier-3 approval.",
         value=0.01),
     Row("rietx.indexing.extinction.N_A_CM3_PER_A3", "constant", tier=1,
         evidence="Physics: Avogadro's number, exact in the SI since 2019 (CODATA 2018, "

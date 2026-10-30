@@ -242,6 +242,8 @@ MYST_SUBSTITUTIONS = {
     "VOLUME_RATIO_HIGH": f"{VOLUME_RATIO_BOUNDS[1]:g}",
     "Z_INTEGER_TOLERANCE_PCT": f"{Z_INTEGER_TOLERANCE * 100:g}",
     "DENSITY_Z_TOLERANCE_PCT": f"{DENSITY_Z_TOLERANCE * 100:g}",
+    # two whole numbers fit a window of ±DENSITY_Z_TOLERANCE·Z once Z passes this
+    "DENSITY_Z_AMBIGUOUS_ABOVE": f"{0.5 / DENSITY_Z_TOLERANCE:g}",
     "Z_CHECK_SILENT_ABOVE": f"{0.5 / Z_INTEGER_TOLERANCE:g}",
     # How many example projects the wheel carries.  A *count* in prose is the
     # same class of stale number as a retuned threshold, and it rots the same
