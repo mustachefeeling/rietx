@@ -5213,7 +5213,7 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "held at 0 and reports ΔBIC at N/f² and Λ = Δχ²/(χ²_red·f²) with its p. Λ is "
             "Hamilton's F form on rietx's esd scale; it holds its size on white-noise "
             "nulls; under model misfit it can call a block that absorbs misfit, so it is "
-            "not a test of zero. With a bar it adds A_det, measured +2 % (five-mode Γ "
+            "not a test of zero. With a bar it adds `A_det`, measured +2 % (five-mode Γ "
             "block), +9 to +12 % (ten-mode zone-boundary block) and +48 % (one mode of a "
             "57-mode P1 child) off the 50 % point at bar 6 on LaMnO₃ white noise, and "
             "uncalibrated on misfit. `None` when no phase carries `distortion_modes`."

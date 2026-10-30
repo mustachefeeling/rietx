@@ -206,7 +206,7 @@ A correlation inside one block is an artefact of the basis chosen inside it; `a_
 `Refinement.distortion_block_tests(data, hold=..., detectability_bar=...)` holds blocks at 0 and refits, after a fit that freed them.
 `hold` is a list whose items are a block or a set of blocks held together, each named by its `(irrep, k, isotropy_group)` key or by its `DistortionTotal`; `None` holds every block that is not the identity irrep's, each alone.
 Each item gets one restricted refit: its amplitudes at 0, everything else the fit freed free again, starting from the fit's optimum.
-It runs on a private copy, so the refinement, its history and its result are unchanged, and it costs one refit per item (0.5 to 1.4 s each on the five blocks of the BT-1 LaMnO₃ Pnma fit, macOS arm64).
+It runs on a private copy, so the refinement, its history and its result are unchanged, and it costs one refit per item (0.5 to 1.4 s each on the five blocks of the BT-1 LaMnO₃ `Pnma` fit, macOS arm64).
 
 It returns a `DistortionBlockTests`, with one `DistortionBlockTest` per item in `DistortionBlockTests.tests`:
 
@@ -232,7 +232,7 @@ The full χ² falls at every restart, so the loop has no cap; a restart that doe
 After a restart the rows compare against the restarted fit, which is `DistortionBlockTests.restarted_result`; otherwise that field is `None`.
 
 `detectability_bar` has no default, and without it `a_det` is not computed (`DistortionBlockTests.detectability_bar` records the one used).
-The detectability amplitude is the minimum over the held modes j of A<sub>0</sub>·[χ²<sub>red</sub>·f²·(m·ln(N/f²) + bar)/λ<sub>j</sub>(A<sub>0</sub>)]<sup>1/p<sub>j</sub></sup>, with χ²<sub>red</sub> the full fit's and f the restricted fit's.
+The smallest detectable amplitude is the minimum over the held modes j of A<sub>0</sub>·[χ²<sub>red</sub>·f²·(m·ln(N/f²) + bar)/λ<sub>j</sub>(A<sub>0</sub>)]<sup>1/p<sub>j</sub></sup>, with χ²<sub>red</sub> the full fit's and f the restricted fit's.
 λ<sub>j</sub> is one predict per mode at A<sub>0</sub> = `rietx.report.distortion.DETECTABILITY_PROBE` (0.1 Å) from the restricted optimum, on the file's σ.
 p<sub>j</sub> is 4 for a mode the pattern has no first-order term along at that structure, which `AmplitudeAction.even` reads from the structure's symmetry, and 2 otherwise.
 `rietx.report.detectability_target` and `rietx.report.detectability_amplitude` are the two steps.
