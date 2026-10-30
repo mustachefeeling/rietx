@@ -252,7 +252,7 @@ A spaced sum ending in a listed molecule after a decimal count is refused too (`
 `from_formula` raises `ValueError` when `max_volume` is passed beside the formula, for a `z` that is not a whole number of at least 1 with its minimum no larger than its maximum, when the ceiling falls below the floor, and for a formula or temperature `formula_unit_volume` refuses.
 
 It holds every inorganic standard measured (0.38 to 0.87) and organic one (1.00 to 1.04).
-A framework whose formula leaves out its pore contents can sit above it: HKUST-1 reads 2.28.
+A framework whose formula leaves out its pore contents can sit above it, at 2.28 for one measured.
 
 `index_pattern(formula=)` records the formula units each candidate's volume holds, `CellCandidate.formula_units`, and moves no search or rank.
 No diagnostic judges it: a correct inorganic cell reads 0.4 to 0.9 of its Z, like a wrong Z.
