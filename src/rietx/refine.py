@@ -359,11 +359,13 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     # width would be a dead column, as the moment it broadens (``.atoms.``)
     # already is here.
     # A rigid body's origin and rotation (WP-1805) move nothing but its atoms'
-    # coordinates, so they are structural parameters too.
+    # coordinates, so they are structural parameters too, and so is a
+    # distortion-mode amplitude (WP-1419), which writes only coordinates.
     # A texture coefficient (WP-1960) multiplies |F|², which an intensity model
     # does not compute, so its column is dead there: measured on March-Dollase's
     # r, its single-axis sibling, which ended 1.7e-13 from its start.
     return (".atoms." in path or ".rigid_bodies." in path
+            or ".distortion_modes." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
             or (path.startswith("phases.") and ".texture." in path)
             or _MAGNETIC_WIDTH_PATH.match(path) is not None)
@@ -5234,10 +5236,10 @@ class Refinement:
             # `fit(plan="profile_only")` refines no biso — and the GUI's plan panel
             # now names the difference, since nothing a user could read said it.
             table = self._prepare_table(restore=False)
-            # the contacts inside r₀ before any stage moves an atom, which
-            # RESTRAINT_PAIRS_STALE needs to tell a drifted pair from one the
-            # caller left out of the list on purpose
-            stale_since = _anti_bump_contacts_at_start(self.structure, mode)
+            # the phases before any stage moves an atom, whose contacts inside
+            # r₀ RESTRAINT_PAIRS_STALE needs to tell a drifted pair from one
+            # the caller left out of the list on purpose
+            stale_since = _anti_bump_start_phases(self.structure, mode)
 
             # the λ this Refinement was constructed with (or last edited to), so a
             # second λ-freeing call reports the cumulative move from the truly
@@ -5783,7 +5785,7 @@ class Refinement:
 
         try:
             table = self._prepare_table(restore=True)
-            stale_since = _anti_bump_contacts_at_start(self.structure, mode)
+            stale_since = _anti_bump_start_phases(self.structure, mode)
             # the constructed (or last-edited) λ, not the value the previous stage
             # left behind: a second λ-freeing stage reports cumulatively, matching
             # the joint path, rather than a delta from its own predecessor (WP-1134).
@@ -9137,21 +9139,58 @@ RESTRAINT_TENSION_SIGMA = 3.0
 
 
 def _restraint_tension_diagnostics(report, structure: Structure) -> list[Diagnostic]:
-    """Flag restraints the data fights (|deviation/σ| beyond the threshold)."""
+    """Flag restraints the data fights (|deviation/σ| beyond the threshold).
+
+    One finding per restraint, a plane included: its rows are one per atom
+    (each atom's distance to the plane, consecutive in the report, as many as
+    the plane has atoms), so a strained plane is one finding whose ``where``
+    is the atoms out of it past the threshold, worst first, rather than one
+    finding per atom each naming the whole plane.
+    """
     out: list[Diagnostic] = []
-    for row in report.rows:
-        if abs(row.deviation_over_sigma) <= RESTRAINT_TENSION_SIGMA:
+    rows = report.rows
+    k = 0
+    while k < len(rows):
+        row = rows[k]
+        if row.kind == "planarity":
+            plane = rows[k:k + len(row.atoms)]
+            k += len(plane)
+            found = _plane_tension(plane, structure)
+        else:
+            k += 1
+            found = (None if abs(row.deviation_over_sigma) <= RESTRAINT_TENSION_SIGMA
+                     else (_restraint_where(row, structure),
+                           f"The {row.kind} restraint deviates "
+                           f"{row.deviation_over_sigma:+.1f}σ from its target "
+                           f"({row.computed:.4g} vs {row.target:.4g})."))
+        if found is None:
             continue
+        where, message = found
         out.append(Diagnostic(
-            level="warning", code="RESTRAINT_TENSION",
-            where=_restraint_where(row, structure),
-            message=(f"The {row.kind} restraint deviates "
-                     f"{row.deviation_over_sigma:+.1f}σ from its target "
-                     f"({row.computed:.4g} vs {row.target:.4g})."),
+            level="warning", code="RESTRAINT_TENSION", where=where, message=message,
             suggestion="Loosen its sigma, correct the target, or raise sigma "
                        "so the measured pattern overrides the prior.",
         ))
     return out
+
+
+def _plane_tension(plane: list, structure: Structure) -> tuple | None:
+    """``(where, message)`` for a planarity restraint's rows past the
+    threshold, worst first, or ``None`` where none is."""
+    out = sorted((r for r in plane
+                  if abs(r.deviation_over_sigma) > RESTRAINT_TENSION_SIGMA),
+                 key=lambda r: -abs(r.deviation_over_sigma))
+    if not out:
+        return None
+    phase = structure.phases[plane[0].phase_index]
+    lab = [a.label for a in phase.atoms]
+    shown = ", ".join(f"{lab[r.atoms[0]]} {r.deviation_over_sigma:+.1f}σ "
+                      f"({r.computed:+.4g} Å)" for r in out)
+    return (list(dict.fromkeys(f"{phase.name} {lab[r.atoms[0]]}" for r in out)),
+            f"The planarity restraint on "
+            f"{', '.join(lab[j] for j in plane[0].atoms)} has {len(out)} of "
+            f"{len(plane)} atoms more than {RESTRAINT_TENSION_SIGMA:g}σ from "
+            f"its plane: {shown}.")
 
 
 #: Rwp above which a fit is reported as a **model/data mismatch** rather than
@@ -10706,13 +10745,29 @@ def _roughness_regime_diagnostics(model: CompiledModel,
 RESTRAINT_PAIRS_STALE_LISTED = 5
 
 
-def _anti_bump_contacts_at_start(structure: Structure, mode: str) -> list:
-    """Per phase, the contacts inside r₀ now (``None`` where nothing is searched)."""
-    from .model.restraints import anti_bump_contact_keys
+def _anti_bump_start_phases(structure: Structure, mode: str) -> list:
+    """Per phase, a copy of it as the run starts (``None`` where nothing is searched).
+
+    A copy rather than its contacts inside r₀: those cost a whole pair search,
+    23 ms a call on paracetamol (20 atoms, P2₁/n), and the two a run makes were
+    12 % of a 0.40 s scale-and-background fit of it.  A run that moves no
+    coordinate and no cell length or angle cannot bring a contact inside r₀,
+    so the search waits for the end of the run and is made only where the
+    geometry moved.
+    """
+    from .schemas.structure import AntiBumpRestraint
 
     if mode != "rietveld":
         return [None] * len(structure.phases)
-    return [anti_bump_contact_keys(ph) for ph in structure.phases]
+    return [ph.model_copy(deep=True)
+            if any(isinstance(r, AntiBumpRestraint) for r in ph.restraints) else None
+            for ph in structure.phases]
+
+
+def _contact_geometry(phase) -> tuple:
+    """Everything a phase's contacts are measured from that a fit can move."""
+    return (tuple((a.x.value, a.y.value, a.z.value) for a in phase.atoms),
+            phase.cell.lengths_angles())
 
 
 def _restraint_pairs_stale_diagnostics(structure: Structure,
@@ -10725,20 +10780,23 @@ def _restraint_pairs_stale_diagnostics(structure: Structure,
     plan end each phase with an anti-bump row is searched at the answer's
     coordinates (:func:`rietx.model.restraints.stale_anti_bump_pairs`), and
     one warning per phase names what it found, closest-inside first.
-    ``since`` is the contacts inside r₀ where the run *started*
-    (:func:`~rietx.model.restraints.anti_bump_contact_keys`, per phase): the
-    list does not remember what it was built from, so a contact already inside
-    r₀ then — a bond the caller left out of the list — is theirs and never
-    named, which makes "entered" true.  ``run_stage`` runs it too, one stage's
+    ``since`` is each phase as the run *started* (:func:`_anti_bump_start_phases`),
+    whose contacts inside r₀
+    (:func:`~rietx.model.restraints.anti_bump_contact_keys`) are the caller's:
+    the list does not remember what it was built from, so a contact already
+    inside r₀ then — a bond the caller left out of the list — is theirs and
+    never named, which makes "entered" true.  A phase whose coordinates and
+    cell are bit-for-bit where they started has the same contacts, so none
+    entered and neither search runs.  ``run_stage`` runs it too, one stage's
     start being its own ``since``.
     """
-    from .model.restraints import stale_anti_bump_pairs
+    from .model.restraints import anti_bump_contact_keys, stale_anti_bump_pairs
 
     out: list[Diagnostic] = []
-    for phase, before in zip(structure.phases, since, strict=True):
-        if before is None:
+    for phase, start in zip(structure.phases, since, strict=True):
+        if start is None or _contact_geometry(start) == _contact_geometry(phase):
             continue
-        stale = stale_anti_bump_pairs(phase, since=before)
+        stale = stale_anti_bump_pairs(phase, since=anti_bump_contact_keys(start))
         if not stale:
             continue
         lab = [a.label for a in phase.atoms]

@@ -197,10 +197,14 @@ from .structure import Cell
 #: with their ΔBIC moved (corundum −3434 → −1301, FAP −16 → −83); the PbSO₄
 #: X-ray histogram at a 0.1-0.2 % cell went from an abstention to ``P c - n``.
 #: Also 1.12 (WP-2033, #935's other half): ``ExtinctionPrior`` gains ``z``,
-#: ``density`` and ``formula``, which remove the members whose orbits cannot
-#: hold the declared content and name the special positions a Z′ below one
-#: needs.  Only a screen that declares one of them can answer differently;
+#: ``density`` and ``formula`` (and ``ordered``), which name the members whose
+#: orbits cannot hold the declared content (removing them only under
+#: ``ordered=True``) and the special positions a Z′ below one needs.  Only a screen that declares one of them can answer differently;
 #: with none declared every screen answers as before.
+#: Also 1.12 (WP-2030): ``INDEX_DATA_INSUFFICIENT`` names an undeclared
+#: instrument first only on a laboratory source, read off the declared source
+#: (``diagnostics.lab_source``), and reads it from the list's own record when
+#: no instrument is passed.  No search, rank or grade moves.
 #: Also 1.12 (WP-2011): the whole-pattern validation fits by Pawley, so every
 #: candidate's ``lebail.rwp`` and ``unmatched_observed`` move, and a cell that
 #: predicts every reflection of another now reads that cell's Rwp or lower.
@@ -976,6 +980,15 @@ class PeakList(Base):
     two_theta_min: float
     two_theta_max: float
     source: Literal["fitted", "positions"] = "fitted"
+    #: The instrument blocks the picker found at their defaults on a
+    #: laboratory source, keyed by block, written by
+    #: :func:`~rietx.indexing.pick_peaks` and :func:`~rietx.indexing.fit_peaks`
+    #: from :func:`~rietx.indexing.diagnostics.picked_undeclared` (WP-2030).
+    #: Empty when the source is a lab tube and nothing was left at default;
+    #: ``None`` when nothing was checked: the source is not a lab tube, no picker
+    #: recorded it (a position list), or the list was picked before 0.60.  It is how ``index_pattern(peaks)`` with no instrument
+    #: can still name the instrument first in ``INDEX_DATA_INSUFFICIENT``.
+    instrument_undeclared: dict[str, str] | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
@@ -2023,8 +2036,26 @@ class IndexingResult(Base):
     #: ``total_budget_seconds`` did, or ``None`` on a result recorded before
     #: presets existed.  The ceiling itself is in ``provenance.notes``.
     preset: str | None = None
+    #: the chemical formula each candidate's ``INDEX_Z_NOT_INTEGER`` check read
+    #: (WP-2030), written verbatim by :func:`rietx.index_pattern` from its
+    #: ``formula=``.  ``None`` means no formula was given, so no candidate was
+    #: checked against one; a result recorded before 0.60 also reads ``None``.
+    #: It checked the answer and never narrowed the search.
+    formula: str | None = None
+    #: the temperature in K that check read Hofmann's (2002) volumes at,
+    #: written by :func:`rietx.index_pattern` beside :attr:`formula` and
+    #: ``None`` whenever :attr:`formula` is, since without a formula no
+    #: temperature was read.
+    temperature: float | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _temperature_needs_a_formula(self):
+        if self.formula is None and self.temperature is not None:
+            raise ValueError("IndexingResult.temperature is the temperature "
+                             "the formula's Z check read, so it needs a formula")
+        return self
 
     def __str__(self) -> str:
         """The candidate table, the verdict and every diagnostic (WP-1544).
@@ -2156,8 +2187,9 @@ class ExtinctionPrior(Base):
 
     **The content per cell** (WP-2033): ``z`` formula units of ``formula``, or
     a measured ``density`` that fixes Z through the formula weight and the
-    screened cell.  A group is then removed when some element's atoms per cell
-    cannot sit on whole orbits of it — the test of an ordered model; a
+    screened cell.  A group whose orbits cannot hold some element's atoms per
+    cell is named in ``count_notes`` and kept; only under ``ordered=True`` is
+    it removed, the count being the test of an ordered model; a
     fractional formula count declares a shared site and is not counted
     (:func:`rietx.indexing.extinction.content_exclusion`).  Where Z is not a
     whole multiple of a member's general multiplicity (Z′ < 1, as for #935's
@@ -2190,8 +2222,9 @@ class ExtinctionPrior(Base):
     #: only groups whose point group leaves a direction fixed (``True``: the
     #: ten polar classes) or none (``False``)
     polar: bool | None = None
-    #: formula units per cell.  With :attr:`formula` it removes the groups
-    #: whose orbits cannot hold that content; alone it names only what a
+    #: formula units per cell.  With :attr:`formula` and :attr:`ordered` it
+    #: removes the groups whose orbits cannot hold that content (without
+    #: ``ordered`` it only names the failure); alone it names only what a
     #: Z′ below one needs
     z: int | None = Field(default=None, ge=1)
     #: measured density in g/cm³, which fixes Z through :attr:`formula`'s
@@ -2281,7 +2314,8 @@ class ExtinctionCandidate(Base):
     #: for each admitted member at which the declared Z is not a whole multiple
     #: of its general multiplicity (Z′ not whole): the special positions a
     #: formula unit then sits on.  A statement, never an exclusion — a molecule
-    #: there must carry the site's symmetry, which nothing declared says
+    #: there must carry the site's symmetry, which nothing declared says.
+    #: Filled for the classes the data leave standing, never for a refuted one
     special_positions: dict[str, str] = Field(default_factory=dict)
     #: for each admitted member whose orbits cannot hold some element's atoms
     #: per cell at the declared Z (``"Cu 2 per cell is no sum of its orbits
