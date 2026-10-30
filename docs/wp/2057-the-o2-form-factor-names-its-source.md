@@ -37,7 +37,7 @@ what the file itself states: "Waasmaier & Kirfel's fit distributed in DABAX
 `f0_WaasKirf.dat`, to Rez, Rez & Grant (1994) Table 2 per its README; not in
 the 1995 paper". Ask the maintainer for the papers before working around them.
 
-**What the triage read (2026-10-26, after filing).** both papers are in the maintainer's Zotero. Waasmaier & Kirfel (1995) fit O¹⁻ (it appears in their error table) and print no O²⁻ row. Rez, Rez & Grant (1994) compute O²⁻ by Dirac–Fock inside a Watson sphere of radius 1.40 Å (their Table 1); their Table 6 gives the O²⁻ fit over s ≤ 6 Å⁻¹ with Σaⱼ = 9.98. Their full tabulation, Table 2, is not printed in the paper. So the DABAX README's "O1-" means O²⁻, and the citation is "W&K's fit to Rez, Rez & Grant (1994), Watson sphere 1.40 Å". The task to fetch the papers is done; the coefficient check against Table 2 is not possible from the paper.
+**What the triage read (2026-10-26, after filing).** Both papers are in the maintainer's Zotero. Waasmaier & Kirfel (1995) fit O¹⁻ (it appears in their error table) and print no O²⁻ row. Rez, Rez & Grant (1994) compute O²⁻ by Dirac–Fock inside a Watson sphere of radius 1.40 Å (their Table 1); their Table 6 gives the O²⁻ fit over s ≤ 6 Å⁻¹ with Σaⱼ = 9.98. Their full tabulation, Table 2, is not printed in the paper. So the DABAX README's "O1-" means O²⁻, and the citation is "W&K's fit to Rez, Rez & Grant (1994), Watson sphere 1.40 Å". The task to fetch the papers is done; the coefficient check against Table 2 is not possible from the paper.
 
 **The places that cite W&K for every row** (checked at c0e32ab29):
 - `src/rietx/crystallography/scattering.py:3`, module docstring;
