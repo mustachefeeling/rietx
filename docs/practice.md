@@ -432,6 +432,28 @@ shipped with no policy, and scikit-learn's defaults exist for the non-expert. ri
 audit row, finer than cctbx's per-package split, because its thresholds sit inside machinery
 modules. No test in the tree checks import direction between the two (checked by grep).
 
+## Grading the evidence behind a heuristic
+
+Surveyed 2026-10-30 by the lead, asked whether the audit's tiers (`docs/milestones/
+generality.md` § The rule) match how other fields grade the evidence behind a model choice.
+None of the sources below is a Rietveld program, since none of the seven grades its own
+defaults.
+
+| Source | What it grades | Its counterpart in the tiers | Read |
+|---|---|---|---|
+| GRADE, Guyatt et al. (2008) BMJ 336, 924 | Quality of evidence, and separately the strength of a recommendation | The tier grades a statistic or threshold, and the judgement ground decides the action whatever its tier | abstract and summaries; that a strong recommendation may rest on weak evidence is recalled from later GRADE papers, not checked |
+| Sandia PCMM, Pilch, Oberkampf & Trucano (2007) SAND2007-5948 | Four maturity levels on six elements, one of them uncertainty quantification and sensitivity analysis | No element: a consequence axis was considered and not taken (generality.md § Decisions, 2026-10-20) | Sandia's abstract; level criteria not read |
+| NASA-STD-7009A (2016) | Five levels per factor, among them input pedigree, use history and results robustness | Pedigree is the tier. Use history is tier 2's program default | NASA summaries; the handbook's level criteria not read |
+| Sculley et al. (2015) NeurIPS 28 | Names fixed thresholds and configuration as hidden debt | The reason the table exists | secondary summaries |
+| Simmons, Nelson & Simonsohn (2011); Steegen et al. (2016) | Each analysis choice is a degree of freedom; a multiverse analysis reports the answer across every reasonable choice | The three-family ground with its stated failing case; no multiverse | secondary summaries |
+
+Measured on the tree at 44de0f62a: 1266 rows; 871 `unaudited` under the shrink-only baseline,
+149 tier 1, 41 tier 2, 142 tier 3, 44 `invariant`, 19 `caller`. Of the 41 tier-2 rows, 40 cite
+a dated source and one (`StageResult.window_area_tol`) rests on program defaults alone. All 142
+tier-3 rows carry an `approved` date. That date is not tied to the row's value: a value retuned
+under the same tier keeps it, and `tests/audit_delta.py` prints the change for the judge
+without failing on it.
+
 ## The tier-2 rows resting on a program default
 
 | Row | Programs that agree | Dissent |
