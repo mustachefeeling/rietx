@@ -219,6 +219,7 @@ DEFAULT_SEATS: dict[str, int] = {
     "rietx.sequential.SequentialRefinement.fit": 2003,
     "rietx.indexing.workflow.index_pattern": 2007,
     "rietx.indexing.engines.SearchSpec": 2007,
+    "rietx.crystallography.representation.subgroups.maximal": 2006,
 }
 
 #: The record schemas whose fields the guard holds.
@@ -1577,6 +1578,39 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.representation.modes.MODE_ATOL", "constant", value=1e-09),
     Row("rietx.crystallography.representation.modes.POSITION_ATOL", "constant", value=1e-06),
     Row("rietx.crystallography.representation.order_parameter.ISOTROPY_ATOL", "constant", value=1e-08),
+    Row("rietx.crystallography.representation.subgroups.MAX_INDEX", "constant", tier=1, value=4,
+        evidence=("theory: every maximal subgroup of a space group not isomorphic to it has index 2, 3 "
+                  "or 4 (Wondratschek 2011, ITA A1 Lemma 1.2.8.2.2), so index <= 4 is the complete "
+                  "non-isomorphic list; tests/test_subgroups.py sweeps all 230 types there")),
+    Row("rietx.crystallography.representation.subgroups._PROBE_SYMPREC", "constant", tier="invariant",
+        value=1e-05,
+        evidence=("answer-invariant: spglib only names the probe's group; P^-1 H P is then checked "
+                  "against the named setting exactly, in Fraction arithmetic, and a mismatch raises. "
+                  "tests/test_subgroups.py::test_the_probe_tolerance_decides_no_subgroup holds 1e-3 to "
+                  "the same lists, (P, p) included, on P3_1 12, Fddd and Pm-3m")),
+    Row("rietx.crystallography.representation.subgroups._FLOAT_DENOMINATOR_MAX", "constant", tier=1,
+        value=48,
+        evidence=("arithmetic: gemmi's operation translations are multiples of 1/Op.DEN = 1/24, and "
+                  "an origin shift or cell entry of a subgroup is at most half of one, so every "
+                  "ratio a user types from ITA has a denominator dividing 48; "
+                  "tests/test_subgroups.py::test_a_float_origin_is_snapped_to_the_ratio_it_stands_for")),
+    Row("rietx.crystallography.representation.subgroups._FLOAT_SNAP_TOL", "constant", tier="invariant",
+        value=1e-09,
+        evidence=("answer-invariant: a float within 1e-9 of a ratio with denominator <= 48 is that "
+                  "ratio to double precision (their spacing is 1/48^2 = 4e-4, float error 1e-16), so "
+                  "any tolerance between those gives the same accepted values; a farther float is "
+                  "refused, never snapped")),
+    Row("rietx.crystallography.representation.subgroups._PROBE_DENOMINATOR_FLOOR", "constant", tier=1,
+        value=48,
+        evidence=("arithmetic: as _FLOAT_DENOMINATOR_MAX, the denominator of a (P, p) over a "
+                  "t-subgroup (index <= 4) divides 48; the 230-type sweep in tests/test_subgroups.py "
+                  "standardises every one exactly")),
+    Row("rietx.crystallography.representation.subgroups._PROBE_DENOMINATOR_PER_INDEX", "constant",
+        tier="invariant", value=12,
+        evidence=("answer-invariant: the bound only recovers the rational spglib's float stands for, "
+                  "and the exact Fraction check then accepts it or raises; a larger factor costs "
+                  "nothing and changes no accepted (P, p). tests/test_subgroups.py::"
+                  "test_an_isomorphic_series_standardises_past_the_floor_of_the_denominator_bound")),
     Row("rietx.crystallography.riding.RIDING_MIN_SEPARATION", "constant", value=1e-06),
     Row("rietx.crystallography.rotation.SERIES_THRESHOLD", "constant", value=0.25),
     Row("rietx.crystallography.rotation.UNIT_TOLERANCE", "constant", value=1e-09),
@@ -3855,6 +3889,21 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.SearchSpec:seed", "default", value=0),
     Row("rietx.indexing.engines.SearchSpec:prior_cells", "default", value=()),
     Row("rietx.indexing.engines.SearchSpec:prior_spacegroups", "default", value=()),
+    Row("rietx.crystallography.representation.subgroups.maximal:kind", "default", tier=1, ambiguity=1,
+        value="both",
+        evidence=("theory: a maximal subgroup is either t or k (Hermann's theorem, Wondratschek 2011, "
+                  "ITA A1 Lemma 1.2.8.1.3), so both kinds is the complete list")),
+    Row("rietx.crystallography.representation.subgroups.maximal:max_index", "default", tier=1, ambiguity=1,
+        value=None,
+        evidence=("None means the constant subgroups.MAX_INDEX (None so that a max_index given beside "
+                  "index= or supercell= can be refused): ITA A1 Lemma 1.2.8.2.2, index <= 4 holds "
+                  "every non-isomorphic maximal subgroup")),
+    Row("rietx.crystallography.representation.subgroups.maximal:index", "default", tier="caller",
+        ambiguity=1, value=None,
+        evidence="off by default; a caller asks for one index by name and the list is complete for it"),
+    Row("rietx.crystallography.representation.subgroups.maximal:supercell", "default", tier="caller",
+        ambiguity=1, value=None,
+        evidence="off by default; a caller names the cell whose translations every subgroup keeps"),
     # suggestion: 197
     Row("ABSORPTION_ESTIMATE_UNAVAILABLE.suggestion", "suggestion", value=1),
     Row("ABSORPTION_MU_R_OUT_OF_RANGE.suggestion", "suggestion", value=1),
