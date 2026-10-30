@@ -185,6 +185,7 @@ Gaultois
 Gaussian
 Gaussians
 Guinier
+HCl
 Hofmann
 Jacobian
 Jacobians
