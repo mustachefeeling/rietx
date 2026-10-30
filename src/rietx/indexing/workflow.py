@@ -84,6 +84,7 @@ import numpy as np
 
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
+    _MODE_NAMES,
     PEAK_UNUSABLE_FLAGS,
     CellCandidate,
     LeBailValidation,
@@ -397,7 +398,8 @@ def _lebail_setup(candidate: CellCandidate, data: PatternData,
                   space_group: str | None = None,
                   two_theta_limits: tuple[float, float] | None = None,
                   freeze_profile: bool = False):
-    """The validation protocol's prepared Le Bail fit, ``(refinement, plan)``.
+    """The validation protocol's prepared fit, ``(refinement, plan)``; the
+    caller runs it in :data:`VALIDATION_MODE`.
 
     One body for :func:`validate_by_lebail` and :func:`index_residue`, so the
     residue a second pass picks is the residue of the very fit that graded the
@@ -1214,8 +1216,8 @@ def index_pattern(peaks: PeakList | None = None, *,
 #: height of Si profile, and every MgO line under 0.2 of it, one of them 2.3
 #: FWHM from a Si line, where no width cut separates the two.  A second
 #: phase's line under a stronger first-phase line cannot be told from that
-#: misfit, and Le Bail gives its intensity to the first phase's reflection
-#: anyway.
+#: misfit, and the one-phase fit gives its intensity to the first phase's
+#: reflection anyway.
 #:
 #: Measured on two synthetic pairs only, Si with MgO (scales 0.05-0.3) and Si
 #: with NaCl (0.1), and untested beyond them: MgO's own lines stood on at most
@@ -1239,9 +1241,9 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     cell of ``first``, an :class:`~rietx.schemas.indexing.IndexingResult`, at
     whatever grade it holds, since on a two-phase pattern the first phase's
     cell is graded down by the second phase's lines — is fitted to ``data`` by
-    a Le Bail fit (:func:`validate_by_lebail`'s plan, run in lebail mode
-    where validation itself runs Pawley since WP-2011),
-    its widths seeded from ``peaks`` — the list the first search ran on, picked
+    the fit that validated it: :func:`validate_by_lebail`'s plan, in
+    :data:`VALIDATION_MODE` (Pawley since WP-2011), its widths seeded from
+    ``peaks`` — the list the first search ran on, picked
     from ``data`` when not given.  Its calculated peaks are subtracted, the background kept, and what remains
     is picked with the instrument that fit refined: **at the first cell's width
     law**, so the second phase's lines are fitted with the widths the pattern
@@ -1288,8 +1290,9 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
     ref, plan = _lebail_setup(candidate, data, instrument,
                               peaks=peaks if measured else None,
                               two_theta_limits=two_theta_limits)
-    fit = _lebail_fit(ref, plan, data, mode="lebail",
+    fit = _lebail_fit(ref, plan, data, mode=VALIDATION_MODE,
                       two_theta_limits=two_theta_limits, cancel=cancel)
+    method = _MODE_NAMES[VALIDATION_MODE]
     width_law = ref.fitted_instrument
     a = ", ".join(f"{v:.4f}" for v in candidate.cell)
     subtracted = (f"the {candidate.system} {candidate.centring} cell ({a}; "
@@ -1305,7 +1308,7 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
                                    preset=preset, engines=engines)
             note = Diagnostic(
                 level="info", code="INDEX_RESIDUE_PASS",
-                message=(f"No residue was picked: the Le Bail fit of "
+                message=(f"No residue was picked: the {method} fit of "
                          f"{subtracted} ends with widths {ratio:.3g} times "
                          "the list's measured ones, so the cell does not "
                          "describe the pattern and what it leaves is not a "
@@ -1346,8 +1349,8 @@ def index_residue(first, data: PatternData, instrument: Instrument, *,
                            events=events, cancel=cancel)
     note = Diagnostic(
         level="info", code="INDEX_RESIDUE_PASS",
-        message=(f"This result indexes the residue of {subtracted}: its Le "
-                 "Bail peaks were subtracted and the remainder picked at its "
+        message=(f"This result indexes the residue of {subtracted}: its "
+                 f"{method} peaks were subtracted and the remainder picked at its "
                  f"fitted widths, {len(left.usable())} usable line(s), of which "
                  f"{n_flagged} "
                  "stand on its subtracted profile and are "
