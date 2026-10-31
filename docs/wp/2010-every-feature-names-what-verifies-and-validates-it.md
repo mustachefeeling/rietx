@@ -229,6 +229,15 @@ confirm the new test goes red naming it.
   (`test_display.py`). No tests were added. At 091600955 the audit table held 126
   default rows, 81 of them audited and 4 at ambiguity kind 2 or 3.
 
+  *Review.* `/code-review high --fix` over the branch found three wording faults and
+  no code fault, all fixed in 1f05874e3. The B(O) claim row called physical
+  plausibility "not a reference value", which the new definition contradicts, and now
+  says "not a measured value". The cBN QPA test kept "referent". The matrix docstring's
+  edited paragraph is rewrapped. *Generality.* No judge was dispatched: the
+  `_audit.py` change is the one-word docstring edit of 2026-10-27, `tests.audit_delta`
+  reports no row or declaration changed, and the session added no heuristic. The full
+  suite did not run, since the branch is docs, docstrings and one renamed test.
+
   *Gotchas.* No checklist item moved: they are the build, and #1051's reporter has
   taken it. A new reader of Rule 2 should read "reference value" as the umbrella and
   "independent measurement" as the one kind that validates.
