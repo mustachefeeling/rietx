@@ -271,6 +271,9 @@ PRIORITIES = wp_index.PRIORITIES
 #                                                          opt-in legacy layer); landed 560
 #   2026-10-30  src/rietx/io/CLAUDE.md        561 -> 563  for the total-scattering refusal (issue #1240):
 #                                                          its per-format row; landed 562
+#   2026-10-31  src/rietx/io/CLAUDE.md        563 -> 565  for Yue's review of #1241: § Refusals' fourth
+#                                                          case (a name-only refusal) and the table
+#                                                          row's no-fixture sentence; landed LANDED
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -757,7 +760,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # on a banner rather than by escalating, and that a Windows-written header
     # ends in `\r`, which `$` under `re.M` does not match.  Landed at 562; the
     # +1 is headroom.
-    "src/rietx/io/CLAUDE.md": 563,
+    "src/rietx/io/CLAUDE.md": 565,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

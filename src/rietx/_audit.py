@@ -808,7 +808,7 @@ ROWS: tuple[Row, ...] = (
     Row("PATTERN_ROWS_DROPPED", "code"),
     Row("PATTERN_SCAN_REVERSED", "code"),
     Row("PATTERN_SIGMA_CONSTANT", "code"),
-    Row("PATTERN_TOTAL_SCATTERING", "code", tier=1, ambiguity=1,
+    Row("PATTERN_TOTAL_SCATTERING", "code", tier=3, ambiguity=1,
         evidence=("error; a refusal by file shape (issue #1240). It fires when the file's own "
                   "#L line labels its first two columns r and G/g, or Q and S/F; when its "
                   "header is PDFgetX2's (a 'History written' line and the Get_XPDF banner) or "
@@ -817,7 +817,18 @@ ROWS: tuple[Row, ...] = (
                   "only. An abscissa labelled r or Q is not 2θ by definition, so reading it as "
                   "2θ is wrong arithmetic, and no reader in the build reads G(r), S(Q) or F(Q) "
                   "(#192 is fenced). An ordinary 2θ .xy, one whose comment mentions G(r), and a "
-                  "Q-axis .chi are not claimed (tests/test_readers.py)"),
+                  "Q-axis .chi are not claimed (tests/test_readers.py). The label and header "
+                  "halves stand on what the file says; the suffix-only half is a judgement "
+                  "about naming habits. Negative control over 27 524 local text-suffixed "
+                  "files (1 658 macOS metadata files excluded): it claimed 40, all "
+                  "PDF-community files (10 by header, 25 by an #L line, 5 .gr by suffix "
+                  "alone, all genuine G(r)), and no 2θ pattern"),
+        grounds=("The suffix-only tier refuses a bare G(r) file that reads as a plain "
+                 "two-column profile, where io/CLAUDE.md § Refusals gates suffix matches "
+                 "negatively; it is the only evidence these files carry, and the message "
+                 "says the name matched and that renaming the file gets past it; approved "
+                 "by Yue, 2026-10-31 (PR #1241)."),
+        approved="2026-10-31",
         response="error",
         responds=("nothing to fit: open the diffraction pattern the reduction started from, or "
                   "rename a 2θ scan that only carries a .gr, .sq or .fq suffix"),
