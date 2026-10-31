@@ -156,6 +156,12 @@ cutting it.
 
 ### Inherited
 
+- **2026-10-31, from the issue triage (issue #1249): a `fast` job cancelled
+  at its 40-min cap is a hang, not a slow run.** Since 30 Oct 14:12Z, 8 of
+  788 `fast` jobs printed `[ 99%]` and then nothing until the cap, main's
+  push run 41141605322 among them. [WP-2065](2065-a-hung-fast-job-names-its-test.md)
+  owns it. The ten-run acceptance here leaves such runs out of the wall-time
+  count, and says how many it left out.
 - **2026-10-23, from [1547](1547-the-fast-tiers-tail.md) (closed): main's slowest
   fast job is over 20 min again on three of the five latest runs.** Job walls,
   `started_at` to `completed_at`, from GitHub's REST API: 39865423926 17.6 min
