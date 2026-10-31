@@ -27,10 +27,8 @@ import numpy as np
 
 from . import runs
 from .backend.api import backend_dtype_note
-from .crystallography.symmetry import reflection_label_row
 from .crystallography.twins import merge_site_twins
 from .history.events import _attach_progress, as_event_stream
-from .model.components import EXTRA_TICK_KEY
 from .model.forward import (
     PHASE_SUPPORT_SIGMA,
     compile_model,
@@ -93,7 +91,6 @@ from .refine import (
     _displacement_columns,
     _escaped_cell_paths,
     _extra_peak_diagnostics,
-    _extra_peak_tick_support,
     _far_from_data_diagnostics,
     _fixed_literal_diagnostics,
     _flat_moment_scan,
@@ -105,6 +102,7 @@ from .refine import (
     _lineless_phases,
     _low_angle_diagnostics,
     _max_iter_diagnostics,
+    _merge_unresolved,
     _occupancy_flag_diagnostics,
     _onto_flat_meridian,
     _origin_diagnostics,
@@ -112,7 +110,6 @@ from .refine import (
     _phase_support_diagnostics,
     _quantify_phases,
     _radiation,
-    _reflection_tick_support,
     _refuse_without_phases,
     _reported_support_sigma,
     _resolve_specimen_absorption,
@@ -126,6 +123,7 @@ from .refine import (
     _species_fallback_diagnostics,
     _strain_flag_diagnostics,
     _symmetry_silence_diagnostics,
+    _tick_rows,
     _uncorrected,
     _unknown_path_diagnostics,
     _unmeasured_phases,
@@ -158,17 +156,17 @@ from .schemas.results import (
 from .schemas.structure import Structure
 from .strategy.staged import (
     BACKGROUND_ABSORPTION_GUARD,
-    FLAT_DIRECTION_RHO,
     PLAN_PRESETS,
     ROUGHNESS_ABSORPTION_GUARD,
     GuardFinding,
     GuardReport,
     RefinementPlan,
+    _correlation_findings,
     _exact_active_bounds,
+    biso_over_bound,
     bound_findings,
     check_adp_positive_definite,
     check_biso_negative,
-    check_biso_plausible,
     check_discarded_directions,
     check_hump_width,
     check_resolution_positive,
@@ -393,7 +391,9 @@ GUARD_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "large_biso": (
         (SPECIMEN,), "the Lindemann bound is the cell's, and a B or a cell "
                      "can be per histogram: asked of every histogram's "
-                     "compile, one finding per path (WP-2028)"),
+                     "compile, one finding per path; a shared B meets the "
+                     "loosest bound among the cells it serves and names that "
+                     "histogram (WP-2028, _large_biso_once)"),
     "negative_biso": (
         (SPECIMEN,), "the structure's B values, asked of every histogram's "
                      "compile, one finding per path, a per-histogram B named "
@@ -1043,18 +1043,6 @@ def _vars_driven_cell_escapes_multi(mtable, start_values: list[dict[str, float]]
                 scoped = mtable._canonical(h, dependent)
                 if scoped not in row:
                     row.append(scoped)
-    return list(merged.items())
-
-
-def _merge_unresolved(first: list[tuple[str, list[str]]],
-                      second: list[tuple[str, list[str]]]
-                      ) -> list[tuple[str, list[str]]]:
-    """Two solves' driven escapes as one record, merged by driver, so a
-    driver still escaping after both is named once (``refine._run_stage``'s
-    rule)."""
-    merged = dict(first)
-    for driver, escaped in second:
-        merged[driver] = sorted(set(merged.get(driver, [])) | set(escaped))
     return list(merged.items())
 
 
@@ -1836,54 +1824,6 @@ class MultiHistogramRefinement:
                                 for h, m in enumerate(models)],
                     **extra)
 
-    # ------------------------------------------------------------------
-    def _ticks(self, model, structure, values
-               ) -> tuple[dict[str, list[float]], dict[str, list[list[int]]],
-                          dict[str, list[float]]]:
-        """Positions per phase, which reflection each of them is, and its
-        support in σ.
-
-        All three, from one walk.  The positions and the Miller indices are
-        ``CompiledModel.reflection_positions``, the walk this shares with
-        ``refine._build_result`` and ``viz.snapshot.stage_ticks`` (WP-1908), so
-        a joint fit's ticks are where the model draws each peak and a joint
-        fit whose ticks carried no Miller indices cannot be the one surface
-        where pointing at a tick told the reader nothing (WP-1438).  The
-        support is not a result field: ``_low_angle_diagnostics`` is its one
-        reader, and its rule is ``refine``'s (``_reflection_tick_support``),
-        so the two builders cannot disagree about which tick has anything
-        behind it.
-        """
-        ticks: dict[str, list[float]] = {}
-        tick_hkl: dict[str, list[list[int]]] = {}
-        tick_support: dict[str, list[float]] = {}
-        for ip in range(len(model.phases)):
-            name = structure.phases[ip].name
-            # (H, m), not H: a satellite is labelled by its order (WP-1326)
-            pos, hkl = model.reflection_positions(ip, values)
-            sup = _reflection_tick_support(
-                model, ip, values, len(model.line_wavelengths))
-            keep = np.isfinite(pos)
-            pos, hkl, sup = pos[keep], hkl[keep], sup[keep]
-            order = np.argsort(pos, kind="stable")
-            ticks[name] = [float(v) for v in pos[order]]
-            tick_hkl[name] = [reflection_label_row(r) for r in hkl[order]]
-            tick_support[name] = [float(v) for v in sup[order]]
-        # Declared sharp peaks are ticks here too (WP-1103, the member
-        # contract's clause 2).  A joint fit's Layer 0 reads *this* list, so
-        # without the row every declared peak comes back as an unindexed
-        # impurity on every histogram — the single-histogram failure
-        # ``refine._build_result`` writes the same key to prevent.  The
-        # positions come from the compiled model rather than from a second
-        # loop, so the two surfaces cannot drift.
-        extra = model.extra_peak_tick_positions(values)
-        if extra:
-            # no `tick_hkl` row: a peak declared by centre has no Miller
-            # index, and an empty list would claim it had none of its own
-            ticks[EXTRA_TICK_KEY] = extra
-            tick_support[EXTRA_TICK_KEY] = _extra_peak_tick_support(model, values)
-        return ticks, tick_hkl, tick_support
-
     def _build_result(self, models, outcome, weights, correlation_guard,
                       stage_results, cell_runaway_diags=(),
                       answer_runaway=(), opening_diags=(),
@@ -1934,8 +1874,7 @@ class MultiHistogramRefinement:
                 unmeasured=joint_unmeasured[h],
                 held=(_held_scale_phases(stage_results[-1], h)
                       if stage_results else None),
-                where_of=lambda p, h=h: (p if mt.sharing.is_shared(p)
-                                         else f"hist.{h}.{p}"))
+                where_of=lambda p, h=h: mt._canonical(h, p))
 
             diags: list[Diagnostic] = []
             j0, j1 = data_off[h], data_off[h] + n_data[h]
@@ -2041,7 +1980,9 @@ class MultiHistogramRefinement:
             diags.extend(_harmonic_diagnostics(
                 model, values, set(table.free_paths), esd_h))
             diags.extend(_roughness_regime_diagnostics(model, values))
-            ticks, tick_hkl, tick_support = self._ticks(model, struct, values)
+            # the single path's own builder (WP-2028 task 7), so a magnetic
+            # phase draws its "(magnetic)" row here too (#278)
+            ticks, tick_hkl, tick_support = _tick_rows(model, struct, values)
             diags.extend(_extra_peak_diagnostics(model, values, ticks, table))
             diags.extend(_far_from_data_diagnostics(model, y_calc, y_bkg, stats))
             # the measurement's half only: support=None withholds the ratio,
@@ -2337,22 +2278,16 @@ class MultiHistogramRefinement:
         # named with its histogram (WP-2028)
         report.nonpositive_adps = _specimen_once(
             mt, models, lambda t, _m: check_adp_positive_definite(t))
-        report.large_biso = _specimen_once(mt, models, check_biso_plausible)
+        report.large_biso = _large_biso_once(mt, models)
         report.negative_biso = _specimen_once(mt, models, check_biso_negative)
         report.nonpositive_strain = _stephens_once(mt, models)
         report.nonpositive_texture = _texture_once(mt, models)
         if outcome.correlation is not None and len(free) > 1:
-            c = np.asarray(outcome.correlation)
-            for i in range(len(free)):
-                for j in range(i + 1, len(free)):
-                    if abs(c[i, j]) > correlation_guard:
-                        report.high_correlations.append(
-                            GuardFinding.correlation(free[i], free[j], c[i, j]))
-                        # beside it, never instead (``check_guards``' rule)
-                        if abs(c[i, j]) >= FLAT_DIRECTION_RHO:
-                            report.flat_directions.append(
-                                GuardFinding.flat_direction(
-                                    free[i], free[j], c[i, j]))
+            # the single fit's loop (``check_guards``' rule), on the joint
+            # correlation matrix
+            report.high_correlations, report.flat_directions = (
+                _correlation_findings(np.asarray(outcome.correlation), free,
+                                      correlation_guard))
         if outcome.jac is not None and len(free) > 1:
             try:
                 # the matrix the covariance cut (``check_guards``' rule)
@@ -2397,11 +2332,10 @@ def _specimen_path(mtable, h: int, path: str) -> str:
     the site is the histogram's own when **any** entry that moves it is
     (``adp.k`` is the column a joint fit frees, ``u11`` only its follower).
     """
-    if _ADP_SITE.fullmatch(path):
-        shared = all(mtable.sharing.is_shared(f"{path}.{leaf}")
-                     for leaf in _ADP_LEAVES)
-    else:
-        shared = mtable.sharing.is_shared(path)
+    if not _ADP_SITE.fullmatch(path):
+        return mtable._canonical(h, path)
+    shared = all(mtable.sharing.is_shared(f"{path}.{leaf}")
+                 for leaf in _ADP_LEAVES)
     return path if shared else f"hist.{h}.{path}"
 
 
@@ -2435,6 +2369,39 @@ def _specimen_once(mtable, models, check) -> list[GuardFinding]:
                                               message=message)
             seen.setdefault(paths, finding)
     return list(seen.values())
+
+
+def _large_biso_once(mtable, models) -> list[GuardFinding]:
+    """``BISO_UNUSUALLY_LARGE`` for the joint fit (WP-2028, maintainer's ruling
+    on #1205).
+
+    The Lindemann bound is the *cell's*, so a B shared across histograms that
+    each hold their own cell is read against several bounds.  It is tested
+    against the **loosest** of them and the message names that histogram: the
+    tightest, or histogram 0's, would report one cell's reading as a fact
+    about the B while another histogram's cell admits it.  A per-histogram B
+    is one cell's alone and keeps its own bound.  Firing past the loosest
+    bound says the B is implausible for every cell it serves.
+    """
+    flagged: dict[str, list[tuple[int, float, float]]] = {}
+    for h, (table, model) in enumerate(zip(mtable.tables, models, strict=True)):
+        for path, biso, bound in biso_over_bound(table, model):
+            flagged.setdefault(mtable._canonical(h, path), []).append(
+                (h, biso, bound))
+    n = len(mtable.tables)
+    out: list[GuardFinding] = []
+    for scoped, rows in flagged.items():
+        shared = not scoped.startswith("hist.")
+        if shared and len(rows) < n:
+            continue  # a histogram's cell admits it: not a fact about the B
+        h, biso, bound = max(rows, key=lambda r: r[2])
+        finding = GuardFinding.large_biso(scoped, biso, bound)
+        if shared and n > 1:
+            finding = dataclasses.replace(
+                finding, message=finding.message[:-1]
+                + f"; the loosest of {n} histograms' cells, histogram {h})")
+        out.append(finding)
+    return out
 
 
 def _occupancy_once(mtable, per_values, per_esds) -> list[Diagnostic]:
