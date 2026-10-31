@@ -156,12 +156,16 @@ cutting it.
 
 ### Inherited
 
-- **2026-10-31, from the issue triage (issue #1249): a `fast` job cancelled
-  at its 40-min cap is a hang, not a slow run.** Since 30 Oct 14:12Z, 8 of
-  788 `fast` jobs printed `[ 99%]` and then nothing until the cap, main's
-  push run 41141605322 among them. [WP-2065](2065-a-hung-fast-job-names-its-test.md)
-  owns it. The ten-run acceptance here leaves such runs out of the wall-time
-  count, and says how many it left out.
+- **2026-10-31, from [WP-2065](2065-a-hung-fast-job-names-its-test.md) (issue
+  #1249): the cap cancels since 30 Oct were one case, now `slow`.** 8 of 788
+  `fast` jobs printed `[ 99%]` and then nothing until the 40-min cap, main's
+  push run 41141605322 among them. The case was `test_subgroups.py`'s
+  `…denominator_bound[P -1-53]`, 629 s (3.11) and 812 s (3.14) on main run
+  41045940948's passing shard 1/2. WP-2065 moved it to the nightly. The ten-run
+  acceptance here reads runs on a tree with that change, or leaves the cancels
+  out and says how many. Two tail facts for the cut: `[P -1-29]` of the same
+  test is 101-129 s, and 19 files the 2026-10-21 record lacks put 18.1 min on
+  py3.11's shard 1 against 2.2 min on shard 2 (PR #1254 refreshes the record).
 - **2026-10-23, from [1547](1547-the-fast-tiers-tail.md) (closed): main's slowest
   fast job is over 20 min again on three of the five latest runs.** Job walls,
   `started_at` to `completed_at`, from GitHub's REST API: 39865423926 17.6 min

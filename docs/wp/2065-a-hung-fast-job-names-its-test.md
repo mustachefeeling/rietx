@@ -1,6 +1,6 @@
 # WP-2065 — a hung fast job names its test, and the hang is fixed
 
-Milestone: unscheduled · Status: 🔄 2026-10-31 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-10-31 — the cause found: one 10-13 min case, now `slow`; both fast jobs set `faulthandler_timeout` (PR #1256); acceptance waits on twenty fast jobs
 Track: The repo's own process
 Depends on: —
 Priority: P1 2026-10-31 — a required check red on main: the `fast` job hangs at `[ 99%]` and is cancelled at its 40-min cap, 8 times in about 15 hours, main's own push run among them; every PR it hits waits 40 min and reruns
@@ -44,7 +44,7 @@ test moves between shards with the split. Seven of the eight are shard 1/2 on
 workstation finished normally on the same heads (the issue's report, not
 re-measured).
 
-**Two suspects for the onset, neither checked.**
+**Two suspects for the onset, neither checked.** *(Superseded in part 2026-10-31: the first held, a case #1189 added; Tasks and the handover log say which.)*
 
 1. *A merge.* Main took eleven merges between 30 Oct 10:30 and 11:08Z
    (`a25650ed1` … `e016f187d`: #1232, #1228, #1138, #1227, #1163, #1202,
@@ -137,6 +137,42 @@ handover, showing the dump with the test id.
 
 ## Handover log
 
+- **2026-10-31** — the fix. There was no hang. One fast-tier case from #1189
+  enumerates 151 739 subgroups and runs 10-13 minutes on a CI runner. Placed
+  last on a worker, or on a slower runner, it alone carried its shard past the
+  40-min cap, with `[ 99%]` and then silence. It now runs in the nightly. Per
+  push, a smaller row checks the same bound. A case that runs past 10 minutes
+  now prints its own stack in the job log, so the next one names itself.
+  Nothing is lost from the nightly, and the fast tier loses one case.
+  *Done*: `tests/test_subgroups.py` marks `[P -1-53]` `slow`, with a comment
+  saying why and what still covers the bound. `ci.yml`'s `fast` and
+  `fast-jax` jobs pass `-o faulthandler_timeout=600`.
+  *Measured*: main run 41045940948 (`e016f187d`, passing), junit artifacts.
+  `[P -1-53]` took 629.3 s on 3.11 shard 1/2 and 812.2 s on 3.14. The next
+  slowest case on any leg was 151.5 s (a guide script, 3.14 2/2), which set
+  the 600 s timeout. `test_subgroups.py` totalled 13.1 min (3.11) and 16.9 min
+  (3.14). The series is p(p² + p + 1) subgroups, so p = 29 → 53 is 6.0×
+  against CI's 6.3×. On #1254's run 41190396091 (the refreshed record), shard
+  1/2 reached `[ 98%]` 17.5 min in and then printed nothing for 22.5 min, so
+  rebalancing alone does not fix it. Locally (macOS arm64, `[dev]`, Python
+  3.12, load average 29-39 from other sessions, so no timing is quotable):
+  `pytest -n auto --dist loadgroup -m "not slow" tests/test_docs_consistency.py
+  tests/test_subgroups.py tests/test_shards.py` gave 342 passed. The `slow`
+  selection collects the p = 53 row. Ruff is clean. faulthandler under xdist:
+  a planted 6 s sleep at a 3 s timeout, under `-n 2`, printed its file, line
+  and function to the controller's terminal. Counts: the fast tier loses
+  exactly one case, which the full suite still runs. The full selection was
+  not run (machine busy; § Running).
+  *Ruled out*: a faster exact `_maximal_invariant` (a line is maximal unless
+  an invariant plane holds it). It matched the old rule on 438 cases across
+  73 generator sets, p = 2-13, but saved 1 s at p = 29 (1.45 s → 0.47 s), so
+  it was reverted. A supercell row at p = 53 cost 27 s and proved nothing p =
+  29 does not, so it was not added.
+  *Review*: `/code-review high --fix` — see the next line once it runs.
+  *Next*: (1) the CI-log proof of the dump, which needs a planted case on a
+  throwaway PR (a maintainer's call, since it costs a CI run); (2) the
+  acceptance, twenty `fast` jobs with no cap cancel, read with the triage's
+  script once this merges; then close.
 - **2026-10-31** — created, from the 2026-10-31 issue triage (issue #1249).
   Checked against the tree at `766c3505d`: `ci.yml`'s `fast` job still caps
   at 40 min and sets no `faulthandler_timeout`, no `pytest-timeout` is a
