@@ -40,7 +40,6 @@ this; everything in `rx.` is `import rietx as rx`.*
 - `rietx.crystallography.magnetic.isotropy.distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, ...]` — Every displacive candidate of `parent` at `k`, with its child and modes in Å.
 - `rietx.crystallography.magnetic.isotropy.DistortionCandidate` — One displacive candidate of a parent: its child, (P, p) and its modes in Å.
   Fields: `candidate: MagneticCandidate`, `child: object`, `transform: tuple[np.ndarray, np.ndarray] | None`, `basis: object`, `sites: tuple[str, ...]`, `refusal: DistortionRefusal | None = None`
-  Fields: `candidate: MagneticCandidate`, `child: object`, `transform: tuple[np.ndarray, np.ndarray]`, `basis: object`, `sites: tuple[str, ...]`
 
 ## The cell of a child, through its parent's
 

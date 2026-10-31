@@ -892,18 +892,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     # claims them on purpose, since fnmatch's ``*`` spans the dots
     # (``phases.0.parent_cell.cell.a``), and ``tests/test_help.py`` pins that
     "phases.*.parent_cell.strain.*": HelpEntry(
-        title="Parent-cell lattice strain",
+        title="Strain",
         description=(
-            "One dimensionless amplitude of a lattice strain that a child phase's group "
-            "allows and its parent's does not (`Phase.parent_cell`). The child's cell is "
-            "the parent's carried through the transform plus this strain, so the amplitude "
-            "is the shear or stretch the data show beyond the parent's symmetry. The cell "
-            "glob never frees it; seed it off zero with `set_values`, where its gradient "
-            "does not vanish, and free it by this path. A freed amplitude is held where the "
-            "child's metric stops being positive definite."
+            "Strain the parent forbids; seed it off zero."
         ),
         unit=None, default="0.0",
-        typical="1e-4 to 1e-2 in magnitude for a measurable distortion",
+        typical="1e-4 to 1e-2",
         anchor="theory/peak-positions.html#a-child-s-cell-through-its-parent",
     ),
     "phases.*.scale": HelpEntry(
