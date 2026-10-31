@@ -479,22 +479,60 @@ def _joint_unmeasured_phases(models, mtable,
     """Per histogram, the phases the answer left without a fraction.
 
     ``refine._unmeasured_phases``' reading per histogram, with the one thing a
-    joint fit adds (#1103): **a shared scale that another histogram measures
-    counts as measured everywhere it is shared**, since its value is then the
-    data's.  The stage does not hold such a scale (the hold needs every
-    histogram out of range), so only the answer's recount can put it here,
-    and that recount drops a phase whose scale is shared and which some
-    histogram has a line of.
+    joint fit adds (#1103): **a scale another histogram measures counts as
+    measured wherever it takes that value**, since its value is then the
+    data's.  That is a shared scale, and also a per-histogram one moved by a
+    column that moves the same phase's scale in a histogram with a line of
+    it: a **constant** ``ParametricEquation``'s ``vars.`` coefficient tying
+    every pattern's scale to one value (#1103 round 2; a polynomial link is
+    left out, :func:`_constant_link_reach`; on a narrow scan beside a
+    wide one, the narrow histogram left iron out under the tie and quoted it
+    under ``SharingMap.shared``).  The stage does not hold such a scale (the
+    hold needs every histogram out of range), so only the answer's recount
+    can put it here, and that recount drops it.
     """
     lineless = _joint_lineless_phases(models)
+    reach = _constant_link_reach(mtable)
     out = []
     for h, m in enumerate(models):
         own = {ip for ip in lineless[h]
-               if not (mtable.sharing.is_shared(f"phases.{ip}.scale")
-                       and any(ip not in lineless[g]
-                               for g in range(len(models)) if g != h))}
+               if not _scale_measured_elsewhere(mtable, reach, lineless, h, ip)}
         out.append(_unmeasured_phases(m, stage_results, hist=h, lineless=own))
     return out
+
+
+def _constant_link_reach(mtable) -> list[set[str]]:
+    """Per joint column, what it moves, leaving out the columns of a
+    non-constant ``ParametricEquation``.
+
+    Only a constant link ties the narrow scale to the seen one's *value*.  With
+    a + b·T two columns face one measured scale, so one direction of the pair
+    is flat and the narrow pattern's value is the start value wearing an esd
+    (the #1176 round-1 probe: 0.601 or 1.783 wt% by start value alone), which
+    is the defect WP-1958 removes.  Conservative: two seen patterns do pin an
+    a + b·T link, and it still reads unmeasured (the exact test, a read of the
+    joint covariance, is a follow-up).
+    """
+    blocked = {f"vars.{r.equation.name}_{j}"
+               for r in mtable.parametric if r.equation.basis != "constant"
+               for j in range(len(r.labels))}
+    return [set(moved) for column, moved in _joint_column_reach(mtable).items()
+            if column not in blocked]
+
+
+def _scale_measured_elsewhere(mtable, reach: list[set[str]],
+                              lineless: list[set[int]], h: int, ip: int) -> bool:
+    """Whether histogram ``h``'s scale of phase ``ip`` takes its value from a
+    histogram with a line of ``ip``: the scale is shared with one, or a free
+    column (``reach``, :func:`_joint_column_reach`'s values) moves both."""
+    scale = f"phases.{ip}.scale"
+    seen = [g for g in range(len(lineless)) if g != h and ip not in lineless[g]]
+    if not seen:
+        return False
+    if mtable.sharing.is_shared(scale):
+        return True
+    mine, theirs = f"hist.{h}.{scale}", {f"hist.{g}.{scale}" for g in seen}
+    return any(mine in moved and not theirs.isdisjoint(moved) for moved in reach)
 
 
 def _unseen(mtable, name: str, absent: list[set[int]],

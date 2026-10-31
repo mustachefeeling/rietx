@@ -9832,7 +9832,7 @@ def _quantify_phases(table: ParameterTable, theta: np.ndarray,
                       unmeasured=unmeasured, held=held_only)
     if qpa is None:
         return None, _qpa_unavailable_diagnostics(structure, values)
-    diagnostics = microabsorption_diagnostics(qpa)
+    diagnostics = microabsorption_diagnostics(qpa, structure)
     if blind_paths:
         diagnostics = diagnostics + _qpa_esd_unavailable_diagnostics(
             structure, values, blind_paths, where_of or (lambda p: p))
@@ -9930,6 +9930,13 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
         suggestion="Free fewer parameters at once, or check the diagnostics "
                    "for a correlation or bound hit in the same stage.",
     )]
+
+
+def _moves_scale(path: str, held_reach: dict[str, set[str]], scale: str) -> bool:
+    """Whether held column ``path`` is phase ``scale``'s, by its name or by
+    what it moved (``StageResult.held_reach``), either spelled bare or
+    ``hist.h.``-scoped."""
+    return any(_unscoped(n) == scale for n in (path, *held_reach.get(path, ())))
 
 
 def _held_by_phase(stage_results: list[StageResult], n_phases: int
@@ -10069,6 +10076,10 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
     """
     n_phases = len(support_by_phase)
     held_paths, held_stages = _held_by_phase(stage_results or [], n_phases)
+    held_reach: dict[str, set[str]] = {}
+    for sr in stage_results or []:
+        for q, moved in sr.held_reach.items():
+            held_reach.setdefault(q, set()).update(moved)
     out: list[Diagnostic] = []
     for ip in range(n_phases):
         prefix = f"phases.{ip}."
@@ -10112,8 +10123,11 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
         clauses = []
         # a phase with no line in range has its scale held too (WP-1958), and
         # the scale is not a structural parameter, so it is named on its own
-        # (a joint fit's per-histogram scale is scoped ``hist.h.``)
-        structural = [p for p in held if _unscoped(p) != f"{prefix}scale"]
+        # (a joint fit's per-histogram scale is scoped ``hist.h.``).  A held
+        # column is the scale's by what it moves, not by its name: a held
+        # ``vars.S`` driving the scale is the scale held (#1103, round 2)
+        structural = [p for p in held
+                      if not _moves_scale(p, held_reach, f"{prefix}scale")]
         scale_held = len(structural) < len(held)
         if held:
             stages = held_stages[ip]
