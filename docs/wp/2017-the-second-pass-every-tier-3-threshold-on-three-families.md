@@ -8,8 +8,9 @@ Priority: P2 2026-10-23 — 2002 closed with the width twin hold; the evidence e
 ## Goal
 
 Every tier-3 threshold the single-fit audit kept is measured on three unrelated dataset
-families, against an independent reference where one exists. Each one either holds (its
-evidence line gains the families and the reference distance), moves to tier 1 or
+families, against an independent measurement where one exists and otherwise a reference
+value under its protocol (DESIGN.md § Rules, 2). Each one either holds (its evidence line
+gains the families and the distance from each reference value), moves to tier 1 or
 `invariant` (a test now bounds it), or goes back to the maintainer as a ruling with the
 measurement that failed it.
 

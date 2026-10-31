@@ -12,7 +12,7 @@ exists, the independent measurement that validates its physics, in DESIGN.md § 
 2's sense as narrowed on 2026-10-27. A feature no test verifies is verified or fenced. A
 feature with no independent measurement is recorded as *not yet validated* in the validation
 matrix and its generated page, for the developers, and a result that reports a number
-from such a feature says so beside the number in its report. A test holds the feature
+from such a feature says so once in its report, naming each such number. A test holds the feature
 list to the help vocabulary and the Theory headings, partitioned both ways, and joins
 each feature to its claims, so a new feature cannot land without saying which state it
 is in. That test is the tripwire Rule 4's test for a new topic lacks.

@@ -89,29 +89,32 @@ number. A sentence that nobody would use to make a choice does not belong here.
    the mismatch in the quantity's own units, with the measurement's uncertainty and the
    fit's esd beside it, over a stated domain (the families, laboratories and instruments
    it was measured on), never only a pass; and it says whether the data is development
-   data. Where no independent measurement exists, the equation, its source and its code
-   are stated plainly, the topic is recorded *not yet validated* until one arrives, and a
-   result that reports a number from such a topic says so beside the number, the one
-   place the fact reaches a reader of results (the writer is WP-2010's). That state is
+   data. Where no claim compares a topic with an independent measurement, the equation,
+   its source and its code are stated plainly, and the topic is recorded *not yet
+   validated* until one does. A result that reports a number from such a topic says so
+   once in its report, naming each such number. That is the one place the fact reaches a
+   reader of results (the writer is WP-2010's). That state is
    separate from *provisional*, which rietx keeps for an API that may still change (PEP
    411's sense). The validation record is for the developers. An agent or a user
    chooses a feature by the sample and the data, and whether the package has validated
-   the feature should not move that choice, so the record is kept in the matrix and its
-   generated page and no surface an agent reads to choose a feature carries a
-   validation verdict (ruled 2026-10-27).
+   the feature should not move that choice. So the record is kept in the matrix and its
+   generated page, and no surface an agent reads to choose a feature carries a
+   validation verdict: `capabilities()`, the help entries, the agent skill and the GUI's
+   help (ruled 2026-10-27).
 
-   *A dataset is unused, development data or sealed.* Data used to choose a threshold, a
-   default or a plan, or to rework a change until a number comes back, is development
-   data, and an independent measurement it carries calibrates as much as it validates
-   (Oberkampf & Roy pp. 31-32, 44 and 401). A test on it still measures, but weakly, and
-   the record says so. Data nobody has yet run is unused. A family is sealed when its
-   first run is on the tree as it stood at a milestone's open and nothing between the
-   open and the close is chosen or reworked on it, by anyone who changes the package.
-   Running it for another purpose, such as a benchmark whose results steer no change,
-   leaves the seal intact. It is run again at the close, its mismatch against each
-   reference value is reported at the open and at the close, and it is then spent,
-   which makes it development data. Nothing goes the other way, and an unused family
-   that misses an open waits for the next one. A pinned number that moves has moved for
+   *A dataset is unused, sealed or development data.* Data that nobody who changes the
+   package has run is unused. A family is sealed when its first run is on the tree as it
+   stood when the work it judges began (a milestone's open, or the commit its acceptance
+   row names), and nothing between then and the close is chosen or reworked on it by
+   anyone who changes the package. Running it for another purpose, such as a benchmark
+   whose results steer no change, leaves the seal intact. It is run again at the close,
+   its mismatch against each reference value is reported for both runs, and it is then
+   spent. Every other dataset that has been run is development data: data used to choose
+   a threshold, a default or a plan, data a change was reworked on until a number came
+   back, and data whose results the developers have seen (Oberkampf & Roy pp. 31-32, 44
+   and 401). An independent measurement it carries calibrates as much as it validates. A
+   test on it still measures, but weakly, and the record says so. Nothing goes from
+   development data back to sealed. A pinned number that moves has moved for
    the right reason only if the new value is no further from its reference value than
    the old; that rule tunes the package toward the development data, and only the sealed
    families show whether the tuning generalises.
@@ -765,7 +768,8 @@ the same fit.
   *low confidence* in deliberately-collinear setups; calibration over the
   injection ensemble. Without this the confidence numbers are decorative.
 - Absolute accuracy anchors to NIST certificates (with stated uncertainties);
-  GSAS-II results are consistency checks with convention-aware tolerances.
+  GSAS-II results are cross-code verification (Rule 2) with convention-aware
+  tolerances.
 - Real-data acceptance per milestone, committed in `tests/` and marked
   `slow`; provenance for every dataset in `tests/data/README.md`.
 
@@ -776,7 +780,7 @@ Two things about that document are load-bearing. It is **generated** from
 `tests/validation_matrix.py` and a fast test fails when the two drift, so it
 cannot go stale the way the hand-maintained README table did (it claimed eight
 suites while nine were committed). And the vocabulary needed **seven**
-kinds of reference value where this section's prose implies three: alongside `certificate`,
+tiers where this section's prose implies three: alongside `certificate`,
 `cross_code` and `spread` sit `identity` (referenced to floating-point
 arithmetic, not to any physical quantity), `own_result`, and two that are
 kinds of *evidence* rather than kinds of tolerance — `characterisation` (a row

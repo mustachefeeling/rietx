@@ -507,7 +507,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   not just statistical significance.
 - **A new correction, default or automatic action answers by its kind** (DESIGN.md § Rules, 1 and
   4): where every competent refiner would act, act and record it in a field; where the data can
-  rank the alternatives, rank them with evidence; otherwise report the number with its meaning.
+  rank the alternatives, rank them with evidence, picking only in Rule 1's two cases; otherwise
+  report the number with its meaning.
   **Never an Rwp comparison as its evidence**: of v0.5's eight corrections, two provably cannot
   move Rwp, one moves it the wrong way when it is right, and the two largest accuracy wins are
   invisible in it (`docs/milestones/v0.5.md`). **Nor an R_Bragg comparison** (WP-1069): I(obs) is

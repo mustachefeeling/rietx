@@ -44,7 +44,8 @@ open; 2006 still confirms the reader codes row by row.
 
 ## The rule
 
-Every heuristic is sorted into one of three tiers, and each part of it separately: the
+Every heuristic is sorted into one of three tiers or into a class with no tier
+(`invariant`, `caller`, below), and each part of it separately: the
 statistic it computes, the threshold it tests against, and the action it takes. A statistic
 may be tier 2 while its threshold is tier 3 (ΔBIC: Schwarz 1978 and the Kass–Raftery bands
 are cited; the effective sample size N/f² is rietx's own). A threshold derived from another
@@ -85,8 +86,9 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
      archive from one source is one family), with a stated case where it fails. *Holds*
      is measured against each family's reference (DESIGN.md § Rules, 2). For a number
      the reference is a certified or independently measured value, which validates, or a
-     published refinement and the cross-code envelope, which only verify. The row says which, and the action leaves
-     the number no further from it. For a flag it is a known truth
+     published refinement and the cross-code envelope under their protocol, which only
+     verify. The row says which, and whether the family is development data, and the
+     action leaves the number no further from it. For a flag it is a known truth
      (an injected misfit, a weighed impurity), and the flag fires where the fault is and
      stays silent where it is not; and
    - the judgement ground, answered by the implementing agent and approved by the
@@ -264,7 +266,8 @@ pinned number has moved it for the right reason only if the new value is no furt
 weighed composition, or the cross-code envelope, which only verifies) than the old. Re-pinning records old, new,
 dataset and reference distance in the WP handover. A number that moved away from its
 reference is evidence the action mattered, and the item goes back through the two grounds.
-A pin with no independent reference (a report text golden, a bit-identity golden) is
+A pin whose reference value is rietx's own earlier output (a report text golden, a
+bit-identity golden) is
 re-pinned only where the ruling says the number should move, with the mechanism that moved
 it named in the handover, and is restored bit-identical where the ruling says it should not.
 
@@ -354,7 +357,7 @@ and the validation matrix already measures, so it runs whatever the gate decides
 session can check without asking what was intended. The session that opens each WP
 sharpens its own row here.
 
-- **Every verdict and every action has a tier** (2001–2007). The audit table names each
+- **Every verdict and every action has a tier or a class** (2001–2007). The audit table names each
   diagnostic code that carries a verdict, each automatic action and each threshold
   constant with its tier, its evidence and, for tier 3, the two grounds and the approval
   date. Each code and action row also states the kind of ambiguity DESIGN.md § Rules, 1
@@ -407,8 +410,9 @@ sharpens its own row here.
   pair (`tests/data/mg090*`, 11-BM X-ray and NCNR BT-1 neutron, a published joint
   refinement), WP-2002 § The batch giving the reason. It is not sealed: it sits in seven
   test files and carries three prediction claims (verification under the narrowed rule),
-  so it is development data that no audit may cite, and its close run measures drift
-  from a published refinement. Added 2026-10-26 (#1052, decided by the maintainer):
+  so it is development data. No audit cites it, so that its close run, like the sealed
+  families', measures drift from a published refinement on data the audits did not tune
+  on. Added 2026-10-26 (#1052, decided by the maintainer):
   Zr₆(BDC)₃(Fum)₃ on Diamond I11, HfIn on a lab Bragg–Brentano instrument and
   CrCl₂(pyrimidine) on ILL D1B, each with a peer-reviewed refinement of the same pattern.
   Run under McCusker's plan rather than each paper's protocol, the comparison validates
@@ -502,7 +506,8 @@ reverse it knowing what it would be giving up.
   ranking or a number by its kind rather than always to a number. The expensive-rerun
   exception is Rule 1's four protections. *Holds* on the mechanical ground is measured
   against each family's reference (Rule 2), and a one-family threshold is declared not
-  yet validated. Four audit WPs (2002 to 2005) lost a skill task that sent a demoted
+  yet validated (reversed 2026-10-19 below: such a threshold is declared untested beyond
+  its families). Four audit WPs (2002 to 2005) lost a skill task that sent a demoted
   verdict's meaning into the skill, which the skill decision below had already reversed.
   The judge asks Rule 4's questions, and no longer whether a caller could see the action.
   The questions the rules left open went to the maintainer, who ruled on four the same
@@ -606,7 +611,7 @@ reverse it knowing what it would be giving up.
   sourced practice, as Rule 3 already did. Chosen over leaving the exception in this
   record alone. **A threshold measured on fewer than three families is declared untested
   beyond them**, and *not yet validated* stays Rule 2's term for a topic with no
-  reference. Chosen over one phrase for both, which would let a reader take "checked on
+  reference (since 2026-10-31, no claim against an independent measurement). Chosen over one phrase for both, which would let a reader take "checked on
   one dataset" for "no reference exists". **A poor agent result reworks the explanation
   and does not hold a demotion back** (§ The rule). Chosen over a block until agents
   recover, which would keep a verdict that failed its tests steering agents, on a harness

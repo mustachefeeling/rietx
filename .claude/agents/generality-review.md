@@ -87,9 +87,10 @@ a finding.
    that none exists.
 6. How many unrelated dataset families support the threshold, counted by
    laboratory, instrument and material and never by file, and the reference
-   each was measured against? Agreement with another program, or with a
-   published refinement of the same pattern, verifies the code and validates
-   nothing (Rule 2).
+   each was measured against, and whether each is development data? Agreement
+   with another program, or with a published refinement of the same pattern
+   under its protocol, verifies the code and validates nothing; under another
+   protocol it measures only drift (Rule 2).
 7. Which record field or diagnostic code says that it fired?
 
 A name added to `UNAUDITED_BASELINE` needs a reason, because the list only
