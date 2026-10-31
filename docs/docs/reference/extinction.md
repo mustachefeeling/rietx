@@ -276,7 +276,7 @@ Where no sum of the group's orbit multiplicities makes Z at all (P 2₁/m at Z =
 `ExtinctionCandidate.exclusion_reasons` names the fact each removed group fails.
 
 A `density` gives Z = ρ·V·N_A / M on the screened cell, `ExtinctionScreen.z_from_density`.
-It must sit within {{ DENSITY_Z_TOLERANCE_PCT }} % of the declared `z`, the error of a measured density, or, with none declared, of exactly one whole number, and `ExtinctionScreen.z` is the Z the filter used.
+It must sit within {{ DENSITY_Z_TOLERANCE_PCT }} % of the declared `z`, the agreement *International Tables* Vol. C asks of a measured density, or, with none declared, of exactly one whole number, and `ExtinctionScreen.z` is the Z the filter used.
 When it sits outside that of the declared `z`, or of every whole number, nothing is filtered by Z, `ExtinctionScreen.density_contradicts_z()` is `True`, `EXTINCTION_PRIOR_APPLIED` is a warning and `best_or_none` abstains.
 When several whole numbers fit (above Z ≈ {{ DENSITY_Z_AMBIGUOUS_ABOVE }}), nothing is filtered by Z either, `ExtinctionScreen.z_candidates` lists them, and the screen does not abstain: declare `z` to filter.
 A screen that never computed a Z (cancelled, failed) does not say the density contradicts it.

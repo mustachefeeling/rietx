@@ -2204,7 +2204,7 @@ class ExtinctionPrior(Base):
     visible rather than silently obeyed.  A density that does not give the
     declared ``z`` (or, alone, any whole number) on the screened cell
     filters nothing and makes the screen abstain; one that fits several whole
-    numbers (above Z ≈ 50) only filters nothing.
+    numbers (above Z ≈ 33) only filters nothing.
 
     **A count its orbits cannot hold is a statement, not a removal, unless the
     model is declared ordered.**  A disordered alloy written with whole counts

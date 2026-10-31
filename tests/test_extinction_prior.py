@@ -525,7 +525,7 @@ def test_a_measured_density_gives_z_within_its_own_tolerance(nacl_screens):
     assert screen.z == 4 and not screen.density_contradicts_z()
     assert abs(screen.z_from_density / 4 - 1.0) < DENSITY_Z_TOLERANCE
     assert screen.best_or_none() is not None
-    # the old 8 % would have taken a density 5 % off; 1 % does not
+    # the old 8 % would have taken a density 5 % off; 1.5 % does not
     off = declared_z(ExtinctionPrior(density=NACL_MEASURED * 1.05, formula="NaCl"),
                      179.43)
     assert off[0] is None and off[1] == pytest.approx(4.2, abs=0.01)

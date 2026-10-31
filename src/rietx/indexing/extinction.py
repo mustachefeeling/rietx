@@ -163,13 +163,15 @@ N_A_CM3_PER_A3 = 0.602214076
 #: How far a measured density may put Z from a whole number, as a fraction of
 #: Z (WP-2033, ruled by the maintainer on PR #1140).  The density is the
 #: error of a **measurement**, not the 8 % scatter of a volume estimated from
-#: atom counts (:data:`~rietx.indexing.diagnostics.Z_INTEGER_TOLERANCE`): a
-#: pycnometric or flotation density is taken to be good to about 1 % (a
-#: working figure; no source for it has been checked).  Z ∝ ρ·V, so the
-#: fraction carries over, the cell's own volume being far better known.  At
-#: Z ≳ 50 two whole numbers fit that window and the density no longer names
-#: one, which :func:`declared_z` reports as ambiguity, never as contradiction.
-DENSITY_Z_TOLERANCE = 0.01
+#: atom counts (:data:`~rietx.indexing.diagnostics.Z_INTEGER_TOLERANCE`).  The
+#: figure is the one *International Tables* Vol. C (2006), ch. 3.2, §3.2.1,
+#: p. 156 gives for assigning Z: measured and calculated density "should agree
+#: within at least 1.5%" (Richards & Lindley, doi:10.1107/97809553602060000586).
+#: Z ∝ ρ·V, so the fraction carries over, the cell's own volume being far
+#: better known.  At Z ≳ 33 two whole numbers fit that window and the density
+#: no longer names one, which :func:`declared_z` reports as ambiguity, never as
+#: contradiction.
+DENSITY_Z_TOLERANCE = 0.015
 
 #: Crystal systems that share one *lattice*, keyed by the candidate's system.
 #: The powder determines a lattice, not a crystal system: a hexagonal metric
@@ -467,7 +469,7 @@ def declared_z(prior: ExtinctionPrior | None,
     :func:`density_zs`: none within the window is a **contradiction**
     (:meth:`~rietx.schemas.indexing.ExtinctionScreen.density_contradicts_z`,
     and the screen abstains); several is an **ambiguity**, which a measured
-    density meets above Z ≈ 50 and which is no statement about the cell.
+    density meets above Z ≈ 33 and which is no statement about the cell.
     """
     if prior is None:
         return None, None

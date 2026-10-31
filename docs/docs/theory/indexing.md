@@ -271,8 +271,9 @@ Z \;=\; \frac{\rho\, V\, N_A}{M},
 with $N_A = 6.022\,140\,76 \times 10^{23}\ \mathrm{mol}^{-1}$, exact in the SI since
 2019 {cite}`bipm2019`, so that $\rho$ in g/cm$^3$, $V$ in Å$^3$ and $M$ in
 g/mol give $Z = 0.602\,214\,076\,\rho V / M$. The error of $Z$ is the error of
-the density, taken as about 1 % (a working figure, not a cited one), since the cell
-volume is far better known; the screen takes {{ DENSITY_Z_TOLERANCE_PCT }} %
+the density, since the cell volume is far better known. *International Tables*
+Vol. C asks that measured and calculated density "agree within at least 1.5%"
+{cite}`richards2006`; the screen takes {{ DENSITY_Z_TOLERANCE_PCT }} %
 and not the 8 % scatter of a volume estimated from atom counts. A density that
 fits two whole numbers (above $Z$ = {{ DENSITY_Z_AMBIGUOUS_ABOVE }}) names none.
 
