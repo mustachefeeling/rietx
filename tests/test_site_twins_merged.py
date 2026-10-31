@@ -1560,3 +1560,43 @@ def test_parallel_basis_vectors_are_equal_so_every_dof_scale_is_one():
                         np.array(b1).reshape(-1, 3), np.array(b2).reshape(-1, 3),
                         "s").values() if m.path is not None)
     assert scales == {1.0}
+
+
+def test_a_hook_tie_on_a_renumbered_sites_dof_is_reanchored_not_added_twice(pbso4):
+    """Round 1 of #1223.  ``displaced`` is the carry's, read in the declared numbering;
+    the hook's tie is in the built one, and the two differ wherever a warm start
+    renumbers the site.  Declared on the y = 1/4 mirror, O5's z is ``dof.1``; a warm
+    start off the mirror builds it as ``dof.2``, which the declared list never held,
+    so the re-anchor missed the tie and the warmed variable added the fitted
+    displacement to a coordinate that already held it, once per pattern.  The second
+    pattern must start z where the first fit left it."""
+    from rietx.sequential import SequentialRefinement
+    from rietx.strategy.staged import RefinementPlan
+    j = _o5(pbso4)
+    site = f"phases.0.atoms.{j}"
+    data = _pattern(Structure(phases=[pbso4]))
+    y0 = pbso4.atoms[j].y.value
+    start, _ = _merge(Structure(phases=[_moved(pbso4, "O5", y=0.25 - y0, z=0.01)]))
+    started: dict[int, float] = {}
+
+    def prepare(index, data, structure, instrument):
+        if index == 1:
+            structure.phases[0].atoms[j].y.value = 0.30        # off the mirror
+
+    def constrain(index, ref):
+        ref.add_variable("dz", 0.0, min=-0.05, max=0.05)
+        # z, as the declared structure numbers it (x, z on the mirror)
+        ref.tie(f"{site}.dof.1", "vars.dz")
+        inner = ref.fit
+
+        def fit(*args, **kwargs):
+            started[index] = ref.structure.phases[0].atoms[j].z.value
+            return inner(*args, **kwargs)
+        ref.fit = fit
+
+    plan = RefinementPlan(stages=[Stage("dz", ["vars.*"], max_iter=8)])
+    series = SequentialRefinement(start, INSTRUMENT).fit(
+        [data, data], plan=plan, prepare=prepare, constrain=constrain)
+    fitted = {p.path: p.value for p in series[0].parameters}[f"{site}.z"]
+    assert abs(fitted - start.phases[0].atoms[j].z.value) > 1e-3      # the fit moved it
+    assert started[1] == pytest.approx(fitted, abs=1e-9)

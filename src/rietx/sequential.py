@@ -785,6 +785,24 @@ def _constrain_in_declared_numbering(ref: Refinement, declared: Structure,
     ref._carry_twin_moves(numbering_moves(hooked, ref.structure), ref._twin_findings)
 
 
+def _displaced_as_built(displaced: Sequence[str], moves) -> list[str]:
+    """``displaced`` (the carry's DOF paths, declared numbering) in the built numbering.
+
+    A DOF the site's renumbering moves follows it (:class:`~.DofMove`'s
+    ``path``); one with no parallel direction on the new position is gone and
+    drops out, since nothing can tie it there.  Paths of a site that did not
+    renumber are unchanged.
+    """
+    out: list[str] = []
+    for path in displaced:
+        move = moves.get(path)
+        if move is None:
+            out.append(path)
+        elif move.path is not None:
+            out.append(move.path)
+    return out
+
+
 def _reanchor_carried(ref: Refinement, displaced: Sequence[str],
                       source: tuple[Structure, Instrument],
                       previous_vars: dict[str, float]) -> None:
@@ -1905,6 +1923,12 @@ class SequentialRefinement:
             ref._pending_reflections = [r.model_copy(deep=True)
                                         for r in previous_hkl]
         if constrain is not None:
+            # ``displaced`` reads the declared numbering and ``ref`` the built
+            # one, which the warm start's merge (or a site leaving its
+            # position) renumbered; read before the hook, whose ties follow
+            # the build
+            displaced = _displaced_as_built(
+                displaced, numbering_moves(self.structure, ref.structure))
             _constrain_in_declared_numbering(ref, self.structure, constrain, index)
             if previous is not None:
                 _reanchor_carried(ref, displaced, previous, previous_vars or {})

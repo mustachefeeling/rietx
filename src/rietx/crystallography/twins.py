@@ -164,6 +164,11 @@ class DofMove(NamedTuple):
     (#1014, round 6).  A hold follows ``linked``; a tie and a value need the
     single direction ``path``.  ``direction`` is the old DOF's own, in
     (x, y, z), for the message.
+
+    ``linked`` and ``direction`` default to ``()``, which means *not computed*,
+    not an answer: the carry reads an empty ``linked`` as "the position fixes
+    this direction", so a hand-built ``DofMove`` that leaves it out drops a hold
+    in silence.  :func:`_dof_moves` is the only writer and always fills both.
     """
 
     path: str | None
