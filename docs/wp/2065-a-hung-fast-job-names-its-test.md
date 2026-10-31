@@ -182,6 +182,9 @@ handover, showing the dump with the test id.
   throwaway PR (a maintainer's call, since it costs a CI run); (2) the
   acceptance, twenty `fast` jobs with no cap cancel, read with the triage's
   script once this merges; then close.
+  *Posted*: the reply to the reporter on #1249 (the cause, PR #1254's move,
+  PR #1256's dump), approved by the maintainer:
+  https://github.com/yue-here/rietx/issues/1249#issuecomment-6542880199
 - **2026-10-31** — created, from the 2026-10-31 issue triage (issue #1249).
   Checked against the tree at `766c3505d`: `ci.yml`'s `fast` job still caps
   at 40 min and sets no `faulthandler_timeout`, no `pytest-timeout` is a
