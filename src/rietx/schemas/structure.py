@@ -657,6 +657,32 @@ RIGID_BODY_DRIFT_TOL = 1e-6
 #: for the increment to be bounded or re-anchored before it could get there.
 RIGID_BODY_ROTATION_BOUND = math.pi
 
+#: A symmetry image of a body atom nearer than this factor × the covalent-radius
+#: sum (gemmi's ``covalent_r``, Cordero et al. 2008, *Dalton Trans.* 2832) to an
+#: atom of the same body means the body straddles a symmetry element and the
+#: cell counts the overlap twice (``RIGID_BODY_IMAGE_OVERLAP``, WP-1807, #876).
+#: The factor sits below every bond, since a body on a site legitimately bonds
+#: to its own images (S to an O′ image on PbSO₄'s mirror, 1.47 Å): the
+#: shortest legitimate same-body image distances are C≡C across a centre,
+#: 1.18 Å (Allen et al. 2006, *International Tables* Vol. C, § 9.5, p. 799)
+#: against a 1.02 Å threshold, an X-ray riding O–H, 0.82 against 0.68,
+#: and N–H, 0.86 against 0.71; #876's doubled SO₄ sat at 0.32 Å against 1.20.
+RIGID_BODY_OVERLAP_FACTOR = 0.7
+
+#: How far (Å) a template point's image under the origin's site symmetry may
+#: land from a same-species template point and still count as that point
+#: (``crystallography.bodies.add_body`` on a special position, WP-1807).
+#: Derived, not tuned: a coordinate typed to three decimals in Å is off by at
+#: most 0.5e-3 Å on each axis, so a point is off by at most √3·0.5e-3 Å
+#: (a rotation keeps that length), and a point and its partner may be off in
+#: opposite directions, so under any site operation an image misses by at most
+#: 2·√3·0.5e-3 = √3·1e-3 ≈ 1.73e-3 Å.  The bound is attained, at the 3-fold
+#: (x, y, z) → (z, x, y) with errors h(1, 1, −1) and h(1, −1, −1), h = 0.5e-3 Å.
+#: It does **not** cover a template converted from four-decimal fractional
+#: coordinates in a cell of about 20 Å, which can miss by up to 3.5e-3 Å
+#: (computed); a genuinely asymmetric fragment misses by a bond-scale distance.
+RIGID_BODY_INVARIANCE_TOL = math.sqrt(3.0) * 1e-3
+
 
 class BodyOrigin(Base):
     """A rigid body's origin: the point (0, 0, 0) of its template, fractional.
@@ -851,12 +877,63 @@ class AntiBumpRestraint(Base):
     translation: tuple[int, int, int] = (0, 0, 0)
 
 
+class PlanarityRestraint(Base):
+    """Four or more atoms restrained to their least-squares plane (WP-1809).
+
+    One residual row per listed atom, √weight·dₖ/sigma, where dₖ is the signed
+    distance (Å) of atom k from the plane of best fit through all of them: the
+    plane through their centroid normal to the eigenvector of the smallest
+    eigenvalue of their Cartesian scatter matrix (Schomaker, Waser, Marsh &
+    Bergman 1959, *Acta Cryst.* 12, 600).  The rows' sum of squares is that
+    eigenvalue, Σdₖ², so the term is order-free and needs no reference
+    triple.  TOPAS's ``Flatten`` and ``AI_Flatten`` restrain the same
+    geometry (Coelho, *TOPAS-Academic V6 Technical Reference*, 2016, pp. 119,
+    159, which also asks for more than three sites); here the rows are the
+    signed distances themselves, so the penalty is smooth at the plane.
+
+    ``atoms`` are positional indices into ``Phase.atoms``; an index may repeat
+    under a different image (a ring across an inversion centre).  Each entry's
+    image is ``op_indices[k]``/``translations[k]`` as on
+    :class:`BondRestraint`; an entry left ``None`` takes the minimum image
+    relative to the centroid of the entries before it, so the plane stays in
+    one molecule, and the first entry sits where it is stored unless named.
+    ``translations`` go with ``op_indices``: a translation on an entry other
+    than the first with no ``op_index`` is refused rather than ignored.  A set whose two smallest scatter eigenvalues are degenerate (the
+    points on a line or coincident, or spread alike in every direction like a
+    regular tetrahedron's corners) has no plane, and compiling it raises.
+    """
+
+    atoms: list[int] = Field(min_length=4)
+    sigma: float = Field(gt=0.0)  # Å
+    weight: float = Field(default=1.0, ge=0.0)
+    op_indices: list[int | None] | None = None
+    translations: list[tuple[int, int, int]] | None = None
+
+    @model_validator(mode="after")
+    def _one_image_per_atom(self) -> "PlanarityRestraint":
+        for name in ("op_indices", "translations"):
+            got = getattr(self, name)
+            if got is not None and len(got) != len(self.atoms):
+                raise ValueError(
+                    f"planarity restraint: {len(got)} {name} for "
+                    f"{len(self.atoms)} atoms; give one per atom or none")
+        if self.translations is not None:
+            ops = self.op_indices or [None] * len(self.atoms)
+            for k, (op, tr) in enumerate(zip(ops, self.translations, strict=True)):
+                if k > 0 and op is None and tuple(tr) != (0, 0, 0):
+                    raise ValueError(
+                        f"planarity restraint: translation {tuple(tr)} on entry "
+                        f"{k} has no op_index, so it would be ignored; name the "
+                        "operation (0 is the identity) or drop the translation")
+        return self
+
+
 #: A soft observational restraint on one phase — a bond length, a bond angle,
 #: or a single parameter value.  Each contributes one residual row that is kept
 #: in the covariance (JᵀJ) but excluded from Rwp/Durbin-Watson/Bérar-Lelann
 #: (they are soft observations, not data — the standard Rietveld convention).
 Restraint = (BondRestraint | AngleRestraint | ValueRestraint | TetherRestraint
-             | AntiBumpRestraint)
+             | AntiBumpRestraint | PlanarityRestraint)
 
 
 class MagneticSymmetry(Base):
@@ -1001,6 +1078,105 @@ def refuse_moment_model_with_k(phase_name: str, present: Sequence[str]) -> None:
             "space group with moments; the two say the same thing and nothing "
             "reconciles them. Drop propagation_vector to refine the moments, "
             "or drop the moment model to test the k")
+
+
+class DistortionMode(Base):
+    """One symmetry-adapted displacive mode of a child phase, and its amplitude (WP-1419).
+
+    ``vectors`` holds, for each entry of ``Phase.atoms`` in order, the
+    displacement of that atom per Å of amplitude, in child fractions; an atom
+    the mode does not move has ``(0, 0, 0)``.  The vectors are the
+    representatives' rows of the mode field
+    (``crystallography.representation.distortion``), normalised in the AMPLIMODES unit:
+    Σ mult·|ε|² = 1 over a primitive cell of the child lattice, in the
+    unstrained reference metric (Perez-Mato, Orobengoa & Aroyo 2010, *Acta
+    Cryst.* A66, 558, eqs. 3–4).  The orbit images carry the field through the
+    phase's own group.
+
+    ``amplitude`` is **absolute** (Å): the atoms sit at
+    ``DistortionModes.base + Σ amplitude·vectors``, never at a displacement
+    from wherever the last fit left them.  Its sign is a domain label for the
+    driving mode, and only relative signs inside a basis are measured
+    (Perez-Mato 2010 § 7).
+
+    The keys say which mode this is, so a reader grouping modes by irrep, k,
+    isotropy group or parent site needs no position in the list: ``irrep`` is
+    rietx's small-irrep label at the first arm ``k`` of the star present in the
+    child (``distortion`` convention 5), ``isotropy_group`` the group of a
+    generic displacement inside that irrep's modes (the column a published
+    table prints), ``index`` the mode's place in that irrep's basis, ``site``
+    the label of the parent atom whose orbit it moves (several labels joined
+    by ``+`` where the removed global translation couples two orbits).
+    ``parent_invariant`` says the mode is invariant under every operation of
+    the parent group, the identity irrep at Γ: the one kind of mode along which
+    the parent structure is not a stationary point of χ².
+
+    Written by ``displacive_statement``; no field has a default.
+    """
+
+    irrep: str
+    k: tuple[str, str, str]
+    isotropy_group: str
+    index: int
+    site: str
+    parent_invariant: bool
+    vectors: list[tuple[float, float, float]]
+    amplitude: Parameter
+
+    @model_validator(mode="after")
+    def _finite(self) -> "DistortionMode":
+        if not all(math.isfinite(v) for row in self.vectors for v in row):
+            raise ValueError(f"distortion mode {self.irrep} #{self.index}: a vector is not finite")
+        return self
+
+
+class DistortionModes(Base):
+    """A child phase stated as its parent plus mode amplitudes (WP-1419, #286).
+
+    The phase's coordinates are derived, not refined: atom j sits at
+    ``base[j] + Σ_ν modes[ν].amplitude · modes[ν].vectors[j]`` (child fractions),
+    and every parameter-table build writes that back into its x, y, z.  So the
+    amplitude is absolute, in the ``Atom.aniso`` and Stephens pattern, and no
+    re-basing of an anchored coordinate DOF can reach it (WP-1432).  An atom no
+    mode moves keeps its own coordinate DOFs.
+
+    ``base`` is the parent-derived position of each entry of ``Phase.atoms``
+    (the parent structure carried into the child cell, shifted by the
+    polar child's global translation where it has one, which is not a mode).
+    ``parent_space_group`` and ``transform`` (``transform_BNS_Pp_abc`` form,
+    r_parent = P·r_child + p, as ``ParentCell.transform`` writes it) say what
+    the modes were built from, and ``reference_cell`` (a, b, c, α, β, γ, in Å
+    and degrees) is the unstrained reference metric Pᵀ·G_parent·P they were
+    normalised in, so the Å reading is reproducible.
+
+    The modes come with the driving irrep first.  Build the record with
+    ``rietx.crystallography.representation.distortion.displacive_statement``;
+    the parameter table refuses one whose stored coordinates disagree with it
+    (``DISTORTION_DRIFT_TOL``) or whose mode vector leaves its site's allowed
+    subspace.
+    """
+
+    parent_space_group: str
+    transform: str
+    reference_cell: tuple[float, float, float, float, float, float]
+    base: list[tuple[float, float, float]]
+    modes: list[DistortionMode]
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "DistortionModes":
+        if not all(math.isfinite(v) for row in self.base for v in row):
+            raise ValueError("distortion_modes.base: a position is not finite")
+        if not all(math.isfinite(v) for v in self.reference_cell):
+            raise ValueError("distortion_modes.reference_cell: a value is not finite")
+        for m in self.modes:
+            if len(m.vectors) != len(self.base):
+                raise ValueError(
+                    f"distortion mode {m.irrep} #{m.index} ({m.site}) has {len(m.vectors)} "
+                    f"vectors for {len(self.base)} base positions; one per atom of the phase")
+        keys = [(m.irrep, m.k, m.index, m.site) for m in self.modes]
+        if len(keys) != len(set(keys)):
+            raise ValueError("distortion_modes lists one (irrep, k, index, site) twice")
+        return self
 
 
 class Phase(_InheritsDeclaredDefaults):
@@ -1206,6 +1382,35 @@ class Phase(_InheritsDeclaredDefaults):
     # one site can move along is held as ``"hold"`` holds it.  ``None`` (the
     # default) is exactly off: the table every earlier version built.
     floating_origin: Literal["hold", "centroid"] | None = None
+    # The child stated as its parent plus symmetry-adapted displacive mode
+    # amplitudes (WP-1419, #286).  ``None`` (the default) is exactly off: a
+    # phase declaring none builds the table it always built.  When set, every
+    # atom a mode moves has its x, y, z derived from the record's base and the
+    # absolute amplitudes, which are what refine.
+    distortion_modes: DistortionModes | None = None
+
+    @model_validator(mode="after")
+    def _modes_cover_the_atoms(self) -> "Phase":
+        """One base position and one vector per atom; no atom with two writers.
+
+        A rigid body's atom is placed by its body (``RIGID_BODY_SHARED_ATOM``'s
+        rule): a mode moving it too would be a second writer of one coordinate.
+        """
+        modes = self.distortion_modes
+        if modes is None:
+            return self
+        if len(modes.base) != len(self.atoms):
+            raise ValueError(
+                f"phase {self.name!r}: distortion_modes has {len(modes.base)} base "
+                f"positions for {len(self.atoms)} atoms; one per atom, in order")
+        owned = {label for body in self.rigid_bodies for label in body.atoms}
+        for j, atom in enumerate(self.atoms):
+            if atom.label in owned and any(any(v != 0.0 for v in m.vectors[j])
+                                           for m in modes.modes):
+                raise ValueError(
+                    f"phase {self.name!r}: atom {atom.label!r} is placed by a rigid "
+                    "body and moved by a distortion mode; one writer per coordinate")
+        return self
 
     @model_validator(mode="after")
     def _bodies_name_their_atoms(self) -> "Phase":
@@ -1542,6 +1747,9 @@ class Phase(_InheritsDeclaredDefaults):
                 check(r.atom_i, "atom_i")
                 check(r.atom_j, "atom_j")
                 check(r.atom_k, "atom_k")
+            elif isinstance(r, PlanarityRestraint):
+                for k, idx in enumerate(r.atoms):
+                    check(idx, f"atoms[{k}]")
         return self
 
 

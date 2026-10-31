@@ -32,7 +32,14 @@ from rietx._about import REPO_URL
 from rietx.crystallography.atomic_volume import VOLUME_RATIO_BOUNDS, VOLUME_SCATTER
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.magnetic.moments import MOMENT_DIRECTION_SUPPORT
+from rietx.crystallography.representation.distortion import DISTORTION_SEED
 from rietx.crystallography.scattering import _itc_handover
+from rietx.crystallography.superspace import (
+    ITC_C_EXCEPTIONS,
+    N_MAGNETIC_SUPERSPACE_GROUPS_D1,
+    N_BRAVAIS_CLASSES_D1,
+    N_SUPERSPACE_GROUPS_D1,
+)
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from rietx.examples import list_examples
 from rietx.gui.textdoc import FORMAT_VERSION as RXT_FORMAT_VERSION
@@ -89,6 +96,7 @@ from rietx.schemas.fraction import FRACTION_PROFILE_DCHI2
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.interval import PARAMETER_INTERVAL_MAX_REFITS
 from rietx.schemas.plan import CLOSING_WINDOW_TOL
+from rietx.schemas.structure import RIGID_BODY_OVERLAP_FACTOR
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
 
@@ -211,6 +219,7 @@ MYST_SUBSTITUTIONS = {
     # the moment-direction floor both the hold and the stationary-angle test
     # read, and that test's level (WP-1929)
     "MOMENT_DIRECTION_SUPPORT": f"{MOMENT_DIRECTION_SUPPORT:.0e}",
+    "DISTORTION_SEED": f"{DISTORTION_SEED:g}",
     "STATIONARY_ANGLE_LEVEL": STATIONARY_ANGLE_LEVEL,
     # the parametric form test's level (WP-1325)
     "PARAMETRIC_FORM_LEVEL": FORM_TEST_LEVEL,
@@ -238,6 +247,14 @@ MYST_SUBSTITUTIONS = {
     # listing showed two, because a standard whose data may not ship in the
     # wheel leaves `list_examples()` and nothing reads the sentence again.
     "N_EXAMPLES": len(list_examples()),
+    # The (3+1)D counts the superspace chapter quotes (#682 review): the
+    # literature counts the tests pin, and how many printed symbols ITC-C
+    # spells differently from the Stokes 2011 § 5.2 convention.
+    "N_SUPERSPACE_GROUPS_D1": N_SUPERSPACE_GROUPS_D1,
+    "N_BRAVAIS_CLASSES_D1": N_BRAVAIS_CLASSES_D1,
+    "N_ITC_C_EXCEPTIONS": len(ITC_C_EXCEPTIONS),
+    # Stokes & Campbell 2022 Table 6's d = 1 magnetic count (WP-1992).
+    "N_MAGNETIC_SUPERSPACE_GROUPS_D1": N_MAGNETIC_SUPERSPACE_GROUPS_D1,
     # The `.rxt` document's own version and precision (WP-1009 asked for this
     # explicitly: a format bump that misses the manual must fail the docs
     # build).  `gui-power.md` states the grammar normatively, so both numbers
@@ -283,6 +300,9 @@ MYST_SUBSTITUTIONS = {
     "SUGGEST_MIN_GAIN": SUGGEST_MIN_GAIN,
     "SUPERCELL_CHANCE_ALPHA": SUPERCELL_CHANCE_ALPHA,
     "SYMMETRY_ANGLE_TOL_DEG": SYMMETRY_ANGLE_TOL_DEG,
+    # a body atom's image this close (× the covalent-radius sum) to the body
+    # refuses it, RIGID_BODY_IMAGE_OVERLAP (WP-1807)
+    "RIGID_BODY_OVERLAP_FACTOR": RIGID_BODY_OVERLAP_FACTOR,
     "THRESHOLDS_VERSION": THRESHOLDS_VERSION,
     "VALIDITY_RADIUS_FWHM": VALIDITY_RADIUS_FWHM,
     "WINDOW_AREA_TOL": WINDOW_AREA_TOL,

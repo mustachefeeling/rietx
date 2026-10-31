@@ -1,6 +1,6 @@
 # WP-1919 — maximal subgroups, their conjugacy classes, (P, p) and Wyckoff splittings, generated from the group's own operators
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-30 — PR 1 of 2 (the generator) merged from outside as PR #1189 (`20e33524`); Wyckoff positions and `wyckoff_splitting` (PR 2) are open
 Track: Data and metadata in, a structure out
 Depends on: — (1419 soft: the symmetry package its front half creates)
 Priority: P3 2026-10-08 — a workaround covers it: MAXSUB and WYCKSPLIT by hand; its three consumers (1515, 1418, 1419) are queued or have a narrower stand-in
@@ -151,19 +151,19 @@ identification call.
       the index ≤ 9 sweep is a benchmark script outside the suite. Before the
       code, the PR names the reference set the Tests task calls "stated":
       the groups, the published entries and the tolerance (DESIGN Rule 4).
-- [ ] t-subgroups from the point group's maximal subgroups, with conjugacy
-- [ ] k-subgroups: maximal P-invariant sublattices per prime, complements
+- [x] t-subgroups from the point group's maximal subgroups, with conjugacy
+- [x] k-subgroups: maximal P-invariant sublattices per prime, complements
       over F_p, conjugacy classes
-- [ ] (P, p) to the standard setting, verified exactly against the
+- [x] (P, p) to the standard setting, verified exactly against the
       Hall-database group
 - [ ] Wyckoff positions from operators, and `wyckoff_splitting`
-- [ ] Isomorphic subgroups on demand (`index=`, `supercell=`)
+- [x] Isomorphic subgroups on demand (`index=`, `supercell=`)
 - [ ] Tests: the closed-form series counts; a stated set of named maximal
       subgroups each present with its (P, p); the non-maximal controls;
       multiplicity conservation; the setting-invariance multisets; the 1731
       total. The full 230-group index ≤ 9 sweep as a `slow` test or a
       benchmark, as its cost decides
-- [ ] Manual Part 2: the t/k construction and the F_p reduction with
+- [x] Manual Part 2: the t/k construction and the F_p reduction with
       *Source* lines (ITA A1)
 - [ ] Skill: none at first, since no fit reaches it until a consumer WP
       calls it; a row in the consumer's reference file when one does
@@ -192,6 +192,8 @@ identification call.
 - Togo, A. et al., spglib (BSD-3).
 
 ## Handover log
+
+- **2026-10-30** (`/pr-review`) — PR 1 of 2, the generator, merged from outside as PR #1189 (`20e33524`) after three rounds. `crystallography/representation/subgroups.py` gives `maximal(group, kind, max_index=MAX_INDEX, *, index, supercell)` and `is_maximal(group, symbol, transform)`. Each `MaximalSubgroup` carries its (P, p) checked in exact `Fraction` arithmetic, its class and its class size. The reference set the ruling asked for is 17 ITA A1 entries read off the page, each compared up to the affine normaliser and found exactly once. The negative arm is Pnma → P2₁2₁2₁ with its origin shift dropped, which `is_maximal` refuses. The review re-ran the reproductions on the final head: p subgroups of `P -1` at p = 5, 13, 29 and 31, and 841 for `P 6/m m m` at 29a × 29b. The per-group index ≤ 4 sweep (3767 subgroups, about 20 CPU-s) stayed in the fast suite, which departs from the ruling that it be `slow`: it takes about 11 s at `-n 4`, and one decorator moves it. The index ≤ 9 sweep is `tests/subgroups_benchmark.py` (9291 subgroups, 45 CPU-s). `_PROBE_DENOMINATOR_PER_INDEX` = 12 is recorded as `invariant`, and the judge reads it as a sufficiency bound that tier 1 would fit as well. Two-origin types come out in spglib's origin choice 1 where A1 uses choice 2, so the tests compare up to the normaliser. Ticked: t- and k-subgroups, (P, p), isomorphic subgroups, Manual Part 2. Open for PR 2: Wyckoff positions and `wyckoff_splitting`, multiplicity conservation and the 1731 total (the rest of the Tests task), and switching `_standard_child` to the exact check. Gate (a stack of eleven PRs on main `b40bc994`, tree `307eff83`; macOS arm64, `[dev,jax]`, Python 3.12): 13 217 passed, 216 skipped, 48 xfailed, 0 failed, with ruff, the `-W` manual build and the GUI ladder green.
 
 - **2026-10-08** — created, from the 2026-10-08 issue triage (issue #806).
   Checked against the tree at `5d1f5f67`: no maximal-subgroup enumeration

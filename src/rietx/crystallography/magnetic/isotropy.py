@@ -236,18 +236,28 @@ INTENSITY_RTOL = 1e-9
 CROSS_IRREP_DRAWS = 12
 WITHIN_IRREP_DRAWS = 3
 
-#: The isometry certificate's accept bound (issue #565, part 3): the relative
-#: congruence residual max_s ‖QᵀG^B_sQ − G^A_s‖_max / max|G^A| and the
-#: orthogonality deviation ‖QᵀQ − I‖₂ of the quoted Q must both be at most
-#: this.  Both are printed with the verdict, since an equality certificate
-#: is the direction a false answer silently drops a distinguishable model
-#: in.  Measured (macOS arm64 and Linux x86-64, d_min 1.5 Å): the rank-1
-#: copies of each irrep of the cubic ``P n -3 m:1`` and ``P m -3 m`` at
-#: (0, 0, ½) certify at residuals ≤ 3e-14 (the 2026-09-30 spike: 163
-#: certificates over six cubic sets at 9.8e-16 to 2.9e-14), while a pair
-#: that is not isometric has no intertwiner at all (an empty nullspace, the
-#: smallest relative singular value ≥ 7e-2), so the bound separates nothing
-#: measured and only fences round-off.
+#: The accept bound of both Gram-congruence certificates, one threshold for
+#: two uses.  **Isometry** (issue #565, part 3; :class:`Isometry`): the
+#: relative congruence residual max_s ‖QᵀG^B_sQ − G^A_s‖_max / max|G^A| and
+#: the orthogonality deviation ‖QᵀQ − I‖₂ of the quoted Q must both be at
+#: most this.  **Span containment** (part 4; :class:`Containment`,
+#: :func:`_containment`): the relative residual
+#: max_s ‖G^A_s − c·EᵀG^B_sE‖_max / max|G^A| of the quoted E must be at most
+#: this.  Every residual is printed with its verdict, since an equality or
+#: containment certificate is the direction a false answer silently drops a
+#: distinguishable model in.  Measured, isometry (macOS arm64 and Linux
+#: x86-64, d_min 1.5 Å): the rank-1 copies of each irrep of the cubic
+#: ``P n -3 m:1`` and ``P m -3 m`` at (0, 0, ½) certify at residuals ≤ 3e-14
+#: (the 2026-09-30 spike: 163 certificates over six cubic sets at 9.8e-16 to
+#: 2.9e-14), while a pair that is not isometric has no intertwiner at all
+#: (an empty nullspace, the smallest relative singular value ≥ 7e-2).
+#: Measured, span (macOS arm64): the 38 containments among 17 families of
+#: the ``F -4 3 m`` Γ general-site set at residuals 1.8e-15 to 1.4e-14, 23
+#: with the patterns in span (pattern residual ≤ 1e-15) and 15 through a
+#: least-squares E that reproduces the stack and not the patterns; 16 on the
+#: known answer at ≤ 4.7e-15; no congruence across two irreps on either
+#: set.  In both uses the bound separates nothing measured and only fences
+#: round-off.
 ISOMETRY_RESIDUAL = 1e-12
 
 #: The full-stack guard of a Farkas certificate (issue #565, part 3, the
@@ -1125,8 +1135,10 @@ class Witness:
       four decades smaller (measured on the ``F -4 3 m`` Γ witness: 8.4e-7
       against 2.2e-10).
     * ``margin`` — μ = λ′/Γ for ``interior`` on the stack it was issued on,
-      λ′ = λ_min(M(ŷ)) − n ε |λ|_max (LAPACK Users' Guide § 4.7): the cone's
-      cosine bound, recomputed from the stack wherever it is read.
+      λ′ = λ_min(M(ŷ)) − n ε |λ|_max (Anderson et al. 1999, *LAPACK Users'
+      Guide*, 3rd ed., SIAM, § 4.7; :func:`_cone_margin`): the cone's cosine
+      bound, recomputed from the stack wherever it is read, and re-checked
+      against that recomputation by :func:`_verify_witness`.
     """
 
     draw: int
@@ -2044,6 +2056,82 @@ _PROBE_SEED = 1419
 _PROBE_DRAWS = 3
 
 
+@dataclass(frozen=True)
+class DistortionRefusal:
+    """Why a displacive candidate has no child: the code, the message and every draw.
+
+    ``draws`` holds one entry per draw of the probe, in order: the number of
+    operations spglib found in the magnetic cell for the parent's atoms moved
+    along a generic displacement the isotropy group keeps, or ``None`` where
+    spglib named no space group.  ``operations`` is the isotropy group's own
+    count there.  A child is refused only when every draw disagrees with it,
+    and ``code`` is one of three, chosen from all the draws, never from the
+    last alone.  They are refusal prefixes, not ``Diagnostic`` codes:
+
+    * ``DISTORTION_CHILD_SMALLER`` — at least one draw spglib identified kept
+      **fewer** operations than the isotropy group.  The displacement is
+      invariant under the whole group by construction, so a draw that loses one
+      is a miss of the probe's tolerance (``_PROBE_SYMPREC``), not a property of
+      the atoms; and while the probe misses, no draw can be read as evidence
+      about the atoms, so this code wins over the other two.
+    * ``DISTORTION_CHILD_LARGER`` — every draw spglib identified kept **more**
+      operations than the isotropy group.  An accidental extra operation
+      survives a draw by chance, but a genuine one, which these atoms cannot
+      break, survives every draw: the atoms cannot realise the direction's
+      group, so its child is not this candidate's.
+    * ``DISTORTION_CHILD_UNIDENTIFIED`` — spglib named no space group on any
+      draw, so no standard setting can be stated.
+
+    ``message`` names the candidate, the code and each draw's outcome.
+    """
+
+    code: str
+    message: str
+    draws: tuple[int | None, ...]
+    operations: int
+
+
+class _ChildRefused(ValueError):
+    """:func:`_standard_child`'s refusal, carrying its :class:`DistortionRefusal`."""
+
+    def __init__(self, refusal: DistortionRefusal):
+        super().__init__(refusal.message)
+        self.refusal = refusal
+
+
+def _draw_text(n: int | None) -> str:
+    return "spglib named no group" if n is None else f"{n} operations"
+
+
+def _refusal(candidate: MagneticCandidate, draws: list[int | None],
+             operations: int) -> DistortionRefusal:
+    """The refusal of a child every draw disagreed with, its code chosen from all the draws."""
+    seen = ", ".join(f"draw {i} {_draw_text(n)}" for i, n in enumerate(draws, start=1))
+    seen = f"({seen}; the isotropy group has {operations})"
+    named = [n for n in draws if n is not None]
+    k = tuple(str(c) for c in candidate.k)
+    if any(n < operations for n in named):
+        code = "DISTORTION_CHILD_SMALLER"
+        text = (f"a generic displacement of the parent's atoms along {candidate.label} at "
+                f"k = {k} keeps fewer operations in the magnetic cell than the isotropy group "
+                f"on at least one of {len(draws)} draws {seen}: the displacement keeps every "
+                f"operation of the group by construction, so spglib's tolerance "
+                f"({_PROBE_SYMPREC:g}) missed some, which says nothing about the atoms")
+    elif named:
+        code = "DISTORTION_CHILD_LARGER"
+        text = (f"a generic displacement of the parent's atoms along {candidate.label} at "
+                f"k = {k} keeps more operations in the magnetic cell than the isotropy group "
+                f"on every draw spglib identified {seen}: these atoms cannot realise the "
+                "direction's group, so its child is not this candidate's")
+    else:
+        code = "DISTORTION_CHILD_UNIDENTIFIED"
+        text = (f"spglib names no space group for a generic displacement along "
+                f"{candidate.label} at k = {k} on any draw {seen}, so no standard "
+                "setting can be stated")
+    return DistortionRefusal(code=code, message=f"{code}: {text}", draws=tuple(draws),
+                             operations=operations)
+
+
 @dataclass(frozen=True, eq=False)
 class DistortionCandidate:
     """One displacive candidate of a parent: its child, (P, p) and its modes in Å.
@@ -2065,13 +2153,21 @@ class DistortionCandidate:
     ``sites`` names the parent atoms whose displacement representation holds
     the irrep (the sites :func:`candidates` was asked about that produced this
     direction); the basis covers every parent atom regardless.
+
+    ``refusal`` is ``None`` for a stated child.  A candidate whose child the
+    probe refuses (:class:`DistortionRefusal`: its code, message and every
+    draw) is still returned, with ``child``, ``transform`` and ``basis`` set to
+    ``None``, so one refusal does not cost the call its other candidates;
+    :attr:`child_group` is then ``None``, and :attr:`driving` and :attr:`rest`
+    raise the refusal's message.
     """
 
     candidate: MagneticCandidate
-    child: object  # rietx.schemas.structure.Phase
-    transform: tuple[np.ndarray, np.ndarray]
-    basis: object  # rietx.crystallography.representation.distortion.ModeBasis
+    child: object  # rietx.schemas.structure.Phase, None when refused
+    transform: tuple[np.ndarray, np.ndarray] | None
+    basis: object  # rietx.crystallography.representation.distortion.ModeBasis, None when refused
     sites: tuple[str, ...]
+    refusal: DistortionRefusal | None = None
 
     @property
     def k(self) -> KVector:
@@ -2090,8 +2186,13 @@ class DistortionCandidate:
         return self.candidate.label
 
     @property
-    def child_group(self) -> str:
-        return str(self.child.space_group)
+    def child_group(self) -> str | None:
+        """The child's space-group symbol, or ``None`` when the child is refused."""
+        return None if self.child is None else str(self.child.space_group)
+
+    def _stated(self) -> None:
+        if self.refusal is not None:
+            raise ValueError(self.refusal.message)
 
     @property
     def driving(self):
@@ -2101,11 +2202,13 @@ class DistortionCandidate:
         group is the child's: the two can disagree (a secondary irrep whose group
         is the child's reads ``primary=True`` there and is in :attr:`rest` here).
         """
+        self._stated()
         return self.basis.components[self._driving_index]
 
     @property
     def rest(self) -> tuple:
         """Every other component: the further irreps the child also admits."""
+        self._stated()
         return tuple(c for i, c in enumerate(self.basis.components)
                      if i != self._driving_index)
 
@@ -2221,6 +2324,7 @@ def _standard_child(parent, parent_group, candidate: MagneticCandidate):
     metric_m = p_m.T @ metric_p @ p_m
     lattice = np.linalg.cholesky(metric_m)
     rng = np.random.default_rng(_PROBE_SEED)
+    draws: list[int | None] = []  # each draw's operation count, None where spglib named none
     for _ in range(_PROBE_DRAWS):  # a refusal needs every draw to disagree with H
         raw = rng.standard_normal(positions.shape)
         field = np.zeros_like(raw)
@@ -2237,19 +2341,11 @@ def _standard_child(parent, parent_group, candidate: MagneticCandidate):
                                                symprec=_PROBE_SYMPREC)
         except SPGLIB_REFUSALS:
             data = None
-        if data is not None and len(data.rotations) == len(ops):
+        draws.append(None if data is None else len(data.rotations))
+        if draws[-1] == len(ops):
             break
-    if data is None:
-        raise ValueError(
-            f"DISTORTION_CHILD_UNIDENTIFIED: spglib names no space group for a generic "
-            f"displacement along {candidate.label} at k = "
-            f"{tuple(str(c) for c in candidate.k)}, so no standard setting can be stated")
-    if len(data.rotations) != len(ops):
-        raise ValueError(
-            f"DISTORTION_CHILD_LARGER: a generic displacement of the parent's atoms along "
-            f"{candidate.label} keeps {len(data.rotations)} operations in the magnetic cell, "
-            f"but the isotropy group has {len(ops)}: these atoms cannot realise the "
-            "direction's group, so its child is not this candidate's")
+    else:
+        raise _ChildRefused(_refusal(candidate, draws, len(ops)))
 
     hall = spglib.get_spacegroup_type(data.hall_number).hall_symbol
     sg = gemmi.find_spacegroup_by_ops(gemmi.symops_from_hall(hall))
@@ -2356,11 +2452,16 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
     The candidate list is :func:`candidates`' (one direction per conjugacy
     class, the k fence of 2k in the reciprocal lattice, the verification), and
     so is the group; this function adds the setting and the basis.  A child
-    whose group a generic displacement of these atoms does not keep exactly
-    (``DISTORTION_CHILD_LARGER``) or spglib does not name
-    (``DISTORTION_CHILD_UNIDENTIFIED``) is refused, after ``_PROBE_DRAWS``
-    independent draws of the displacement have each failed, since one can by
-    chance.
+    whose group a generic displacement of these atoms does not keep exactly is
+    refused, after ``_PROBE_DRAWS`` independent draws of the displacement have
+    each failed, since one can by chance.  The refusal is returned in its place
+    rather than raised, so the other candidates still come back: the candidate
+    carries a :class:`DistortionRefusal` and no child.  Its code is chosen from
+    every draw: ``DISTORTION_CHILD_SMALLER`` when a draw kept fewer operations
+    than the group (a miss of the probe's tolerance, not of the atoms),
+    ``DISTORTION_CHILD_LARGER`` when every draw spglib identified kept more
+    (the atoms cannot realise the group), and
+    ``DISTORTION_CHILD_UNIDENTIFIED`` when spglib named no group on any draw.
     """
     from ..representation.distortion import _refuse_shared_sites, distortion_basis
     from ..symmetry import resolve_group
@@ -2398,7 +2499,13 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
 
     out = []
     for cand, on in found.values():
-        symbol, big, small, metric_p = _standard_child(parent, parent_group, cand)
+        try:
+            symbol, big, small, metric_p = _standard_child(parent, parent_group, cand)
+        except _ChildRefused as refused:
+            out.append(DistortionCandidate(candidate=cand, child=None, transform=None,
+                                           basis=None, sites=tuple(on),
+                                           refusal=refused.refusal))
+            continue
         bare = _child_phase_bare(parent, symbol, big, small, metric_p)
         basis = distortion_basis(parent, bare, (big, small))
         child = _child_phase(parent, symbol, big, metric_p, basis)
@@ -3140,6 +3247,22 @@ def _domain_patterns(candidate: MagneticCandidate, little: LittleGroup) -> list[
     return out
 
 
+def _domain_pattern_cache(canonical, little: LittleGroup):
+    """``index → _domain_patterns(canonical[index], little)``, each candidate's built once, on the first pair that needs it.
+
+    The one cache :func:`_classify` and :func:`_powder_equivalent` share;
+    ``little`` is the group the caller built the structure factors with.
+    """
+    images: dict[int, list[np.ndarray]] = {}
+
+    def patterns(index: int) -> list[np.ndarray]:
+        if index not in images:
+            images[index] = _domain_patterns(canonical[index], little)
+        return images[index]
+
+    return patterns
+
+
 def _containment(a: MagneticCandidate, grams_a: np.ndarray, grams_b: np.ndarray,
                  patterns_b: list[np.ndarray]) -> Containment | None:
     """image(A) ⊆ cone image(B) by an injection congruence G^A_s = c·EᵀG^B_sE, or None (:class:`Containment`).
@@ -3153,13 +3276,9 @@ def _containment(a: MagneticCandidate, grams_a: np.ndarray, grams_b: np.ndarray,
     Each E is then *checked* on the Gram
     stacks over every shell, and the first one whose congruence residual
     is at most :data:`ISOMETRY_RESIDUAL` is the certificate; the pattern
-    fit is where E comes from, never what proves it.  Measured on the
-    ``F -4 3 m`` Γ general-site set (38 containments among 17 families,
-    macOS arm64): residuals 1.8e-15 to 1.4e-14, 23 of them with the
-    patterns in span (pattern residual ≤ 1e-15) and 15 through a least
-    squares E that reproduces the stack and not the patterns; on the
-    known answer, 16 at ≤ 4.7e-15; no congruence across two irreps on
-    either set.
+    fit is where E comes from, never what proves it.  The residuals
+    measured for this use, on the ``F -4 3 m`` Γ set and the known answer,
+    are in that threshold's docstring, beside the isometry's.
     """
     n_a = a.free_amplitudes
     if n_a == 0 or not patterns_b or patterns_b[0].shape[0] == 0:
@@ -3410,7 +3529,9 @@ def _cone_margin(grams: np.ndarray, y_hat: np.ndarray) -> tuple[float, float, fl
     """(λ′, Γ, μ) of a unit direction ŷ on a projected live stack scaled to max 1: every image point has cos(ŷ, I) ≥ μ.
 
     λ′ = λ_min(M(ŷ)) − n ε |λ|_max is the eigenvalue after its backward
-    error (LAPACK Users' Guide § 4.7, p(n) = n); Γ = (Σ_s ‖G_s‖₂²)^½ bounds
+    error |λ̂ − λ| ≤ p(n) ε ‖M‖₂, taken at p(n) = n (Anderson et al. 1999,
+    *LAPACK Users' Guide*, 3rd ed., SIAM, § 4.7, doi:10.1137/1.9780898719604;
+    the guide's own example takes p(n) = 1); Γ = (Σ_s ‖G_s‖₂²)^½ bounds
     ‖I(x)‖ by Γ‖x‖²; so ŷ·I(x) = xᵀM(ŷ)x ≥ λ′‖x‖² ≥ (λ′/Γ)‖I(x)‖ for every x
     (and tr(M(ŷ)X) ≥ λ′ tr X for every X ⪰ 0 of the relaxation).  μ ≤ 0
     means ŷ bounds nothing.
@@ -3722,13 +3843,27 @@ def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float,
     Rebuilds the (weighted) live stack from ``grams_b`` and the stored t,
     projects out its common kernel afresh, and requires |y·t̂ + 1| ≤ 1e-9,
     projected ratio ≥ :data:`FARKAS_FLOOR`, the exact LDLᵀ, the
-    full-stack guard ρ_max ≥ :data:`KERNEL_AMPLITUDE_RATIO`, and that the
+    full-stack guard ρ_max ≥ :data:`KERNEL_AMPLITUDE_RATIO`, that the
     stored ``interior`` is a unit vector whose M(ŷ) clears the same floor
-    on the projected stack (what the fit transfer rests on).  The stored
+    on the projected stack (what the fit transfer rests on), and that the
+    stored ``margin`` is the μ :func:`_cone_margin` recomputes for that
+    ``interior`` on that stack, to 4(n + S)ε (n amplitudes, S live shells).
+    That allowance is rounding only: μ = λ′/Γ, and each computation of
+    λ_min(M(ŷ)) carries at most n ε |λ|_max from the eigensolver and
+    S ε Σ_s|ŷ_s|‖G_s‖₂ from forming M(ŷ), both at most (n + S) ε Γ since
+    ‖ŷ‖ = 1 gives |λ|_max ≤ Σ_s|ŷ_s|‖G_s‖₂ ≤ Γ; two computations double it,
+    and the second factor of two covers Γ's own rounding and the kernel
+    projection's.  A margin off by more is a record that no longer
+    describes its own ``interior``, and the witness does not re-verify.
+    Measured on the 54 re-checks in the isotropy tests that hold (own
+    stacks, isometric copies, rule-2 ``via`` stacks and a random rotation;
+    macOS arm64): |Δμ| ≤ 2.8e-17 on the stack a witness was issued on or a
+    rotation of it, and 8.7e-16 at most across two families' float stacks
+    (the ``F -4 3 m`` witness, against an allowance of 1.2e-14 there).  The stored
     t is an intensity vector, so a change of either family's amplitude basis
-    leaves the check intact (M(y) and y·t move by congruence and not at
-    all) — which is also why a witness carried to an isometric copy of
-    ``b`` re-verifies against that copy's own stack.
+    leaves the check intact (M(y) and y·t move by congruence and μ is
+    invariant under it) — which is also why a witness carried to an
+    isometric copy of ``b`` re-verifies against that copy's own stack.
     """
     live = np.asarray(witness.live, dtype=np.int64)
     t = np.asarray(witness.t, dtype=np.float64)[live]
@@ -3739,12 +3874,15 @@ def _verify_witness(grams_b: np.ndarray, witness: Witness) -> tuple[bool, float,
     off = abs(float(y @ t_hat) + 1.0)
     ratio = _spectrum_ratio(projected, y)
     interior = np.asarray(witness.interior, dtype=np.float64)
+    shells, n = projected.shape[:2]
     holds = (residual <= INTENSITY_RTOL and off <= 1e-9 and ratio >= FARKAS_FLOOR
              and _exact_psd(projected, y)
              and _kernel_amplitude_ratio(g, y) >= KERNEL_AMPLITUDE_RATIO
              and interior.shape == y.shape
              and abs(float(np.linalg.norm(interior)) - 1.0) <= 1e-9
-             and _spectrum_ratio(projected, interior) >= FARKAS_FLOOR)
+             and _spectrum_ratio(projected, interior) >= FARKAS_FLOOR
+             and abs(_cone_margin(projected, interior)[2] - witness.margin)
+             <= 4.0 * (n + shells) * float(np.finfo(np.float64).eps))
     return bool(holds), ratio, off
 
 
@@ -4071,6 +4209,11 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     changes which point is quoted and what ``d`` reads, not what is
     proved: the gate and the fit's ``rtol`` stay unweighted.
 
+    ``little``, optional, is the little group of ``a``'s k (built from
+    ``a.space_group`` and ``a.k`` when None).  Both families' structure
+    factors and the span certificate's domain operations are taken from it,
+    so a caller holding the group passes it once and nothing rebuilds it.
+
     **Both sampled verdicts are statistical, for different reasons** (issue #455).
     What is exact: a family with no powder pattern at this d limit is
     equivalent to anything (below), and the verdict no longer depends on the
@@ -4123,35 +4266,31 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     fa = structure_factors(a, refl, little=little)
     fb = structure_factors(b, refl, little=little)
     return _powder_equivalent(a, b, fa, fb, gram(fa, refl.shells), gram(fb, refl.shells),
-                              refl, draws=_draws_for(a, b, draws), seed=seed, rtol=rtol,
-                              restarts=restarts, weights=weights)
+                              refl, little=little, draws=_draws_for(a, b, draws), seed=seed,
+                              rtol=rtol, restarts=restarts, weights=weights)
 
 
 def _powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
                        fa: np.ndarray, fb: np.ndarray, ga: np.ndarray, gb: np.ndarray,
-                       refl: ReflectionSet, *,
+                       refl: ReflectionSet, *, little: LittleGroup,
                        draws: int, seed: int, rtol: float, restarts: int,
                        weights: np.ndarray | None = None) -> bool:
     """:func:`powder_equivalent` on canonical candidates whose factors and grams are built.
 
     ``ga``/``gb`` are ``gram(fa, refl.shells)``/``gram(fb, refl.shells)``, the
     only form the certificates, the draws and the fits read, so each is built
-    once per candidate rather than once per draw.
+    once per candidate rather than once per draw.  ``little`` is the little
+    group ``fa`` and ``fb`` were built with, and the span certificate's
+    domain operations are taken from it too (:func:`_domain_pattern_cache`),
+    so the two never read different groups.
     """
     silent = [_silent(fa), _silent(fb)]
     dark = [_certificate_dark(ga, silent[0]), _certificate_dark(gb, silent[1])]
     spans = [_intensity_span(ga), _intensity_span(gb)]
     decided = _isometry_verdicts(0, 1, ga, gb, dark, spans, silent)
     if not decided:
-        little = _irreps.little_group(a.space_group, a.k)
-        images = {}
-
-        def patterns(index: int) -> list[np.ndarray]:
-            if index not in images:
-                images[index] = _domain_patterns((a, b)[index], little)
-            return images[index]
-
-        decided = _containment_verdicts(0, 1, (a, b), (ga, gb), dark, spans, silent, patterns)
+        decided = _containment_verdicts(0, 1, (a, b), (ga, gb), dark, spans, silent,
+                                        _domain_pattern_cache((a, b), little))
     there, back = _pair_verdicts(0, 1, (a, b), (ga, gb), silent, dark, spans, refl,
                                  draws=draws, seed=seed, rtol=rtol, restarts=restarts,
                                  weights=weights, decided=decided)
@@ -4360,13 +4499,7 @@ def _classify(candidate_set: CandidateSet, refl: ReflectionSet, *, draws: int | 
     spans = [_intensity_span(g) for g in grams]
     parent = list(range(n))
     copies = list(range(n))
-    images: dict[int, list[np.ndarray]] = {}
-
-    def patterns(index: int) -> list[np.ndarray]:
-        # a candidate's domain images, built once, on the first pair that needs them
-        if index not in images:
-            images[index] = _domain_patterns(canonical[index], little)
-        return images[index]
+    patterns = _domain_pattern_cache(canonical, little)
 
     def find(i: int, tree: list[int] = parent) -> int:
         while tree[i] != i:

@@ -166,6 +166,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ...crystallography.symmetry import resolve_group, site_twin_merge
+from ...crystallography.twins import merge_site_twins, message_notes
 from ...schemas.common import Diagnostic, Parameter
 from ..formats.base import decode
 
@@ -1951,12 +1953,18 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     refused, naming the ratios: handing the column through would be a silently
     wrong structure factor.
 
-    Returns the common factor, for the record.
+    Returns the common factor, for the record.  A site whose own images
+    coincide is read on its special position, and the gate that decides whether
+    it merges is fed the occupancy *divided by that factor*: the column carries
+    one free common factor (1 and 2 in the corpus, 0.5 as legal), and a gate fed
+    ``Occ x M/m x F`` decided differently at each F for the same file (#1014
+    round 7, item 3).
     """
     import gemmi
     import numpy as np
 
-    from ...crystallography.symmetry import expand_positions
+    from ...crystallography.symmetry import expand_positions, site_twin_merge
+    from ...crystallography.twins import applied_twin_merges
 
     where = where or f"phase {phase.index} ({phase.name!r})"
     try:
@@ -1971,11 +1979,41 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
             f"structure factor from — and dropping it would leave its R_Bragg "
             f"reporting for a phase the Structure lacks")
     general = len(list(sg.operations()))
-    ratios: list[float] = []
-    for atom in phase.atoms:
-        xyz = np.array([atom.values[k].value for k in ("x", "y", "z")], float)
-        multiplicity = len(expand_positions(sg, xyz))
-        ratios.append(atom.values["occ"].value * general / multiplicity)
+    # a site whose own images coincide is counted on the special position it
+    # collapses to, as the ``Phase`` built from it will hold it (#1007)
+    cell = (tuple(phase.cell[k].value for k in _CELL_COLUMNS)
+            if all(k in phase.cell for k in _CELL_COLUMNS) else None)
+    xyzs = [np.array([a.values[k].value for k in ("x", "y", "z")], float)
+            for a in phase.atoms]
+    # ``Occ`` is occupancy x m/M, so the gate is fed an occupancy: Occ x M/m,
+    # with m the multiplicity the file's own site has.  A site within reach of
+    # its special position is written *on* it (a few 1e-5 off is the usual
+    # cause), so its m is the special multiplicity, and a full atom reads 1 and
+    # merges on the gate's own arithmetic (1 x 2 > 1) (#1014 round 6, item 8)
+    candidates = {} if cell is None else {
+        j: site_twin_merge(sg, cell, xyz) for j, xyz in enumerate(xyzs)}
+    occupancies = [
+        a.values["occ"].value * general / (
+            candidates[j].after if candidates.get(j) is not None
+            else len(expand_positions(sg, xyzs[j])))
+        for j, a in enumerate(phase.atoms)]
+    # ...divided by the phase's reference ratio: the column carries one free
+    # common factor F (the corpus has 1 and 2, and 0.5 is as legal), and a gate
+    # fed Occ x M/m x F decides differently at each F for the same file
+    # (#1014 round 7, item 3).  What the gate asks is the chemical occupancy.
+    top = max((abs(o) for o in occupancies), default=0.0)
+    if top > 0.0:
+        occupancies = [o / top for o in occupancies]
+    applied, _ = ({}, {}) if cell is None else applied_twin_merges(
+        sg, cell, xyzs, occupancies)
+
+    def ratios_under(merges: dict) -> list[float]:
+        return [a.values["occ"].value * general / (
+                    merges[j].after if j in merges
+                    else len(expand_positions(sg, xyzs[j])))
+                for j, a in enumerate(phase.atoms)]
+
+    ratios = ratios_under(applied)
     reference = max(ratios, key=abs)
     if reference == 0.0 or any(
             abs(r - reference) > _OCCUPANCY_RTOL * abs(reference) for r in ratios):
@@ -3015,7 +3053,64 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         structure = rx.Structure(phases=phases)
     except Exception as exc:
         raise FullProfPcrError(f"{model.path or '<model>'}: {exc}") from exc
-    return structure
+    # a site whose own images coincide is one atom on its special position
+    # (#1007), said here because this is the channel the schema lacks
+    found: list[Diagnostic] = []
+    merged = merge_site_twins(structure, diagnostics=found,
+                              source=model.path or "<model>")
+    for d in found:
+        if d.code == "SITE_TWINS_MERGED" and d.where:
+            d = d.model_copy(update={"message": _merged_message(d, structure, model.path)})
+        if diagnostics is not None:
+            diagnostics.append(d)
+    return merged
+
+
+def _fmt(v: float) -> str:
+    return f"{v:.4g}"
+
+
+def _merged_message(d: Diagnostic, structure, path: str | None) -> str:
+    """The merge's message in the file's own terms: ``Occ``, not the reader's intermediate.
+
+    The column's one free common factor cancels (:func:`occupancy_factor`), so
+    the structure holds occupancy 1.0 for every site and the generic message's
+    "8 x 1 = 8 -> 4 x 1 = 4, occupancy unchanged" would state a number the file
+    never wrote.  This says what the file's ``Occ`` implies on each reading
+    instead, with the counts of both (#1014 round 7, item 3): ``Occ`` is
+    occupancy x m/M, so the same ``Occ`` is one full atom on the special
+    position (m positions) and a part-atom on each of the M positions at the
+    stated coordinates, the same content per cell either way.  Anything the
+    merge said after its content sentence (coordinates released, a tensor
+    projected) is carried over.
+    """
+    import numpy as np
+
+    i, j = (int(v) for v in (d.where[0].split(".")[1], d.where[0].split(".")[3]))
+    phase = structure.phases[i]
+    atom = phase.atoms[j]
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
+    merge = site_twin_merge(sg, phase.cell.lengths_angles(),
+                            np.array([atom.x.value, atom.y.value, atom.z.value]))
+    notes = message_notes(d.message)
+    prefix = f"{path + ': ' if path else ''}{d.where[0]}: "
+    if merge is None:        # the structure's own gate acted on what the reader's did not
+        return d.message     # already carries the file prefix (``source=`` above)
+    stated = [round(float(v), 6) for v in (atom.x.value, atom.y.value, atom.z.value)]
+    onto = [round(float(v), 6) for v in merge.position]
+    part = merge.after / merge.before
+    return (
+        f"{prefix}site {atom.label!r} of phase {phase.name!r}: FullProf's Occ is "
+        f"occupancy x m/M (times one free common factor, which cancels), so this "
+        f"column reads the site as one full atom on its special position, "
+        f"{merge.after} positions, and it was moved onto {onto} from the stated "
+        f"{stated}, where it puts {merge.before} positions in pairs "
+        f"{merge.gap:.2g} Å apart.  The other reading of the same Occ is a split "
+        f"pair of part-atoms at the stated position: {merge.before} positions at "
+        f"occupancy {_fmt(part)} each, which holds {_fmt(merge.before * part)} "
+        f"atoms per cell, as {merge.after} x 1 = {_fmt(merge.after)} does on the "
+        f"special position.  If the file meant the split pair, state the "
+        f"occupancy on the special position instead." + notes)
 
 
 # ------------------------------------------------------------------- the writer
@@ -3419,6 +3514,7 @@ def from_structure(structure: Structure, *,
     from ...crystallography.symmetry import (
         expand_positions,
         get_spacegroup,
+        refuse_distortion_modes,
         refuse_magnetic_phase,
         refuse_operation_list,
     )
@@ -3559,6 +3655,7 @@ def from_structure(structure: Structure, *,
     rhombohedral: list[str] = []
     for index, phase in enumerate(structure.phases):
         refuse_operation_list(phase, "a FullProf `.pcr`")
+        refuse_distortion_modes(phase, "a FullProf `.pcr`")
         refuse_magnetic_phase(phase, "a FullProf `.pcr`")
         phase, restated = restate_in_hexagonal_axes(phase, "a FullProf `.pcr`")
         if restated:

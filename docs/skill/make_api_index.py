@@ -473,11 +473,22 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "Σ `n_modes` its free coordinates. `irrep` is this package's "
                 "small-irrep label: compare a published table on "
                 "`isotropy_group`. `distortion_basis` returns the modes alone, "
-                "per irrep. Provisional: refining them is a later WP-1419 chunk.",
+                "per irrep. To **refine** on them, `displacive_statement(parent, "
+                "child, (P, p))` returns the child with `Phase.distortion_modes`: "
+                "one absolute amplitude per mode (Å, "
+                "`phases.*.distortion_modes.modes.*.amplitude`), its atoms' "
+                "coordinates derived as base + Σ A·v, freed by "
+                "`mccusker_structural`'s coordinates stage. A child at its parent "
+                "is seeded (`DISTORTION_SEED`), since the gradient there is "
+                "exactly zero; the driving mode's sign is a domain label. Apply "
+                "its `biso_ties` with `Refinement.tie`. Provisional: the record "
+                "and the reported A_τ may still move.",
                 ("rietx.crystallography.representation.distortion.mode_amplitudes",
                  "rietx.crystallography.representation.distortion.ModeDecomposition",
                  "rietx.crystallography.representation.distortion.ModeAmplitude",
-                 "rietx.crystallography.representation.distortion.distortion_basis"),
+                 "rietx.crystallography.representation.distortion.distortion_basis",
+                 "rietx.crystallography.representation.distortion.displacive_statement",
+                 "rietx.crystallography.representation.distortion.DisplaciveStatement"),
             ),
             (
                 "Displacive candidates of a parent",
@@ -489,7 +500,11 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "(P, p), and its `distortion_basis`, every irrep the child "
                 "admits, in Å. `driving` is the candidate's own irrep, "
                 "`rest` the others. The k fence (2k in the reciprocal "
-                "lattice) is `candidates`'.",
+                "lattice) is `candidates`'. A candidate whose child the probe "
+                "refuses still comes back, with `child` `None` and `refusal` "
+                "set (its `code`, `message` and each draw's operation count): "
+                "`DISTORTION_CHILD_LARGER` (the atoms cannot realise the "
+                "group), `_SMALLER` (a tolerance miss) or `_UNIDENTIFIED`.",
                 ("rietx.crystallography.magnetic.isotropy.distortion_candidates",
                  "rietx.crystallography.magnetic.isotropy.DistortionCandidate"),
             ),
@@ -507,16 +522,17 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
 #: ``tests/api_surface_deferred.txt`` defers them from the manual (WP-1805: no
 #: raised cap).  ``tests/test_skill.py`` holds every name here to a real field.
 TECHNIQUE_FIELDS: dict[str, frozenset[str]] = {
-    "rx.Phase": frozenset({"rigid_bodies"}),
+    "rx.Phase": frozenset({"rigid_bodies", "distortion_modes"}),
     "rx.ParameterRow": frozenset({"body"}),
 }
 
 #: Union members a technique owns, elided from a field's rendered annotation
 #: for the same reason: ``Phase.restraints`` is an everyday field, but the
-#: tether and anti-bump kinds are the rigid-body track's, and their verbs get
+#: tether, anti-bump and planarity kinds are the rigid-body track's, and their verbs get
 #: their own index in WP-1812 (WP-1809: no raised cap).  Deferred from the
 #: manual in ``tests/api_surface_deferred.txt`` meanwhile.
-TECHNIQUE_MEMBERS: frozenset[str] = frozenset({"TetherRestraint", "AntiBumpRestraint"})
+TECHNIQUE_MEMBERS: frozenset[str] = frozenset({"TetherRestraint", "AntiBumpRestraint",
+                                               "PlanarityRestraint"})
 
 HEADER = """# The API index
 

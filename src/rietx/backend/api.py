@@ -77,7 +77,7 @@ class Backend(Protocol):
 
     name: str
     pi: float
-    linalg: Any  # .inv and .det on stacks of small (3×3) matrices
+    linalg: Any  # .inv, .det and .eigh on stacks of small (3×3) matrices
 
     # elementwise (exp complex-capable)
     exp: Any
@@ -284,7 +284,7 @@ class JaxBackend:
 
 
 class _TorchLinalg:
-    """``inv``/``det`` on stacks of small matrices, with argument coercion.
+    """``inv``/``det``/``eigh`` on stacks of small matrices, with argument coercion.
 
     ``det`` on a 3×3 is the cofactor expansion rather than ``torch.linalg.det``.
     Not an optimisation: on MPS, ``linalg.det`` decomposes into
@@ -292,7 +292,8 @@ class _TorchLinalg:
     against the matrix dimension and raises ("The size of tensor a (32) must
     match the size of tensor b (3)") for every seed-block size other than 3.
     ``linalg.inv`` batches correctly on the same device, so it is left alone —
-    and the only matrices this vocabulary sees are the 3×3 metric tensors.
+    and the only matrices this vocabulary sees are 3×3: the metric tensors,
+    and a planarity restraint's scatter matrix for ``eigh`` (WP-1809).
     """
 
     def __init__(self, backend: "TorchBackend") -> None:
@@ -300,6 +301,9 @@ class _TorchLinalg:
 
     def inv(self, a: Any) -> Any:
         return self._b._torch.linalg.inv(self._b._t(a))
+
+    def eigh(self, a: Any) -> Any:
+        return self._b._torch.linalg.eigh(self._b._t(a))
 
     def det(self, a: Any) -> Any:
         m = self._b._t(a)

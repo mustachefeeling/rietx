@@ -566,6 +566,9 @@ from .._nearmiss import did_you_mean
 #: frozen windows dropped at its answer.  Additive and defaulted to ``None``,
 #: "nobody looked", the 0.25 → 0.26 rule; all three runners write it on every
 #: stage, and ``Refinement._record`` on every stage node.
+#: Also in 0.60, one number a release cycle (WP-1809): ``PlanarityRestraint`` joins the ``Restraint``
+#: union, and ``RestraintRow.kind`` gains ``"planarity"``.  Additive: no
+#: existing document carries either, and an older build refuses one that does.
 #: Also in 0.60 (WP-2003): ``SeriesEntry.seeded_from`` and ``SeriesEntry.floored``,
 #: where each warm start came from and which moments reached it at their floor,
 #: additive and defaulted to ``None`` and the empty list; and
@@ -574,6 +577,20 @@ from .._nearmiss import did_you_mean
 #: cannot be rebuilt as every step, so a document's ``discontinuities`` key is
 #: dropped at read (``SeriesResult``'s ``mode="before"`` validator) and its
 #: ``steps`` reads ``None``, "not recorded".
+#: Also in 0.60 (WP-2030): ``IndexingResult.formula`` and ``.temperature``, the
+#: formula and temperature the Z check read, and ``PeakList.instrument_undeclared``,
+#: the instrument blocks the picker found at default on a lab source.  Additive
+#: and defaulted to ``None``, "not recorded", the 0.25 → 0.26 rule;
+#: ``index_pattern`` writes the first two on every result, ``pick_peaks`` and
+#: ``fit_peaks`` the third on every list.
+#: Also in 0.60 (WP-1419 C3a): ``Phase.distortion_modes``, a child stated as
+#: its parent plus absolute mode amplitudes (``DistortionModes``: the parent
+#: group, the transform, the reference metric, one base position per atom and
+#: a ``DistortionMode`` per mode with ``amplitude: Parameter``).  Additive and
+#: defaulted to ``None``, exactly off, the 0.25 → 0.26 rule; written by
+#: ``displacive_statement``.  An older build refuses a phase carrying it.
+#: Also in 0.60 (WP-2011): ``LeBailValidation.mode``, additive, its default
+#: ``"lebail"`` being what every record written before it ran.
 SCHEMA_VERSION = "0.60"
 
 #: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``

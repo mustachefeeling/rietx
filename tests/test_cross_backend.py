@@ -274,6 +274,44 @@ def _state_toy_body():
     return model, table, {}
 
 
+def _state_toy_planarity():
+    """A planarity restraint's rows (WP-1809): an eigenvector, per atom.
+
+    The rows are signed distances to a least-squares plane, so their numpy
+    Jacobian is the closed-form eigenvector derivative while the traced
+    backends differentiate ``xp.linalg.eigh`` itself, and the fd row
+    differences the residual: three opinions on a path no other config has.
+    A buckled ring in a triclinic cell, one atom entering twice through a
+    lattice image, every coordinate and the whole cell free.
+    """
+    from rietx.schemas.common import Parameter as P
+    from rietx.schemas.pattern import PatternData
+    from rietx.schemas.structure import Atom, Cell, Phase, PlanarityRestraint, Structure
+
+    xyz = [(0.10, 0.20, 0.30), (0.25, 0.22, 0.31), (0.30, 0.35, 0.28),
+           (0.20, 0.45, 0.33), (0.07, 0.38, 0.27)]
+    cell = Cell(**{k: P(value=v, vary=True) for k, v in zip(
+        ("a", "b", "c", "alpha", "beta", "gamma"),
+        (7.1, 8.3, 9.2, 81.0, 97.0, 104.0), strict=True)})
+    structure = Structure(phases=[Phase(
+        name="ring", space_group="P1", cell=cell, scale=P(value=1e-3),
+        atoms=[Atom(label=f"C{k}", species="C", x=P(value=x, vary=True),
+                    y=P(value=y, vary=True), z=P(value=z, vary=True))
+               for k, (x, y, z) in enumerate(xyz)],
+        restraints=[PlanarityRestraint(
+            atoms=[0, 1, 2, 3, 4, 0], sigma=0.02,
+            op_indices=[None, None, None, None, None, 0],
+            translations=[(0, 0, 0)] * 5 + [(0, 0, 1)])])])
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    tt = np.arange(20.0, 40.0, 0.1)
+    pattern = PatternData(two_theta=tt.tolist(), intensity=np.ones_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    assert model.restraints is not None and model.restraints.n_rows == 6
+    return model, table, {}
+
+
 def _state_families_variable():
     """A **named variable** carrying the columns instead of a model path (WP-1119).
 
@@ -793,6 +831,50 @@ def _state_bodies():
     return model, table, {}
 
 
+def _state_bodies_site():
+    """A rigid body on a special position (WP-1807): k = 1 rotation DOF.
+
+    Hill's SO₄ on the PbSO₄ Pnma mirror with its origin on S, so E is the one
+    axial direction the mirror allows (b) and the block's rotation column is
+    E's single column rather than the identity's three — the derivative path
+    WP-1807 adds.  The rotation off zero after a commit, the cell and the
+    origin's two site DOFs free, Pb's site DOFs beside them.
+    """
+    from rietx.crystallography.bodies import body_from_atoms
+    from rietx.schemas.pattern import PatternData
+    from rietx.schemas.structure import Phase, Structure
+    from tests.test_rigid_body import _sulfate_on_the_pnma_mirror
+
+    phase = _sulfate_on_the_pnma_mirror().phases[0]
+    body = body_from_atoms(phase, ["S", "O1", "O2", "O3"], "SO4", origin="S",
+                           rotation_vary=True, origin_vary=True)
+    structure = Structure(phases=[Phase.model_validate(
+        {**phase.model_dump(), "rigid_bodies": [body.model_dump()]})])
+    for p in ("a", "b", "c"):
+        getattr(structure.phases[0].cell, p).vary = True
+    _, ins, _ = _lab_state()
+    tt = np.arange(10.0, 40.0, 0.02)
+    rng = np.random.default_rng(1807)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=(50.0 + 10.0 * rng.random(len(tt))).tolist())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for glob in ("phases.0.rigid_bodies.0.origin.dof.*",
+                 "phases.0.rigid_bodies.0.rotation.*", "phases.0.cell.*",
+                 "phases.0.atoms.0.dof.*", "phases.0.scale"):
+        assert table.set_vary([glob], True), glob
+    assert [p for p in table.free_paths if ".rotation." in p] == [
+        "phases.0.rigid_bodies.0.rotation.0"]
+    theta = table.x0()
+    theta[table.free_paths.index("phases.0.rigid_bodies.0.rotation.0")] = 0.07
+    table.commit(theta)
+    table.entries[table._paths["phases.0.rigid_bodies.0.rotation.0"]].value = -0.04
+    table.refresh_ties()
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 def _state_texture():
     """Spherical-harmonics texture with the cell free beside it (WP-1960).
 
@@ -899,9 +981,60 @@ def _state_extinction_strong():
     return model, table, {}
 
 
+def _state_distortion_modes():
+    """WP-1419: a child refined on its mode amplitudes, the coordinates derived.
+
+    NaTaO₃'s P4/mbm child of the cubic perovskite (one M-point mode on O2),
+    stated by ``displacive_statement`` and set off its seed to 0.2 Å: an
+    amplitude column falls to ``_peak_chain_column`` and reaches O2's x and
+    y through C; the traced backends differentiate the same affine rows.
+    The cell, scale and Biso free beside it.
+    """
+    from rietx.crystallography.representation.distortion import displacive_statement
+    from rietx.schemas.structure import Atom, Cell, Phase, Structure
+
+    P = Parameter
+
+    def atom(label, sp, x, y, z):
+        return Atom(label=label, species=sp, x=P(value=x), y=P(value=y), z=P(value=z))
+
+    a, c = 5.5503, 3.9335
+    parent = Phase(name="cubic", space_group="P m -3 m", cell=Cell.cubic(a / 2 ** 0.5),
+                   atoms=[atom("Ta", "Ta", 0, 0, 0), atom("Na", "Na", 0.5, 0.5, 0.5),
+                          atom("O", "O", 0.5, 0, 0)])
+    child = Phase(name="NaTaO3", space_group="P 4/m b m",
+                  cell=Cell(a=P(value=a), b=P(value=a), c=P(value=c), alpha=P(value=90.0),
+                            beta=P(value=90.0), gamma=P(value=90.0)),
+                  atoms=[atom("Ta", "Ta", 0, 0, 0), atom("Na", "Na", 0, 0.5, 0.5),
+                         atom("O1", "O", 0, 0, 0.5), atom("O2", "O", 0.25, 0.75, 0)],
+                  scale=P(value=1e-2, min=0.0))
+    phase = displacive_statement(parent, child, ([[1, 1, 0], [-1, 1, 0], [0, 0, 1]],
+                                                 [0, 0, 0])).phase
+    structure = Structure(phases=[phase])
+    _, ins, _ = _lab_state()
+    tt = np.arange(15.0, 60.0, 0.02)
+    rng = np.random.default_rng(5)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=(50.0 + 10.0 * rng.random(len(tt))).tolist())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for glob in ("phases.0.distortion_modes.modes.*.amplitude", "phases.0.cell.*",
+                 "phases.0.scale", "phases.0.atoms.*.biso"):
+        assert table.set_vary([glob], True), glob
+    amp = table.free_paths.index("phases.0.distortion_modes.modes.0.amplitude")
+    theta = table.x0()
+    theta[amp] = 0.2
+    table.commit(theta)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
+           "distortion_modes": _state_distortion_modes,
            "texture": _state_texture,
            "bodies": _state_bodies,
+           "bodies_site": _state_bodies_site,
            "families_voigt": _state_families_voigt,
            "axial_one_zero": _state_axial_one_zero,
            "sharp_widths": _state_sharp_widths,
@@ -909,6 +1042,7 @@ CONFIGS = {"families": _state_families,
            "families_variable": _state_families_variable,
            "centroid_origin": _state_centroid_origin,
            "toy_body": _state_toy_body,
+           "toy_planarity": _state_toy_planarity,
            "capillary_offsets": _state_capillary_offsets,
            "extra_components": _state_extra_components,
            "extra_peak": _state_extra_peak,
@@ -944,6 +1078,7 @@ CONFIG_PARAMS = [
     _config("families_variable"),
     _config("centroid_origin"),
     _config("toy_body"),
+    _config("toy_planarity"),
     _config("capillary_offsets"),
     _config("extra_components"),
     _config("extra_peak"),
@@ -952,6 +1087,8 @@ CONFIG_PARAMS = [
     _config("satellites"),
     _config("bodies"),
     _config("extinction_strong"),
+    _config("distortion_modes"),
+    _config("bodies_site"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),
