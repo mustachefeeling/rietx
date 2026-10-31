@@ -1,6 +1,6 @@
 # WP-2010 — Every feature names what verifies it and what validates it
 
-Milestone: generality · Status: 🔄 2026-10-27 — ruled and reframed; the reporter (#1051) builds it
+Milestone: generality · Status: 🔄 2026-10-31 — ruled, reworded and read for consistency; the reporter (#1051) builds it
 Track: The audits
 Depends on: —
 Priority: P3 2026-10-18 — outside the gate after 2004, so it waits on nothing; the magnetic report wording moves with it
@@ -184,6 +184,60 @@ confirm the new test goes red naming it.
   patterns are served from the first author's University of Denver page.
 
 ## Handover log
+
+- **2026-10-31** — a wording ruling and a consistency read of the rule set, no code.
+
+  The rules now use two plain terms where they used one awkward one. An *independent
+  measurement* is what validates: a certificate, a weighed composition, a composition
+  from another probe. A *reference value* is anything a check compares against, and
+  its kind decides whether the check verifies or validates. Read against each other,
+  the rules had fifteen inconsistencies. Thirteen are fixed, one needed no change, and
+  one is a conflict between written rules that only the maintainer can settle. Rule 1
+  has no outcome for the defaults a fit cannot run without, so that conflict now opens
+  WP-2038's brief. Both of Mike's issues have their replies, so the build in #1051 can
+  start from the rewritten text once #1190 merges.
+
+  *Done.* 3be0246f6: the maintainer's ruling of 2026-10-31 ("B is good, there is no V&V
+  audience") puts "independent measurement" and "reference value" in place of
+  "referent". The change runs through DESIGN.md § Rules 2 and 4, `generality.md`, this
+  file, WPs 1327 and 2017, the generality-review agent, `tests/validation_matrix.py`
+  and its renamed test (`test_every_claiming_row_states_its_reference_value`).
+  `docs/VALIDATION.md` was regenerated. Handover logs and older records keep the old
+  word as history. 72d74c00d: a reviewer read the whole rule set for consistency, and
+  I checked each finding against the files. The fixes: Rule 2 states three dataset
+  states (unused, sealed, development data) that cover every case, from Oberkampf & Roy
+  p. 32's "seen"; a sealed family's seal survives a run that steers no change; a report
+  names each unvalidated number once; the agent surfaces that carry no verdict are
+  listed; `characterisation` is named as neither verifying nor validating; the testing
+  policy counts seven tiers; superseded decisions in `generality.md` are marked; the
+  root CLAUDE.md's answer-by-kind bullet says a ranking picks only in Rule 1's two
+  cases. The sealed-family row needed no change, since it already says the close
+  measures drift and names HfIn's EDX composition as the one independent measurement.
+  cc73330f8: the Rule 1 conflict is recorded in WP-2038's `### Inherited`, and the
+  CLAUDE.md cap rises from 994 to 995 lines with a dated row, following the 2026-10-24
+  precedent. Posted on the maintainer's approval: the replies on #1051 (the rulings,
+  five answers, the wording note) and #1052 (the open commit accepted, the close
+  measures drift, a request for HfIn's refined composition against EDX Hf 0.51(2)).
+
+  *Measured.* Fast suite, `[dev]`, darwin arm64, on 72d74c00d plus the WP-2038 edit:
+  12665 passed, 288 skipped, 4 failed, 21 errors, in 72 min against the usual 3-5,
+  with the machine loaded. The 21 errors were the manual build hitting its 300 s
+  timeout. Two failures were timing budgets (`test_examples.py[hold]`,
+  `test_site_classes.py::test_an_unplaceable_species_does_not_enumerate_the_others`).
+  All 90 of those passed on a rerun alone, 2-3 min. One failure was the CLAUDE.md cap,
+  fixed in cc73330f8. One is the machine's stale Jupyter kernel spec
+  (`test_display.py`). No tests were added. At 091600955 the audit table held 126
+  default rows, 81 of them audited and 4 at ambiguity kind 2 or 3.
+
+  *Gotchas.* No checklist item moved: they are the build, and #1051's reporter has
+  taken it. A new reader of Rule 2 should read "reference value" as the umbrella and
+  "independent measurement" as the one kind that validates.
+
+  Next: the maintainer reviews and merges #1190. After that, the reporter builds the
+  checklist from the first task (the list of the 15 features). Two proposals wait on
+  the maintainer and are not filed: a leave-one-family-out rule for WP-2017 (tune on
+  two families, test on the third, with the bar fixed first), and a WP for the ceria
+  round robin once #1190 merges.
 
 - **2026-10-27** — a ruling session, no code.
 
