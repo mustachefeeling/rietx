@@ -1,6 +1,6 @@
 # WP-2030 — A formula's volume window fits inorganic cells, and a hydrate parses
 
-Milestone: unscheduled · Status: 🔄 2026-10-23 — claimed by @mustachefeeling (#1121); part 1 (the measurement and the fixes that need no ruling) is up, the window rule waits on the maintainer
+Milestone: unscheduled · Status: 🔄 2026-10-30 — claimed by @mustachefeeling (#1121); part 1 (the measurement and the fixes that need no ruling) merged as PR #1123 (`a1ce786c`), the window rule waits on the maintainer
 Track: Data and metadata in, a structure out
 Depends on: — (1510 soft, closed 2026-10-23: the window, the Z check and the review findings this carries)
 Priority: P2 2026-10-23 — a defect that fires wrongly: the skill sends an agent through `SearchSpec.from_formula` before its first search, and the window excludes the true cell of 7 of 8 inorganic solids measured (fluorapatite abstained where the unwindowed search ranked the truth first); indexing is a path few fits run
@@ -207,6 +207,8 @@ unwindowed one does, and `CuSO4.5H2O` never reads as 4.5 O.
   that need no ruling, then the window rule once it is chosen).
 
 ## Handover log
+
+- **2026-10-30** (`/pr-review`) — part 1 merged from outside as PR #1123 (`a1ce786c`) after three rounds. The contributor's ticks, `Status:` decisions and the 2026-10-23 entry stand as written (ruled 2026-10-29), so this entry adds the merge record. Round 3 accepted `lab_lines()` matching Kα1, Kα2 and the weighted mean, so 1.5418 Å and 0.71073 Å read as lab sources. It withdrew the schema-number item: 0.60 stays, because `schemas/common.py` keeps main's number for a PR rebased over a bump. `027aacae` shortens the formula paragraph of `reference/indexing.md` to fit its twin cap. One gotcha is left, not blocking. With `\s*` allowed inside an adduct, a spaced CIF sum whose fractional count is followed by exactly an adduct's atoms at the end of the part (`"Mg1.5 H2 O"`) now refuses as two-way, where 1.10.0 read it one way. The refusal names its cause and such a sum is unlikely in a real file, so the regex stays. A line in the manual's spaced-sum sentence would stop it reading as a promise. The GUI half of the `formula` task is still open, as the 2026-10-23 entry says. Part 2 waits on the window rule (#1121). Gate (a stack of eleven PRs on main `b40bc994`, tree `307eff83`; macOS arm64, `[dev,jax]`, Python 3.12): 13 217 passed, 216 skipped, 48 xfailed, 0 failed, with ruff, the `-W` manual build and the GUI ladder green.
 
 - **2026-10-23** — Part 1 of 2 (#1121): the measurement, and the fixes that
   need no ruling. The window holds the true cell of 1 of 16 inorganic solids
