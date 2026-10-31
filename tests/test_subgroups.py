@@ -326,8 +326,13 @@ def test_every_maximal_subgroup_of_index_at_most_four_standardises_exactly(numbe
 
 # ---------------------------------------------------------------- review round (#1189)
 
-@pytest.mark.parametrize("group, p", [("P -1", 29), ("P -1", 53), ("P 6/m m m", 17),
-                                       ("P 6/m m m", 29), ("P -3 m 1", 29)])
+# P -1 keeps every sublattice invariant, so its series is p(p² + p + 1) subgroups:
+# 151 739 at p = 53, 10-13 min of a CI runner and the cap-cancelled fast jobs of
+# #1249 (WP-2065). That row runs in the nightly. Per push, p = 29 asks the same
+# question of the bound (2p = 58 against the old 48), here and in one supercell.
+@pytest.mark.parametrize("group, p", [("P -1", 29),
+                                       pytest.param("P -1", 53, marks=pytest.mark.slow),
+                                       ("P 6/m m m", 17), ("P 6/m m m", 29), ("P -3 m 1", 29)])
 def test_an_isomorphic_series_standardises_past_the_floor_of_the_denominator_bound(group, p):
     """The inversion centre of a p-fold supercell sits at 1/2p in the child's axes, a
     hexagonal origin at 3p: the old bound of 48 failed the first from p = 29 (the

@@ -88,20 +88,33 @@ So a hung test's shard follows the record, which a branch may refresh.
 
 ## Tasks
 
-- [ ] **Name the test.** Set `faulthandler_timeout` for the `fast` and
+- [x] **Name the test.** Set `faulthandler_timeout` for the `fast` and
   `fast-jax` jobs (on the command line in `ci.yml`, or in
   `[tool.pytest.ini_options]` if a local run should dump too). Prove the
   dump reaches the job log with a planted sleeping test on a throwaway
-  branch, then drop the plant.
-- [ ] **Find the onset.** Diff a hung run's install log against a passing
+  branch, then drop the plant. *Done 2026-10-31: `-o faulthandler_timeout=600`
+  on both jobs' command lines. Shown locally under `-n 2`: a planted 6 s
+  sleep at a 3 s timeout printed its file, line and function through
+  xdist. The CI-log proof is open (handover).*
+- [x] **Find the onset.** Diff a hung run's install log against a passing
   one's; bound the merge window by the hung runs' merge bases. Say which
-  suspect held, with the run ids.
-- [ ] **Fix the hang** at its mechanism, and look for siblings: any other
+  suspect held, with the run ids. *Done 2026-10-31: suspect 1, a merge.
+  #1189 (`20e335247`, 30 Oct 10:32Z) added
+  `test_subgroups.py::…denominator_bound[P -1-53]`, which took 629 s
+  (3.11) and 812 s (3.14) on main run 41045940948's passing shard 1/2.
+  The dependency suspect was not needed.*
+- [x] **Fix the hang** at its mechanism, and look for siblings: any other
   test that waits on a thread, a subprocess, a lock or a socket without a
-  timeout of its own.
-- [ ] **Tests**: a case that fails, not hangs, if the mechanism comes back,
-  where one can be written.
-- [ ] **Skill:** none. This changes how the repo is tested, not how rietx
+  timeout of its own. *Done 2026-10-31: no hang. The case is slow, and it is
+  slow by design: P −1 keeps every sublattice invariant, so the series is
+  p(p² + p + 1) subgroups, 151 739 at p = 53. That row is now `slow`. The
+  bound stays covered per push by p = 29 (2p = 58 against the old 48).
+  Siblings: no other fast case on that run exceeds 151 s.*
+- [x] **Tests**: a case that fails, not hangs, if the mechanism comes back,
+  where one can be written. *None written: a per-case time gate is what
+  tests/CLAUDE.md declines (the tail's guard is a report, WP-1506). The
+  faulthandler dump is the check.*
+- [x] **Skill:** none. This changes how the repo is tested, not how rietx
   is driven.
 
 ## Acceptance
