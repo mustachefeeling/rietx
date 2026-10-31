@@ -562,8 +562,8 @@ def _angle_geometry_np(it: _Angle, values: dict):
                        root=root, cos=cos, g=g, cell=cell)
 
 
-def restraint_partials(compiled: CompiledRestraints, values: dict, table
-                       ) -> np.ndarray:
+def restraint_partials(compiled: CompiledRestraints, values: dict, table,
+                       *, absolute: bool = False) -> np.ndarray:
     """∂row_i/∂p_phys as (n_rows × n_entries), physical-parameter columns.
 
     The affine constraint chain ∂p_phys/∂θ = C·dφ/du is applied by the caller
@@ -572,6 +572,15 @@ def restraint_partials(compiled: CompiledRestraints, values: dict, table
     x/y/z and the six cell parameters for bond/angle, the target path for a
     value restraint.  DOF chaining then falls out of the shared C the analytic
     structural columns use.
+
+    ``absolute=True`` returns each row's **gross** partials instead: the sum
+    of the absolute values of every term that adds into an entry, before they
+    cancel.  It is what ``model.geometry``'s cancellation floor scales by,
+    because a torsion held fixed by symmetry has partials that cancel between
+    two images of one atom — every entry's net partial is roundoff, so a floor
+    scaled by the net partials would be roundoff too (WP-1815).  A row of any
+    other kind has one term an entry per image already, and its gross row is
+    taken as the absolute value of its net one, the scale the floor had.
     """
     idx = table._paths
     r_phys = np.zeros((compiled.n_rows, len(table.entries)), dtype=np.float64)
@@ -582,14 +591,19 @@ def restraint_partials(compiled: CompiledRestraints, values: dict, table
             _plane_row_partials(r_phys, row, it, values, idx, pref)
             row += it.n_rows
             continue
+        if isinstance(it, _Torsion):
+            _torsion_row_partials(r_phys, row, it, values, idx, pref,
+                                  absolute=absolute)
+            row += 1
+            continue
         if isinstance(it, _Bond):
             _bond_row_partials(r_phys, row, it, values, idx, pref)
-        elif isinstance(it, _Torsion):
-            _torsion_row_partials(r_phys, row, it, values, idx, pref)
         elif isinstance(it, _Angle):
             _angle_row_partials(r_phys, row, it, values, idx, pref)
         else:  # _Value: ∂row/∂path = √w/σ
             r_phys[row, idx[it.path]] += pref
+        if absolute:
+            r_phys[row] = np.abs(r_phys[row])
         row += 1
     return r_phys
 
@@ -777,7 +791,8 @@ def _torsion_cartesian_gradient(s: dict) -> np.ndarray:
     return np.degrees(np.array([ga, gb, gc, gd]))
 
 
-def _torsion_row_partials(r_phys, row, it, values, idx, pref) -> None:
+def _torsion_row_partials(r_phys, row, it, values, idx, pref, *,
+                          absolute: bool = False) -> None:
     """∂φ/∂p for a torsion row, fractional coordinates and cell.
 
     A fractional coordinate enters through p = A·(R·x + t + n); the cell
@@ -785,6 +800,8 @@ def _torsion_row_partials(r_phys, row, it, values, idx, pref) -> None:
     depends on A only through G = AᵀA, and dA = ½·A⁻ᵀ·∂G serves for every
     cell parameter, as for a plane (:func:`_plane_row_partials`).  A chain
     whose bond angle is straight has no torsion and leaves the row zero.
+    ``absolute`` scatters every term's absolute value instead
+    (:func:`restraint_partials`).
     """
     if not _torsion_defined(it, values):
         return
@@ -792,13 +809,16 @@ def _torsion_row_partials(r_phys, row, it, values, idx, pref) -> None:
     grad = _torsion_cartesian_gradient(s)
     amat = s["amat"]
     ip = it.phase
+    term = np.abs if absolute else (lambda v: v)
     for m, (j, R) in enumerate(zip(it.atoms, it.R, strict=True)):
-        _scatter_xyz(r_phys, row, idx, ip, j, pref * (R.T @ (amat.T @ grad[m])))
+        _scatter_xyz(r_phys, row, idx, ip, j,
+                     term(pref * (R.T @ (amat.T @ grad[m]))))
     a_inv_t = np.linalg.inv(amat).T
     cell_row = []
     for gq in _metric_g_derivs(s["cell"]):
         da = 0.5 * a_inv_t @ gq
-        cell_row.append(pref * float(np.sum(grad * (s["frac"] @ da.T))))
+        per_atom = pref * np.sum(grad * (s["frac"] @ da.T), axis=1)
+        cell_row.append(float(np.sum(term(per_atom))))
     _scatter_cell(r_phys, row, idx, ip, cell_row)
 
 
