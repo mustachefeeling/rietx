@@ -1826,13 +1826,18 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.fom.LINE_COINCIDENCE_RTOL", "constant", value=1e-09),
     Row("rietx.indexing.fom.MATCH_SIGMA", "constant", value=3.0),
     Row("rietx.indexing.fom.RESOLUTION_FWHM", "constant", tier=3, value=1.0,
-        evidence=("Merge distance, seen half-width and p0's scale, in FWHM. 1.0 over 0.5 on the "
-                  "synthetic tetragonal set (0.5 refuted a true 0.9-FWHM split); holds on the "
-                  "real acceptance corpus (no truth lost rank, PR #941). Rayleigh/Sparrow put "
-                  "one line or two at 0.58-0.85 FWHM and do not cover the seen window or p0. "
-                  "Fails where a real split under 1 FWHM ties a truth with its higher-symmetry "
-                  "description."),
-        grounds="Kept, ruled 2026-10-21 (PR #941); a 0.5-1.0 sweep on real families is owed.",
+        evidence=("Three roles, tested together: merge distance, seen half-width and p0's scale, "
+                  "in FWHM. 1.0 over 0.5 on the synthetic tetragonal set (0.5 refuted a true "
+                  "0.9-FWHM split). Swept 0.5-1.0 on 15 real runs from 12 sources (the CPD "
+                  "round robin's seven patterns, NIST SRM 660c, 11-BM NAC, the GSAS-II FAP, "
+                  "Hill's PbSO4 X-ray and neutron histograms, one with no truth to rank): the "
+                  "one rank move is PbSO4 X-ray at 0.7, between that pattern's near-duplicate "
+                  "cells. Rayleigh/Sparrow put one line or two at 0.58-0.85 FWHM and do not "
+                  "cover the seen window or p0. Fails where a real split under 1 FWHM ties a "
+                  "truth with its higher-symmetry description."),
+        grounds=("Kept, ruled 2026-10-21 (PR #939); the real-family sweep (PR #1177) found "
+                 "nothing below 1.0 better. Bounded above only by the synthetic tests, a "
+                 "1.7-FWHM split; nothing above 1.0 was run on real data."),
         approved="2026-10-21"),
     Row("rietx.indexing.fom._AGGREGATE_FLOOR_RTOL", "constant", value=1e-06),
     Row("rietx.indexing.fom._BOUNDARY_RTOL", "constant", value=1e-09),

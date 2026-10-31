@@ -495,8 +495,14 @@ def predicted_seen_fraction(q_obs: np.ndarray, q_esd: np.ndarray,
 #: allowance bounds a common offset and belongs to the forward match alone;
 #: the common shift the forward matches imply (:func:`common_shift`) is what
 #: places the reversed question.  Swept from 0.5 to 1.0 on the acceptance
-#: corpus's real families (#941's follow-ups): no true cell's rank or grade
-#: moves at any value, so the synthetic split above sets it.  Floored by
+#: corpus's real families (#941's follow-ups, 15 runs from 12 sources: the CPD
+#: round robin's seven patterns, NIST SRM 660c, 11-BM NAC, the GSAS-II FAP and
+#: Hill's PbSO4 X-ray and neutron histograms, one of which has no truth to
+#: rank): one true cell's rank moves, PbSO4 X-ray at 0.7, where the truth
+#: ranks 2nd behind a cell within 0.5 % of its metric; every other truth ranks
+#: 1st with the same grade at every value, so the synthetic split above sets
+#: it.  The sweep stops at 1.0: it shows nothing below 1.0 does better and
+#: cannot show that 1.0 beats a larger value.  Floored by
 #: ``k_sigma`` × σ(2θ) of the component asked against, so a position-only
 #: list keeps a window.
 RESOLUTION_FWHM = 1.0

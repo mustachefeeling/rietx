@@ -623,7 +623,7 @@ def test_the_absent_code_reads_the_counts_not_the_caveat():
     """INDEX_PREDICTED_BUT_ABSENT fires from the validation's counts: before
     the gate has run (no caveats yet), at warning inside de Wolff's window;
     at info, capping nothing, when every uncancellable absence is above it;
-    silent at zero and on a failed fit."""
+    silent at zero and on a failed or diverged fit."""
     from rietx.indexing.diagnostics import candidate_diagnostics
 
     def code(lebail):
@@ -644,6 +644,8 @@ def test_the_absent_code_reads_the_counts_not_the_caveat():
     assert d.level == "info" and "caps nothing" in d.message
     assert code(above.model_copy(update={"predicted_but_absent_uncancellable": 0})) is None
     assert code(base.model_copy(update={"status": "failed"})) is None
+    # a diverged fit is unread too, as consensus.caveats_for reads it
+    assert code(base.model_copy(update={"status": "diverged"})) is None
 
 
 def test_the_excess_reads_the_density_against_the_cleanest_candidate():

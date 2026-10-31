@@ -782,7 +782,9 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
     # count outside de Wolff's window is said, at ``info``, rather than lost
     lebail = cand.lebail
     in_window = outside = 0
-    if lebail is not None and lebail.status != "failed":
+    # a diverged fit is as unread as a failed one: consensus.caveats_for
+    # reports both as validation_failed, and this block must not say otherwise
+    if lebail is not None and lebail.status not in ("failed", "diverged"):
         if lebail.absent_source == "line_screen":
             in_window = lebail.predicted_but_absent_uncancellable_in_window or 0
             outside = (lebail.predicted_but_absent_uncancellable or 0) - in_window

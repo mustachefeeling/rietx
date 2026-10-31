@@ -248,10 +248,15 @@ def absence_excess(candidates: Sequence[CellCandidate]) -> None:
     WRIP20, Altomare *et al.* 2009, against the best candidate), and the raw
     count is not: magnetite's and PbSO₄'s true cells read 2, as LaB₆'s wrong
     a√2 I cell does on synthetic data.  Measured at ``RESOLUTION_FWHM`` 1.0
-    on the acceptance corpus's real families and both PbSO₄ histograms (PR
-    description), every true cell reads an excess of 0 to 0.06 and every
-    oversized cell at least 1; two cells within 0.5 % of PbSO₄'s metric, with
-    the truth's line set, read what it reads.  **Reported, not gated**: the
+    on the acceptance corpus's real families (SRM 676a corundum with and
+    without the cos θ shift declared, zincite, zircon, brucite, magnetite,
+    fluorite, fluorapatite, 11-BM NAC, SRM 660c LaB₆ as picked and
+    calibrated) and both PbSO₄ histograms (neutron and lab X-ray), every true
+    cell reads an excess of 0 to 0.06, magnetite's and PbSO₄ neutron's
+    included, and every oversized cell at least 1; two cells within 0.5 % of
+    PbSO₄'s metric, with the truth's line set, read what it reads.  The
+    excess comes from the line screen, so it is identical under the Le Bail
+    and the Pawley validation fit.  **Reported, not gated**: the
     cleanest candidate of a list that missed the truth, and a lone candidate,
     read 0 whatever their count, so it cannot replace the cap.
     """
