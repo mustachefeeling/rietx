@@ -168,7 +168,13 @@ handover, showing the dump with the test id.
   73 generator sets, p = 2-13, but saved 1 s at p = 29 (1.45 s → 0.47 s), so
   it was reverted. A supercell row at p = 53 cost 27 s and proved nothing p =
   29 does not, so it was not added.
-  *Review*: `/code-review high --fix` — see the next line once it runs.
+  *Review*: `/code-review high --fix` over `origin/main..HEAD` found one item
+  and fixed it (`e32be41cd`): `ci.yml`'s comment quoted the slowest case as a
+  figure, and it now quotes a range. Checked and clear: no `faulthandler`
+  opt-out in `pyproject.toml` or the conftest, and the nightly `full` job (a
+  150-min cap, unsharded) already ran this case.
+  *Audits*: no CLAUDE.md edit; no `_audit.py` change and no package
+  heuristic added (the 600 s is CI configuration), so no generality judge.
   *Next*: (1) the CI-log proof of the dump, which needs a planted case on a
   throwaway PR (a maintainer's call, since it costs a CI run); (2) the
   acceptance, twenty `fast` jobs with no cap cancel, read with the triage's
