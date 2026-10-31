@@ -97,6 +97,8 @@ EXCHANGE = 0.1
 SWAP_EVERY = 10
 #: Random structures behind the top temperature; std error near 9 %.
 N_RANDOM = 64
+#: L-BFGS-B iteration cap of the polish; the engine does not choose it.
+POLISH_ITER = 200
 #: Clustering RMSD (Å): half #677's 0.7 Å single-site bar, three times the
 #: 0.10 Å recovery bar.
 CLUSTER_TOL = 0.35
@@ -259,7 +261,7 @@ def _recovered(problem, run, eq, xt) -> tuple[float, float, tp.Visit]:
     """(RMSD after the polish, RMSD of the tempering's own lowest state before
     it, the polished state)."""
     sp = problem.space
-    pol = min((tp.polish(problem, v) for v in run.best), key=lambda v: v.j)
+    pol = min((tp.polish(problem, v, maxiter=POLISH_ITER) for v in run.best), key=lambda v: v.j)
     raw = min(run.best, key=lambda v: v.j)
     return (cl.align(eq, xt, sp.xyz(pol.u[None])[0], sp.species).rmsd,
             cl.align(eq, xt, sp.xyz(raw.u[None])[0], sp.species).rmsd, pol)
@@ -273,17 +275,19 @@ def _ladder(problem, n=REPLICAS):
 # ===================================================================================
 # the structure factor
 # ===================================================================================
+@pytest.mark.parametrize("on", PATHS)
 @pytest.mark.parametrize("radiation", ["xray", "xray_dispersion", "neutron"])
-def test_f2_is_the_forward_models(radiation):
+def test_f2_is_the_forward_models(radiation, on):
     """|F|² over the frozen list equals ``CompiledModel._total_f2`` at the same
-    coordinates, for each amplitude the source can choose."""
+    coordinates, for each amplitude the source can choose, on each path (the
+    dispersion and the compiled tier are both declared, never inherited)."""
+    compiled.set_enabled(on)
     space = SearchSpace([FragmentUnit(acridine(), biso=2.0)], _acr_phase())
     if radiation == "neutron":
         ins = rx.Instrument.constant_wavelength_neutron(1.594, fwhm_deg=0.3)
     else:
         ins = rx.Instrument.debye_scherrer(1.5406)
-        if radiation == "xray":
-            ins.source.dispersion = None
+        ins.source.dispersion = rx.Dispersion() if radiation == "xray_dispersion" else None
     rng = np.random.default_rng(3)
     u = space.random(rng, 3)
     tt = np.arange(5.0, 90.0, 0.05)
@@ -346,12 +350,14 @@ def test_compiled_and_numpy_orbit_sums_agree_within_the_kernels_bound(nac, acr):
 @pytest.mark.parametrize("on", PATHS)
 def test_running_sums_stay_on_a_rebuild(acr, nac, on):
     """With no refresh inside the run, the running amplitudes after every move
-    of a seed differ from a rebuild by rounding only (J units)."""
+    of a seed differ from a rebuild by rounding only (J units), over as many
+    sweeps as the refresh cadence itself (:data:`tp.REFRESH_EVERY`)."""
     compiled.set_enabled(on)
     for problem in (acr[0], nac[0]):
-        run = tp.temper(problem, _ladder(problem), **RUN, seed=5, sweeps=400, refresh_every=10 ** 9)
+        run = tp.temper(problem, _ladder(problem), **RUN, seed=5, sweeps=tp.REFRESH_EVERY,
+                       refresh_every=10 ** 9)
         assert run.drift <= 1e-10
-        assert run.moves == 400 * REPLICAS
+        assert run.moves == tp.REFRESH_EVERY * REPLICAS
 
 
 def test_a_seed_reruns_bit_for_bit(acr):
@@ -497,6 +503,21 @@ def test_the_normaliser_index_is_international_tables(symbol, cell, index, prope
     assert len(eq.floating) == floating
 
 
+def test_a_metrically_special_cell_is_judged_at_the_isometry_tolerance():
+    """The edge the tolerance is for: a tetragonal metric (a = b) on the
+    orthorhombic P 2₁2₁2₁ gains isometries over the general metric's 16; a
+    cell equal to a rounding error (1e-9 relative, far under ``_ISOMETRY_RTOL``)
+    is that same special metric, and one 5e-3 off it is the general metric."""
+    grp = resolve_group("P 21 21 21")
+    general = cl.equivalences(grp, _metric_g((5, 6, 7, 90, 90, 90))).index
+    special = cl.equivalences(grp, _metric_g((5, 5, 7, 90, 90, 90))).index
+    rounded = cl.equivalences(grp, _metric_g((5, 5 * (1 + 1e-9), 7, 90, 90, 90))).index
+    off = cl.equivalences(grp, _metric_g((5, 5 * (1 + 5e-3), 7, 90, 90, 90))).index
+    assert general == 16 and special > general
+    assert rounded == special
+    assert off == general
+
+
 def test_equivalent_solutions_are_one_cluster_and_different_ones_two(acr, nac):
     """Bar 3.  Copies the data cannot tell apart (|F|² equal on the cost's list,
     checked here independently of the equivalence set) align at RMSD 0 and
@@ -596,11 +617,17 @@ def test_the_engine_chooses_no_search_setting(acr):
         cl.cluster([], eq, problem.space.species, tol=0.0)
     with pytest.raises(TypeError):
         tp.Ladder.planned(2.0, 10, 6)
+    for bad in ((0.0, 1.0), (-0.05, 1.0), (0.05, 0.0)):
+        with pytest.raises(ValueError, match="step"):
+            tp.Ladder.planned(2.0, 10, 6, span=SPAN, step=bad)
     with pytest.raises(TypeError):
         tp.random_spread(problem, np.random.default_rng(0))
     with pytest.raises(ValueError, match="at least two"):
         tp.random_spread(problem, np.random.default_rng(0), n=1)
     lad = _ladder(problem)
+    visit = tp.temper(problem, lad, **RUN, seed=0, sweeps=1).best[0]
+    with pytest.raises(TypeError):
+        tp.polish(problem, visit)
     with pytest.raises(TypeError):
         tp.temper(problem, lad, seed=0, sweeps=1)
     with pytest.raises(ValueError, match="probability"):
@@ -645,7 +672,7 @@ def test_polish_never_worsens(acr):
     problem = acr[0]
     run = tp.temper(problem, _ladder(problem), **RUN, seed=2, sweeps=50)
     for v in run.best:
-        assert tp.polish(problem, v).j <= v.j + 1e-12
+        assert tp.polish(problem, v, maxiter=POLISH_ITER).j <= v.j + 1e-12
 
 
 # ===================================================================================
@@ -654,7 +681,9 @@ def test_polish_never_worsens(acr):
 @pytest.mark.slow
 @pytest.mark.parametrize("on", PATHS)
 def test_the_rigid_fragment_is_recovered_from_two_seeds(acr, on):
-    """Bar 1: 4 seeds × 6 replicas × :data:`ACR_SWEEPS`; ≥ 2 seeds within
+    """Bar 1 (measured rate at these settings: 16 of 16 seeds at 600 sweeps,
+    against the asserted ≥ 2 of 4, so a failure is a change in the machinery and
+    not bad luck): 4 seeds × 6 replicas × :data:`ACR_SWEEPS`; ≥ 2 seeds within
     0.10 Å RMSD; the ranked list's leader is that structure and two seeds
     found it.  Also ≥ 2 seeds' own lowest state, **before** the polish, within
     0.10 Å: measured over 16 seeds, an accept-every-move walk followed by the
@@ -684,11 +713,14 @@ def test_the_rigid_fragment_is_recovered_from_two_seeds(acr, on):
 
 
 @pytest.mark.slow
-def test_nac_is_recovered_from_its_pawley_intensities(nac):
-    """Bar 2: NAC's six sites, on the deposited assignment, from ≥ 2 of 4
+@pytest.mark.parametrize("on", PATHS)
+def test_nac_is_recovered_from_its_pawley_intensities(nac, on):
+    """Bar 2 (measured rate: 16 of 16 seeds at 20 000 sweeps, against the
+    asserted ≥ 2 of 4): NAC's six sites, on the deposited assignment, from ≥ 2 of 4
     seeds at :data:`NAC_SWEEPS`, within 0.10 Å RMSD of the deposited
     coordinates after alignment, after the polish and before it (an
     accept-every-move walk: 1 of 8 after it, 0 of 8 before)."""
+    compiled.set_enabled(on)
     problem, xt, _ = nac
     eq = cl.equivalences(problem.space.group, problem.space.g)
     lad = _ladder(problem)
@@ -696,6 +728,7 @@ def test_nac_is_recovered_from_its_pawley_intensities(nac):
     for seed in SEEDS:
         run = tp.temper(problem, lad, **RUN, seed=seed, sweeps=NAC_SWEEPS, wall_seconds=3600.0)
         assert run.stopped is None
+        assert (run.compiled["orbit_sums"] + run.compiled["orbit_sums_one"] > 0) == on
         rmsd, raw, _pol = _recovered(problem, run, eq, xt)
         hits += rmsd <= RECOVERY_ANG
         raw_hits += raw <= RECOVERY_ANG

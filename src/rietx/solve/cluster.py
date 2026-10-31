@@ -290,7 +290,6 @@ class Solution:
     chi2: float
     clash: float
     seed: int
-    control: bool = False
 
 
 @dataclass

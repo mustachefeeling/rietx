@@ -2696,7 +2696,10 @@ ROWS: tuple[Row, ...] = (
                   "P6_3/mmc 2), with and without enantiomers, so no true isometry is "
                   "lost and none spurious admitted there. Its edge: a cell metrically"
                   " special within 1e-6 relative to max|g| is treated as special, and the extra element still has to map G onto "
-                  "G to count")),
+                  "G to count. test_a_metrically_special_cell_is_judged_at_the_isometry_tolerance "
+                  "holds that edge on P2_12_12_1: a = b gains isometries beyond the "
+                  "general 16, a cell 1e-9 relative from a = b gives the same index, "
+                  "and one 5e-3 off gives 16 again")),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
     Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
@@ -2728,7 +2731,7 @@ ROWS: tuple[Row, ...] = (
                   "|J_running - J_rebuilt| a rebuild found on every run. A numerical "
                   "setting: it controls how accurately J is kept, not what the search"
                   " decides. test_running_sums_stay_on_a_rebuild asserts drift <= "
-                  "1e-10 J with no refresh at all over 400 sweeps, on the acridine-"
+                  "1e-10 J with no refresh at all over 1 000 sweeps (the cadence), on the acridine-"
                   "shaped case and NAC, compiled and numpy. With no refresh over 1 "
                   "000 and 2 000 sweeps (seed 5, the test's ladder, both paths) the "
                   "drift was 4.0e-14 and 2.9e-14 J on the acridine case and 2.5e-14 "

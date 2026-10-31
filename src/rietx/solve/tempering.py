@@ -37,7 +37,8 @@ exchange through :meth:`~rietx.solve.moves.Scattering.orbit_sums` on the atoms
 it moved, both updating the running amplitudes F_new = F_old + a_j·(S_j,new −
 S_j,old).  The clash change of a one-atom move is the per-site energy at
 w_same = ½ (:func:`~rietx.solve.chemistry.site_clash`'s identity); any other
-move recomputes the total.  Metropolis acceptance is min(1, exp(−ΔJ/T)).  Every
+move recomputes the total.  Metropolis acceptance is min(1, exp(−ΔJ/T)) (Metropolis et al. 1953,
+J. Chem. Phys. 21, 1087).  Every
 ``swap_every`` sweeps, neighbours exchange with min(1, exp[(β_i − β_j)(J_i −
 J_j)]) (Earl & Deem 2005, eq. 2), pairs alternating even and odd, which keeps
 detailed balance with the moves between them; attempts and acceptances are
@@ -140,6 +141,8 @@ class Ladder:
             raise ValueError("a ladder needs at least two replicas")
         if not (t_top > 0.0 and span > 1.0):
             raise ValueError(f"t_top {t_top} must be positive and span {span} above 1")
+        if not (step[0] > 0.0 and step[1] > 0.0):
+            raise ValueError(f"step {tuple(step)} must be two positive move sizes (Å)")
         x = np.linspace(0.0, 1.0, n_replicas)
         temps = t_top / span * span ** x
         steps = step[0] * (step[1] / step[0]) ** x
@@ -326,9 +329,11 @@ def temper(problem: SearchProblem, ladder: Ladder, *, seed: int, sweeps: int,
 # ----------------------------------------------------------------------
 # the polish
 # ----------------------------------------------------------------------
-def polish(problem: SearchProblem, visit: Visit, *, maxiter: int = 200) -> Visit:
+def polish(problem: SearchProblem, visit: Visit, *, maxiter: int) -> Visit:
     """The local minimum of J from ``visit`` (L-BFGS-B, finite-difference
-    gradient), its terms re-measured from scratch.  Never worse than the start."""
+    gradient; Byrd et al. 1995, SIAM J. Sci. Comput. 16, 1190), its terms
+    re-measured from scratch.  Never worse than the start.  maxiter is the
+    caller's: the engine chooses none of its search settings."""
     def f(x):
         return float(problem.evaluate(x[None])[0][0])
 

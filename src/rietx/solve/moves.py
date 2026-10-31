@@ -262,7 +262,7 @@ class SearchSpace:
         # units that move: a fixed site has no slice
         self.movable = np.array([k for k, b in enumerate(self.blocks) if b.n_par > 0],
                                 dtype=np.intp)
-        mults = np.array([c.multiplicity for c in classes], dtype=np.int64)
+        mults = np.array([c.multiplicity for c in classes], dtype=np.intp)
         self.img_hi = np.cumsum(mults)
         self.img_lo = self.img_hi - mults
         self.rot = np.concatenate([c.coset_rot for c in classes]).astype(np.float64)
@@ -475,7 +475,7 @@ class Scattering:
     def orbit_sums(self, xyz: np.ndarray, atoms: np.ndarray) -> np.ndarray:
         """S_j(h), complex (R, len(atoms), N), for ``xyz`` (R, n_atoms, 3)."""
         xyz = np.ascontiguousarray(xyz, dtype=np.float64)
-        atoms = np.asarray(atoms, dtype=np.int64)
+        atoms = np.asarray(atoms, dtype=np.intp)
         got = compiled.solve_orbit_sums(self.q, self.ht, xyz, self.space.img_lo,
                                         self.space.img_hi, atoms)
         if got is not None:
@@ -486,7 +486,7 @@ class Scattering:
     def orbit_sums_one(self, xyz: np.ndarray, atom_of_rep: np.ndarray) -> np.ndarray:
         """S of atom ``atom_of_rep[r]`` in replica r, complex (R, N)."""
         xyz = np.ascontiguousarray(xyz, dtype=np.float64)
-        atom_of_rep = np.asarray(atom_of_rep, dtype=np.int64)
+        atom_of_rep = np.asarray(atom_of_rep, dtype=np.intp)
         got = compiled.solve_orbit_sums_one(self.q, self.ht, xyz, self.space.img_lo,
                                             self.space.img_hi, atom_of_rep)
         if got is not None:
@@ -499,7 +499,9 @@ class Scattering:
 
     def _orbit_sums_numpy(self, xyz: np.ndarray, atoms: np.ndarray) -> np.ndarray:
         """The numpy path and the kernels' oracle: Σ_m cos + i·sin of
-        2π(Q[n, m]·x_j + HT[n, m]) over site j's images."""
+        2π(Q[n, m]·x_j + HT[n, m]) over site j's images (the geometrical
+        structure factor of one orbit; Giacovazzo et al., Fundamentals of
+        Crystallography, 3rd ed., OUP 2011)."""
         out = np.empty((len(xyz), len(atoms), len(self.d)), dtype=np.complex128)
         for a, j in enumerate(atoms):
             lo, hi = self.space.img_lo[j], self.space.img_hi[j]
@@ -574,7 +576,7 @@ class Clash:
         from .chemistry import site_clash
 
         site_of = self.space.site_of_image
-        got = compiled.solve_clash(pos, site_of, np.asarray(moved, dtype=np.int64),
+        got = compiled.solve_clash(pos, site_of, np.asarray(moved, dtype=np.intp),
                                    self.space.g, self.r0, self.sigma, w_same)
         if got is not None:
             self.compiled_used += 1
