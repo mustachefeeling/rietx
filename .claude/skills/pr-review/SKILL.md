@@ -195,13 +195,20 @@ Ending means: ask the batch, apply the answers, write the report, kill this
 run's waiters (step 5), and name the resume command (`/pr-review all` after
 the user's `/compact` or `/clear`). Nothing is carried in a file.
 
-**The batch**: one numbered message; per item the PR and what it changes in
-plain words, the question, what it blocks (held review / merge / nothing),
-and your recommendation with its reason. Each item reads without this run's
-context, so a WP number or a name the run coined carries a gloss. A genuine
-judgement call adds why it matters, each option's consequence and the
-practice it rests on. A clear-cut item stays one line. Open with how many
-items need a judgement. Group: PRs by other authors (§ Triage), then
+**The batch**: one numbered message. Triage each question before it joins
+(the maintainer's instructions, § "Before you bring me a decision"). A
+question no trigger covers is settled in the run and listed at the batch's
+end under "Settled for you": the choice, its grounds, the alternative. A run
+without those instructions batches every question. Per item: the PR and what
+it changes in plain words, the question, which trigger sent it, what it
+blocks (held review / merge / nothing), and the recommendation with its
+confidence (clear call, lean, close call). A clear call is one line: "I will
+do X because Y, unless you object." A lean or close call adds why it
+matters, ending in an importance word (minor, moderate, serious), the options
+a competent person would choose, the practice it rests on, and the crux.
+Each item reads without this run's context, so a WP number or a name the run
+coined carries a gloss. Open with how many items need a judgement. Approving
+the batch approves its posts; the triage decided their content. Group: PRs by other authors (§ Triage), then
 governance calls, then tier rulings by class (step 6b), then held reviews,
 then held merges.
 `AskUserQuestion` only for ≤ 4 genuine multi-way choices. Then apply in one
