@@ -499,8 +499,16 @@ def test_a_fit_reaches_the_same_minimum_and_esds_either_way():
     stops inside its tolerance.  What must agree is what the data decides —
     χ², the values on the scale of their esds, and the esds.
 
-    Measured 2026-10-28 (darwin/arm64): χ² to 2.1e-16 relative, values to
-    1.0e-9 esd, esds to 5.9e-7 relative.  The esd bar leaves ~10×.  The χ²
+    Measured on two platforms ([dev,jax], Python 3.12; the linux run three
+    times, identical each time), χ² / values / esds:
+
+    * darwin/arm64, 2026-10-28: 2.1e-16 relative, 1.0e-9 esd, 5.9e-7 relative;
+    * linux/x86-64 (numpy 2.5.3, scipy 1.18.1), 2026-10-31: 4.1e-9 esd for the
+      values, 6.0e-7 relative for the esds.
+
+    The esds agree across platforms to 2 %, so the esd bar sits at 10× the
+    larger; the values differ by 4× between platforms and both are four
+    decades under their bar.  The χ²
     and value bars are wider on purpose: the difference between two
     converged fits senses where each solver stopped (tests/CLAUDE.md
     § Budgets in tests), so they are set at what "the same minimum" means —
