@@ -45,93 +45,18 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 
 **The ceiling holds, and it starves the engine that finds the cell.** Since WP-1940 the grid alone costs 157 s of CPU on this case. Dichotomy runs first in each system, so under any ceiling below that it takes the whole run. At 120 s of CPU it reached 131 912 boxes, and svd and trial_error never started. The run returned no candidate. svd alone finds the lattice in 27 s of CPU. This is a scheduling question, left as the last task.
 
-### Inherited
+### Unbounded routes with the unit limit lifted (#780 follow-ups, 2026-10-14 and 2026-10-30)
 
-- **2026-10-30, from the issue triage (#780): with the per-unit limit lifted,
-  dichotomy's memory grows without bound by two more routes, and a cancel can
-  wait on the dedup.** The reporter's comments of 2026-10-30 16:56Z and 18:20Z,
-  one private triclinic benchmark pattern, `SearchSpec(budget_seconds=1e9,
-  total_budget_seconds=18000)`, `preset="full"`, compiled tier on (run at
-  `e016f187d`, Linux x86_64, 1 thread; diagnosed at `44de0f62a`, macOS). Figures
-  are theirs and were not re-run here: the pattern is private and the run grows
-  to tens of GB. Three mechanisms, each confirmed by reading the tree at
-  `d35ffeda7`:
-  1. **The grid frontier is bounded by cells, not rows.** `_grid_pass` caps
-     `len(nxt)` at `MAX_GRID_CELLS` (400 000), and each child carries its
-     parent's `kept` list, so the resident size is the sum of the distinct
-     parents' lists, which nothing bounds. Triclinic, dichotomy alone: 1.8 GB at
-     `budget_seconds=60`, 3.1 GB and still rising at 180; the full run reached
-     18.4 GB at 103 min and was killed, returning nothing. The first grid pass
-     overflowed at 215 s (135 811 boxes), its 400 010 cells referencing 43.9 GB
-     of lists if each were counted alone. After an overflow `_search_one` still
-     runs phase 2 on the truncated frontier (`frontier is None` is the only
-     early return). Their proposals: (a) a row bound beside the cell bound,
-     taking the existing `complete=False` path, so `INDEX_SEARCH_INCOMPLETE`
-     reads "outgrew a size cap"; (b) end the unit at overflow rather than run
-     phase 2 on a part of the domain, which they leave to the maintainer as a
-     recall question.
-  2. **`found` is unbounded inside a unit.** `DEDUP_EVERY` (2 000) is applied in
-     `search_dichotomy` between systems (`dichotomy.py:780`), never inside
-     `_search_one`; trial_error dedups at `len(found) > 2000` inside its loop
-     (`trial_error.py:443`). Orthorhombic on the same pattern: 6 819 accepted
-     leaves in 300 s, 6 816 distinct after dedup, about 11 KB each pickled; one
-     orthorhombic unit reached 7 GB at 70 min on Linux. They note that 6 816
-     distinct orthorhombic lattices in five minutes may mean the acceptance rule
-     is loose for a long list, and leave that judgement to the maintainer.
-  3. **A cancel waits on an unguarded dedup.** `_search_one` honours the token,
-     then `search_dichotomy` dedups the whole harvest (and `rank_candidates`
-     dedups again unless `deduped`); `dedup_groups` takes no `cancel`. Measured
-     0.11, 0.29, 1.05 and 10.7 s at 500, 1 000, 2 000 and 6 819 candidates,
-     about n² as `dedup_groups`' docstring describes for distinct lattices. On
-     Linux the process grew from 7.2 to 8.2 GB for minutes after the cancel and
-     was killed.
-  Also restated: one trial_error base runs for minutes between budget reads
-  (282 s on a 60 s budget, identical at 180 s), the 2026-10-16 entry's
-  proposal (2) on a second engine. The default 30 s `budget_seconds` cuts all
-  three before they matter, so they reach a caller who raises it, and end in an
-  OOM kill rather than an `INDEX_BUDGET_EXHAUSTED` result. Their harness now
-  cancels on its own RSS cap. They offer to rerun any diagnostic on the
-  pattern. This WP owns them: its Goal is a search inside a stated time **and
-  memory** bound. They widen its scope past monoclinic, and its title and the
-  scheduling box (WP-1959 landed 2026-10-14, box not ticked) are the working
-  session's to settle.
-  *Decided 2026-10-30 by the maintainer* (reply: issuecomment-6536104575):
-  phase 2 keeps running on a truncated frontier for now; once a row bound caps
-  its memory it costs time only, which the budget bounds. The reporter is asked
-  to count, over their benchmark, the overflowed units whose phase 2 accepted
-  the true cell; if none did, the unit stops at overflow. The orthorhombic
-  acceptance question is not judged; they are asked for the unindexed-line
-  distribution over the accepted leaves, the best ten's M₂₀, and the search
-  window in effect.
+The reporter's figures, not re-run here: the 2026-10-30 pattern is private and grows to tens of GB. Each mechanism below was confirmed by reading the tree at `d35ffeda7`. Setup on 2026-10-30: one triclinic benchmark pattern, `SearchSpec(budget_seconds=1e9, total_budget_seconds=18000)`, `preset="full"`, compiled tier on, run at `e016f187d` (Linux x86_64, 1 thread) and diagnosed at `44de0f62a` (macOS). The default 30 s `budget_seconds` cuts every route short, so they reach a caller who raises it, and each ends in an OOM kill instead of a result.
 
-- **2026-10-16, from the issue triage (#780): the reporter's 2026-10-14 02:33Z
-  measurements for this WP's scheduling task are in no WP file.** Figures are
-  the reporter's (32 GB Mac, load 2-8, `#930`'s head, numpy grid, before PR
-  #964's kernel; one engine per process), not re-run here. Each engine alone,
-  every system: svd 38-367 s and at most 0.34 GB; trial_error 606 s on #780's
-  case, over 1 358 s on devitrite (COD 1535730, 3.0 GB) and 1 696 s with **9.2
-  GB** on glutaric acid-isonicotinamide Form II (COD 1567181), its monoclinic
-  unit; dichotomy builds nothing on any of the monoclinic/triclinic cases and
-  its triclinic grid overflows `MAX_GRID_CELLS` at up to 6.4 GB on private
-  lists. Units overrun their own budget: trial_error's monoclinic unit 998 s
-  and 1 372 s against 600 s, dichotomy's orthorhombic 780 s. The starvation in
-  #780 comes from the per-unit budget equalling the run's ceiling, not from
-  dichotomy going first: they propose (1) cap each (engine x system) unit at a
-  share of `total_budget_seconds` (per-engine thirds, or today's 30 s slice,
-  which behaved the same on ten lists) and never let a declared ceiling become
-  `budget_seconds`; (2) read the clock inside trial_error's
-  monoclinic/triclinic loop and dichotomy's phase 2 so a unit stops within
-  seconds of its slice. A d cut and fewer driving lines do not prune
-  dichotomy's grid (273 871 survivors under every rule tried), so neither is
-  proposed. Two follow-ups they place outside this WP, which no WP names: the
-  consensus list's 12-cell cap can drop a cell its only finder ranks first
-  (devitrite), and trial_error's monoclinic unit is now the memory risk. This
-  postdates the comment's measurements: PR #964 (merged 2026-10-14T07:57Z,
-  after the comment at 02:33Z) put #780's cell at an 8 s CPU ceiling, so
-  re-measure the scheduling question on the kernel path, as the 2026-10-14
-  entry above already says.
+1. **The grid frontier is capped by cells, never by rows.** `_grid_pass` caps `len(nxt)` at `MAX_GRID_CELLS` (400 000), and each child shares its parent's `kept` list, so the resident size is the sum of the distinct parents' lists. Triclinic, dichotomy alone: 1.8 GB at `budget_seconds=60`, 3.1 GB and rising at 180; the full run reached 18.4 GB at 103 min and was killed. The first grid pass overflowed at 215 s after 135 811 boxes; its 400 010 cells referenced 43.9 GB if each list were counted per cell. After an overflow `_search_one` still runs phase 2 on the truncated frontier.
+2. **`found` is unbounded inside a unit.** `DEDUP_EVERY` runs between systems in `search_dichotomy`, never inside `_search_one` (trial_error dedups inside its loop at `len(found) > 2000`). Orthorhombic on the same pattern: 6 819 accepted leaves in 300 s, 6 816 distinct, about 11 KB each pickled; one orthorhombic unit reached 7 GB at 70 min.
+3. **A cancel waits on an unguarded dedup.** `_search_one` honours the token, then `search_dichotomy` dedups the whole harvest and `rank_candidates` may dedup again; `dedup_groups` takes no token. 0.11, 0.29, 1.05 and 10.7 s at 500, 1 000, 2 000 and 6 819 candidates, about n² for distinct lattices. On Linux the process grew 7.2 → 8.2 GB for minutes after the cancel.
+4. **Budget reads are minutes apart in trial_error.** One base can run for minutes between reads: 282 s on a 60 s budget, identical at 180 s. On 2026-10-14 the reporter measured trial_error's monoclinic unit at 998 s and 1 372 s against a 600 s budget, and dichotomy's orthorhombic unit at 780 s.
 
-- **2026-10-14, from WP-1959 (PR #964): the grid was not what held the ceiling, and the scheduling task's premise has moved.** At load ~3 the grid cost 57 s of CPU, not 157 s (the Profile's figure was taken at load 110-180). Phase 2 then spent 387 s in one grid cell lying wholly outside the obliquity bound, with no leaf. WP-1959 refuses such a box, and compiles the box test (`rietx-kernels` 1.3). On #780 dichotomy now returns the cell at an 8 s CPU ceiling (none at 7 s), and at 120 s on the numpy loop. svd still never starts under these ceilings: dichotomy holds the whole ceiling until its unit completes, and the leaves are 82 % of phase 2 (WP-1520). So the scheduling task now asks a narrower question. A run returns a candidate, but no second engine corroborates it, so it cannot reach `high`. Re-measure before deciding.
+*Decided 2026-10-30 by the maintainer* (issue reply issuecomment-6536104575): phase 2 keeps running on a truncated frontier for now. Once a row bound caps its memory it costs time only, which the budget bounds. The reporter is asked to count the overflowed units whose phase 2 accepted the true cell; if none did, the unit stops at overflow. Whether dichotomy's orthorhombic acceptance is loose is not judged; the reporter is asked for the unindexed-line distribution over the accepted leaves, the best ten's M₂₀ and the search window in effect.
+
+**The scheduling question after WP-1959** (2026-10-14). At load ~3 the grid cost 57 s of CPU, not the Profile's 157 s (load 110-180). WP-1959 compiled the box test and refused boxes outside the obliquity bound, and on #780 dichotomy now returns the cell at an 8 s CPU ceiling. svd still never starts under such ceilings, because dichotomy holds the whole ceiling until its unit completes, so the run's candidate has no second finder and cannot reach `high`. The reporter's 2026-10-14 measurements (numpy grid, before WP-1959) put the starvation in the per-unit budget equalling the run's ceiling, and propose capping each (engine × system) unit at a share of `total_budget_seconds` (per-engine thirds, or the 30 s slice, which behaved the same on ten lists). A d cut and fewer driving lines left dichotomy's grid unchanged (273 871 survivors under every rule). Two follow-ups they placed outside this WP: the consensus list's 12-cell cap can drop a cell its only finder ranks first (devitrite, COD 1535730), and trial_error's monoclinic unit reached 9.2 GB on glutaric acid-isonicotinamide Form II (COD 1567181).
 
 ## Non-goals
 
@@ -147,7 +72,12 @@ Measured at `e1d19359`, `[dev]`, macOS arm64, on a machine shared with five othe
 - [x] #895: read `cancel` at the child boundary in `ambiguity_partners` and `supercell_checks`, with a test that a cancelled token stops a sweep within one child's work and leaves the candidate unchecked. Done for `ambiguity_partners`. `supercell_checks` keeps no token: it runs over the reported list (≤ 12 candidates), 10-16 ms of CPU a pair, 0.1 s on #780's run, and the gate has no unasked state for it (2026-10-12 handover).
 - [x] Add a peak-RSS figure to `estimate_ceiling` or to the result's budget diagnostic if the profile shows it is predictable from the spec, so a caller can see it before a run. Not added: the frontier's size is the number of grid boxes the lines let survive, which only running the grid shows. The spec bounds it only through `MAX_GRID_CELLS` and the search set's size, a ceiling of gigabytes that would mislead more than help. After the fix #780's case peaks at 0.72 GB (2026-10-12 handover).
 - [x] Tests: a bounded-memory guard that fails on the allocation, declared with its measured spread (a pass margin under 10× is a load sensor). Quote platform and extras with every count.
-- [ ] Scheduling: under a whole-run ceiling shorter than dichotomy's grid, svd and trial_error never start and the run returns nothing (§ Profile). Decide how the scheduler draws a unit's share of the ceiling, or which engine opens a system, and keep finished searches bit-identical. *Decided 2026-10-13 by the maintainer:* compile the grid again rather than reorder engines; the work is WP-1959, and this box ticks when it lands.
+- [x] Scheduling: under a whole-run ceiling shorter than dichotomy's grid, svd and trial_error never start and the run returns nothing (§ Profile). Decide how the scheduler draws a unit's share of the ceiling, or which engine opens a system, and keep finished searches bit-identical. *Decided 2026-10-13 by the maintainer:* compile the grid again rather than reorder engines; the work is WP-1959, and this box ticks when it lands. Ticked 2026-10-31: WP-1959 landed 2026-10-14; the narrower question it left is the last task below.
+- [ ] The grid frontier is bounded by the bytes of its survivor lists as well as by its cells; an overflow takes the existing capped path (`complete=False`, "outgrew a size cap"). Finished searches replay to their digests.
+- [ ] A dichotomy unit's harvest is bounded inside `_search_one`; reaching the bound takes the capped path. Finished searches replay to their digests.
+- [ ] A cancel is honoured within seconds after a unit stops: the harvest's dedup and ranking read the token.
+- [ ] trial_error reads its budget inside one base's work, so a unit stops within seconds of its slice; check dichotomy's phase 2 the same way.
+- [ ] Scheduling on the kernel path: re-measure whether a declared ceiling should cap each unit at a share (the reporter's 2026-10-14 proposal), so a second engine can corroborate inside it.
 - [x] Skill: the indexing reference row for a monoclinic or hexagonal search with a large volume bound (cap the volume, search one system at a time, read `INDEX_SEARCH_INCOMPLETE` per engine), tagged Measured or Hypothesis.
 
 ## Acceptance
