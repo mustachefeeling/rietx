@@ -135,9 +135,18 @@ _DOT_TWO_WAYS = re.compile(
     + r")\s*(?:[·•*]|$))")
 
 
+#: Isotope symbols a formula may write, and the element whose volume each takes.
+#: Hofmann's table is per element: deuterium is hydrogen, and a deuterated
+#: formula (``C6D6``, the ``D2O`` of :data:`_ADDUCT_MOLECULES`) counts its D
+#: as H.
+_ISOTOPES = {"D": "H"}
+
+
 def _element(symbol: str, formula: str) -> str:
     if symbol in HOFMANN_VOLUMES:
         return symbol
+    if symbol in _ISOTOPES:
+        return _ISOTOPES[symbol]
     if symbol in _NO_VOLUME:
         raise ValueError(f"{formula!r}: Hofmann (2002) gives no average volume "
                          f"for {symbol}, so this formula has no estimate")
@@ -220,7 +229,8 @@ def formula_unit_volume(formula: str,
     followed by a whole solvent molecule (:data:`_ADDUCT_MOLECULES`), with any
     whitespace or none before it or inside it.  Every other decimal count reads one way (``"Fe2.95O4"``,
     ``"Li1.05Mn1.95O4"``, ``"Mg0.5SiO3"``).  A symbol that
-    is not an element, or one the table has no volume for, raises naming it.  The esd is
+    is not an element, or one the table has no volume for, raises naming it; ``D``
+    reads as H (``"C6D6"``).  The esd is
     eq. (13)'s: the table's mean errors summed as Σ nᵢ Δvᵢ, and the expansion
     coefficient's error in quadrature, measured from the 298 K the table is
     quoted at.  It is ``None`` when an element has no mean error (Ac, Am).
@@ -230,8 +240,9 @@ def formula_unit_volume(formula: str,
     candidate cell must use.  The module docstring has both, the temperature
     reading and the scope: organic and metal-organic crystals.
     """
-    if not temperature > 0.0:
-        raise ValueError(f"temperature must be positive kelvin, got {temperature!r}")
+    if not (math.isfinite(temperature) and temperature > 0.0):
+        raise ValueError(f"temperature must be a positive, finite number of kelvin, "
+                         f"got {temperature!r}")
     counts = _parse_formula(formula)
     a, t0 = THERMAL_EXPANSION, TABLE_TEMPERATURE
     tabulated = sum(n * HOFMANN_VOLUMES[el][0] for el, n in counts.items())

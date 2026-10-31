@@ -229,6 +229,8 @@ RECORD_SCHEMAS: tuple[str, ...] = (
     "rietx.schemas.results.RefinementResult",
     "rietx.schemas.results.Statistics",
     "rietx.report.schemas.DistortionBlockTests",
+    "rietx.schemas.indexing.IndexingResult",
+    "rietx.schemas.indexing.PeakList",
 )
 
 
@@ -448,6 +450,29 @@ OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
     "rietx.report.schemas.DistortionBlockTests.detectability_probe",
     "rietx.report.schemas.DistortionBlockTests.restarted_result",
     "rietx.report.schemas.DistortionBlockTests.tests",
+    "rietx.schemas.indexing.IndexingResult.candidates",
+    "rietx.schemas.indexing.IndexingResult.diagnostics",
+    "rietx.schemas.indexing.IndexingResult.engine_stats",
+    "rietx.schemas.indexing.IndexingResult.engines_run",
+    "rietx.schemas.indexing.IndexingResult.fom_panel_disagrees",
+    "rietx.schemas.indexing.IndexingResult.formula",
+    "rietx.schemas.indexing.IndexingResult.n_usable_lines",
+    "rietx.schemas.indexing.IndexingResult.preset",
+    "rietx.schemas.indexing.IndexingResult.provenance",
+    "rietx.schemas.indexing.IndexingResult.quality",
+    "rietx.schemas.indexing.IndexingResult.search_complete",
+    "rietx.schemas.indexing.IndexingResult.systems_searched",
+    "rietx.schemas.indexing.IndexingResult.temperature",
+    "rietx.schemas.indexing.IndexingResult.thresholds_version",
+    "rietx.schemas.indexing.IndexingResult.validated",
+    "rietx.schemas.indexing.IndexingResult.wavelength",
+    "rietx.schemas.indexing.PeakList.diagnostics",
+    "rietx.schemas.indexing.PeakList.peaks",
+    "rietx.schemas.indexing.PeakList.source",
+    "rietx.schemas.indexing.PeakList.thresholds_version",
+    "rietx.schemas.indexing.PeakList.two_theta_max",
+    "rietx.schemas.indexing.PeakList.two_theta_min",
+    "rietx.schemas.indexing.PeakList.wavelength",
     "rietx.schemas.results.RefinementResult.cell_volumes",
     "rietx.schemas.results.RefinementResult.data_support",
     "rietx.schemas.results.RefinementResult.diagnostics",
@@ -990,8 +1015,10 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: fires exactly when a site's coordinate DOF directions differ "
                   "between two structures, in either direction (a coordinate a fit or "
                   "set_values left within reach of a special position, with no merge, or an "
-                  "edit or a checkout moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction and what "
-                  "was dropped because the position fixes or couples it. The direction of a "
+                  "edit or a checkout moved off one) and a hold, user tie or free path sat on one of them; it names what followed its direction (a hold onto "
+                  "the coupled direction where the position couples coordinates, round 6's "
+                  "follow-up) and what was dropped because the position fixes it, or couples "
+                  "it under a tie. The direction of a "
                   "DOF is the nullspace of the site group, so the map is derived, never "
                   "chosen (#1014, rounds 5-6)")),
     Row("SITE_TWINS_KEPT", "code", tier=1, ambiguity=3,
@@ -1092,7 +1119,7 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 23
+    # action: 24
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
@@ -1317,6 +1344,15 @@ ROWS: tuple[Row, ...] = (
                   "no-line count, so a line a zero shift moved into range cannot quote the "
                   "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
                   "histogram that has lines counts as measured in every histogram (item 2)")),
+    Row("rietx.schemas.indexing.PeakList.instrument_undeclared", "action", tier=1, ambiguity=1,
+        evidence=("reads the declaration: the picker checks the instrument only where "
+                  "indexing.diagnostics.lab_source finds a laboratory tube in the declared "
+                  "source (a Ka doublet, or one line within LAB_LINE_TOLERANCE_ANGSTROM of an "
+                  "anode's Ka1, Ka2 or weighted mean, tier 1 at its row) and records None, "
+                  "not checked, elsewhere; what it records is arithmetic, the declared "
+                  "geometry and profile blocks compared with their defaults (WP-2030, #1123). "
+                  "It moves no search, rank or value: INDEX_DATA_INSUFFICIENT names the "
+                  "recorded blocks first in its suggestion")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "
@@ -3273,6 +3309,22 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_FACTOR", "constant", value=3.0),
     Row("rietx.sequential.WIDTH_GROWTH_GOF_FACTOR", "constant", value=2.0),
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
+    Row("rietx.solve.cluster._ISOMETRY_RTOL", "constant", tier=1, value=1e-06,
+        evidence=("equivalences(): an integer {-1, 0, 1} matrix P is an isometry of "
+                  "the cell when |P^T g P - g| <= 1e-6 x max|g|, element by element. "
+                  "A true isometry holds the relation exactly, and g from the cell "
+                  "parameters carries rounding near 1e-16 relative (cos 90 deg, cos "
+                  "120 deg), so the tolerance sits ten orders above it. "
+                  "test_the_normaliser_index_is_international_tables holds [N(G):G] "
+                  "to International Tables A Part 15 on a general metric of each "
+                  "system (P2_1/c 8, P2_12_12_1 16, I2_13 4, P2_1 8, P-1 8, P1 2, "
+                  "P6_3/mmc 2), with and without enantiomers, so no true isometry is "
+                  "lost and none spurious admitted there. Its edge: a cell metrically"
+                  " special within 1e-6 relative to max|g| is treated as special, and the extra element still has to map G onto "
+                  "G to count. test_a_metrically_special_cell_is_judged_at_the_isometry_tolerance "
+                  "holds that edge on P2_12_12_1: a = b gains isometries beyond the "
+                  "general 16, a cell 1e-9 relative from a = b gives the same index, "
+                  "and one 5e-3 off gives 16 again")),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
     Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
@@ -3296,6 +3348,21 @@ ROWS: tuple[Row, ...] = (
                  "mis-stated, before a default path calls require. Approved on the "
                  "judgement ground while only tests call it (ruled 2026-10-24)."),
         approved="2026-10-24"),
+    Row("rietx.solve.moves._TAU", "constant", tier=1, value=6.283185307179586,
+        evidence="arithmetic: 2π, the phase of exp(2πi h·x)"),
+    Row("rietx.solve.tempering.REFRESH_EVERY", "constant", tier=1, value=1000,
+        evidence=("temper(): sweeps between full rebuilds of the running orbit sums, "
+                  "amplitudes and clash energy; SeedRun.drift records the largest "
+                  "|J_running - J_rebuilt| a rebuild found on every run. A numerical "
+                  "setting: it controls how accurately J is kept, not what the search"
+                  " decides. test_running_sums_stay_on_a_rebuild asserts drift <= "
+                  "1e-10 J with no refresh at all over 1 000 sweeps (the cadence), on the acridine-"
+                  "shaped case and NAC, compiled and numpy. With no refresh over 1 "
+                  "000 and 2 000 sweeps (seed 5, the test's ladder, both paths) the "
+                  "drift was 4.0e-14 and 2.9e-14 J on the acridine case and 2.5e-14 "
+                  "and 2.7e-14 J on NAC (#1153 audit, 2026-10-25): rounding, not "
+                  "growing with sweeps, so the cadence never lets J drift past the "
+                  "test's bar")),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("magnetic.py docstring: the Ba2FeSbSe5 pair sits 0.081 deg apart, inside 0.5 deg "

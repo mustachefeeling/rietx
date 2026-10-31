@@ -579,9 +579,9 @@ def _state_extra_peak():
 def _state_magnetic():
     """WP-1327: a moment DOF and the structural columns of a magnetic phase.
 
-    The **only** config here whose model is magnetic, and it exists because
-    two derivative paths are new: the moment modulus (no analytic branch
-    claims ``…moment.dof*``, so it takes the peak-chain column), and a
+    The first config here whose model is magnetic, and it exists because
+    two derivative paths are new: the moment modulus (the analytic
+    ``_moment_column`` since WP-1327's last task; the peak chain before), and a
     coordinate DOF on a phase carrying a moment, which
     ``CompiledModel.structural_grad_supported`` drops from the analytic
     structural branch because ``d_f2_d_xyz`` carries no magnetic term — a
@@ -594,6 +594,8 @@ def _state_magnetic():
     so the comparison this config actually makes is the analytic assembly
     against central differences.  ``test_the_magnetic_config_declines_the_traced_
     backends_by_name`` asserts the decline, so the skip below cannot go silent.
+    The moment column is also held to an exact oracle, which central
+    differences are not, in ``test_moment_jacobian.py``.
     """
     import rietx as rx
     from rietx.schemas.instrument import BackgroundChebyshev
@@ -687,6 +689,37 @@ def _state_magnetic_width():
                           moving_paths=set(table.moving_paths),
                           window_area_tol=WINDOW_AREA_TOL)
     return model, table, {}
+
+
+def _state_magnetic_angles_tied():
+    """WP-1327's analytic moment branch on the shapes ``magnetic`` lacks.
+
+    ``magnetic`` frees one modulus on a one-dimensional subspace.  The branch
+    claims any column whose reach is moment **moduli** of one phase, so an
+    affine tie between two sites' moduli, and a named variable driving one of
+    them, are new ways to widen C onto it, which is what obliges a row here
+    (root CLAUDE.md § Backends).  The angles
+    beside it — a site's own azimuth, and a named variable driving the other
+    site's — are columns the dispatch declines by name and builds on the peak
+    chain (``_moment_reach_ok``), so this row also holds that the decline
+    leaves them right.  ``test_moment_jacobian`` holds every column of the
+    same state to an exact oracle; here the ``fd`` opinion meets the
+    assembled Jacobian, and the traced rows decline by name as on
+    ``magnetic``.
+    """
+    from tests.test_moment_jacobian import M0, M1, PLANE, _build, _ortho
+
+    return (*_build(_ortho([(2.0, 1.0, 0.0), (-1.0, 1.5, 0.0)], PLANE),
+                    # the zero shift is the row's peak-chain column, which
+                    # ``test_every_fd_column_meets_a_converged_oracle`` needs
+                    [f"{M0}.dof0", f"{M0}.dof1", "phases.0.scale",
+                     "instrument.background.c0", "instrument.zero_shift"],
+                    ties=[(f"{M1}.dof0",
+                           AffineTie(terms=((f"{M0}.dof0", -0.8),
+                                            (f"{VAR_PREFIX}MU", 0.5)),
+                                     const=0.3)),
+                          (f"{M1}.dof1", AffineTie.identity(f"{VAR_PREFIX}PHI"))],
+                    variables=[("PHI", 0.7), ("MU", 0.4)]), {})
 
 
 def _state_satellites():
@@ -1048,6 +1081,7 @@ CONFIGS = {"families": _state_families,
            "extra_peak": _state_extra_peak,
            "magnetic": _state_magnetic,
            "magnetic_width": _state_magnetic_width,
+           "magnetic_angles_tied": _state_magnetic_angles_tied,
            "satellites": _state_satellites,
            "extinction_strong": _state_extinction_strong, **STATES}
 
@@ -1084,6 +1118,7 @@ CONFIG_PARAMS = [
     _config("extra_peak"),
     _config("magnetic"),
     _config("magnetic_width"),
+    _config("magnetic_angles_tied"),
     _config("satellites"),
     _config("bodies"),
     _config("extinction_strong"),
@@ -1324,7 +1359,8 @@ def test_jacobian_matches_analytic(method, config):
                     what=f"{config}/{method} ")
 
 
-@pytest.mark.parametrize("config", ["magnetic", "magnetic_width"])
+@pytest.mark.parametrize("config", ["magnetic", "magnetic_width",
+                                    "magnetic_angles_tied"])
 def test_the_magnetic_config_declines_the_traced_backends_by_name(config):
     """The skip in ``_backend_jacobian`` above, made a measured fact.
 
