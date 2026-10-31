@@ -150,15 +150,15 @@ symbols, joint fits) and get one or a declared exception.
       | Parametric refinement | `test_parametric_series.py::test_a_constant_declaration_is_refine_multi_bit_for_bit` | `refine_multi`, bit for bit; and `::test_a_parametric_slope_recovers_a_known_expansion_within_its_esd` |
       | Distortion-mode amplitudes (since #1051) | `test_distortion_modes.py::test_lamno3_reproduces_table_13` | Perez-Mato et al. (2010) Table 13 |
       | Subgroup enumeration (since #1051) | `test_subgroups.py::test_each_published_subgroup_is_present_with_its_transformation` | International Tables A1; and `::test_pmmm_has_eight_fmmm_subgroups` |
-- [ ] Each `unverified` feature verified (a test against a formula or another code) or
+- [x] Each `unverified` feature verified (a test against a formula or another code) or
       fenced until it is.
-- [ ] The feature registry: each feature with its help keys, its Theory section and the
+- [x] The feature registry: each feature with its help keys, its Theory section and the
       claims that reference it (a `features` field on `Claim`); the four featureless
       topics given a section or a declared exception.
-- [ ] The state per feature, derived: what verifies it, what validates it with the
+- [x] The state per feature, derived: what verifies it, what validates it with the
       mismatch, its domain and the development-data flag, and *not yet validated* where
       the second is empty; `docs/VALIDATION.md` regenerated with the feature table.
-- [ ] `prediction` claims retiered by rule: a claim validates only against an
+- [x] `prediction` claims retiered by rule: a claim validates only against an
       independent measurement. The reviewer's count at feae4c75e: 9 `prediction` claims,
       of which 6 (two capillary identities, three Nd₂Ru₂O₇ joint-wavelength, one Si 640c
       against XND) are referenced to the package's own arithmetic or another code and a
@@ -166,18 +166,18 @@ symbols, joint fits) and get one or a declared exception.
       claim is an identity. The meta-test enumerates them. `TIERS["prediction"]`'s
       text, which calls the capillary ΔB prediction the strongest evidence in the repo,
       rewritten to say which kind of reference value a prediction checks against.
-- [ ] The matrix's own prose uses of *validate* in verification's sense reworded
+- [x] The matrix's own prose uses of *validate* in verification's sense reworded
       (start dependence as "a validation axis", "would validate a configuration", the
       anode wavelength tables, the multi-phase CIF round trip), `docs/VALIDATION.md`
       regenerated.
-- [ ] The report sentence: a result that reports a quantity from a feature with no
+- [x] The report sentence: a result that reports a quantity from a feature with no
       independent measurement lists it once, read from the registry; absent otherwise.
-- [ ] The meta-test: the feature list partitions the help vocabulary and the Theory
+- [x] The meta-test: the feature list partitions the help vocabulary and the Theory
       headings both ways; every claim and test a feature names exists; every
       `prediction` claim names its reference value's kind.
-- [ ] Root CLAUDE.md § Invariants: the clause "Every physics function cites its
+- [x] Root CLAUDE.md § Invariants: the clause "Every physics function cites its
       reference" names the meta-test.
-- [ ] 1327's `### Inherited` note updated: the report sentence's wording for the moment.
+- [x] 1327's `### Inherited` note updated: the report sentence's wording for the moment.
 - [ ] Follow-ups filed: the ceria round robin as a microstructure measurement; references
       for data already in the tree (a Le Bail cell against the SRM 660c and 676a
       certificates, published space groups for the extinction symbols, LaMnO₃'s Pn′ma′).
