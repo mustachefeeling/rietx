@@ -87,11 +87,12 @@ identification call.
 
 - **2026-10-31, from [WP-2065](2065-a-hung-fast-job-names-its-test.md) (issue
   #1249): a full k-series at P −1 costs p(p² + p + 1) subgroups, so its
-  p = 53 row is now `slow`.** `maximal("P -1", index=53, kind="k")` returns
+  P −1 rows are now `slow`.** `maximal("P -1", index=53, kind="k")` returns
   151 739 subgroups, and with the test's `is_maximal` per result it took
   629-812 s of a CI runner. Alone it could outrun the fast job's 40-min cap,
-  and it did, 8 times between 30 and 31 Oct. Per push, p = 29 keeps the
-  bound covered (2p = 58 against the old floor of 48). A new row asking a
+  and it did, 8 times between 30 and 31 Oct. `2c2e23666` (PR #1254) marked
+  both P −1 rows `slow`; the hexagonal p = 29 rows keep the bound covered per
+  push, raising in seconds under the old floor of 48. A new row asking a
   per-subgroup question at a large p uses `supercell=`, p subgroups rather than
   p³. Measured and declined: `_maximal_invariant`'s pairwise row reductions
   cost 1.45 s at p = 29, so a faster exact rule (a line is maximal unless an

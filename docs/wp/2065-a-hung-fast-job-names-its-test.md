@@ -1,6 +1,6 @@
 # WP-2065 — a hung fast job names its test, and the hang is fixed
 
-Milestone: unscheduled · Status: 🔄 2026-10-31 — the cause found: one 10-13 min case, now `slow`; both fast jobs set `faulthandler_timeout` (PR #1256); acceptance waits on twenty fast jobs
+Milestone: unscheduled · Status: 🔄 2026-10-31 — the cause was one 10-13 min case, now `slow` on main (PR #1254); both fast jobs set `faulthandler_timeout` (PR #1256); acceptance waits on twenty fast jobs
 Track: The repo's own process
 Depends on: —
 Priority: P1 2026-10-31 — a required check red on main: the `fast` job hangs at `[ 99%]` and is cancelled at its 40-min cap, 8 times in about 15 hours, main's own push run among them; every PR it hits waits 40 min and reruns
@@ -107,9 +107,10 @@ So a hung test's shard follows the record, which a branch may refresh.
   test that waits on a thread, a subprocess, a lock or a socket without a
   timeout of its own. *Done 2026-10-31: no hang. The case is slow, and it is
   slow by design: P −1 keeps every sublattice invariant, so the series is
-  p(p² + p + 1) subgroups, 151 739 at p = 53. That row is now `slow`. The
-  bound stays covered per push by p = 29 (2p = 58 against the old 48).
-  Siblings: no other fast case on that run exceeds 151 s.*
+  p(p² + p + 1) subgroups, 151 739 at p = 53. Main's `2c2e23666` (PR #1254,
+  merged the same day) marked both P −1 rows `slow`, and this branch took it
+  over its own p = 53-only edit. The hexagonal p = 29 rows keep the bound
+  covered per push. Siblings: no other fast case on that run exceeds 152 s.*
 - [x] **Tests**: a case that fails, not hangs, if the mechanism comes back,
   where one can be written. *None written: a per-case time gate is what
   tests/CLAUDE.md declines (the tail's guard is a report, WP-1506). The
@@ -141,12 +142,14 @@ handover, showing the dump with the test id.
   enumerates 151 739 subgroups and runs 10-13 minutes on a CI runner. Placed
   last on a worker, or on a slower runner, it alone carried its shard past the
   40-min cap, with `[ 99%]` and then silence. It now runs in the nightly. Per
-  push, a smaller row checks the same bound. A case that runs past 10 minutes
-  now prints its own stack in the job log, so the next one names itself.
-  Nothing is lost from the nightly, and the fast tier loses one case.
-  *Done*: `tests/test_subgroups.py` marks `[P -1-53]` `slow`, with a comment
-  saying why and what still covers the bound. `ci.yml`'s `fast` and
-  `fast-jax` jobs pass `-o faulthandler_timeout=600`.
+  push, the hexagonal rows check the same bound. A case that runs past 10
+  minutes now prints its own stack in the job log, so the next one names
+  itself. Nothing is lost from the nightly.
+  *Done*: `ci.yml`'s `fast` and `fast-jax` jobs pass
+  `-o faulthandler_timeout=600`. The test edit was overtaken: the shard-refresh
+  session's `2c2e23666` (PR #1254) marked both P −1 rows `slow` and merged
+  first, so the merge of main took main's file whole. This branch's net change
+  to the tests is nil.
   *Measured*: main run 41045940948 (`e016f187d`, passing), junit artifacts.
   `[P -1-53]` took 629.3 s on 3.11 shard 1/2 and 812.2 s on 3.14. The next
   slowest case on any leg was 151.5 s (a guide script, 3.14 2/2), which set

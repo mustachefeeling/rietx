@@ -302,8 +302,9 @@ jobs:
         # included, and leaves it running: the cap above stays the runaway
         # guard.  Without it a case that never ends shows as `[ 99%]` and then
         # silence until the cap kills the workers, which names nothing (#1249,
-        # WP-2065).  600 s is about 4-6x the slowest passing case of each leg,
-        # 101-152 s on main run 41045940948.
+        # WP-2065).  600 s is 4-10x the slowest passing case of each leg,
+        # 63-152 s on main run 41045940948 once the two P -1 rows of
+        # tests/test_subgroups.py left the fast tier.
         env:
           RIETX_DOCS: ${{ matrix.docs || 'skip' }}
         run: >-

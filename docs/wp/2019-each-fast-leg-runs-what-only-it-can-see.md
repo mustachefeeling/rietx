@@ -161,11 +161,11 @@ cutting it.
   `fast` jobs printed `[ 99%]` and then nothing until the 40-min cap, main's
   push run 41141605322 among them. The case was `test_subgroups.py`'s
   `…denominator_bound[P -1-53]`, 629 s (3.11) and 812 s (3.14) on main run
-  41045940948's passing shard 1/2. WP-2065 moved it to the nightly. The ten-run
-  acceptance here reads runs on a tree with that change, or leaves the cancels
-  out and says how many. Two tail facts for the cut: `[P -1-29]` of the same
-  test is 101-129 s, and 19 files the 2026-10-21 record lacks put 18.1 min on
-  py3.11's shard 1 against 2.2 min on shard 2 (PR #1254 refreshes the record).
+  41045940948's passing shard 1/2. PR #1254 (`2c2e23666`) moved it and its
+  p = 29 sibling (101-129 s) to the nightly and refreshed the record, on which
+  19 files had been missing: they put 18.1 min on py3.11's shard 1 against
+  2.2 min on shard 2. The ten-run acceptance here reads runs on a tree with
+  both changes, or leaves the cancels out and says how many.
 - **2026-10-23, from [1547](1547-the-fast-tiers-tail.md) (closed): main's slowest
   fast job is over 20 min again on three of the five latest runs.** Job walls,
   `started_at` to `completed_at`, from GitHub's REST API: 39865423926 17.6 min
