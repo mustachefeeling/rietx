@@ -589,7 +589,8 @@ def _sigmas(items, values, table, ip: int, n_atoms: int, cov) -> list[tuple]:
         return [(None, None)] * len(items)
     cov_full, cov_diag, blind = cov
     compiled = CompiledRestraints(items=items)
-    rows = restraint_partials(compiled, values, table)
+    gross_rows = np.zeros((compiled.n_rows, len(table.entries)), dtype=np.float64)
+    rows = restraint_partials(compiled, values, table, gross=gross_rows)
     cols = [table._paths[p] for p in _phase_paths(ip, n_atoms)]
     g = rows[:, cols]
     var_full = np.einsum("ra,ab,rb->r", g, cov_full, g)
@@ -598,8 +599,7 @@ def _sigmas(items, values, table, ip: int, n_atoms: int, cov) -> list[tuple]:
     # (before two images of one atom cancel): a torsion fixed by symmetry has
     # roundoff for every net partial, and a floor scaled by those is roundoff
     # too.  Every other kind's gross row is |g|, the scale this always had.
-    gross = (restraint_partials(compiled, values, table, absolute=True)[:, cols]
-             if any(isinstance(it, _Torsion) for it in items) else np.abs(g))
+    gross = gross_rows[:, cols]
     scale = np.einsum("ra,ab,rb->r", gross, np.abs(cov_full), gross)
     floor = VARIANCE_CANCELLATION_FLOOR * scale
     touches_blind = (np.abs(g[:, blind]) > 0.0).any(axis=1) if blind.any() \
