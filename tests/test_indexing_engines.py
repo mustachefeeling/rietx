@@ -1933,6 +1933,55 @@ def test_the_base_pool_is_a_prefix_of_the_selected_search_lines():
         "the pool is still drawn from lines the selection declined")
 
 
+def test_trial_error_reads_its_budget_between_the_solutions_of_one_base(
+        monkeypatch):
+    """WP-1924: a unit stops inside a base, not at the next one.
+
+    The budget was read once per base set, and one base's scoring is the long
+    step: an outside pattern ran a unit 282 s on a 60 s budget.  So a budget that
+    expires once one solution is scored must stop the unit before the second,
+    where a per-base read would score the whole base first.  Counted, never
+    timed: the budget here expires on a count of scored solutions.
+    """
+    from rietx.indexing import trial_error
+
+    peaks, _cell = synthetic_peaks("cubic")
+    calls = {"score": 0, "first_base": None}
+    real_score, real_solve = trial_error._score, trial_error._solve_assignments
+
+    def score(*args, **kwargs):
+        calls["score"] += 1
+        return real_score(*args, **kwargs)
+
+    def solve(*args, **kwargs):
+        # the scores before the second batch are the first scored base's
+        if calls["score"] and calls["first_base"] is None:
+            calls["first_base"] = calls["score"]
+        return real_solve(*args, **kwargs)
+
+    monkeypatch.setattr(trial_error, "_score", score)
+    monkeypatch.setattr(trial_error, "_solve_assignments", solve)
+    finished = trial_error.search_trial_error(peaks, spec=spec_for("cubic"),
+                                              probe=False)
+    assert finished.search_complete["cubic"]
+    # the precondition: without a stop, one base scores several solutions
+    assert calls["first_base"] is not None and calls["first_base"] > 1, calls
+
+    class ExpiresOnceScored(Budget):
+        def expired(self) -> bool:
+            return calls["score"] >= 1
+
+    calls["score"] = 0
+    monkeypatch.setattr(trial_error, "Budget", ExpiresOnceScored)
+    cut = trial_error.search_trial_error(peaks, spec=spec_for("cubic"),
+                                         probe=False)
+    assert calls["score"] == 1, (
+        f"{calls['score'] - 1} more solution(s) scored after the budget "
+        "expired on the first; the budget is read only between bases")
+    assert not cut.search_complete["cubic"]
+    assert "cubic.seconds" in cut.stats, "the clock rides the cut return"
+
+
 @pytest.mark.parametrize("engine", ["dichotomy", "trial_error"])
 def test_weak_background_components_below_the_first_line_do_not_defeat_a_search(
         engine):
