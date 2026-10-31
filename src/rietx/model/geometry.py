@@ -61,11 +61,11 @@ from ..crystallography.symmetry import as_group, resolve_group
 from ..params.derived import cartesian_frame
 from .restraints import (
     _COS_CLAMP,
+    _TORSION_SIN2_FLOOR,
     CompiledRestraints,
     _Angle,
     _Bond,
     _metric_g,
-    _TORSION_SIN2_FLOOR,
     _resolve_image,
     _Torsion,
     _torsion_defined,

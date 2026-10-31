@@ -418,6 +418,51 @@ def test_the_torsion_cap_note_counts_exactly_what_it_dropped(monkeypatch):
             assert k.angle == r.angle and k.stderr == r.stderr
 
 
+@pytest.mark.parametrize("name", ["gsas2_bt1_lamno3.cif", "cod_1550439.cif",
+                                  "fluorapatite.cif"])
+def test_no_torsion_is_listed_again_from_its_other_end(monkeypatch, name):
+    """The reversal of a listed chain, carried back by the inverse of its C
+    image's operation, is never listed too — checked by positions to 1e-6
+    with the codes the rows print, so neither the table's keys nor its
+    rounding are reused.  LaMnO₃'s O3 x of 0.48775 sat on a tie of the 1e-4
+    rounding the first version keyed on, and 20 of its 298 chains were
+    listed twice; the irrational offset of ``_KEY_OFFSET`` ended it."""
+    monkeypatch.setattr(geom, "MAX_TORSIONS_PER_ATOM", 10 ** 6)
+    structure = structure_from_cif(DATA / name)
+    phase = structure.phases[0]
+    ops = [(np.array(op.rot, float) / gemmi.Op.DEN,
+            np.array(op.tran, float) / gemmi.Op.DEN)
+           for op in gemmi.SpaceGroup(phase.space_group).operations()]
+    rows = Refinement(structure, LAB, history=False).geometry().torsions
+    assert rows
+    xyz = np.array([[a.x.value, a.y.value, a.z.value] for a in phase.atoms])
+
+    def image(j, code):
+        if code == ".":
+            return np.eye(3), xyz[j], np.zeros(3)
+        k, klm = code.split("_")
+        rot, tran = ops[int(k) - 1]
+        tran = tran + np.array([int(ch) - 5 for ch in klm], float)
+        return rot, rot @ xyz[j] + tran, tran
+
+    chains = []
+    for r in rows:
+        codes = (r.symmetry_1, r.symmetry_2, r.symmetry_3, r.symmetry_4)
+        if None in codes:
+            continue
+        idx = (r.atom_index_1, r.atom_index_2, r.atom_index_3, r.atom_index_4)
+        placed = [image(j, c) for j, c in zip(idx, codes, strict=True)]
+        rot_c, _, tran_c = placed[2]
+        inv = np.linalg.inv(rot_c)
+        pos = [p for _, p, _ in placed]
+        back = [inv @ (p - tran_c) for p in pos[::-1]]
+        chains.append((idx, np.array(pos), idx[::-1], np.array(back)))
+    for k, (idx, pos, _, _) in enumerate(chains):
+        for m, (_, _, ridx, back) in enumerate(chains):
+            if m != k and ridx == idx:
+                assert np.abs(back - pos).max() > 1e-6, (rows[k], rows[m])
+
+
 def test_a_torsion_esd_does_not_depend_on_the_order_atoms_are_listed():
     """Stop rule 5's question, measured: the same molecule with its atoms
     listed in reverse gives the same torsions with the same esds (as a
