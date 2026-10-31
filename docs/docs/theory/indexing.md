@@ -253,8 +253,9 @@ a structure unusual past $V_{\mathrm{obs}}/V_{\mathrm{est}}$ =
 error bound he measured. The volumes are fitted to organic and metal-organic
 crystals, and he notes that ionic, small-cell structures come out
 overestimated by 25 to 75 % and that the table may not apply to inorganic
-substances (§ 3 (iii)). Inorganic standards read lower still, 0.38 to 0.87, half
-of them below 0.57, which his § 3 (i) puts down to a wrong $Z$. So against this
+substances (§ 3 (iii)). Inorganic standards read from 0.38 to 0.87: fifteen of
+the sixteen measured lie under {{ VOLUME_RATIO_LOW }} (halite's 0.87 is inside the
+25 %), and nine of them under 0.57, which his § 3 (i) puts down to a wrong $Z$. So against this
 table a correct inorganic cell looks like a wrong $Z$, and no test for a whole
 number of formula units can be silent on true inorganic cells. None is made.
 A search window from a formula takes the one side that holds for every

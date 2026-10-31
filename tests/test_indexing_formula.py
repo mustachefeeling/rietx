@@ -89,6 +89,10 @@ def test_the_window_is_a_ceiling_of_z_units_at_hofmanns_upper_bound():
     ranged = SearchSpec.from_formula(BENZOIC, z=(2, 8))
     assert (ranged.min_volume, ranged.max_volume) == pytest.approx(
         (DEFAULT_MIN_VOLUME, 8 * BENZOIC_V * 1.25))
+    # the pair's minimum is validated and then ignored: the same spec for any
+    # minimum, as the docstring says
+    assert SearchSpec.from_formula(BENZOIC, z=(4, 8)) == SearchSpec.from_formula(
+        BENZOIC, z=(1, 8))
     # no Z: the window narrows nothing
     bare = SearchSpec.from_formula(BENZOIC)
     assert (bare.min_volume, bare.max_volume) == (DEFAULT_MIN_VOLUME, None)
@@ -103,6 +107,9 @@ def test_the_window_is_a_ceiling_of_z_units_at_hofmanns_upper_bound():
         SearchSpec.from_formula("H2", z=1)
     with pytest.raises(ValueError, match="below the 800 Å³ floor"):
         SearchSpec.from_formula(BENZOIC, z=4, min_volume=800.0)
+    # an explicit None names the field, not a bare TypeError from the comparison
+    with pytest.raises(ValueError, match="min_volume"):
+        SearchSpec.from_formula(BENZOIC, z=4, min_volume=None)
 
 
 @pytest.mark.parametrize("z", [0, (4, 2), 2.5])
@@ -258,7 +265,7 @@ KNOWN_CELLS: dict[str, tuple[str, int, float, float, bool]] = {
 #: Measured (WP-2030, 2026-10-23; unchanged by part 2, which moved no volume):
 #: V_true / (Z × V_est), the ratio Hofmann (2002, § 3) marks unusual outside
 #: 0.8-1.25.  Every inorganic cell but halite's lies under 0.8, at 0.375-0.649,
-#: and eight of them under 0.57, the edge of his § 3 (i), "Z entered wrongly".
+#: and nine of them under 0.57, the edge of his § 3 (i), "Z entered wrongly".
 #: That is why the shipped window's floor excluded all but halite, and why
 #: part 2 dropped it for every formula (ruled on #1121, 2026-10-24).  HKUST-1
 #: lies above 1.25 the other way: its formula leaves the pores' contents out,

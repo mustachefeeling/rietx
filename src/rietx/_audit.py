@@ -1547,7 +1547,7 @@ ROWS: tuple[Row, ...] = (
                   "660c/640c/676a, the IUCr CPD round robin, 11-BM, GSAS-II tutorials, COD) at "
                   "0.375-0.866 and 4 organic at 1.000-1.044 lie under it; HKUST-1, its pore "
                   "contents left out of the formula, reads 2.283 and does not. The lower edge "
-                  "only sets solve.chemistry's reported in_volume_window flag"),
+                  "sets only Composition.volume_window's lower edge and the manual's quoted band (in_volume_window and the search read the ceiling alone)"),
         value=(0.8, 1.25)),
     Row("rietx.crystallography.atomic_volume.VOLUME_SCATTER", "constant", value=0.04),
     Row("rietx.crystallography.attenuation._HC_EV_ANGSTROM", "constant", value=12398.4198),

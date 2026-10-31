@@ -433,14 +433,16 @@ class SearchSpec:
         about 4 % (Fig. 1).  The window has no floor, for any formula.  An
         ionic or mainly inorganic cell comes out smaller than the estimate
         (his § 3 (iii)): every inorganic cell measured lies at 0.38-0.87 of it,
-        and half of them below 0.57, so a floor would exclude the truth.  A
+        and nine of the 16 below 0.57, so a floor would exclude the truth.  A
         ceiling only tolerates that direction.  What it does not hold is a
         cell larger than its formula: a framework whose formula leaves out
         what fills its pores (HKUST-1 reads 2.28).
 
         ``z`` counts formula units in the conventional cell: an integer, a
         ``(min, max)`` pair, or ``None``.  Only the largest ``z`` sets the
-        ceiling, so a pair's minimum narrows nothing.  **With ``z=None`` the
+        ceiling: **a pair's minimum is checked and then ignored**, so
+        ``z=(4, 8)`` and ``z=(1, 8)`` give the same spec, and nothing here
+        raises a floor from it (1.10.0's window did).  **With ``z=None`` the
         window narrows nothing:** ``min_volume`` stays
         :data:`DEFAULT_MIN_VOLUME` and ``max_volume`` is left to the
         data-quality envelope, because a formula says nothing about how many
@@ -474,6 +476,9 @@ class SearchSpec:
         v_fu, _ = formula_unit_volume(formula, temperature)
         v_max = None if z_max is None else z_max * v_fu * VOLUME_RATIO_BOUNDS[1]
         floor = fields.get("min_volume", DEFAULT_MIN_VOLUME)
+        if floor is None:
+            raise ValueError("min_volume must be a number of Å³, not None; "
+                             "leave it out for the default floor")
         if v_max is not None and v_max < floor:
             # the floor binds above the formula's ceiling: an empty window would
             # search nothing and report silence

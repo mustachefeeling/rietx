@@ -238,9 +238,9 @@ assert spec.min_volume == 15.0                   # the default: no floor
 ```
 
 `z` counts formula units in the conventional cell: an integer, a `(min, max)` pair or `None`.
-Only the largest `z` sets the ceiling.
+Only the largest `z` sets the ceiling; a pair's minimum is ignored.
 With `z=None` the window narrows nothing, since a formula does not say how many units the cell holds.
-Every other `SearchSpec` field passes through, `min_volume` included.
+Every other field passes through, `min_volume` included.
 
 A formula is written as a chemist writes it, with brackets, `·` before water of crystallisation (`"CuSO4·5H2O"`) and decimal counts.
 A full stop that reads both as a decimal count and as a hydrate's dot is refused: `"CuSO4.5H2O"` could be 4.5 O or CuSO4 with 5 H2O, so `formula_unit_volume` raises `ValueError` naming `·`, whitespace before or inside the molecule included.

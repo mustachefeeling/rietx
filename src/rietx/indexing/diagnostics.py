@@ -708,6 +708,7 @@ _PER_CANDIDATE_CODES = ("INDEX_GEOMETRIC_AMBIGUITY", "INDEX_BRAVAIS_AMBIGUOUS",
                         "INDEX_PREDICTED_BUT_ABSENT", "INDEX_IMPURITY_LINES",
                         "INDEX_VOLUME_UNPHYSICAL", "INDEX_SUPERCELL_REFUTED")
 
+
 def candidate_diagnostics(cand) -> list[Diagnostic]:
     """Everything to say about **one** candidate cell.
 

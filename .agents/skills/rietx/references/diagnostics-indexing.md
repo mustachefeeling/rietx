@@ -117,9 +117,10 @@ Ask for a cell range or candidate cells. When the person has given
 the chemistry (formula, Z or density, solvent), infer a volume ceiling with
 `SearchSpec.from_formula(formula, z=…)` and say so; it has no floor, and
 `z=None` narrows nothing. `formula=` records `formula_units` per candidate;
-an inorganic true cell reads 0.4-0.9 of its Z, so never drop a cell for it.
+an inorganic true cell reads 0.4-0.9 of its Z, so never drop a cell for it
+(Measured: WP-2030, 16 inorganic standards at 0.38-0.87).
 A framework written without its pore contents sits above the ceiling
-(HKUST-1 2.28; `SiO2` meets it at FAU's framework density, 13.3 T/1000 Å³,
+(Measured: HKUST-1 2.28; `SiO2` meets it at FAU's framework density, 13.3 T/1000 Å³,
 IZA database, and a less dense one lies above). Declare a candidate cell in
 `prior_cells` with `max_d_axis` above its longest axis.
 

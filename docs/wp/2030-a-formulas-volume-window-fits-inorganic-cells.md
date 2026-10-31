@@ -231,7 +231,7 @@ unwindowed one does, and `CuSO4.5H2O` never reads as 4.5 O.
   unusual, about 1 % of the CSD past it (1746 of 182 239), typical scatter
   about 4 % (Fig. 1). (3) *The Z check (task 3), not met and withdrawn.*
   Against Hofmann's Table 3 a correct inorganic cell looks like a wrong Z:
-  eight of the 16 sit below 0.57, his class (i). With no floor the volume
+  nine of the 16 sit below 0.57, his class (i). With no floor the volume
   bounds Z from one side only (Z ≥ V/(1.25 V_est)), so no whole-number test
   can be silent on true cells and fire on a wrong one, for any formula.
   `INDEX_Z_NOT_INTEGER`, `Z_INTEGER_TOLERANCE` and their rows are gone; the
