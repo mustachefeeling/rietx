@@ -757,6 +757,40 @@ def test_a_parent_cell_runaway_is_reset_and_named():
     assert set(table._cell_blocks[0].outputs) <= withheld
 
 
+
+def test_a_parent_cell_runaway_leaves_the_child_cell_with_no_esd_in_the_result():
+    """The built result, not only the withheld set (review of #1108, round 2):
+    the parent edge and the child cell it computes both report ``stderr is
+    None`` after a ``CELL_RUNAWAY`` naming the edge, while every other free
+    entry keeps the esd the solve measured."""
+    from rietx.model.forward import compile_model
+    from rietx.refine import _build_result, _cell_runaway_diagnostic, reset_cell_runaway
+
+    phase = _child((0.5, 0.5, 0), "S1", "(rank 2)#3").phase.model_copy(deep=True)
+    structure = Structure(phases=[phase])
+    table = ParameterTable(structure, INSTRUMENT)
+    table.set_vary(["phases.*.cell.*", "phases.*.scale"], True)
+    start = {e.path: e.value for e in table.entries}
+    table.entries[table._paths[PARENT_A]].value = 1.4 * start[PARENT_A]
+    diag = _cell_runaway_diagnostic(reset_cell_runaway(table, start))
+    assert diag is not None and PARENT_A in diag.where
+
+    theta = table.x0()
+    n = len(table.free_paths)
+    model = compile_model(structure, INSTRUMENT, _pattern(SEED))
+    result = _build_result(
+        model, table, theta, mode="rietveld", status="converged",
+        stage_results=[], diagnostics=[diag], structure=structure,
+        stderr_internal=np.full(n, 1e-3), correlation=np.eye(n))
+    esd = {p.path: p.stderr for p in result.parameters}
+    assert PARENT_A in esd and "phases.0.cell.a" in esd
+    assert esd[PARENT_A] is None
+    assert esd["phases.0.cell.a"] is None
+    # positive arm: the measured entries outside the runaway keep an esd
+    kept = [p for p, s in esd.items() if p not in diag.where and s is not None]
+    assert "phases.0.scale" in kept
+
+
 def test_a_bound_on_the_parent_carries_to_the_child_built_from_it():
     parent = _lamno3().model_copy(deep=True)
     parent.cell.a.min, parent.cell.a.max = 5.683, 5.783
