@@ -3323,6 +3323,22 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "point has that error. A placeholder in the error field is the usual cause."
         ),
     ),
+    "PATTERN_TOTAL_SCATTERING": HelpEntry(
+        title="The file holds a total-scattering function, not a pattern",
+        description=(
+            "The file holds a reduced total-scattering function: G(r), the pair "
+            "distribution function on a real-space axis r in Å, or S(Q) or F(Q) on "
+            "a scattering-vector axis Q in Å⁻¹. Neither axis is 2θ. rietx does not "
+            "read total-scattering data yet (issue #192), so the file is refused "
+            "rather than read as a powder pattern, which would fit a Bragg model to "
+            "it and report a plausible Rwp. The file is recognised by its own "
+            "column labels (an #L line naming r and G, or Q and S or F), by a "
+            "PDFgetX2 or PDFgetX3 header, or, with neither, by a .gr, .sq or .fq "
+            "suffix alone; the message says which. Refine the diffraction pattern "
+            "the reduction started from instead. A 2θ scan that only carries one of "
+            "those suffixes opens under any other name."
+        ),
+    ),
     "PATTERN_UNDERSAMPLED": HelpEntry(
         title="Too few steps across each peak",
         description=(
