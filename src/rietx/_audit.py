@@ -1724,7 +1724,18 @@ ROWS: tuple[Row, ...] = (
         evidence=('arithmetic: the exact rational 1/2, the half-lattice translation of the a/b/c/A/B/C/I centring vectors and of the half-sum over the basis')),
     Row("rietx.crystallography.superspace.operators._ZERO3", "constant", value=(0.0, 0.0, 0.0)),
     Row("rietx.crystallography.symmetry.MAX_HKL_GRID_POINTS", "constant", value=30000000),
-    Row("rietx.crystallography.symmetry.SITE_TOL", "constant", value=0.0001),
+    Row("rietx.crystallography.symmetry.SITE_TOL", "constant", value=0.0001,
+        evidence=("unaudited, for the maintainer's tier. Besides site_orbit's snap it has two "
+                  "rigid-body uses (WP-1807, #1005). (1) params.vector._refuse_body_off_its_"
+                  "sites holds the exact invariance miss to _BODY_SITE_MISS_FACTOR x SITE_TOL, "
+                  "the two positions' snap residuals (at most 6 x SITE_TOL, 8 chosen). (2) "
+                  "params.bodies.RigidBodyBlock._increment_basis compares a linear body's "
+                  "unit-vector residuals |n.u| and |u - (n.u)n|, a tilt in radians, with this "
+                  "fractional tolerance, so the two checks agree only for a body long against "
+                  "its cell: a CO2-like body (C-O 1.16 A) in the P n m a mirror passes the site "
+                  "check and is refused at '90 deg' from an O typed 4e-5 off the mirror at "
+                  "b = 6 A and 2e-5 at b = 20 A, inside the mirror's 5e-5 reach; diacetylene "
+                  "(COD 1577467) builds to 5e-5 on every atom (measured 2026-10-29)")),
     Row("rietx.crystallography.symmetry.SYMMETRY_ANGLE_TOL_DEG", "constant", value=0.001),
     Row("rietx.crystallography.symmetry.TWIN_COORD_TOL", "constant", tier=1, value=0.0005,
         evidence=("arithmetic on the gate's role: under the one gate the reach decides only "
@@ -2828,6 +2839,25 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.params.vector._BACKSTOP_THETA_MAX_DEG", "constant", tier=1, value=89.0,
         evidence=("numerical floor: pole guard at 2theta = 180 deg; moves no number for any pattern"
                   " ending below 2theta = 178 deg")),
+    Row("rietx.params.vector._BODY_SITE_MISS_FACTOR", "constant", tier=1, value=8.0,
+        evidence=("arithmetic: _refuse_body_off_its_sites's exact test R(p - o) = p - o, in "
+                  "units of symmetry.SITE_TOL. For an operation fixing a body atom and its "
+                  "origin mod the lattice the miss is a lattice vector plus the two positions' "
+                  "residuals from their sites, each at most SITE_TOL per component for an "
+                  "operation site_orbit's step 1 admitted and at most 3 x SITE_TOL for one the "
+                  "snap added, so an atom on the origin's own element misses by at most "
+                  "6 x SITE_TOL and one on an element a lattice vector away by at least "
+                  "1 - 6 x SITE_TOL. Any factor from 6 to 1/SITE_TOL - 6 refuses the same "
+                  "inputs; 8 keeps a factor of two over 6. The step-1 case, 2 x, is attained "
+                  "and never exceeded on 25 site pairs in 17 groups (corner and hill-climbed "
+                  "typed offsets, hexagonal, trigonal and cubic included; WP-1807 follow-up, "
+                  "#1005 round 2, #1226 round 1). Tested: an atom and origin typed SITE_TOL/2 "
+                  "off the P n m a mirror on opposite sides build at 8 and are refused at 1.9; "
+                  "the mirror a lattice vector away is refused "
+                  "(tests/test_rigid_body_special.py)"),
+        grounds=("Decides no input differently from any other value in its window, so no "
+                 "refiner's choice turns on it; the decision itself, a body atom on an "
+                 "element a lattice vector from its origin's, is RIGID_BODY_NOT_INVARIANT's")),
     Row("rietx.params.vector._MOMENT_REFRAME_TOL", "constant", tier=1, value=1e-12,
         evidence=("numerical floor: ~4.5e3 eps, above roundoff; a frame moved 1e-12 moves the "
                   "moment by 1e-12 of its modulus (docstring)")),
