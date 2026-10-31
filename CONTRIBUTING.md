@@ -225,10 +225,12 @@ Two of those files are the maintainer's to write:
 
 Adding to the handover log of a WP whose work you did is welcome. That log
 is the record of what you measured and where you stopped, and it belongs in
-the same change as the code.
+the same change as the code. In the same file you may tick the tasks your PR
+completes, move its `Status:` line, and record the decisions your work made.
+Those stand as you wrote them. Closing the WP stays the maintainer's, in the
+handover after your PR merges.
 
-**Claiming one is welcome too, and is the one other edit to those files that
-is yours to make.** Before starting scheduled work, open a draft pull request
+**Claiming one is welcome too.** Before starting scheduled work, open a draft pull request
 that sets that WP's `Status:` line to `🔄 <date> — claimed by @you` and
 regenerates the index with `python3 .claude/hooks/wp_index.py`. It
 stops two people spending a week on the same work: nobody can see a claim that
