@@ -801,6 +801,56 @@ def test_dichotomy_recovers_a_monoclinic_cell():
     assert_same_lattice(result.candidates[0].cell, cell)
 
 
+def test_the_grid_frontier_is_bounded_by_its_lists_bytes(monkeypatch):
+    """The grid counts the bytes of its distinct survivor lists as well as
+    its cells, and overflows on either (WP-1924, #780's 2026-10-30 report).
+
+    A triclinic grid's 400 010 cells held lists enough to reach 18.4 GB and an
+    OOM kill, under a cell cap they never reached.  Siblings share one list,
+    so a list is counted once: a test handing every box the same array never
+    overflows, and one handing each box a fresh array does, through the cap's
+    existing "outgrew a size cap" report.
+    """
+    from rietx.indexing import dichotomy
+
+    basis = metric_basis("tetragonal")
+    lo0, hi0 = dichotomy._initial_box(basis, spec_for("tetragonal"))
+    shared = np.arange(1000, dtype=np.uint16)
+    monkeypatch.setattr(dichotomy, "MAX_GRID_BYTES", 4 * shared.nbytes)
+    budget = Budget(600.0)
+    *_rest, complete = dichotomy._grid_pass(
+        basis, lo0, hi0, shared, lambda rows, lo, hi: shared, budget)
+    assert complete
+    frontier, *_rest, complete = dichotomy._grid_pass(
+        basis, lo0, hi0, shared, lambda rows, lo, hi: rows.copy(), budget)
+    assert not complete and frontier is not None
+
+    peaks, _cell = synthetic_peaks("tetragonal")
+    monkeypatch.setattr(dichotomy, "MAX_GRID_BYTES", 1)
+    result = search_dichotomy(peaks, spec=spec_for("tetragonal"))
+    assert not result.search_complete["tetragonal"]
+    (diag,) = [d for d in result.diagnostics if d.code == "INDEX_SEARCH_INCOMPLETE"]
+    assert "outgrew a size cap on tetragonal" in diag.message
+
+
+def test_a_dichotomy_unit_stops_at_its_harvest_cap(monkeypatch):
+    """A unit's accepted leaves are bounded inside the unit (WP-1924, #780's
+    2026-10-30 report: 6 816 distinct orthorhombic lattices in five minutes,
+    7 GB at 70 min).  Reaching the cap ends the unit as a size cap does."""
+    from rietx.indexing import dichotomy
+
+    peaks, _cell = synthetic_peaks("tetragonal")
+    full = search_dichotomy(peaks, spec=spec_for("tetragonal"))
+    assert full.search_complete["tetragonal"]
+    assert full.stats["tetragonal.harvest"] >= 2, "the case no longer harvests"
+    monkeypatch.setattr(dichotomy, "MAX_HARVEST", 1)
+    result = search_dichotomy(peaks, spec=spec_for("tetragonal"))
+    assert result.stats["tetragonal.harvest"] == 1
+    assert not result.search_complete["tetragonal"]
+    (diag,) = [d for d in result.diagnostics if d.code == "INDEX_SEARCH_INCOMPLETE"]
+    assert "outgrew a size cap on tetragonal" in diag.message
+
+
 def test_dichotomy_holds_its_frontier_as_indices_until_a_cell_is_popped(
         monkeypatch):
     """Phase 2 holds the grid's survivor lists as narrow indices and gathers
@@ -1153,6 +1203,38 @@ def test_trial_error_survives_an_impurity_among_the_base_lines():
     result = search_trial_error(peaks, spec=spec_for("tetragonal"))
     assert result.candidates, "an impurity among the base lines lost the cell"
     assert_same_lattice(result.candidates[0].cell, cell)
+
+
+def test_a_stopped_dedup_keeps_the_full_pass_s_first_groups(monkeypatch):
+    """A token set while the dedup runs ends its walk once it has walked
+    ``keep`` candidates (WP-1924, #780: 10.7 s at 6 819 distinct lattices,
+    about n², with nothing reading the token).  The walk goes best-fitting
+    first and never moves an earlier group's first member, so the groups kept
+    are the full pass's first groups.  An unset token changes nothing."""
+    from rietx.indexing import dichotomy, engines
+    from rietx.optimize.cancel import CancelToken
+
+    raw: list = []
+    ranked = dichotomy.rank_candidates
+
+    def recording(cands, *args, **kw):
+        raw.extend(cands)
+        return ranked(cands, *args, **kw)
+
+    monkeypatch.setattr(dichotomy, "rank_candidates", recording)
+    peaks, _cell = synthetic_peaks("tetragonal")
+    search_dichotomy(peaks, spec=spec_for("tetragonal", n_unindexed=4))
+    full = engines.dedup_groups(raw)
+    assert len(full) >= 4, "the harvest no longer holds several lattices"
+    idle = engines.dedup_groups(raw, cancel=CancelToken(), keep=0)
+    assert [[id(c) for c in g] for g in idle] == [[id(c) for c in g] for g in full]
+    stop = CancelToken()
+    stop.cancel()
+    keep = 4
+    part = engines.dedup_groups(raw, cancel=stop, keep=keep)
+    assert 1 <= len(part) <= keep
+    assert [g[0] for g in part] == [g[0] for g in full[:len(part)]]
+    assert sum(len(g) for g in part) == keep
 
 
 def test_the_fast_dedup_groups_exactly_as_the_plain_pass(monkeypatch):

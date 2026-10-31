@@ -342,7 +342,7 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
                                             peaks, search_line_order(peaks, spec),
                                             spec)[0],
                                         max_candidates=spec.engine_pool(),
-                                        q_match=sigma)
+                                        q_match=sigma, cancel=cancel)
     result.stats["candidates.raw"] = float(len(raw))
     if len(result.candidates) >= spec.engine_pool():
         for system in result.systems_searched:

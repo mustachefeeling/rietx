@@ -1758,7 +1758,29 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.dichotomy.MAX_ANGLE_COSINE", "constant", value=0.8660254037844387),
     Row("rietx.indexing.dichotomy.MAX_ASSIGN_PASSES", "constant", value=4),
     Row("rietx.indexing.dichotomy.MAX_DEPTH", "constant", value=60),
+    Row("rietx.indexing.dichotomy.MAX_GRID_BYTES", "constant", tier=3,
+        evidence="an overflow ends the grid as MAX_GRID_CELLS' does, reported as "
+                 "INDEX_SEARCH_INCOMPLETE 'outgrew a size cap'; finished units replay to "
+                 "their digests (tests.unit_replay); "
+                 "tests/test_indexing_engines.py::test_the_grid_frontier_is_bounded_by_its_lists_bytes",
+        grounds="The cap is rietx's own choice, a memory bound on a laptop: 1 GiB of "
+                "survivor lists, so the grid's own peak stays near 2 GiB. A search whose "
+                "grid would outgrow it is reported incomplete rather than killed by the OS; "
+                "nothing is ranked by it, and #780's monoclinic case holds about a third of it.",
+        approved="2026-10-31",
+        value=1073741824),
     Row("rietx.indexing.dichotomy.MAX_GRID_CELLS", "constant", value=400000),
+    Row("rietx.indexing.dichotomy.MAX_HARVEST", "constant", tier=3,
+        evidence="reaching it ends the unit as a size cap does, reported as "
+                 "INDEX_SEARCH_INCOMPLETE 'outgrew a size cap'; finished units replay to "
+                 "their digests (tests.unit_replay); "
+                 "tests/test_indexing_engines.py::test_a_dichotomy_unit_stops_at_its_harvest_cap",
+        grounds="The cap is rietx's own choice, a memory and dedup-time bound: about "
+                "three times the largest finished harvest measured (a bethanechol unit's "
+                "7 000 leaves). A unit that would accept more is reported incomplete rather "
+                "than growing for hours; nothing is ranked by it.",
+        approved="2026-10-31",
+        value=20000),
     Row("rietx.indexing.dichotomy.MAX_TRIAL_HKL", "constant", value=200000),
     Row("rietx.indexing.dichotomy._SAME_BOX_RTOL", "constant", value=0.001),
     Row("rietx.indexing.engines.ANCHOR_LINES", "constant", value=5),
