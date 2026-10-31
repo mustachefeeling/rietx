@@ -1750,7 +1750,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "The file holds more than one data block, and the structure was read "
             "from the only one with atom sites. Every other block has no tags, or "
             "only _audit_ tags, which record how the file was made and state no "
-            "cell, site or symmetry, such as an empty data_global a writer puts "
+            "cell, site or symmetry, such as an empty block a writer puts "
             "ahead of the structure. The message names each "
             "block skipped. Nothing is to be done. A file with two blocks holding "
             "atom sites, or one beside a block stating anything else, is refused, "
