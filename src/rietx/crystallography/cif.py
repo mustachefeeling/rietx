@@ -592,7 +592,7 @@ def _block_tags(block) -> list[str]:
 
 
 def _block_name(block) -> str:
-    return f"data_{block.name}"
+    return f"data_{block.name.strip()}"
 
 
 def _structure_block(doc, path: str, diagnostics: list[Diagnostic] | None):
@@ -1076,7 +1076,8 @@ def structure_from_cif(path: str | os.PathLike[str], *, phase_name: str | None =
             source=path, prefix="phases.0"))
 
     phase = Phase(
-        name=phase_name or (small.name or "phase_1"),
+        # gemmi names a bare `data_` block " ", which is no name
+        name=phase_name or (small.name.strip() or "phase_1"),
         space_group=sg.xhm(),
         symmetry_operations=listed,
         cell=Cell(
