@@ -512,7 +512,7 @@ is wrong exactly where the question is asked. Both quantities are unchanged by
 a rotation of the basis inside the block.
 
 Holding a block at zero and refitting gives the comparison. With $\chi^2_r$ and
-$\chi^2_f$ the unreduced sums of the restricted and full fits, $f$ the
+$\chi^2_f$ the raw sums Σw·Δ² (not divided by the degrees of freedom) of the restricted and full fits, $f$ the
 Bérar-Lelann factor of {eq}`est-berar-lelann` and $N_\mathrm{eff} = N/f^{2}$,
 
 ```{math}
@@ -534,7 +534,7 @@ with $m$ parameters held, so its $\chi^2$ cannot lie below the full optimum; one
 that does, by more than the solver's own stopping tolerance, shows the full fit
 stopped short and is refitted from there.
 
-The amplitude a held set needs for $\Delta\mathrm{BIC}$ to reach a caller's bar
+The amplitude a held set needs for $\Delta\mathrm{BIC}$ to reach a stated bar
 follows from the leading power of $\chi^2$ in the amplitude. For mode $j$ at a
 probe amplitude $A_0$ the data's own $\sigma$ gives $\lambda_j(A_0) =
 \sum_k \bigl(\Delta y_k / \sigma_k\bigr)^{2}$, one predict per mode, and
@@ -551,5 +551,5 @@ A_\mathrm{det} \;=\; \min_{j}\; A_0
 
 {source}`rietx.report.distortion.detectability_amplitude`
 
-The scaling holds to leading order only, so $A_0$ is the caller's, as the bar
+The scaling holds to leading order only, so $A_0$ is an argument, as the bar
 is, and the figure is uncalibrated under model misfit.
