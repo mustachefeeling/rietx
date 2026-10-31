@@ -352,7 +352,7 @@ def test_an_isomorphic_series_standardises_past_the_floor_of_the_denominator_bou
 
     P-1 goes through ``supercell=`` (pa, b, c), as the review reproduced it:
     ``index=`` lists every one of the p² + p + 1 lattices with p complements each,
-    some 150 000 subgroups at p = 53 (410 s, measured 2026-10-30), where one lattice
+    some 150 000 subgroups at p = 53, where one lattice
     holds the same inversion centres at 1/2p.  That is what let the two P -1 rows
     leave the ``slow`` tier: under the old fixed 48, P -1 at p = 29 and P 6/m m m and
     P -3 m 1 at p = 29 all raise (no exact standard setting)."""
@@ -576,6 +576,51 @@ def test_the_letters_follow_spglibs_frame_and_not_the_input_order(hall):
     for xyz, letter in zip(again.std_positions, again.wyckoffs):
         x = tuple(Fraction(float(v)).limit_denominator(10 ** 5) for v in xyz)
         assert table.classes[table.identify(x)][0] == letter
+
+
+@pytest.mark.parametrize("hall", PERMUTED_FRAMES + [1, 2, 3, 62, 227, 304, 488, 523])
+def test_site_constraints_names_the_letter_wyckoff_positions_gives(hall):
+    """``site_constraints`` and ``wyckoff_positions`` name one letter for one site.
+
+    The positive arm is the 17 settings whose spglib frame permutes letters: the
+    letter ``site_constraints`` took from spglib in the input order belonged to
+    another position there (measured 2026-10-31 on 8 of them: 16 of 54 wrong).
+    The other Hall numbers are default settings, where the two always agreed.
+    """
+    from rietx.crystallography.wyckoff import site_constraints
+
+    symbol = S._xhm_of_hall(hall)
+    table = S._hall_table(hall)
+    named = S.wyckoff_positions(symbol)
+    assert named.transform == S._IDENTITY  # a Hall setting: the letters are the table's own
+    for i, w in enumerate(named.positions):
+        x = [float(v) for v in table.generic(i)]
+        assert site_constraints(symbol, x).wyckoff == w.label, (symbol, w.label)
+
+
+@pytest.mark.parametrize("group", ["P 42/n c m:2", "P n -3 m:2", "P -4 b 2", "P 4/m b m"])
+def test_site_constraints_letter_on_a_line_off_the_axes(group):
+    """Positions whose free direction is not an axis (x, 1/2 - x, z) have no exact
+    rational form for a float point, so the letter is read with the tolerance."""
+    from rietx.crystallography.wyckoff import site_constraints
+
+    named = S.wyckoff_positions(group)
+    pos = S._Positions(S._group_of(group))
+    assert named.transform == S._IDENTITY
+    table = pos.table
+    for i, w in enumerate(named.positions):
+        x = [float(v) for v in table.generic(i)]
+        assert site_constraints(group, x).wyckoff == w.label, (group, w.label)
+
+
+def test_a_splitting_prints_the_transform_g_s_own_labels_belong_to():
+    """A group outside spglib's 530 Hall settings is lettered through (P, p); the printed
+    table says which, and says nothing extra for a group that is in one."""
+    off = "I 1 21 1"  # gemmi's setting, not a Hall one
+    shown = str(S.wyckoff_splitting(off, maximal(off)[0]))
+    assert S.wyckoff_splitting(off, maximal(off)[0]).group_transform != S._IDENTITY
+    assert f"{off}'s labels: P = " in shown
+    assert "'s labels" not in str(S.wyckoff_splitting("P m -3 m", maximal("P m -3 m")[0]))
 
 
 # ---------------------------------------------------------------- all 230 types, slow

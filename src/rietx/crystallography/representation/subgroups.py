@@ -986,10 +986,14 @@ class WyckoffPosition:
     ``letter`` and ``site_symmetry`` (the oriented symbol) are spglib's, for
     the setting :attr:`WyckoffPositions.standard` names; ``multiplicity`` is
     the number of points of one orbit in the group's conventional cell,
-    ``site_order`` the order of the site-symmetry group.  ``point`` is one
-    point of the position (free parameters at zero) and ``directions`` the
-    integer directions its free parameters move it along, so the position is
-    ``point + Σ θ_j · directions[j]`` and its orbit.
+    ``site_order`` the order of the site-symmetry group.  ``point`` is the
+    first point of the conventional cell's 1/24 grid whose site symmetry is
+    exactly the position's, **not ITA's representative**: it sits off zero
+    wherever zero has higher symmetry (on ``P m m m`` the line 2i gives
+    ``(1/24, 0, 0)``, since ``(0, 0, 0)`` is 1a).  ``directions`` are the
+    integer directions the free parameters move it along, so the position is
+    the orbit of ``point + Σ θ_j · directions[j]`` at the θ_j that keep the
+    site symmetry exactly the position's; θ = 0 generally does not.
     """
 
     letter: str
@@ -1061,6 +1065,9 @@ class WyckoffSplitting:
     def __str__(self) -> str:
         lines = [f"{self.group} > {self.subgroup}  P = {_text(self.transform[0])}, "
                  f"p = {_text(self.transform[1])}"]
+        if self.group_transform != _IDENTITY:  # G's own labels belong to this (P, p)
+            lines.append(f"  {self.group}'s labels: P = {_text(self.group_transform[0])}, "
+                         f"p = {_text(self.group_transform[1])}")
         lines += [f"  {g} -> {'; '.join(h)}" for g, h in self.rows]
         return "\n".join(lines)
 
@@ -1071,18 +1078,7 @@ _IDENTITY = (tuple(tuple(Fraction(int(i == j)) for j in range(3)) for i in range
 
 def _conventional_ops(G: _Group):
     """Every operation of G modulo Z³: the representatives times the centrings."""
-    zero = (Fraction(0), Fraction(0), Fraction(0))
-    centrings = {zero}
-    frontier = [zero]
-    while frontier:  # the lattice points in the unit cell, by closure mod 1
-        new = []
-        for v in frontier:
-            for col in _columns(G.L):
-                u = _frac_part(_add(v, col))
-                if u not in centrings:
-                    centrings.add(u)
-                    new.append(u)
-        frontier = new
+    centrings = _coset_vectors(G.L, _IDENTITY[0])  # the lattice points in the unit cell
     ops = sorted({(W, _frac_part(_add(w, c))) for W, w in G.reps.items() for c in centrings})
     return ops, len(centrings)
 
@@ -1282,8 +1278,16 @@ def _hall_group(hall: int) -> _Group:
 
 
 @lru_cache(maxsize=None)
+def _halls_by_number() -> dict[int, tuple[int, ...]]:
+    """Every type's Hall numbers, from one pass over the 530 settings."""
+    out: dict[int, list[int]] = {}
+    for h in range(1, 531):
+        out.setdefault(int(spglib.get_spacegroup_type(h).number), []).append(h)
+    return {n: tuple(hs) for n, hs in out.items()}
+
+
 def _halls_of(number: int) -> tuple[int, ...]:
-    return tuple(h for h in range(1, 531) if spglib.get_spacegroup_type(h).number == number)
+    return _halls_by_number().get(number, ())
 
 
 def _hall_of(G: _Group, number: int) -> int | None:
@@ -1311,8 +1315,8 @@ def _spglib_letters(table: _Table, hall: int) -> None:
     metric = _metric(G)
     cell = np.linalg.cholesky(metric)  # rows: the conventional a, b, c (Cartesian)
     positions, numbers, first = [], [], []
-    for species, cls in enumerate(table.classes):
-        x = table.generic(species)
+    generics = [table.generic(species) for species in range(len(table.classes))]
+    for species, x in enumerate(generics):
         orbit = sorted({_frac_part(_add(_mv(W, x), w)) for W, w in table.ops})
         first.append(len(positions))
         positions += [[float(v) for v in y] for y in orbit]
@@ -1340,7 +1344,7 @@ def _spglib_letters(table: _Table, hall: int) -> None:
         raise RuntimeError(f"spglib's frame for Hall setting {hall} is not a normaliser "
                            "element of the group; this is a bug")
     for species, cls in enumerate(table.classes):
-        image = _add(_mv(M, table.generic(species)), o)
+        image = _add(_mv(M, generics[species]), o)
         target = table.classes[table.identify(image)]
         if target[0] is not None:
             raise RuntimeError(f"spglib's frame maps two positions of Hall setting {hall} "
@@ -1415,12 +1419,39 @@ def wyckoff_positions(group) -> WyckoffPositions:
     general position last.
     """
     pos = _Positions(_group_of(group))
-    sg = as_group(group)
-    symbol = sg.xhm() if hasattr(sg, "xhm") else pos.standard
-    return WyckoffPositions(symbol=symbol, number=pos.number, standard=pos.standard,
+    return WyckoffPositions(symbol=as_group(group).xhm(), number=pos.number, standard=pos.standard,
                             transform=pos.transform,
                             positions=tuple(pos.position(i)
                                             for i in range(len(pos.table.classes))))
+
+
+def _letter_at(group, xyz, site_order: int, tol: float) -> str | None:
+    """The letter :func:`wyckoff_positions` gives the position holding ``xyz``, or None.
+
+    ``xyz`` is a float fractional point with ``site_order`` operations in its
+    site-symmetry group (``wyckoff.site_constraints`` has both), ``tol`` its
+    distance to a special position.  The test is :meth:`_Table._hits`' (an
+    image of the point solves N·(x + u) = c over the integers), made on floats
+    with ``tol``: a point with a free parameter has no exact rational form on
+    a line like x + y = 1/2.  None when the point lies on no single position
+    or on one whose site symmetry is not ``site_order``; the caller keeps its
+    own letter, as the tolerance, not the table, would be at fault.
+    """
+    pos = _Positions(_group_of(group))
+    table = pos.table
+    x = np.array([float(v) for v in pos.to_standard(tuple(Fraction(float(v)) for v in xyz))])
+    shifts = np.array(list(itertools.product(range(-3, 4), repeat=3)), dtype=np.float64)
+    hits = set()
+    for i, comps in enumerate(table.components):
+        if table.classes[i][3] != site_order:
+            continue
+        for N, c in (nc for ncs in comps.values() for nc in ncs):
+            Nf = np.array(N, dtype=np.float64)
+            res = Nf @ x - np.array([float(v) for v in c]) + shifts @ Nf.T
+            if (np.abs(res).max(axis=1) < tol).any():
+                hits.add(i)
+                break
+    return table.classes[hits.pop()][0] if len(hits) == 1 else None
 
 
 def _subgroup_of(sub):
@@ -1501,7 +1532,6 @@ def wyckoff_splitting(group, sub) -> WyckoffSplitting:
                 != g_pos.position(i).multiplicity * det_P:  # pragma: no cover - implied above
             raise RuntimeError("Σ m_H ≠ m_G·|det P|; this is a bug")
         rows.append((g_label, tuple(pos.label for _, pos in sorted(found, key=lambda f: f[0]))))
-    sg = as_group(group)
-    return WyckoffSplitting(group=sg.xhm() if hasattr(sg, "xhm") else g_pos.standard,
+    return WyckoffSplitting(group=as_group(group).xhm(),
                             subgroup=symbol, transform=(P, p),
                             group_transform=g_pos.transform, rows=tuple(rows))

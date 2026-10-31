@@ -1633,8 +1633,9 @@ ROWS: tuple[Row, ...] = (
                   "setting is a multiple of 1/24 (eighths of the d-glide groups, twelfths of the "
                   "hexagonal ones), so the 1/24 grid meets every position; the grid only seeds "
                   "orbits, which an exact test joins. tests/test_subgroups.py counts 1731 over the "
-                  "230 types and the same positions in all 530 Hall settings; a 1/48 grid gave the "
-                  "same 1731, letter by letter (2026-10-30)")),
+                  "230 types and the same positions in all 530 Hall settings. Supporting evidence, "
+                  "not asserted by a test: a 1/48 grid gave the same 1731, letter by letter "
+                  "(2026-10-30)")),
     Row("rietx.crystallography.representation.subgroups._GENERIC_VALUES", "constant",
         tier="invariant", value=(0.13577799801783944, 0.2675222112537019, 0.4111874386653582),
         evidence=("answer-invariant: any free-parameter values off the special ones give the same "
