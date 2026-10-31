@@ -1332,7 +1332,8 @@ ROWS: tuple[Row, ...] = (
                   "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
                   "histogram that has lines counts as measured in every histogram (item 2), "
                   "as does a per-histogram scale a free column ties to that phase's scale in "
-                  "such a histogram (a ParametricEquation's vars., #1103 follow-up)")),
+                  "such a histogram (a constant ParametricEquation's vars., #1103 follow-up; a "
+                  "polynomial link leaves it unmeasured, its narrow value being the start value)")),
     Row("rietx.schemas.indexing.PeakList.instrument_undeclared", "action", tier=1, ambiguity=1,
         evidence=("reads the declaration: the picker checks the instrument only where "
                   "indexing.diagnostics.lab_source finds a laboratory tube in the declared "

@@ -483,21 +483,41 @@ def _joint_unmeasured_phases(models, mtable,
     measured wherever it takes that value**, since its value is then the
     data's.  That is a shared scale, and also a per-histogram one moved by a
     column that moves the same phase's scale in a histogram with a line of
-    it: a ``ParametricEquation``'s ``vars.`` coefficient tying every
-    pattern's scale to one value (#1103 round 2; on a narrow scan beside a
+    it: a **constant** ``ParametricEquation``'s ``vars.`` coefficient tying
+    every pattern's scale to one value (#1103 round 2; a polynomial link is
+    left out, :func:`_constant_link_reach`; on a narrow scan beside a
     wide one, the narrow histogram left iron out under the tie and quoted it
     under ``SharingMap.shared``).  The stage does not hold such a scale (the
     hold needs every histogram out of range), so only the answer's recount
     can put it here, and that recount drops it.
     """
     lineless = _joint_lineless_phases(models)
-    reach = [set(moved) for moved in _joint_column_reach(mtable).values()]
+    reach = _constant_link_reach(mtable)
     out = []
     for h, m in enumerate(models):
         own = {ip for ip in lineless[h]
                if not _scale_measured_elsewhere(mtable, reach, lineless, h, ip)}
         out.append(_unmeasured_phases(m, stage_results, hist=h, lineless=own))
     return out
+
+
+def _constant_link_reach(mtable) -> list[set[str]]:
+    """Per joint column, what it moves, leaving out the columns of a
+    non-constant ``ParametricEquation``.
+
+    Only a constant link ties the narrow scale to the seen one's *value*.  With
+    a + b·T two columns face one measured scale, so one direction of the pair
+    is flat and the narrow pattern's value is the start value wearing an esd
+    (the #1176 round-1 probe: 0.601 or 1.783 wt% by start value alone), which
+    is the defect WP-1958 removes.  Conservative: two seen patterns do pin an
+    a + b·T link, and it still reads unmeasured (the exact test, a read of the
+    joint covariance, is a follow-up).
+    """
+    blocked = {f"vars.{r.equation.name}_{j}"
+               for r in mtable.parametric if r.equation.basis != "constant"
+               for j in range(len(r.labels))}
+    return [set(moved) for column, moved in _joint_column_reach(mtable).items()
+            if column not in blocked]
 
 
 def _scale_measured_elsewhere(mtable, reach: list[set[str]],

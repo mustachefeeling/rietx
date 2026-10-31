@@ -1038,3 +1038,28 @@ def test_a_variable_no_histogram_with_a_line_reaches_measures_nothing():
     res = multi.fit([narrow, narrow], plan=RefinementPlan(stages=stages))
     assert all("vars.S_fe_0" in sr.held for sr in res.stages)
     assert [h.qpa.unmeasured_phases for h in res.histograms] == [["iron"]] * 2
+
+
+def test_a_polynomial_link_on_a_scale_leaves_the_narrow_scan_unmeasured():
+    """The a + b·T arm of the tie above (#1176 round 1, question 2).  One wide
+    scan sees iron and one narrow scan has no iron line; iron's scale is
+    linked by a + b·T.  Two columns face one measured scale, so one direction
+    of the pair is flat and the narrow scan's fraction would be the start
+    value wearing an esd.  Only a constant link counts as measured, so the
+    narrow histogram quotes no iron and the wide one does."""
+    from rietx.multi import MultiHistogramRefinement
+    from rietx.schemas.parametric import CoordinateTable, ParametricEquation
+
+    structure, instrument = _models(START_SCALES)
+    narrow = _wide_pattern(TT_NARROW)
+    wide = _wide_pattern(np.arange(25.0, 90.0, 0.02))
+    stages = [Stage(s.name, [*s.turn_on, "vars.*"]) for s in SCALES_ONLY]
+    multi = MultiHistogramRefinement(
+        structure, [instrument.model_copy(deep=True) for _ in range(2)],
+        coordinates=CoordinateTable(columns={"T": [300.0, 500.0]}, units={"T": "K"}),
+        parametric=[ParametricEquation(name="S_fe", target=FE_SCALE,
+                                       basis="polynomial", terms=[[], ["T"]])])
+    res = multi.fit([narrow, wide], plan=RefinementPlan(stages=stages))
+    narrow_res, wide_res = res.histograms
+    assert narrow_res.qpa.unmeasured_phases == ["iron"]
+    assert wide_res.qpa.unmeasured_phases == []
