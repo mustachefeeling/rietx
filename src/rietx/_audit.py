@@ -3250,6 +3250,22 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.sequential.WIDTH_GROWTH_FACTOR", "constant", value=3.0),
     Row("rietx.sequential.WIDTH_GROWTH_GOF_FACTOR", "constant", value=2.0),
     Row("rietx.sequential.WIDTH_GROWTH_SIGMA", "constant", value=3.0),
+    Row("rietx.solve.cluster._ISOMETRY_RTOL", "constant", tier=1, value=1e-06,
+        evidence=("equivalences(): an integer {-1, 0, 1} matrix P is an isometry of "
+                  "the cell when |P^T g P - g| <= 1e-6 x max|g|, element by element. "
+                  "A true isometry holds the relation exactly, and g from the cell "
+                  "parameters carries rounding near 1e-16 relative (cos 90 deg, cos "
+                  "120 deg), so the tolerance sits ten orders above it. "
+                  "test_the_normaliser_index_is_international_tables holds [N(G):G] "
+                  "to International Tables A Part 15 on a general metric of each "
+                  "system (P2_1/c 8, P2_12_12_1 16, I2_13 4, P2_1 8, P-1 8, P1 2, "
+                  "P6_3/mmc 2), with and without enantiomers, so no true isometry is "
+                  "lost and none spurious admitted there. Its edge: a cell metrically"
+                  " special within 1e-6 relative to max|g| is treated as special, and the extra element still has to map G onto "
+                  "G to count. test_a_metrically_special_cell_is_judged_at_the_isometry_tolerance "
+                  "holds that edge on P2_12_12_1: a = b gains isometries beyond the "
+                  "general 16, a cell 1e-9 relative from a = b gives the same index, "
+                  "and one 5e-3 off gives 16 again")),
     Row("rietx.solve.cost.NAMED_REFLECTIONS", "constant", value=5),
     Row("rietx.solve.cost.NUISANCE_RCOND", "constant", value=1e-12),
     Row("rietx.solve.chemistry.OCCUPANCY_MAX_DENOMINATOR", "constant", tier=3, value=12,
@@ -3273,6 +3289,21 @@ ROWS: tuple[Row, ...] = (
                  "mis-stated, before a default path calls require. Approved on the "
                  "judgement ground while only tests call it (ruled 2026-10-24)."),
         approved="2026-10-24"),
+    Row("rietx.solve.moves._TAU", "constant", tier=1, value=6.283185307179586,
+        evidence="arithmetic: 2π, the phase of exp(2πi h·x)"),
+    Row("rietx.solve.tempering.REFRESH_EVERY", "constant", tier=1, value=1000,
+        evidence=("temper(): sweeps between full rebuilds of the running orbit sums, "
+                  "amplitudes and clash energy; SeedRun.drift records the largest "
+                  "|J_running - J_rebuilt| a rebuild found on every run. A numerical "
+                  "setting: it controls how accurately J is kept, not what the search"
+                  " decides. test_running_sums_stay_on_a_rebuild asserts drift <= "
+                  "1e-10 J with no refresh at all over 1 000 sweeps (the cadence), on the acridine-"
+                  "shaped case and NAC, compiled and numpy. With no refresh over 1 "
+                  "000 and 2 000 sweeps (seed 5, the test's ladder, both paths) the "
+                  "drift was 4.0e-14 and 2.9e-14 J on the acridine case and 2.5e-14 "
+                  "and 2.7e-14 J on NAC (#1153 audit, 2026-10-25): rounding, not "
+                  "growing with sweeps, so the cadence never lets J drift past the "
+                  "test's bar")),
     Row("rietx.strategy.magnetic.SOLVE_D_MIN", "constant", value=1.5),
     Row("rietx.strategy.magnetic.SOLVE_K_OFFSET_MARGIN_DEG", "constant", tier=3, value=0.5,
         evidence=("magnetic.py docstring: the Ba2FeSbSe5 pair sits 0.081 deg apart, inside 0.5 deg "
