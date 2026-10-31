@@ -77,7 +77,7 @@ class Backend(Protocol):
 
     name: str
     pi: float
-    linalg: Any  # .inv and .det on stacks of small (3×3) matrices
+    linalg: Any  # .inv, .det and .eigh on stacks of small (3×3) matrices
 
     # elementwise (exp complex-capable)
     exp: Any
