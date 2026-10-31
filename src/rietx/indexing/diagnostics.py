@@ -32,6 +32,7 @@ from ..crystallography.atomic_volume import VOLUME_SCATTER, formula_unit_volume
 from ..model.profiles.fcj import fcj_live
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
+    _MODE_NAMES,
     INDEX_REFUTING_CAVEATS,
     MAX_RELATIVE_SIGMA_Q,
     PEAK_MIN_USABLE_LINES,
@@ -490,9 +491,53 @@ def refinement_width_diagnostics(measured: float,
         suggestion=suggestion, value=ratio)]
 
 
+#: How far a single line may sit from one of an anode's three declared
+#: wavelengths (:func:`lab_lines`) and still be that anode, Å.  Four decimals
+#: typed by hand (``1.5405``, 9e-5 off) and the weighted mean quoted to four
+#: (``1.5418`` for Cu, 7e-5 off) are within it.  The six anodes' lines are at
+#: least 0.14 Å apart (Fe Kα1 to Co Kα2 is the nearest, 0.143 Å), so it names
+#: one anode at most.
+LAB_LINE_TOLERANCE_ANGSTROM = 5e-4
+
+
+def lab_lines() -> dict[str, tuple[float, float, float]]:
+    """Per anode, the three wavelengths a source may declare as one line: Kα1,
+    Kα2, and the intensity-weighted mean (2λ₁ + λ₂)/3, which is what ``.uxd``
+    files and older exports write (1.5418 for Cu).  The GUI's metadata reader
+    asks the same three of a file's wavelength."""
+    from ..schemas.instrument import _KA_DOUBLETS
+
+    return {name: (a1, a2, (2.0 * a1 + a2) / 3.0)
+            for name, (a1, a2) in _KA_DOUBLETS.items()}
+
+
+def lab_source(instrument: Instrument) -> bool:
+    """Does ``instrument`` declare a laboratory X-ray tube?
+
+    Read off the declared source, never guessed from the pattern (WP-2030): a
+    constant-wavelength X-ray source carrying a Kα doublet, or whose one line is
+    an anode's Kα1, Kα2 or weighted mean (:func:`lab_lines`) to within
+    :data:`LAB_LINE_TOLERANCE_ANGSTROM`, so the value
+    :meth:`~rietx.schemas.instrument.Instrument.bragg_brentano`'s ``radiation=``
+    writes, GSAS-II's six-decimal ``1.540593``, a hand-typed ``1.5406`` and the
+    ``1.5418`` of a vendor header all read alike.  A synchrotron or neutron
+    source is not one, and nor is a single line more than the tolerance from
+    every anode's three: it states none, so this answers ``False`` and nothing
+    is said that the declaration does not support.
+    """
+    source = instrument.source
+    if source.kind != "xray_cw":
+        return False
+    if len(source.lines) >= 2:
+        return True
+    wavelength = source.lines[0].wavelength.value
+    return any(abs(wavelength - line) <= LAB_LINE_TOLERANCE_ANGSTROM
+               for lines in lab_lines().values() for line in lines)
+
+
 def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
     """What the instrument a peak list was picked with still leaves at default,
-    keyed by the block that holds it.
+    keyed by the block that holds it, on a laboratory source (:func:`lab_source`).
 
     The picker holds both and applies them (:func:`~rietx.indexing.pick_peaks`),
     so a default stands in for a measurement.  Axial divergence at S/L = H/L = 0
@@ -501,8 +546,15 @@ def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
     and the separation floor are a lab pattern's several times over.  Measured
     on one lab capillary pattern (WP-1510, ``solution case 1``): declaring both
     took median σ(Q)/Q from 1.05e-3 to 6.9e-4 and the gate passed.
+
+    On any other source it is empty (:func:`picked_undeclared` records ``None``
+    there, "not checked", on the list): a correctly declared synchrotron
+    instrument has zero axial apertures and a narrow profile too, so the same
+    two tests would name a correct declaration as missing (WP-2030).
     """
     out: dict[str, str] = {}
+    if not lab_source(instrument):
+        return out
     geo = instrument.geometry
     if not fcj_live(geo.axial_sl.value, geo.axial_hl.value):
         out["instrument.geometry"] = (
@@ -515,6 +567,14 @@ def undeclared_instrument(instrument: Instrument) -> dict[str, str]:
             "instrument.profile is the default ProfileTCHZ, a synchrotron line "
             f"(W = {default.w.value:g} deg²)")
     return out
+
+
+def picked_undeclared(instrument: Instrument) -> dict[str, str] | None:
+    """What a picker records in ``PeakList.instrument_undeclared``:
+    :func:`undeclared_instrument` on a laboratory source, ``None`` on any other,
+    where the check does not apply.  ``{}`` therefore only ever says "checked,
+    and everything was declared"."""
+    return undeclared_instrument(instrument) if lab_source(instrument) else None
 
 
 def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
@@ -537,9 +597,16 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
         # the instrument is named first because it is the cheapest of the
         # remedies: a re-pick, where the others are a new measurement
         # only a fitted list was picked with an instrument; a position list
-        # has no picker to re-run
-        missing = ({} if instrument is None or peaks.source != "fitted"
-                   else undeclared_instrument(instrument))
+        # has no picker to re-run.  What the list recorded at its pick is the
+        # instrument it was picked with, so it outranks one handed in beside
+        # it; a list from before the record falls back to that one (WP-2030)
+        if peaks.source != "fitted":
+            missing = {}
+        elif peaks.instrument_undeclared is not None:
+            missing = dict(peaks.instrument_undeclared)
+        else:
+            missing = ({} if instrument is None
+                       else undeclared_instrument(instrument))
         if missing:
             suggestion = ("Declare the instrument before re-picking, because "
                           "a default widens each position's esd: "
@@ -731,9 +798,11 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
             where=where + ([f"first at {tt[0]:.3f}°"] if tt else []),
             suggestion=("Compare the smaller cell that indexes the same lines: "
                         "the pairwise supercell check against it is what "
-                        "refutes, this count only caps. Read the count beside "
-                        "lebail.rwp. Rwp moves little on an oversized cell "
-                        "(0.379 against 0.216 for the correct one).")))
+                        "refutes, this count only caps. lebail.rwp cannot "
+                        "separate them: a converged fit of a cell that "
+                        "predicts every reflection of another fits at least "
+                        "as well (0.164 against 0.164 for a doubled cell on "
+                        "rietx's synthetic LaB6 pattern).")))
 
     refuting = [c for c in cand.supercell_checks or [] if c.verdict == "refuted"]
     if refuting:
@@ -765,7 +834,8 @@ def candidate_diagnostics(cand, *, formula: str | None = None,
         out.append(Diagnostic(
             level="warning", code="INDEX_IMPURITY_LINES",
             message=(f"{lebail.unmatched_observed} observed peak(s) have no "
-                     "calculated reflection nearby after a whole-pattern Le Bail "
+                     "calculated reflection nearby after a whole-pattern "
+                     f"{_MODE_NAMES[lebail.mode]} "
                      "fit of this cell."),
             where=where + ([f"strongest region near {tt[0]:.3f}°" ] if tt else []),
             suggestion=("If a handful of lines remain, subtract the solved "
@@ -841,9 +911,11 @@ def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
                      "confidence gate, so best_or_none() returns None."),
             where=[f"{c.system} {c.centring}, V = {c.volume:.1f} Å³"
                    for c in high],
-            suggestion=("Compare their figure-of-merit panels and their "
-                        "lebail.rwp, and extend the 2θ range to reach a "
-                        "high-angle reflection that separates them.")))
+            suggestion=("Compare their figure-of-merit panels, and their "
+                        "lebail.rwp where neither cell predicts every "
+                        "reflection of the other (supercell_checks says), "
+                        "and extend the 2θ range to reach a high-angle "
+                        "reflection that separates them.")))
 
     if result.best_or_none() is None:
         top = result.candidates[0] if result.candidates else None

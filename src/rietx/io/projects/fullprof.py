@@ -3514,6 +3514,7 @@ def from_structure(structure: Structure, *,
     from ...crystallography.symmetry import (
         expand_positions,
         get_spacegroup,
+        refuse_distortion_modes,
         refuse_magnetic_phase,
         refuse_operation_list,
     )
@@ -3654,6 +3655,7 @@ def from_structure(structure: Structure, *,
     rhombohedral: list[str] = []
     for index, phase in enumerate(structure.phases):
         refuse_operation_list(phase, "a FullProf `.pcr`")
+        refuse_distortion_modes(phase, "a FullProf `.pcr`")
         refuse_magnetic_phase(phase, "a FullProf `.pcr`")
         phase, restated = restate_in_hexagonal_axes(phase, "a FullProf `.pcr`")
         if restated:

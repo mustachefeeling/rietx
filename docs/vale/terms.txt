@@ -41,6 +41,7 @@ CIF
 CIFs
 collinear
 collinearity
+conjugacy
 coset
 cryostat
 crystallite
@@ -59,6 +60,7 @@ enantiopure
 esd
 esds
 Ewald
+Fddd
 ferritic
 fluorapatite
 Friedel
@@ -74,6 +76,7 @@ irreps
 isostructural
 isotropy
 IUCr
+klassengleiche
 lanthanide
 ligand
 ligands
@@ -94,6 +97,7 @@ multiplet
 nanocrystalline
 Niggli
 nonbonding
+normaliser
 nuclide
 nuclides
 occupancies
@@ -101,6 +105,7 @@ octahedra
 octahedral
 octahedron
 operando
+orientational
 orthorhombic
 oxygens
 pdCIF
@@ -123,6 +128,7 @@ spinel
 structureless
 subcell
 sublattice
+subspaces
 supercell
 superionic
 superlattice
@@ -132,6 +138,8 @@ tetragonal
 tetrahedra
 torsion
 torsions
+translational
+translationengleiche
 triclinic
 trigonal
 trirutile
@@ -177,6 +185,7 @@ Gaultois
 Gaussian
 Gaussians
 Guinier
+HCl
 Hofmann
 Jacobian
 Jacobians
@@ -201,6 +210,7 @@ Pawley
 Pitschke
 Rachinger
 Raftery
+Rez
 Rietveld
 Rodrigues
 Scherrer

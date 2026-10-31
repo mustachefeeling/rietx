@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: magnetic · Status: 🔄 2026-10-22 — C1's mode basis (PR #950) and C2's `distortion_candidates` (PR #996) landed from outside, on C0a #842 and C0b #889, with #1002's `primary` fix (PR #1022); task 2 is next
+Milestone: magnetic · Status: 🔄 2026-10-30 — C1's mode basis (PR #950) and C2's `distortion_candidates` (PR #996) landed from outside, on C0a #842 and C0b #889, with #1002's `primary` fix (PR #1022); task 2 is next; #996's follow-ups (refusals beside the answer) merged as PR #1135 (`f2ca3bc9`); C3a's mode-amplitude block merged as PR #1107 (`e016f187`), the derived cell and the candidate route (3b) remain
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
@@ -565,7 +565,7 @@ the reporter's fork.
       AMPLIMODES' convention), the engine hook (affine block first, analytic
       contraction when measured slow), and the operator-list phase shared
       with 1327.
-- [ ] `Phase.distortion_modes` and `displacive_statement`; the child's
+- [x] `Phase.distortion_modes` and `displacive_statement`; the child's
       coordinates derived through C; the Biso ties per parent site.
 - [ ] `DISTORTION_MODE_UNSUPPORTED` and `CHILD_GROUP_UNNAMED` as
       `GuardFinding`s with `help.py` entries; their skill rows in
@@ -606,6 +606,10 @@ every shipped fixture are bit-identical.
   `operator-list-basis`, as a reference implementation only.
 
 ## Handover log
+
+- **2026-10-30** (`/pr-review`) — C3a merged from outside as PR #1107 (`e016f187`) after three rounds. `displacive_statement(parent, child, (P, p))` states a child as its parent plus one absolute amplitude per symmetry-adapted mode, and `Phase.distortion_modes` carries the record. The parameter table derives each moved atom's coordinates from the amplitudes as base + Σ A·v, so no anchored DOF exists for those atoms. Amplitude columns take the whole-model finite-difference column (`_peak_chain_column`), with a cross-backend row. Round 3 found the ±seed test asserting what it is for, |A₊ + A₋| ≤ 1e-3 esd, with 8.0e-7 esd measured on both platforms in its docstring, and the missing journals and three uncited functions now cite Perez-Mato, Orobengoa & Aroyo (2010). 0.60 stays as the schema number. A sync commit `2da66e61` (keep both 0.60 notes beside #1123's, in `schemas/common.py` and `docs/releases/1.11.0.md`) was pushed to the contributor's branch before the merge, and main after it is content-identical to the gated tree `307eff83`. Not done, by design: the derived cell and the candidate route, which are 3b and wait on C2's chunk. Follow-up raised in round 1 and owed by the contributor: `optimize.statistics.data_support` counts structural parameters with the glob `phases.*.atoms.*` (`STRUCTURAL_PARAMETER_GLOB`), so a phase refined on mode amplitudes counts only its Biso. Ticked: `Phase.distortion_modes` and `displacive_statement`. Gate (a stack of eleven PRs on main `b40bc994`, tree `307eff83`; macOS arm64, `[dev,jax]`, Python 3.12): 13 217 passed, 216 skipped, 48 xfailed, 0 failed, with ruff, the `-W` manual build and the GUI ladder green.
+
+- **2026-10-29** (`/pr-review`) — #996's follow-ups merged from outside as PR #1135 (`f2ca3bc9`): `distortion_candidates` returns a candidate whose child it refuses, with `refusal` (a `DistortionRefusal`) and `child`, `transform` and `basis` `None`, where 1.10.0 raised `ValueError` for the whole call. A draw keeping fewer operations than the isotropy group reads `DISTORTION_CHILD_SMALLER`, and the code is chosen from every draw. This changes what a released call does, so its note is under 1.11.0 § Changed. C2's derived cell (#1108) and C3a's amplitude block (#1107) are still open PRs with review items.
 
 - **2026-10-22** — PR #996 (outside contributor, chunk C2 of #286's proposal)
   merged as `d01ae735`. `magnetic.isotropy.distortion_candidates(parent, k,

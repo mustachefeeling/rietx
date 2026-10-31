@@ -83,7 +83,7 @@ A fourth kind, `PlanarityRestraint`, holds four or more atoms to their least-squ
 `PlanarityRestraint.atoms` lists their positional indices, `PlanarityRestraint.sigma` is the uncertainty in ångströms and `PlanarityRestraint.weight` multiplies the rows.
 It adds one row per atom, √weight × d / σ, where d is that atom's signed distance from the plane, so it is order-free and has no target {eq}`par-planarity`.
 `PlanarityRestraint.op_indices` and `PlanarityRestraint.translations` give each listed atom's symmetry image, one entry per atom or none, for a ring that crosses a symmetry element.
-Leave them out and each atom takes the minimum image relative to the first.
+Leave them out and each atom takes the image nearest the centroid of the atoms listed before it, so a large plane stays inside one molecule.
 
 ## Choose the symmetry image
 
