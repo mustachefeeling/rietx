@@ -623,7 +623,7 @@ r \;=\; \sqrt{w}\,\frac{\operatorname{atan2}\!\big(\sin(\phi - \phi_0),\,
 with φ positive when, looking along B → C, the bond B–A turns clockwise to
 eclipse C–D {cite}`klyne1960`, in (−180°, 180°]. The row is smooth wherever φ
 is, a target of 180° included: the difference has its cut opposite the
-target, not at ±180°. Its derivative is analytic through atan2
+target, not at ±180°. Its derivative is analytic through `atan2`
 {cite}`blondel1996`: with $L = |\mathbf{b}_2|$,
 $f_1 = \mathbf{b}_1\cdot\mathbf{b}_2/L^2$ and
 $f_3 = \mathbf{b}_3\cdot\mathbf{b}_2/L^2$,
