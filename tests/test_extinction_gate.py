@@ -225,6 +225,8 @@ def test_the_message_says_weak_data_when_no_fit_could_pass(si):
                    if d.code == "EXTINCTION_SCREEN_UNRELIABLE")
     assert f"would read {screen.perfect_fit_rwp_net:.3f}" in message
     assert "the data are weak" in message and "misfits" not in message
+    # the pair cannot separate weak data from an envelope inside the lines
+    assert "envelope sits inside the lines" in message
 
 
 def test_the_message_says_misfit_when_the_data_could_pass(si):
@@ -364,6 +366,9 @@ def test_the_gate_fires_on_a_real_family_outside_the_prefits_basin(inputs, facto
     not bring back.  The prefit's own cell is the evidence: it stays ≥ 0.5 %
     off.  Measured: 1.00 against 0.19 at the right cell (corundum), 1.00
     against 0.12 (FAP), with a perfect fit reading 0.09 and 0.07, so misfit.
+
+    Fast tier on purpose: it runs two real fits per case, measured at 0.96 s and
+    2.95 s alone (``tests/CLAUDE.md``: a fast test that runs real fits says why).
     """
     data, instrument, limits, cell, system, centring, truth = inputs()
 
@@ -391,7 +396,11 @@ def test_the_gate_fires_on_a_real_family_outside_the_prefits_basin(inputs, facto
 @pytest.mark.xfail(strict=True, reason=(
     "known miss: PbSO4 X-ray at x0.99 of its index cell; the prefit stops about "
     "0.3 % short, the reference reads 0.45 (below 1/sqrt(2)) and the screen "
-    "returns P c - - confidently, where the specimen is P c - n"))
+    "returns P c - - confidently, where the specimen is P c - n; belongs to "
+    "WP-1910's open task (re-screen at the prefit's cell, held, flag a "
+    "disagreement between the two screens, ruled 2026-10-26), which may not "
+    "flag it either, since a held re-screen with no decisive class is "
+    "recorded, not flagged: strict until a run shows it does"))
 def test_the_gate_misses_pbso4_at_one_percent_short():
     """The counter-example to "every cell outside the basin reads ≥ 1.6": an
     out-of-basin cell inside the 0.36-1.6 gap.  The prefit moves 6.895 Å to

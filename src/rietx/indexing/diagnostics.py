@@ -1078,8 +1078,12 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
         elif perfect > REFERENCE_NET_RWP_MAX:
             which = (f". A fit that left only the counting noise would read "
                      f"{perfect:.3f} (√(N/(N+S)), N channels, S the weighted net "
-                     "Bragg power), past the bound too: the data are weak "
-                     "(S < N), and no cell or model of them passes it")
+                     "Bragg power), past the bound too, so no cell or model passes it. "
+                     "Two causes give that, and these numbers cannot tell them "
+                     "apart: the data are weak (S < N), or the peak picker's "
+                     "envelope sits inside the lines over this range (a "
+                     "continuum, as at high angle in a low-symmetry pattern), "
+                     "which raises both readings with strong data")
         else:
             which = (f". A fit that left only the counting noise would read "
                      f"{perfect:.3f} (√(N/(N+S)), N channels, S the weighted net "

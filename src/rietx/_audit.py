@@ -1816,7 +1816,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.extinction.REFERENCE_NET_RWP_MAX", "constant", tier=3, value=0.7071,
         evidence=("Statistic: Toby (2006)'s background-subtracted Rwp over the picker's "
                   "envelope (the envelope is rietx's own). Right or nearly right cells read "
-                  "<= 0.36 on 11-BM NAC, GSAS-II FAP, GSAS-II PbSO4 X-ray and SRM 676a; cells "
+                  "0.12-0.19 on the default path (cell refined) on 11-BM NAC, GSAS-II FAP, GSAS-II PbSO4 X-ray and SRM 676a (<= 0.36 with the cell held); cells "
                   "outside the basin read 1.0-2.3 on synthetic Si, SRM 676a (x1.02), FAP "
                   "(x0.99), NAC (x0.99, x1.02) and PbSO4 (x1.02), but PbSO4 at x0.99 reads 0.45 "
                   "and passes. Fails on an unmodelled second phase carrying half the net power, "

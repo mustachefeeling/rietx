@@ -109,7 +109,7 @@ The PbSO₄ X-ray histogram at 0.99 times its index cell reads 0.45: the cell-fr
 
 `ExtinctionScreen.perfect_fit_rwp_net` is what `reference_rwp_net` would read for a fit that left only the counting noise: √(N/(N+S)), with N the fitted channels and S the weighted net Bragg power, since a background channel's net is that noise.
 It is past the bound exactly when S < N.
-The diagnostic reads the pair: when the perfect-fit value is past the bound too, the data are too weak for the gate and no cell or model passes it, and counting longer is the remedy; otherwise the reference misfits the data, by the ratio of the two (√(χ²/N)).
+The diagnostic reads the pair: when the perfect-fit value is past the bound too, no cell or model passes it, and the message names two causes it cannot tell apart (weak data, where counting longer helps, or the envelope sitting inside the lines over the range, where it does not); otherwise the reference misfits the data, by the ratio of the two (√(χ²/N)).
 On the four real patterns above it is 0.03-0.09, so there S ≫ N and every reading past the bound is misfit.
 
 The envelope has a known weakness where the lines form a continuum, as at high angle in a low-symmetry pattern.
