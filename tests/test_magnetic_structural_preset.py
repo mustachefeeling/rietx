@@ -161,12 +161,23 @@ def test_a_plan_freeing_no_moment_leaves_it_at_its_start_and_says_so(arms, name)
     rows = {p.path: p for p in result.parameters}
     assert all(rows.get(p) is None or rows[p].stderr is None for p in MODULI)
     (diag,) = _codes(result)
-    assert diag.level == "warning" and diag.where == MODULI
+    assert diag.level == "warning" and diag.where == [*MODULI, "phases.0.scale"]
     assert "this plan frees no moment" in diag.message.lower()
     assert "held at their start" in diag.message
     assert "Mn1_1 3.6 μ_B" in diag.message
     assert "magnetic_structural" in diag.suggestion
     assert "phases.*.atoms.*.moment.dof*" in diag.suggestion
+
+
+@pytest.mark.parametrize("purpose", ["structure", "qpa", "magnetic"])
+def test_the_held_moment_warns_under_every_purpose_the_shared_scale_reaches(arms, purpose):
+    """The moment is read against the nuclear intensity through the scale the two
+    share, so a caller fitting for structure or phase fractions hears it as a
+    warning, not ``info`` (Yue's round 3, item 1)."""
+    from rietx.schemas.results import level_under
+    _, result = arms["mccusker_default"]
+    (diag,) = _codes(result)
+    assert level_under(diag, purpose) == "warning"
 
 
 # ------------------------------------------------------------- the recovery

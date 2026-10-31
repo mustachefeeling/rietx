@@ -6924,7 +6924,13 @@ def _held_moment_diagnostics(plan, table, structure: Structure,
     Biso finding instead.  One diagnostic per phase, whose ``where`` is the
     modulus path of each held site, the key a series' moment rows carry, so
     ``SEQUENTIAL_MOMENT_HOLD`` can name this as the cause on exactly the
-    patterns it fired on.
+    patterns it fired on, then the phase's ``scale``.  The scale is the
+    coupling: a moment is measured against the nuclear intensity through the
+    scale the two share (Halpern & Johnson 1939, Phys. Rev. 55, 898), so a
+    held moment moves what the nuclear values beside it are read from, and
+    that path is what a diagnostic's level under ``purpose="structure"`` or
+    ``"qpa"`` is derived from (``purposes.py``; neither lists a moment path),
+    where it would otherwise read ``info``.
 
     Asked of the table, as :func:`_stage_order_diagnostics` asks it: every
     glob of :meth:`~rietx.strategy.staged.RefinementPlan.run_stages` through
@@ -6961,7 +6967,7 @@ def _held_moment_diagnostics(plan, table, structure: Structure,
             for b in bases)
         out.append(Diagnostic(
             level="warning", code="PLAN_FREES_NO_MOMENT",
-            where=[f"{b}.dof0" for b in bases],
+            where=[*(f"{b}.dof0" for b in bases), f"phases.{ip}.scale"],
             message=(
                 f"This plan frees no moment of phase {ip}; the moments are "
                 f"held at their start ({held}), so they carry no esd and are "

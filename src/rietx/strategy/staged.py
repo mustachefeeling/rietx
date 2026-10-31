@@ -528,7 +528,7 @@ class RefinementPlan:
         zero, cell, widths, coordinates and displacement parameters follow in
         :meth:`mccusker_structural`'s order.  Staging is cumulative, so the
         moments stay free in every later stage and the closing stage.  The
-        precedent for each part, and its tier:
+        precedent for each part:
 
         - **the nuclear order** is McCusker, Von Dreele, Cox, Louër & Scardi
           (1999), *J. Appl. Cryst.* **32**, 36, as in
@@ -540,9 +540,16 @@ class RefinementPlan:
           454 660 against 2556.06.  Measured for this preset on that two-site
           P n m a set (WP-1418, macOS arm64): from moduli 20 % high the stage
           changes no value beyond 1e-6 μ_B; from 0.1 μ_B with the directions
-          0.4 rad off both orders converge, the stage's to the planted
-          3.50 / 0.70 μ_B and the other to 3.34 / 1.25 at a χ² 0.07 lower, a
-          minimum the powder average does not separate;
+          0.4 rad off, this preset and the same plan without the
+          ``moment_moduli`` stage (every moment DOF freed together) both
+          converge.  That is start dependence, not an effect of the order:
+          from this cold start the fit can reach either of two minima tied in
+          χ² (planted 3.50 / 0.70 μ_B, or 3.34 / 1.25 at a χ² 0.07 lower),
+          and the moduli stage reached the planted one here.  Freeing every
+          moment DOF together reaches the planted values from another start
+          (``docs/skill/rietx/references/magnetic.md``, WP-1938 and WP-1953).
+          The tie itself is an identifiability finding about the model, not
+          the plan (WP-1418's follow-ups);
         - **the moments before the coordinates** is the solve's order too
           (moment, scale and background before anything nuclear).  The reason
           is the confound the solve leaves coordinates out for: with the
@@ -555,9 +562,10 @@ class RefinementPlan:
           (planted 3.0) and each Biso is within 1.0 esd of its planted
           value.
 
-        The last two are rietx's own order (tier 3).  A refiner may dissent on
-        it, refining the structure first and the moments after, so this is a
-        preset a caller chooses and never a default.  The two moment stages
+        The last two are rietx's own order.  A refiner may dissent on it,
+        refining the structure first and the moments after; that sequence was
+        not measured, so nothing above is evidence for or against it.  This is
+        a preset a caller chooses and never a default.  The two moment stages
         free nothing on a phase without a moment.
         """
         first, *rest = cls.mccusker_structural().stages
