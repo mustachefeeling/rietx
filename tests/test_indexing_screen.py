@@ -22,6 +22,7 @@ from rietx.indexing.consensus import caveats_for, grade
 from rietx.indexing.engines import absence_window, engine_names, match_window
 from rietx.indexing.fom import RESOLUTION_FWHM, fom_panel
 from rietx.indexing.pick import pick_peaks
+from rietx.model import compiled
 from rietx.schemas.indexing import (
     INDEX_REFUTING_CAVEATS,
     BravaisOpinion,
@@ -478,8 +479,14 @@ def dense_ap():
     finally:
         os.unlink(f.name)
     ins = rx.Instrument.bragg_brentano(radiation="CuKa1")
+    # declare the two defaults the margins would otherwise ride on
+    ins.source.dispersion = None
     tt = np.round(np.arange(5.0, 90.0 + 1e-9, 0.01), 4)
-    y = np.asarray(rx.Refinement(s, ins, history=False).predict(tt), float)
+    was = compiled.set_enabled(False)
+    try:
+        y = np.asarray(rx.Refinement(s, ins, history=False).predict(tt), float)
+    finally:
+        compiled.set_enabled(was)
     obs = np.random.default_rng(35).poisson(y / y.max() * 2e4 + 100.0).astype(float)
     data = rx.PatternData(two_theta=tt, intensity=obs, sigma=np.sqrt(np.maximum(obs, 1.0)))
     peaks = pick_peaks(data, ins, two_theta_range=(5.0, 90.0))
