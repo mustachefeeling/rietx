@@ -1,6 +1,6 @@
 # WP-1809 — Tether, planarity and anti-bump restraints, pairs frozen per plan
 
-Milestone: rigid-bodies · Status: 🔄 2026-10-29 — planarity and `RESTRAINT_PAIRS_STALE` merged from outside as PR #995 (`737963bc`); the tasks to be checked against it and the WP closed
+Milestone: rigid-bodies · Status: 🔄 2026-10-30 — planarity and `RESTRAINT_PAIRS_STALE` merged from outside as PR #995 (`737963bc`), their follow-ups as PR #1222 (`6bb24b77`); the tasks to be checked against them, the skill row brought up to date, and the WP closed
 Depends on: —
 Priority: P3 2026-10-06 — needs no body; it can run beside WP-1804
 
@@ -108,6 +108,8 @@ issue #561, sized M. It needs no body.
 - Issue #561; PR #596; issue #777 and PR #778 (the minimum-image shift).
 
 ## Handover log
+
+- **2026-10-30** (`/pr-review`) — #995's follow-ups merged from outside as PR #1222 (`6bb24b77`), five `WP-1809:` commits. The contributor sorted the round 1 and 2 items: seven built, five already on main, one declined with a measured alternative. Built: a torch-mps test of the planarity columns (on the device, rms 1.228004e-3 Å out of plane against numpy's 1.228009e-3 Å); one `RESTRAINT_TENSION` finding per plane; `eigh` named on `Backend.linalg`; a `scope` of `("qpa", "structure", "magnetic")` on `RESTRAINT_PAIRS_STALE`, so it reads `info` under the cell, phase-id, microstructure and calibration purposes; r₀ stated in its audit evidence; the restrain guide's centroid rule for planes. Declined: skipping the stale search on `telemetry=False`, because a user passes that to leave a fit unrecorded and would lose a correctness warning. The search runs instead only where a coordinate or cell parameter moved. On a 20-atom body with 29 contact rows that costs about 46 ms at the end of a 0.81 s fit, and a fit that moves nothing pays 0.5 ms. The ring test's bound holds on Linux (rms 1.228009e-3 Å, the same to seven digits across 28 perturbed starts). Open: the skill row for `RESTRAINT_PAIRS_STALE` (`references/diagnostics.md`, three copies) still gives one remedy and says "warning, plan end", and needs one clause each to stay true. `test_planarity_rows_leave_the_data_statistics_bit_identical` does not yet declare the compiled path. No task is ticked. Gate (a stack of eleven PRs on main `b40bc994`, tree `307eff83`; macOS arm64, `[dev,jax]`, Python 3.12): 13 217 passed, 216 skipped, 48 xfailed, 0 failed, with ruff, the `-W` manual build and the GUI ladder green.
 
 - **2026-10-29** (`/pr-review`) — R8b merged from outside as PR #995 (`737963bc`): planarity restraint rows (the plane normal as the scatter matrix's smallest-eigenvalue eigenvector, Schomaker et al. 1959; `PLANE_DEGENERATE_REL`), and `RESTRAINT_PAIRS_STALE` at plan end, whose suggestion names both remedies (rebuild the list, or lower a real contact's species-pair minimum) and picks neither. Gated with seven other PRs on `bab2839c`: fast 12 213 passed, slow 417 passed. Left with the contributor, not blocking: a `scope` if a stale contact should not warn a QPA-only reader; the stale search's cost on a realistic molecular phase (it runs twice a fit); a sentence making r₀ (the strictest `min_distance` for the pair) visible in the audit row; and `rms[True] < 3e-3`'s margin on Linux.
 

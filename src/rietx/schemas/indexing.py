@@ -196,6 +196,10 @@ from .structure import Cell
 #: Every pinned class held (synthetic P 2₁/c, FAP, NAC, certified corundum),
 #: with their ΔBIC moved (corundum −3434 → −1301, FAP −16 → −83); the PbSO₄
 #: X-ray histogram at a 0.1-0.2 % cell went from an abstention to ``P c - n``.
+#: Also 1.12 (WP-2030): ``INDEX_DATA_INSUFFICIENT`` names an undeclared
+#: instrument first only on a laboratory source, read off the declared source
+#: (``diagnostics.lab_source``), and reads it from the list's own record when
+#: no instrument is passed.  No search, rank or grade moves.
 #: Also 1.12 (WP-2011): the whole-pattern validation fits by Pawley, so every
 #: candidate's ``lebail.rwp`` and ``unmatched_observed`` move, and a cell that
 #: predicts every reflection of another now reads that cell's Rwp or lower.
@@ -987,6 +991,15 @@ class PeakList(Base):
     two_theta_min: float
     two_theta_max: float
     source: Literal["fitted", "positions"] = "fitted"
+    #: The instrument blocks the picker found at their defaults on a
+    #: laboratory source, keyed by block, written by
+    #: :func:`~rietx.indexing.pick_peaks` and :func:`~rietx.indexing.fit_peaks`
+    #: from :func:`~rietx.indexing.diagnostics.picked_undeclared` (WP-2030).
+    #: Empty when the source is a lab tube and nothing was left at default;
+    #: ``None`` when nothing was checked: the source is not a lab tube, no picker
+    #: recorded it (a position list), or the list was picked before 0.60.  It is how ``index_pattern(peaks)`` with no instrument
+    #: can still name the instrument first in ``INDEX_DATA_INSUFFICIENT``.
+    instrument_undeclared: dict[str, str] | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
@@ -2034,8 +2047,26 @@ class IndexingResult(Base):
     #: ``total_budget_seconds`` did, or ``None`` on a result recorded before
     #: presets existed.  The ceiling itself is in ``provenance.notes``.
     preset: str | None = None
+    #: the chemical formula each candidate's ``INDEX_Z_NOT_INTEGER`` check read
+    #: (WP-2030), written verbatim by :func:`rietx.index_pattern` from its
+    #: ``formula=``.  ``None`` means no formula was given, so no candidate was
+    #: checked against one; a result recorded before 0.60 also reads ``None``.
+    #: It checked the answer and never narrowed the search.
+    formula: str | None = None
+    #: the temperature in K that check read Hofmann's (2002) volumes at,
+    #: written by :func:`rietx.index_pattern` beside :attr:`formula` and
+    #: ``None`` whenever :attr:`formula` is, since without a formula no
+    #: temperature was read.
+    temperature: float | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _temperature_needs_a_formula(self):
+        if self.formula is None and self.temperature is not None:
+            raise ValueError("IndexingResult.temperature is the temperature "
+                             "the formula's Z check read, so it needs a formula")
+        return self
 
     def __str__(self) -> str:
         """The candidate table, the verdict and every diagnostic (WP-1544).

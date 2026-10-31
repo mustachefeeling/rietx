@@ -267,6 +267,7 @@ On a restrained refinement it is the first thing to read, before Rwp.
 The deviations are always reported unscaled.
 "Is this restraint satisfied?" is a question about the geometry, and c<sub>w</sub> is a choice about how hard to insist on the answer.
 A row past three σ raises [`RESTRAINT_TENSION`](diagnostics-refinement.md#restraint_tension).
+A plane raises one between its rows, naming the atoms past three σ, worst first.
 The restraint and the data are then pulling against each other, and one of them is wrong.
 A joint fit reports the same object per histogram, on `HistogramResult.restraints`.
 

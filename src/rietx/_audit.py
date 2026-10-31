@@ -219,6 +219,7 @@ DEFAULT_SEATS: dict[str, int] = {
     "rietx.sequential.SequentialRefinement.fit": 2003,
     "rietx.indexing.workflow.index_pattern": 2007,
     "rietx.indexing.engines.SearchSpec": 2007,
+    "rietx.crystallography.representation.subgroups.maximal": 2006,
 }
 
 #: The record schemas whose fields the guard holds.
@@ -923,11 +924,19 @@ ROWS: tuple[Row, ...] = (
         responds=("do not quote a width, a crystallite size or a strain from this fit; "
                   "calibrate the instrument on a standard first")),
     Row("RESTRAINT_PAIRS_STALE", "code", tier=1, ambiguity=1, response="warning",
-        responds=("rebuild the anti-bump list from the answer's coordinates and refit before "
-                  "judging the named contacts, which no row restrained"),
+        responds=("before quoting a coordinate, or a fraction or moment read through them, "
+                  "either rebuild the anti-bump list from the answer's coordinates and refit, "
+                  "or, if a named contact is real, lower that species pair's minimum"),
         evidence=("arithmetic: a pair distance against the caller's own anti-bump minimum r0, for "
                   "a contact entered since the run began that no row restrains; a warning that "
-                  "names the pair, moves no value and gates nothing")),
+                  "names the pair, moves no value and gates nothing.  r0 for a contact is the "
+                  "strictest (largest) min_distance any row states for its species pair "
+                  "(model.restraints._inside_contacts), so it is always a number the caller "
+                  "wrote, and a species pair no row names is not searched.  Scope: the "
+                  "purposes whose numbers depend on atom coordinates (rietx.purposes.PURPOSES; "
+                  "qpa, structure, magnetic); a contact moves no line position, width or "
+                  "instrument term"),
+        scope=("qpa", "structure", "magnetic")),
     Row("RESTRAINT_TENSION", "code"),
     Row("RIGID_BODY_MISFIT", "code"),
     Row("RIGID_BODY_UNSUPPORTED", "code"),
@@ -1566,6 +1575,14 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.magnetic.supercell.CHILD_SITE_TOL", "constant", value=0.0001),
     Row("rietx.crystallography.neutron.NEUTRON_LAMBDA_EV_ANGSTROM", "constant", value=0.286014),
     Row("rietx.crystallography.neutron.SIGMA_ABS_REFERENCE_WAVELENGTH", "constant", value=1.798),
+    Row("rietx.crystallography.representation.distortion.DISTORTION_SEED", "constant",
+        tier="invariant", value=0.01,
+        evidence=("answer-invariant by measured margin (WP-1419): the act is physics (chi2 is even "
+                  "in the amplitude vector, so every non-identity column is exactly zero at A = 0, "
+                  "#286 2026-09-16, Perez-Mato 2010 sec. 7); the magnitude 0.003/0.01/0.03 A gives "
+                  "converged amplitudes within 0.01 esd of each other on synthetic NaTaO3 P4/mbm "
+                  "and LaMnO3 Pnma, two perovskites, untested beyond them; tests/"
+                  "test_displacive_statement.py::test_the_seed_magnitude_does_not_move_the_answer")),
     Row("rietx.crystallography.representation.distortion._POSITION_TOL", "constant", value=1e-06),
     Row("rietx.crystallography.representation.distortion._PROBE_AMPLITUDE", "constant", value=0.05),
     Row("rietx.crystallography.representation.distortion._PROBE_SYMPREC", "constant", value=0.001),
@@ -1573,7 +1590,7 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.representation.incommensurate.DELTA_GRID", "constant", tier=1, value=24,
         evidence=('a numerical setting measured against a finer grid: the internal translations of a (3+1)D operation are multiples of 1/2, 1/3, 1/4 and 1/6 (the commensurate part of q takes components 0, 1/2, 1/3, 2/3), and the M.v cross terms of centred and screw operations are not derived to stay on the grid; tests/test_incommensurate_irreps.py::test_the_isotropy_search_finds_the_same_groups_on_a_finer_delta_grid runs isotropy_superspace_groups at 24 and at 72 (which holds the cross products 1/3*1/3 and 1/3*1/6) over P n m a (0,0,g) and (0,g,0), P 63/m m c (0,0,g) and (1/3,1/3,g), C m c a, I 41/a m d, R -3 m, F d -3 m and P 31 2 1 (all (0,0,g) unless stated) and asserts the same groups irrep by irrep, with a positive arm (a grid of 4 finds different groups), so the 1/24 search lost no group on those lines (those cases only, at one lambda)')),
     Row("rietx.crystallography.representation.incommensurate.LINE_ATOL", "constant", tier=1, value=1e-08,
-        evidence=("numerical floor: the relative rank cut of `_null` (rcond kind), s > tol*max(1, s[0]); measured and asserted: tests/test_incommensurate_irreps.py::test_line_atol_sits_in_a_gap_of_the_relative_singular_values records the relative singular values _null cuts over the isotropy groups of every irrep of P n m a at (0,0,g) and P m -3 m at (g,g,g) (344 580 values): largest dropped 7e-15, smallest kept 6.5e-2, so any tolerance from 1e-13 to 1e-2 returns the same subspaces there; 1e-8 sits inside 12 empty orders of magnitude (those cases only, not other lines, at one lambda)")),
+        evidence=("numerical floor: the relative rank cut of `_null` (rcond kind), s > tol*max(1, s[0]); measured and asserted: tests/test_incommensurate_irreps.py::test_line_atol_sits_in_a_gap_of_the_relative_singular_values records the relative singular values _null cuts over the isotropy groups of every irrep of P n m a at (0,0,g) and P m -3 m at (g,g,g) (344 580 values): largest dropped 7e-15, smallest kept 6.5e-2, so any tolerance from 1e-13 to 1e-2 returns the same subspaces there; 1e-8 sits inside 12 empty orders of magnitude (those cases only, not other lines). A second lambda near a rational does not move it, and cannot: lambda reaches those matrices only through exp(2 pi i lambda d.v), a character of G_k that cancels against D(g)'s factor-system phase on the epsilon=+1 operations and is one common internal-origin phase on the epsilon=-1 ones, so the singular values are lambda-free to rounding. Measured over the nine DELTA_GRID lines at lambda = 1/2, 1/3, 1/4 and each +-1e-10, +-1e-8, +-1e-6, beside 1/sqrt7 and 1/sqrt5 (207 runs, 41 359 566 values): largest dropped 9.2e-15, smallest kept 6.54e-2, none in [1e-14, 6.5e-2), the same groups at every lambda. Positive arm, tests/test_incommensurate_irreps.py::test_line_atol_gap_does_not_move_with_lambda_near_a_rational: an uncancelled phase eps (irreps at lambda, k.v at lambda+eps) puts values between pi*eps/4 and pi*eps in front of _null; eps <= 5e-9 is cut and the groups stand, eps >= 1e-8 is kept and the search finds no group, so 1e-8 tolerates a phase error of ~3e-9 and none arises (on P n m a (0,0,g), (0,g,0) and P 31 2 1 (0,0,g); the test fails at a tolerance of 1e-10 or 1e-6)")),
     Row("rietx.crystallography.representation.irreps.IRREP_ATOL", "constant", value=1e-08),
     Row("rietx.crystallography.representation.irreps.K_FLOAT_TOL", "constant", value=1e-09),
     Row("rietx.crystallography.representation.irreps.K_MAX_DENOMINATOR", "constant", value=64),
@@ -1585,6 +1602,39 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.representation.modes.MODE_ATOL", "constant", value=1e-09),
     Row("rietx.crystallography.representation.modes.POSITION_ATOL", "constant", value=1e-06),
     Row("rietx.crystallography.representation.order_parameter.ISOTROPY_ATOL", "constant", value=1e-08),
+    Row("rietx.crystallography.representation.subgroups.MAX_INDEX", "constant", tier=1, value=4,
+        evidence=("theory: every maximal subgroup of a space group not isomorphic to it has index 2, 3 "
+                  "or 4 (Wondratschek 2011, ITA A1 Lemma 1.2.8.2.2), so index <= 4 is the complete "
+                  "non-isomorphic list; tests/test_subgroups.py sweeps all 230 types there")),
+    Row("rietx.crystallography.representation.subgroups._PROBE_SYMPREC", "constant", tier="invariant",
+        value=1e-05,
+        evidence=("answer-invariant: spglib only names the probe's group; P^-1 H P is then checked "
+                  "against the named setting exactly, in Fraction arithmetic, and a mismatch raises. "
+                  "tests/test_subgroups.py::test_the_probe_tolerance_decides_no_subgroup holds 1e-3 to "
+                  "the same lists, (P, p) included, on P3_1 12, Fddd and Pm-3m")),
+    Row("rietx.crystallography.representation.subgroups._FLOAT_DENOMINATOR_MAX", "constant", tier=1,
+        value=48,
+        evidence=("arithmetic: gemmi's operation translations are multiples of 1/Op.DEN = 1/24, and "
+                  "an origin shift or cell entry of a subgroup is at most half of one, so every "
+                  "ratio a user types from ITA has a denominator dividing 48; "
+                  "tests/test_subgroups.py::test_a_float_origin_is_snapped_to_the_ratio_it_stands_for")),
+    Row("rietx.crystallography.representation.subgroups._FLOAT_SNAP_TOL", "constant", tier="invariant",
+        value=1e-09,
+        evidence=("answer-invariant: a float within 1e-9 of a ratio with denominator <= 48 is that "
+                  "ratio to double precision (their spacing is 1/48^2 = 4e-4, float error 1e-16), so "
+                  "any tolerance between those gives the same accepted values; a farther float is "
+                  "refused, never snapped")),
+    Row("rietx.crystallography.representation.subgroups._PROBE_DENOMINATOR_FLOOR", "constant", tier=1,
+        value=48,
+        evidence=("arithmetic: as _FLOAT_DENOMINATOR_MAX, the denominator of a (P, p) over a "
+                  "t-subgroup (index <= 4) divides 48; the 230-type sweep in tests/test_subgroups.py "
+                  "standardises every one exactly")),
+    Row("rietx.crystallography.representation.subgroups._PROBE_DENOMINATOR_PER_INDEX", "constant",
+        tier="invariant", value=12,
+        evidence=("answer-invariant: the bound only recovers the rational spglib's float stands for, "
+                  "and the exact Fraction check then accepts it or raises; a larger factor costs "
+                  "nothing and changes no accepted (P, p). tests/test_subgroups.py::"
+                  "test_an_isomorphic_series_standardises_past_the_floor_of_the_denominator_bound")),
     Row("rietx.crystallography.riding.RIDING_MIN_SEPARATION", "constant", value=1e-06),
     Row("rietx.crystallography.rotation.SERIES_THRESHOLD", "constant", value=0.25),
     Row("rietx.crystallography.rotation.UNIT_TOLERANCE", "constant", value=1e-09),
@@ -1697,6 +1747,15 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.ambiguity._DERIVATIVE_VOLUME_RTOL", "constant", value=0.01),
     Row("rietx.indexing.consensus.CONSENSUS_CHECK_TOP", "constant", value=3),
     Row("rietx.indexing.diagnostics.BRAGG_BRENTANO_CELL_PPM", "constant", value=85.0),
+    Row("rietx.indexing.diagnostics.LAB_LINE_TOLERANCE_ANGSTROM", "constant", tier=1,
+        evidence=("arithmetic: the digits a person types (1.5405, 1.540593, 1.5406 for Cu "
+                  "Ka1 1.5405929) and the weighted-mean 1.5418 of a vendor header differ "
+                  "from the anode's Ka1, Ka2 or weighted-mean line by under 1e-4 A, and "
+                  "the six anodes' lines are at least 0.14 A apart (Fe Ka1 to Co Ka2, "
+                  "0.143 A), so the tolerance names one anode at most; it gates only "
+                  "which instrument blocks a diagnostic names, and a miss reads None, "
+                  "not checked"),
+        value=0.0005),
     Row("rietx.indexing.diagnostics.WIDTH_MISMATCH_RATIO", "constant", value=3.0),
     Row("rietx.indexing.diagnostics.Z_INTEGER_TOLERANCE", "constant", value=0.08),
     Row("rietx.indexing.dichotomy.ACCEPT_SPACING_FRAC", "constant", value=0.25),
@@ -2329,7 +2388,8 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: symmetry copies of one contact sit at exactly one distance, so "
                   "matching a contact to a listed row by distance is an identity test; 1e-6 A "
                   "only absorbs float64 rounding (~1e-15 relative) and sits 1e3 below a "
-                  "bond-length esd of 1e-3 A")),
+                  "bond-length esd of 1e-3 A.  The stale search's own dedupe of one atom pair's "
+                  "images (round(d, 6) in stale_anti_bump_pairs) bins at the same 1e-6 A")),
     Row("rietx.model.tof_spectrum.POINT_BY_POINT_ITYP", "constant", tier=1, value=10,
         evidence="format: GSAS Technical Manual p. 129, 222 define ITYP 10 (docstring)"),
     Row("rietx.optimize.bccg._CAUCHY_ARMIJO", "constant", tier=3, value=0.0001,
@@ -2709,6 +2769,16 @@ ROWS: tuple[Row, ...] = (
                  "ten is rietx's.  The second pass counts the stages where it binds and removes "
                  "it if none do (B8)."),
         approved="2026-10-20"),
+    Row("rietx.params.vector.DISTORTION_DRIFT_TOL", "constant", tier=1, value=1e-09,
+        evidence=("numerical floor: the write-back stores what the affine rows compute, which a "
+                  "numpy sum meets to ~1e-16 (docstring); refusing past it protects a "
+                  "hand-edited mode-moved coordinate, RIGID_BODY_DRIFT_TOL's rule (WP-1419); "
+                  "tests/test_distortion_block.py::test_a_hand_edited_coordinate_is_refused_"
+                  "and_round_off_is_not")),
+    Row("rietx.params.vector.DISTORTION_SITE_TOL", "constant", tier=1, value=1e-08,
+        evidence=("linear-algebra round-off: R.v - v of an allowed mode vector is ~1e-15, a "
+                  "forbidden one O(1) (docstring, WP-1419); tests/test_distortion_block.py::"
+                  "test_a_mode_vector_its_site_does_not_allow_is_refused")),
     Row("rietx.params.vector.SIZE_CAP_ARM_RTOL", "constant", tier=1, value=1e-06,
         evidence=("numerical floor: as STRAIN_CAP_ARM_RTOL; hysteresis pinned by "
                   "test_strain_cap.py:414")),
@@ -3886,6 +3956,21 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.engines.SearchSpec:seed", "default", value=0),
     Row("rietx.indexing.engines.SearchSpec:prior_cells", "default", value=()),
     Row("rietx.indexing.engines.SearchSpec:prior_spacegroups", "default", value=()),
+    Row("rietx.crystallography.representation.subgroups.maximal:kind", "default", tier=1, ambiguity=1,
+        value="both",
+        evidence=("theory: a maximal subgroup is either t or k (Hermann's theorem, Wondratschek 2011, "
+                  "ITA A1 Lemma 1.2.8.1.3), so both kinds is the complete list")),
+    Row("rietx.crystallography.representation.subgroups.maximal:max_index", "default", tier=1, ambiguity=1,
+        value=None,
+        evidence=("None means the constant subgroups.MAX_INDEX (None so that a max_index given beside "
+                  "index= or supercell= can be refused): ITA A1 Lemma 1.2.8.2.2, index <= 4 holds "
+                  "every non-isomorphic maximal subgroup")),
+    Row("rietx.crystallography.representation.subgroups.maximal:index", "default", tier="caller",
+        ambiguity=1, value=None,
+        evidence="off by default; a caller asks for one index by name and the list is complete for it"),
+    Row("rietx.crystallography.representation.subgroups.maximal:supercell", "default", tier="caller",
+        ambiguity=1, value=None,
+        evidence="off by default; a caller names the cell whose translations every subgroup keeps"),
     # suggestion: 197
     Row("ABSORPTION_ESTIMATE_UNAVAILABLE.suggestion", "suggestion", value=1),
     Row("ABSORPTION_MU_R_OUT_OF_RANGE.suggestion", "suggestion", value=1),
