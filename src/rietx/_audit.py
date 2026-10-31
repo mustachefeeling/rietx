@@ -1921,6 +1921,21 @@ ROWS: tuple[Row, ...] = (
         grounds="Kept on both grounds, ruled 2026-10-21 (PR #939).",
         approved="2026-10-21"),
     Row("rietx.indexing.extinction._MODULI", "constant", value=(2, 3, 4, 6)),
+    Row("rietx.indexing.extinction.DENSITY_Z_TOLERANCE", "constant", tier=2,
+        evidence="Richards & Lindley (2006), International Tables for Crystallography "
+                 "Vol. C, ch. 3.2, sect. 3.2.1, p. 156: when Z is assigned, measured and "
+                 "calculated density \"should agree within at least 1.5%\"; the test "
+                 "|z_rho/Z - 1| is that ratio.  The chapter gives no esd basis for the "
+                 "1.5 %, so it reads as an upper bound on normal agreement.  Tested on NaCl "
+                 "against a handbook density (2.165 g/cm3, 0.1 % from the computed one) and "
+                 "on a density 5 % off, which gives no Z (WP-2033).",
+        value=0.015),
+    Row("rietx.indexing.extinction.N_A_CM3_PER_A3", "constant", tier=1,
+        evidence="Physics: Avogadro's number, exact in the SI since 2019 (CODATA 2018, "
+                 "6.02214076e23 /mol), times 1e-24 cm3 per A3, so Z = rho*V*N_A/M with rho "
+                 "in g/cm3, V in A3 and M in g/mol (WP-2033).  The same value qpa.ZMV.density "
+                 "uses inline.",
+        value=0.602214076),
     Row("rietx.indexing.fom.FOM_N", "constant", value=20),
     Row("rietx.indexing.fom.LINE_COINCIDENCE_RTOL", "constant", value=1e-09),
     Row("rietx.indexing.fom.MATCH_SIGMA", "constant", value=3.0),
