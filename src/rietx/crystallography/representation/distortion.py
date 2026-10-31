@@ -482,7 +482,7 @@ def _permutation(rot, tran, ref: _Reference, inv, small) -> np.ndarray:
     rinv = np.linalg.inv(rot)
     back = (ref.parent_frac - tran[None, :]) @ rinv.T
     child = _wrap((back - small[None, :]) @ inv.T)
-    perm = np.empty(len(child), dtype=np.int64)
+    perm = np.empty(len(child), dtype=np.intp)
     for i, c in enumerate(child):
         d = c[None, :] - ref.child_frac
         d -= np.rint(d)
@@ -1478,7 +1478,7 @@ def amplitude_action(phase) -> AmplitudeAction:
                 continue
             size = float(delta @ metric @ delta)
             if best is None or size < best[0]:
-                best = (size, np.argmax(hits, axis=1).astype(np.int64))
+                best = (size, np.argmax(hits, axis=1).astype(np.intp))
         return None if best is None else best[1]
 
     rot_g, tran_g = _operations(resolve_group(record.parent_space_group, None))

@@ -228,6 +228,7 @@ RECORD_SCHEMAS: tuple[str, ...] = (
     "rietx.schemas.sequential.SeriesEntry",
     "rietx.schemas.results.RefinementResult",
     "rietx.schemas.results.Statistics",
+    "rietx.report.schemas.DistortionBlockTests",
 )
 
 
@@ -443,6 +444,10 @@ def row_source(name: str, kind: str, value: object = None) -> str:
 #: Fields of :data:`RECORD_SCHEMAS` that report no action the filing named.
 #: An audit that finds one reporting an action moves it into :data:`ROWS`.
 OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
+    "rietx.report.schemas.DistortionBlockTests.detectability_bar",
+    "rietx.report.schemas.DistortionBlockTests.detectability_probe",
+    "rietx.report.schemas.DistortionBlockTests.restarted_result",
+    "rietx.report.schemas.DistortionBlockTests.tests",
     "rietx.schemas.results.RefinementResult.cell_volumes",
     "rietx.schemas.results.RefinementResult.data_support",
     "rietx.schemas.results.RefinementResult.diagnostics",
@@ -1188,6 +1193,13 @@ ROWS: tuple[Row, ...] = (
                  "checks the pattern unchanged before writing, and a caller has no verb to do it "
                  "by hand (B2, ruled 2026-10-19)."),
         approved="2026-10-19"),
+    Row("rietx.report.schemas.DistortionBlockTests.restarts", "action", tier=1, ambiguity=1,
+        evidence=("arithmetic: a restricted fit is the full model with parameters held at 0, so "
+                  "its chi2 cannot lie below the full optimum (Kerman et al. 2012, Acta Cryst. A68, "
+                  "222, p. 231); one below it by more than the solver's own ftol proves the full "
+                  "fit stopped short, every refiner would refit, and the caller's own fit is "
+                  "untouched; tests/test_distortion_totals.py::"
+                  "test_a_restricted_fit_below_the_full_one_restarts_the_full_fit")),
     Row("rietx.schemas.results.StageResult.blocked_by_hold", "action", tier="caller", ambiguity=1,
         evidence=("opt-in: Refinement.hold(), nothing held by default; the caller's hold outranks a"
                   " plan glob (WP-1435)")),
@@ -2835,13 +2847,6 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.refine._CENTROID_SITES_NAMED", "constant", value=12),
     Row("rietx.report.body_misfit.MISFIT_ALPHA", "constant", value=0.001),
     Row("rietx.report.body_misfit.MISFIT_BIC", "constant", value=10.0),
-    Row("rietx.report.distortion.DETECTABILITY_PROBE", "constant", tier=1, value=0.1,
-        evidence=("a setting bounded by test (B10), not a threshold: A_det reads one predict "
-                  "per mode at this amplitude and scales it by lambda ~ A^p, exact to leading "
-                  "order, so the probe moves A_det only by the next order; A_det at 0.1 A "
-                  "against the predict-only bisected crossing on LaMnO3's Gamma (m = 5, p = 4) "
-                  "and zone-boundary (m = 10) blocks (WP-1419); tests/"
-                  "test_distortion_totals.py::test_a_det_meets_the_bisected_crossing")),
     Row("rietx.report.distortion.EVEN_EXPONENT", "constant", tier=1, value=4,
         evidence=("symmetry: along a mode with no part invariant under the structure's own "
                   "group the pattern has no first-order term, so dy ~ A^2 and lambda ~ A^4 "

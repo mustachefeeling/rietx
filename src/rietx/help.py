@@ -5216,7 +5216,10 @@ RESULT_FIELD_HELP: dict[str, HelpEntry] = {
             "not a test of zero. With a bar it adds `A_det`, measured +2 % (five-mode Γ "
             "block), +9 to +12 % (ten-mode zone-boundary block) and +48 % (one mode of a "
             "57-mode P1 child) off the 50 % point at bar 6 on LaMnO₃ white noise, and "
-            "uncalibrated on misfit. `None` when no phase carries `distortion_modes`."
+            "uncalibrated on misfit; a bar needs the caller's `detectability_probe` (Å), "
+            "which has no default. `None` when no phase carries `distortion_modes`, and on "
+            "a joint fit's result, whose builder writes none of the per-phase technique "
+            "fields (geometry, cell volumes and this one alike)."
         ),
         anchor="reference/parameter-table.html#what-the-fit-reports-about-the-blocks",
     ),

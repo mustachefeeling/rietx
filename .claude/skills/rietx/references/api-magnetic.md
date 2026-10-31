@@ -35,16 +35,16 @@ this; everything in `rx.` is `import rietx as rx`.*
 
 ## What a fit on mode amplitudes reports
 
-A fit of a phase carrying `Phase.distortion_modes` returns `RefinementResult.distortion_totals`: one `DistortionTotal` per irrep block (every mode of one irrep, k and isotropy group), with A_τ in Å, its esd from the block's covariance (linearised; undefined at A_τ = 0, Rice-biased below about 2 esd) and Hotelling's T² with m and no p. `ref.distortion_block_tests(data, hold=None, detectability_bar=None)` refits with each named block, or set of blocks, held at 0 and returns ΔBIC at N/f², Λ and its p, both χ² and, with a bar, A_det; a restricted fit below the full one restarts the full fit and is recorded. Numbers only, no verdict; readings in `references/magnetic.md`.
+A fit of a phase carrying `Phase.distortion_modes` returns `RefinementResult.distortion_totals`: one `DistortionTotal` per irrep block (every mode of one irrep, k and isotropy group), with A_τ in Å, its esd from the block's covariance (linearised; undefined at A_τ = 0, Rice-biased below about 2 esd) and Hotelling's T² with m and no p. `ref.distortion_block_tests(data, hold=None, detectability_bar=None, detectability_probe=None)` refits with each named block, or set of blocks, held at 0 and returns ΔBIC at N/f², Λ and its p, both χ² and, with a bar and your probe amplitude, A_det; a restricted fit below the full one restarts the full fit and is recorded. Numbers only, no verdict; readings in `references/magnetic.md`.
 
 - `rietx.schemas.results.DistortionTotal` — One irrep block of a child refined on its mode amplitudes, at fit close (WP-1419).
-  Fields: `phase: int`, `irrep: str`, `k: tuple[str, str, str]`, `isotropy_group: str`, `modes: list[int]`, `n_modes: int`, `a_tau: float`, `esd: float | None = None`, `esd_label: str`, `t2: float | None = None`, `driving: bool`, `sign_convention: str`, `largest_displacement: float`
+  Fields: `phase: int`, `irrep: str`, `k: tuple[str, str, str]`, `isotropy_group: str`, `modes: list[int]`, `n_modes: int`, `a_tau: float`, `esd: float | None = None`, `esd_label: str`, `t2: float | None = None`, `driving: bool | None`, `sign_convention: str`, `largest_displacement: float`
 - `rietx.report.DistortionBlockTests` — The block comparisons of one call to `rietx.Refinement.distortion_block_tests`.
-  Fields: `tests: list[DistortionBlockTest]`, `restarts: list[DistortionRestart] = []`, `detectability_bar: float | None = None`, `restarted_result: RefinementResult | None = None`
+  Fields: `tests: list[DistortionBlockTest]`, `restarts: list[DistortionRestart] = []`, `detectability_bar: float | None = None`, `detectability_probe: float | None = None`, `restarted_result: RefinementResult | None = None`
 - `rietx.report.DistortionBlockTest` — One held set of irrep blocks, compared by a refit with it held at 0 (WP-1419).
   Fields: `phase: int`, `held: list[tuple[str, tuple[str, str, str], str]]`, `m: int`, `n_points: int`, `chi2_restricted: float`, `chi2_full: float`, `esd_inflation_restricted: float | None = None`, `esd_inflation_full: float | None = None`, `chi2_red_full: float`, `delta_bic: float`, `lambda_: float`, `lambda_p: float`, `a_det: float | None = None`, `wall_s: float`
 - `rietx.report.block_comparison(chi2_restricted: float, chi2_full: float, n_points: int, m: int, *, esd_inflation_restricted: float | None, esd_inflation_full: float | None, chi2_red_full: float) -> tuple[float, float, float]` — (ΔBIC, Λ, Λ's p) for m parameters held at 0, from the two fits' numbers.
-- `rietx.report.detectability_amplitude(lambdas, exponents, target: float, *, probe: float = 0.1) -> float | None` — A_det = min_j probe·(target/λ_j)^(1/p_j), Å; `None` where no mode moves the pattern.
+- `rietx.report.detectability_amplitude(lambdas, exponents, target: float, *, probe: float) -> float | None` — A_det = min_j probe·(target/λ_j)^(1/p_j), Å; `None` where no mode moves the pattern.
 
 ## Displacive candidates of a parent
 

@@ -188,10 +188,10 @@ def synthetic(phase, seed: int, stream: int) -> rx.PatternData:
 
 
 def native_fit(statement, data, *, tie: bool = True, start=None, max_iter: int = 1000,
-               instrument=None):
+               instrument=None, free=None):
     """The native path: one stage freeing the BT-1 set, Biso tied per parent site."""
     inst = instrument or bt1_nuclear()[1]
-    _, _, free = _protocol()
+    free = free if free is not None else _protocol()[2]
     ref = rx.Refinement(Structure(phases=[start or statement.phase]), inst.model_copy(deep=True),
                         history=False)
     if tie:
@@ -476,11 +476,11 @@ def test_a_det_is_the_formula_on_stated_numbers():
     """A_det = min_j A₀·(target/λ_j)^(1/p_j); target χ²_red·f²·(m·ln(N/f²) + bar)."""
     target = RD.detectability_target(1.2, 1.1, 2984, 5, 6.0)
     assert target == pytest.approx(1.2 * 1.21 * (5 * math.log(2984 / 1.21) + 6.0), rel=1e-12)
-    a = RD.detectability_amplitude([125.6, 55.9, 0.0], [4, 2, 4], target)
+    a = RD.detectability_amplitude([125.6, 55.9, 0.0], [4, 2, 4], target, probe=0.1)
     assert a == pytest.approx(min(0.1 * (target / 125.6) ** 0.25,
                                   0.1 * (target / 55.9) ** 0.5), rel=1e-12)
-    assert RD.detectability_amplitude([0.0, 0.0], [4, 4], target) is None
-    assert RD.detectability_amplitude([1.0], [4], -1.0) == 0.0
+    assert RD.detectability_amplitude([0.0, 0.0], [4, 4], target, probe=0.1) is None
+    assert RD.detectability_amplitude([1.0], [4], -1.0, probe=0.1) == 0.0
 
 
 # --------------------------------------------------------------------------
@@ -596,6 +596,10 @@ def test_every_record_is_numbers_with_the_esd_label_and_no_verdict():
     assert out.distortion_totals is None
 
 
+#: the probe amplitude (Å) the A_det tests pass: the caller's argument, no default
+PROBE = 0.1
+
+
 def _restricted_and_row(ref, data, hold, bar):
     kept = []
     original = RD._test_one
@@ -607,7 +611,8 @@ def _restricted_and_row(ref, data, hold, bar):
 
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(RD, "_test_one", spy)
-        tests = ref.distortion_block_tests(data, hold=hold, detectability_bar=bar)
+        tests = ref.distortion_block_tests(data, hold=hold, detectability_bar=bar,
+                                           detectability_probe=PROBE)
     return tests, kept
 
 
@@ -626,7 +631,9 @@ def test_a_det_meets_the_bisected_crossing(which):
     On the null child (seed 0), the tested block and the identity block are
     each held; at the restricted optimum every mode's A₀·(3.84/λ_j)^(1/p_j) is
     compared with the bisected amplitude at which λ_j = 3.84, within the
-    measured 1.1 % (p = 4) and 2.7 % (p = 2) plus A_DET_MARGIN.  The row's
+    measured 1.1 % (p = 4) and 2.7 % (p = 2) plus A_DET_MARGIN, i.e. the bars
+    this test enforces: 2.1 % (p = 4) and 3.7 % (p = 2), at the 0.1 Å probe, on
+    two blocks of one material at one noise seed.  The row's
     ``a_det`` is that formula at the call's own target.  Positive arm: the
     other exponent misses by more than 25 %.
 
@@ -655,10 +662,10 @@ def test_a_det_meets_the_bisected_crossing(which):
         for j in modes:
             lam = mode_lambda(base, inst_r, tt, sigma, j)
             p = RD.EVEN_EXPONENT if even[j] else RD.LINEAR_EXPONENT
-            lambdas.append(lam(RD.DETECTABILITY_PROBE))
+            lambdas.append(lam(PROBE))
             exps.append(p)
             bisected.append(a_need(lam))
-            ratios.append((p, RD.DETECTABILITY_PROBE * (3.84 / lambdas[-1]) ** (1.0 / p)
+            ratios.append((p, PROBE * (3.84 / lambdas[-1]) ** (1.0 / p)
                            / bisected[-1] - 1.0))
         for p, r in ratios:
             assert abs(r) <= A_DET_MEASURED[p] + A_DET_MARGIN, (row.held, p, r)
@@ -666,11 +673,11 @@ def test_a_det_meets_the_bisected_crossing(which):
         # positive arm, on the block's A_det at 3.84 (its easiest mode): the other
         # exponent misses the bisected crossing by more than a factor 1.25
         wrong = [6 - p for p in exps]
-        miss = RD.detectability_amplitude(lambdas, wrong, 3.84) / min(bisected)
+        miss = RD.detectability_amplitude(lambdas, wrong, 3.84, probe=PROBE) / min(bisected)
         assert max(miss, 1.0 / miss) > 1.25, (row.held, miss)
         target = RD.detectability_target(result.statistics.chi2, row.esd_inflation_restricted,
                                          row.n_points, len(modes), 6.0)
-        assert row.a_det == pytest.approx(RD.detectability_amplitude(lambdas, exps, target),
+        assert row.a_det == pytest.approx(RD.detectability_amplitude(lambdas, exps, target, probe=PROBE),
                                           rel=1e-6)
     assert seen == {2, 4}
 
@@ -727,6 +734,130 @@ def test_a_restricted_fit_below_the_full_one_restarts_the_full_fit():
 
 
 # --------------------------------------------------------------------------
+# review round 1: what a report field may do to a fit, what hold=None selects,
+# what counts as a restart, what A_det needs from the caller
+# --------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def gamma_null():
+    """The Γ null child (seed 0) fitted natively: (refinement, data, result)."""
+    truth, start = child(GAMMA)
+    data = synthetic(truth.phase, 0, STREAM["gamma_null"])
+    ref, result = native_fit(start, data)
+    return ref, data, result
+
+
+@SYN
+def test_a_phase_whose_action_cannot_be_built_still_fits_with_driving_unanswered(monkeypatch):
+    """A record whose parent operations miss its reference structure must not abort the fit.
+
+    ``amplitude_action`` raises ``RuntimeError`` there; the fit still returns, every
+    quantity but ``driving`` is the same, and ``driving`` is ``None`` rather than a guess.
+    Positive arm: unpatched, ``driving`` is a bool on every block.
+    """
+    truth, start = child(GAMMA)
+    data = synthetic(truth.phase, 0, STREAM["gamma_null"])
+    _, normal = native_fit(start, data)
+    assert all(isinstance(t.driving, bool) for t in normal.distortion_totals)
+
+    def refuse(phase):
+        raise RuntimeError("a parent operation did not map the reference structure onto itself")
+
+    monkeypatch.setattr(D, "amplitude_action", refuse)
+    _, broken = native_fit(start, data)
+    assert [t.driving for t in broken.distortion_totals] == [None] * len(normal.distortion_totals)
+    for a, b in zip(normal.distortion_totals, broken.distortion_totals, strict=True):
+        assert (a.a_tau, a.esd, a.t2) == (b.a_tau, b.esd, b.t2)
+
+
+@SYN
+def test_hold_none_holds_only_the_blocks_the_fit_freed():
+    """``hold=None`` selects blocks whose amplitudes all varied; a freed-only-in-part fit gets rows.
+
+    The Γ null child fitted with only the identity block's amplitudes free:
+    ``hold=None`` returns no row for the blocks the fit held (it used to raise
+    ``ValueError`` on the first of them).  Freeing the tested block as well gives its row.
+    Positive arm: a named block the fit did not free still raises.
+    """
+    truth, start = child(GAMMA)
+    data = synthetic(truth.phase, 0, STREAM["gamma_null"])
+    phase = start.phase
+    blocks = RD.distortion_blocks(phase)
+    tested = block_key(phase, GAMMA[1])
+    identity = next(k for k, v in blocks.items()
+                    if all(phase.distortion_modes.modes[i].parent_invariant for i in v))
+    base = [f for f in _protocol()[2] if f != AMPS]
+
+    def amps(*keys):
+        return [f"phases.0.distortion_modes.modes.{i}.amplitude" for k in keys for i in blocks[k]]
+
+    ref, _ = native_fit(start, data, free=base + amps(identity, tested))
+    got = ref.distortion_block_tests(data)
+    assert tested in [tuple(r.held[0]) for r in got.tests]
+    ref, _ = native_fit(start, data, free=base + amps(identity))
+    assert ref.distortion_block_tests(data).tests == []
+    with pytest.raises(ValueError, match="did not free"):
+        ref.distortion_block_tests(data, hold=[tested])
+
+
+@SYN
+def test_a_restricted_chi2_within_the_solvers_ftol_below_the_full_one_is_not_a_restart(
+        gamma_null, monkeypatch):
+    """A restricted χ² below the full one by round-off (< ftol) starts no refit.
+
+    The rows are rewritten so the restricted χ² sits half an ftol below the full one
+    (what a held true zero lands at): no restart.  Positive arm: ten ftol below,
+    where the full fit has demonstrably stopped short, the restart is recorded.
+    """
+    from rietx.optimize.lm import FTOL
+
+    ref, data, _ = gamma_null
+    key = block_key(ref.structure.phases[0], GAMMA[1])
+    original = RD._test_one
+
+    def below(fraction):
+        def patched(*args, **kw):
+            row, restricted = original(*args, **kw)
+            return row.model_copy(update={"chi2_restricted": row.chi2_full * (1 - fraction)}), \
+                restricted
+        return patched
+
+    monkeypatch.setattr(RD, "_test_one", below(0.5 * FTOL))
+    assert ref.distortion_block_tests(data, hold=[key]).restarts == []
+    monkeypatch.setattr(RD, "_test_one", below(10 * FTOL))
+    # the rewritten row is not a real optimum, so the loop ends at the first restart
+    assert len(ref.distortion_block_tests(data, hold=[key]).restarts) >= 1
+
+
+@SYN
+def test_a_det_needs_the_callers_probe_and_records_it(gamma_null):
+    """A bar without a probe raises before any refit; with both, the record carries both."""
+    ref, data, _ = gamma_null
+    key = block_key(ref.structure.phases[0], GAMMA[1])
+    with pytest.raises(ValueError, match="detectability_probe"):
+        ref.distortion_block_tests(data, hold=[key], detectability_bar=6.0)
+    out = ref.distortion_block_tests(data, hold=[key], detectability_bar=6.0,
+                                     detectability_probe=PROBE)
+    assert (out.detectability_bar, out.detectability_probe) == (6.0, PROBE)
+    assert out.tests[0].a_det is not None
+
+
+@SYN
+def test_a_block_key_survives_a_json_round_trip_and_a_foreign_total_is_refused(gamma_null):
+    """A key read back from ``model_dump(mode="json")`` is a list and still names one block;
+    a ``DistortionTotal`` of another refinement's phase raises the intended message."""
+    ref, _, result = gamma_null
+    total = result.distortion_totals[0]
+    key = (total.irrep, tuple(total.k), total.isotropy_group)
+    as_json = [total.irrep, list(total.k), total.isotropy_group]
+    assert RD.held_sets(ref.structure, [as_json]) == RD.held_sets(ref.structure, [key])
+    assert RD.held_sets(ref.structure, [[as_json, as_json]]) == RD.held_sets(
+        ref.structure, [[key]])
+    with pytest.raises(ValueError, match="another fit"):
+        RD.held_sets(ref.structure, [total.model_copy(update={"phase": 7})])
+
+
+# --------------------------------------------------------------------------
 # A_τ's esd against its scatter (test 7)
 # --------------------------------------------------------------------------
 
@@ -759,6 +890,7 @@ def scatter(name, seeds=SEEDS):
     return rows
 
 
+@SYN
 @pytest.mark.slow
 @pytest.mark.parametrize("name", [
     "gamma",

@@ -1302,13 +1302,14 @@ class DistortionBlockTests(Base):
     the final full fit.  ``restarts`` lists every restart of the full fit, in
     order, so its length is the count.  ``restarted_result`` is the full fit
     the rows compare against when a restart moved it, the caller's own result
-    otherwise being that fit (``None``).  ``detectability_bar`` is the bar the
-    ``a_det`` column was read at, the caller's argument.
+    otherwise being that fit (``None``).  ``detectability_bar`` is the bar and ``detectability_probe`` the probe
+    amplitude (Å) the ``a_det`` column was read at, the caller's arguments.
     """
 
     tests: list[DistortionBlockTest]
     restarts: list[DistortionRestart] = Field(default_factory=list)
     detectability_bar: float | None = None
+    detectability_probe: float | None = None
     restarted_result: RefinementResult | None = None
 
 

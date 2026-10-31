@@ -499,9 +499,9 @@ TECHNIQUES: dict[str, tuple[str, str, tuple[tuple[str, str, tuple[str, ...]], ..
                 "undefined at A_τ = 0, Rice-biased below about 2 esd) and "
                 "Hotelling's T² with m and no p. "
                 "`ref.distortion_block_tests(data, hold=None, "
-                "detectability_bar=None)` refits with each named block, or set of "
+                "detectability_bar=None, detectability_probe=None)` refits with each named block, or set of "
                 "blocks, held at 0 and returns ΔBIC at N/f², Λ and its p, both χ² "
-                "and, with a bar, A_det; a restricted fit below the full one "
+                "and, with a bar and your probe amplitude, A_det; a restricted fit below the full one "
                 "restarts the full fit and is recorded. Numbers only, no verdict; "
                 "readings in `references/magnetic.md`.",
                 ("rietx.schemas.results.DistortionTotal",

@@ -802,7 +802,9 @@ class DistortionTotal(Base):
     a_tau = 0).
 
     ``driving`` says a generic displacement inside this block alone has
-    exactly the child's group, the block's isotropy group being the child's
+    exactly the child's group (``None`` where the record's parent operations
+    do not map its reference structure onto itself, so the action the answer
+    is read from cannot be built), the block's isotropy group being the child's
     own (Perez-Mato 2010 p. 561, primary and secondary); LaMnO₃'s Pnma has no
     such block, its R4+ and M3+ being needed together.  ``sign_convention``
     states which sign the amplitudes carry, and ``largest_displacement`` is the
@@ -822,7 +824,7 @@ class DistortionTotal(Base):
     esd: float | None = None
     esd_label: str
     t2: float | None = None
-    driving: bool
+    driving: bool | None
     sign_convention: str
     largest_displacement: float
 
