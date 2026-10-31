@@ -10,12 +10,12 @@ the doc cannot drift the way a hand-maintained table does.  Regenerate with
 (the same convention the backend goldens use).
 
 The reason this exists is that a tolerance is meaningless without its
-reference value.  ``abs(a - 4.156780) < 2e-4`` and ``abs(Δa) < 1e-9`` look like the
-same kind of statement and are not: the first is a certified value with a
-stated uncertainty the fit does not reach and does not claim to, the second is
-two of our own fits that must agree to floating-point.  Sorting every bar in
-the tree by its reference value is what turns a pile of numbers into a claim about
-what this package has been shown to do.
+reference value.  ``abs(a - 4.156780) < 2e-4`` and ``abs(Δa) < 1e-9`` look
+like the same kind of statement and are not: the first is a certified value
+with a stated uncertainty the fit does not reach and does not claim to, the
+second is two of our own fits that must agree to floating-point.  Sorting
+every bar in the tree by its reference value is what turns a pile of numbers
+into a claim about what this package has been shown to do.
 
 **Judge a correction by what it changed, never by Δ Rwp.**  That is the v0.5
 milestone's method result, and it is why the vocabulary below has
@@ -1036,7 +1036,7 @@ CLAIMS: tuple[Claim, ...] = (
         "the sharpest single dispersion result: B(O) comes off its floor "
         "once Zn's missing f' stops being absorbed by a displacement "
         "parameter, while Rwp barely moves",
-        reference="physical plausibility, not a reference value — B(O) below "
+        reference="physical plausibility, not a measured value — B(O) below "
                   "0.1 A^2 is a parameter pinned on a bound, and 0.2-1.2 is "
                   "the range an oxide oxygen actually occupies.  Rwp is "
                   "asserted only one-sided, because this is exactly a case "

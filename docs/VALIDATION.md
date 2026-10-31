@@ -637,7 +637,7 @@ The same round robin with anomalous scattering applied — a pre-registered, par
 
 **Claims:** the sharpest single dispersion result: B(O) comes off its floor once Zn's missing f' stops being absorbed by a displacement parameter, while Rwp barely moves
 
-**Referenced to:** physical plausibility, not a reference value — B(O) below 0.1 A^2 is a parameter pinned on a bound, and 0.2-1.2 is the range an oxide oxygen actually occupies.  Rwp is asserted only one-sided, because this is exactly a case where the fit statistic does not see the fix
+**Referenced to:** physical plausibility, not a measured value — B(O) below 0.1 A^2 is a parameter pinned on a bound, and 0.2-1.2 is the range an oxide oxygen actually occupies.  Rwp is asserted only one-sided, because this is exactly a case where the fit statistic does not see the fix
 
 **Measured:** B(O) 0.018 -> 0.432 A^2; 0.047 -> 0.456 on 1.9.0, before WP-2002's closing stage (#1085) and width twin hold (#1113)
 
