@@ -128,7 +128,7 @@ Actual over estimated requests 1.92; saved 13 % of the session. Baseline replay,
 
 The `generality-review` judge's sections, unedited, with the author's answer under each verdict that is not `holds`. The judge read the tree before the review round, so its third section judges the first dedup stop rule, since rewritten.
 
-#### `rietx.indexing.dichotomy.MAX_GRID_BYTES` (constant, tier 3, 1 GiB)
+**`rietx.indexing.dichotomy.MAX_GRID_BYTES` (constant, tier 3, 1 GiB)**
 
 **Verdict: weak.** The case for having a byte cap is strong. The evidence for the value 1 GiB is one synthetic case with about 3× headroom, and no test holds that headroom.
 
@@ -146,7 +146,7 @@ What would change the verdict: a test asserting the headroom on two more unrelat
 
 *Author:* a `SearchSpec` override adds a name to the search's public surface, which is the maintainer's to decide, so it is not added; the value carries the maintainer's 2026-10-31 approval, and a stat naming which cap fired is left for the session that next touches the diagnostic.
 
-#### `rietx.indexing.dichotomy.MAX_HARVEST` (constant, tier 3, 20 000 leaves)
+**`rietx.indexing.dichotomy.MAX_HARVEST` (constant, tier 3, 20 000 leaves)**
 
 **Verdict: weak.** The case for bounding a unit's harvest is strong. The case against this form of bound is also real. It counts raw leaves, copies included, and stops the search. The package's own trial_error engine instead removes duplicates inside its loop and keeps going.
 
@@ -164,7 +164,7 @@ What would change the verdict: whether bethanechol's 7 000-leaf unit had finishe
 
 *Author:* an in-unit dedup does not group exactly as one pass over the whole harvest does (a later, better candidate can lead a group an earlier pass already closed), so it would move finished searches above 2 000 leaves, bethanechol's 7 000 among them; the raw cap moves no search below 20 000. Whether bethanechol's unit had finished is next session's to check.
 
-#### Not in the table: `engines.dedup_groups(cancel=, keep=)`
+**Not in the table: `engines.dedup_groups(cancel=, keep=)`**
 
 **Verdict: weak.** Stopping the dedup soon after a cancel is unanimous and its cost is measured. What the stopped walk keeps departs from the package's own shortlist rule. It reaches default runs whenever the `quick` ceiling binds, and nothing records that it happened.
 
@@ -182,7 +182,7 @@ What would change the verdict: a stopped-run comparison on bethanechol default m
 
 *Author:* this judged the first stop rule, which the review also flagged; `6c4e2abbd` replaced it. The walk now stops only at the first candidate indexing fewer lines than `keep` leaders already held, so every lattice at the leading line count reaches the volume tie-break, `keep` counts lattices, `keep = 0` never stops, and dichotomy no longer passes `DEDUP_EVERY`. The ranked list a stopped run returns is asserted equal to the unstopped one, so the pool does not shrink and nothing needs recording.
 
-#### Not in the table: trial_error `_search_system` reads its Budget before each `_score`
+**Not in the table: trial_error `_search_system` reads its Budget before each `_score`**
 
 **Verdict: holds.** The case for is measured and close to unanimous: a budget the caller set, or the default 30 s per unit, is honoured within a second and a half instead of minutes. The case against is an unmeasured change to what default runs return.
 
