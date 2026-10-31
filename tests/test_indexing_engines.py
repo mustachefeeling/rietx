@@ -845,7 +845,8 @@ def test_a_dichotomy_unit_stops_at_its_harvest_cap(monkeypatch):
     assert full.stats["tetragonal.harvest"] >= 2, "the case no longer harvests"
     monkeypatch.setattr(dichotomy, "MAX_HARVEST", 1)
     result = search_dichotomy(peaks, spec=spec_for("tetragonal"))
-    assert result.stats["tetragonal.harvest"] == 1
+    # one leaf can add a candidate per centring before the cap is read
+    assert 1 <= result.stats["tetragonal.harvest"] < full.stats["tetragonal.harvest"]
     assert not result.search_complete["tetragonal"]
     (diag,) = [d for d in result.diagnostics if d.code == "INDEX_SEARCH_INCOMPLETE"]
     assert "outgrew a size cap on tetragonal" in diag.message
@@ -1205,12 +1206,18 @@ def test_trial_error_survives_an_impurity_among_the_base_lines():
     assert_same_lattice(result.candidates[0].cell, cell)
 
 
-def test_a_stopped_dedup_keeps_the_full_pass_s_first_groups(monkeypatch):
-    """A token set while the dedup runs ends its walk once it has walked
-    ``keep`` candidates (WP-1924, #780: 10.7 s at 6 819 distinct lattices,
-    about n², with nothing reading the token).  The walk goes best-fitting
-    first and never moves an earlier group's first member, so the groups kept
-    are the full pass's first groups.  An unset token changes nothing."""
+def test_a_stopped_dedup_leaves_the_ranked_list_as_it_was(monkeypatch):
+    """A token set while the dedup runs ends its walk only where the rest could
+    not reach the shortlist (WP-1924, #780: 10.7 s at 6 819 distinct lattices,
+    about n², with nothing reading the token).
+
+    Under the default preset the deadline *is* the token, so a dedup that
+    stopped on a count of candidates walked would hand every ceiling-bound
+    run a different pool.  Stopping where the next candidate indexes fewer
+    lines than ``keep`` leaders already held keeps the full pass's first
+    groups and the very list :func:`rank_candidates` returns unstopped.  The
+    harvest holds several line counts, so the stopped walk is shorter.
+    """
     from rietx.indexing import dichotomy, engines
     from rietx.optimize.cancel import CancelToken
 
@@ -1222,19 +1229,28 @@ def test_a_stopped_dedup_keeps_the_full_pass_s_first_groups(monkeypatch):
         return ranked(cands, *args, **kw)
 
     monkeypatch.setattr(dichotomy, "rank_candidates", recording)
-    peaks, _cell = synthetic_peaks("tetragonal")
-    search_dichotomy(peaks, spec=spec_for("tetragonal", n_unindexed=4))
+    peaks, _cell = synthetic_peaks("cubic")
+    search_dichotomy(peaks, spec=spec_for("cubic", n_unindexed=4))
+    monkeypatch.setattr(dichotomy, "rank_candidates", ranked)
     full = engines.dedup_groups(raw)
-    assert len(full) >= 4, "the harvest no longer holds several lattices"
-    idle = engines.dedup_groups(raw, cancel=CancelToken(), keep=0)
+    idle = engines.dedup_groups(raw, cancel=CancelToken(), keep=1)
     assert [[id(c) for c in g] for g in idle] == [[id(c) for c in g] for g in full]
     stop = CancelToken()
     stop.cancel()
-    keep = 4
-    part = engines.dedup_groups(raw, cancel=stop, keep=keep)
-    assert 1 <= len(part) <= keep
+    part = engines.dedup_groups(raw, cancel=stop, keep=1)
+    assert len(part) < len(full), "the harvest no longer holds two line counts"
     assert [g[0] for g in part] == [g[0] for g in full[:len(part)]]
-    assert sum(len(g) for g in part) == keep
+    # every lattice it left out indexes fewer lines than the one it kept last,
+    # so the pre-rank's volume tie-break saw the whole leading line count
+    assert all(g[0].n_indexed < part[-1][0].n_indexed for g in full[len(part):])
+
+    def ranked_ids(cancel, n):
+        out = engines.rank_candidates(raw, peaks, max_candidates=n, shortlist=1,
+                                      cancel=cancel)
+        return [id(c) for c in out]
+
+    for n in (1, 2, 3):
+        assert ranked_ids(stop, n) == ranked_ids(None, n)
 
 
 def test_the_fast_dedup_groups_exactly_as_the_plain_pass(monkeypatch):

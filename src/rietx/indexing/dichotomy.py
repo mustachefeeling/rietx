@@ -791,8 +791,10 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
             spec.min_volume, vol_max, search, tt_all, anchors)
         raw.extend(found)
         raw_deduped = raw_deduped and not found
-        if len(raw) > DEDUP_EVERY:
-            raw = dedup_candidates(raw, cancel=cancel, keep=DEDUP_EVERY)
+        # a stopped run leaves the dedup to ``rank_candidates``, whose pass
+        # can stop early without moving the ranked list (WP-1924)
+        if len(raw) > DEDUP_EVERY and not (cancel is not None and bool(cancel)):
+            raw = dedup_candidates(raw)
             raw_deduped = True
         result.search_complete[system] = complete
         result.stats[f"{system}.seconds"] = round(budget.elapsed, 3)
@@ -1211,7 +1213,8 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
 
         if unique or width <= tol_accept or depth >= MAX_DEPTH:
             leaf(lo, hi, width, ids)
-            if len(found) >= MAX_HARVEST:
+            # an empty stack is a finished unit, whatever its harvest
+            if len(found) >= MAX_HARVEST and stack:
                 return found, (n_boxes, n_rows), False
             continue
 
