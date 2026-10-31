@@ -1287,6 +1287,23 @@ class LeBailValidation(Base):
     #: the peak list's range.  ``n_reflections`` is the fit's and counts every
     #: reflection, so ``predicted_but_absent`` is a share of *this* number
     n_lines_screened: int | None = None
+    #: of those, the lines inside de Wolff's window: the denominator of the
+    #: absence density below
+    n_lines_screened_in_window: int | None = None
+    #: ``predicted_but_absent_uncancellable_in_window`` over
+    #: ``n_lines_screened_in_window``: the share of the lines this cell
+    #: asserts inside the window that read absent where no extinction could
+    #: explain it.  The density form of the count, as Smith & Snyder's (1979)
+    #: F_N weighs its lines by N/N_poss.  Reported only; the caveat fires on
+    #: the count
+    predicted_but_absent_density_in_window: float | None = None
+    #: the windowed uncancellable absences above what the lowest density
+    #: among the run's screened candidates implies for this cell's window
+    #: lines, A − N_w·d_min: the density compared across candidates, as
+    #: WRIP20 (Altomare et al. 2009) is read against the best candidate.
+    #: 0 for the cleanest candidate and for a lone one, so it cannot stand in
+    #: for the count.  Written by ``index_pattern``; reported only
+    predicted_but_absent_excess_in_window: float | None = None
     #: observed peaks with no calculated reflection nearby — impurity content, or
     #: a wrong cell.  Layer 0's ``unmatched_obs``
     unmatched_observed: int = 0

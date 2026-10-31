@@ -94,7 +94,7 @@ result.
 
 | Code | What it means you must not do |
 |---|---|
-| `INDEX_PREDICTED_BUT_ABSENT` | Keep this candidate; it caps, never refutes. Inside the first twenty lines the lattice predicts lines no extinction could remove where the picker's envelope shows nothing: an oversized cell, which M₂₀ cannot see. `supercell_refuted` is what refutes. **Do not check this with Rwp**; the explanation gives the counts and the case |
+| `INDEX_PREDICTED_BUT_ABSENT` | Keep this candidate; it caps, never refutes, and at `info` (every such line above the first twenty) it caps nothing. Inside the first twenty lines the lattice predicts lines no extinction could remove where the picker's envelope shows nothing: an oversized cell, which M₂₀ cannot see. `supercell_refuted` is what refutes. **Do not check this with Rwp**; the explanation gives the counts and the case |
 | `INDEX_IMPURITY_LINES` | Read it as one thing. The count says which (Measured: 23 unmatched lines on LaB6 with the metric 1 % off, the table in `indexing/workflow.py`). A multi-phase pattern is not indexed: a second phase means subtracting the solved one first. |
 | `INDEX_BRAVAIS_AMBIGUOUS` | Refine in the higher symmetry because it was reported. Refine in the stated system and *test* the higher one, never the reverse. A disagreement between gemmi and spglib is information, not a bug. |
 | `INDEX_VOLUME_UNPHYSICAL` | Quote the cell. |
