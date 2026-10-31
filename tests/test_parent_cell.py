@@ -747,6 +747,14 @@ def test_a_parent_cell_runaway_is_reset_and_named():
     diag = _cell_runaway_diagnostic(reset)
     assert diag is not None and PARENT_A in diag.where
     assert "1 phase" in diag.message or "phase's free cell" in diag.message
+    # the child's cell is derived from the parent edge, not tied to it, and is
+    # the cell the pattern uses: it loses the esd the parent edge loses
+    from rietx.refine import _cell_runaway_withheld
+
+    withheld = _cell_runaway_withheld(table, diag.where)
+    assert PARENT_A in withheld
+    assert "phases.0.cell.a" in withheld
+    assert set(table._cell_blocks[0].outputs) <= withheld
 
 
 def test_a_bound_on_the_parent_carries_to_the_child_built_from_it():

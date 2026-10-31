@@ -260,7 +260,7 @@ with $C$ the cosine matrix of the parent's angles, that holds exactly when
 $C + 2E$ is positive definite. A sufficient condition for any combination of the
 $n$ amplitudes is $|s_j| < \lambda_{\min}(C) / (2 n \lVert E_j \rVert_2)$, since
 $\lambda_{\min}(C + 2E) \ge \lambda_{\min}(C) - \lVert 2E \rVert_2$ (Weyl's inequality).
-A freed amplitude is bounded a relative $10^{-9}$ inside that box, so the metric
+A freed amplitude is bounded a relative {{ PARENT_STRAIN_PD_MARGIN }} inside that box, so the metric
 at the bound is still positive definite to working precision. A tighter bound
 on a strain is the caller's.
 

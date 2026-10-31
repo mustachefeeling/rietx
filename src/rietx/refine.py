@@ -1779,10 +1779,14 @@ def _cell_runaway_withheld(table: ParameterTable,
     """The paths whose esd a result withholds, given the paths one stage's
     ``CELL_RUNAWAY`` finding names (its ``where``).
 
-    Every cell path named, and every entry tied to one of them, transitively:
-    a tie inherits its source's blindness (root CLAUDE.md, the covariance
-    clause), so a cubic ``b``/``c`` following a withheld ``a`` cannot report
-    the esd ``a`` lost.  A ``vars.X`` driver the finding names is not a cell
+    Every cell path named, and every entry tied to one of them or written by a
+    derived block reading one, transitively: a tie inherits its source's
+    blindness (root CLAUDE.md, the covariance clause), so a cubic ``b``/``c``
+    following a withheld ``a`` cannot report the esd ``a`` lost.  A derived
+    entry is the same case without the tie: a ``Phase.parent_cell`` child's
+    six cell entries are computed from the parent's, and are the cell the
+    pattern uses, so they lose the esd the parent edge lost (WP-1419, review
+    of #1108).  A ``vars.X`` driver the finding names is not a cell
     and keeps its esd; the cells it drives are named themselves.  Which
     stage's finding is the caller's to decide (:func:`_build_result`).
     """
@@ -1794,6 +1798,11 @@ def _cell_runaway_withheld(table: ParameterTable,
             if (e.tie is not None and e.path not in withheld
                     and any(src in withheld for src, _ in e.tie.terms)):
                 withheld.add(e.path)
+                grew = True
+        for block in table.derived:
+            if (any(src in withheld for src in block.inputs)
+                    and not withheld.issuperset(block.outputs)):
+                withheld.update(block.outputs)
                 grew = True
     return withheld
 

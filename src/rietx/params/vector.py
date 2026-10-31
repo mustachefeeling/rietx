@@ -1523,7 +1523,13 @@ class ParameterTable:
         (1 − PARENT_STRAIN_PD_MARGIN)·λ_min(C)/(2·n·‖Eⱼ‖₂): the sum of the n
         amplitudes' spectral norms then stays under λ_min(C), which keeps
         C + 2E positive definite for any combination (Weyl's inequality).
-        A sufficient box, not the cone itself, and derived from the parent's
+        A sufficient box, not the cone itself: the equal split binds first
+        when one amplitude carries the strain, stopping it at 1/n of the room
+        that amplitude would have alone while the metric is still far from
+        singular.  On a hexagonal parent (λ_min(C) = ½) with four strains that
+        is about 0.066 to 0.088 depending on ‖Eⱼ‖₂, roughly six times the real
+        strains the ½ fraction was weighed against; a fit reaching it is
+        reported as a bound hit.  The box is derived from the parent's
         cell at this build (re-read each stage, like every bound) rather than
         a tuned number.  A parent angle freed in the same
         stage moves λ_min within the stage; the stage's next build re-reads it.
