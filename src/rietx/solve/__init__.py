@@ -18,9 +18,9 @@ composition's site-class assignments, the seeds, the prior-off control seeds,
 a consensus per space group) on the event stream and the cancel token ``fit``
 uses, checkpointed and resumable (#998), and ``merge_seed_results`` for seeds
 run as separate processes; :mod:`~rietx.solve.solution`, the answer: ranked
-candidates with their evidence, no structure of its own, and a gated
-``best_or_none``; and :mod:`~rietx.solve.engines`, the run's settings, the
-engine registry and the presets.
+candidates with their evidence, no structure of its own and no grade; and
+:mod:`~rietx.solve.engines`, the run's settings, every search setting the
+caller's, and the engine registry.
 Nothing here is exported from :mod:`rietx`; the package becomes public, as a
 provisional module, when the entry point is exported.
 """

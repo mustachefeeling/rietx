@@ -2,15 +2,17 @@
 
 **A solution is a list.**  :class:`SolutionResult` mirrors
 :class:`~rietx.schemas.indexing.IndexingResult`: ranked
-:class:`StructureCandidate`\\ s, each with its evidence and a provisional grade,
-and **no** ``structure`` of its own — the indexing answer carries no ``cell``
-for the same reason (root CLAUDE.md, the four answers are different types).
-:meth:`SolutionResult.best_or_none` is the one singleton accessor, and it
-answers only for exactly one ``high`` candidate.  ``high`` needs at least
-:data:`~rietx.solve.cluster.MIN_SEEDS` independent seeds reaching the same
-solution, χ²_data under :data:`~rietx.solve.cluster.CHI2_RATIO_INSPECT` times
-the Pawley floor, and no caveat; a one-seed run is therefore ``low``
-throughout.
+:class:`StructureCandidate`\\ s, each with the engine's evidence, and **no**
+``structure`` of its own — the indexing answer carries no ``cell`` for the
+same reason (root CLAUDE.md, the four answers are different types).  It
+carries **no grade and no singleton accessor** either: which candidate to
+believe is a heuristic over this evidence, and lands in its own PR after this
+machinery (yue-here/rietx#1224).  The evidence is what
+:func:`~rietx.solve.cluster.rank` returns — χ²_data and its ratio to the
+Pawley floor, the seeds that reached the cluster and their spread, the margin
+to the next candidate, and the leader's distance from the prior-off control
+arm's best with that leader's χ²_data — plus ``partial``, a fact about the
+run that produced it.
 
 **The evidence row** (:class:`SolveEvidence`, :func:`candidate_evidence`) is
 one shape, read by the final answer's :meth:`SolutionResult.evidence` and by
@@ -26,10 +28,6 @@ in :attr:`SolutionResult.timings` and :attr:`SolutionResult.provenance`, so two
 runs of one seed serialise to the same records and candidates byte for byte
 whatever the machine was doing (#998's acceptance).
 
-**Grades are provisional**, under
-:data:`~rietx.solve.cluster.THRESHOLDS_VERSION`, stamped on every candidate
-and quoted by ``capabilities().solve_thresholds_version``.
-
 Nothing here is exported from :mod:`rietx`.
 """
 
@@ -42,18 +40,6 @@ from pydantic import Field
 from ..schemas.common import Base
 from ..schemas.structure import Phase, Structure
 
-#: Why a candidate is not ``high``.  The first three floor it at ``low``
-#: (:data:`SOLVE_REFUTING_CAVEATS`); the rest cap it at ``medium``.  Each has
-#: one writer, :func:`rietx.solve.cluster.rank`.
-SolveCaveat = Literal["single_seed", "worse_than_leader", "prior_excludes_better_fit",
-                      "rival", "chi2_ratio_high", "partial"]
-
-#: The caveats that floor a candidate at ``low``; held equal to
-#: ``solve.cluster.REFUTING`` by test.
-SOLVE_REFUTING_CAVEATS: frozenset[str] = frozenset(
-    {"single_seed", "worse_than_leader", "prior_excludes_better_fit"})
-
-SolveConfidence = Literal["high", "medium", "low"]
 UnitKind = Literal["race", "seed", "control"]
 SolveStatus = Literal["done", "cancelled", "budget"]
 
@@ -65,28 +51,34 @@ class SolveSpecSpec(Base):
 
     ``seeds`` and ``control_seeds`` are seed *indices*: unit k's generator is
     drawn from ``(seed, kind, k)``, so seed 2 is the same chain in a four-seed
-    run and in a process that runs seed 2 alone."""
+    run and in a process that runs seed 2 alone.  Every search setting is
+    required, as on ``SolveSpec`` (``solve.engines``' docstring)."""
 
-    engine: Literal["tempering"] = "tempering"
-    seeds: list[int] = Field(default_factory=lambda: [0, 1, 2, 3])
-    control_seeds: list[int] = Field(default_factory=lambda: [0, 1])
-    replicas: int = 6
-    sweeps: int = 20000
-    race_sweeps: int = 2000
-    heartbeat_sweeps: int = 1000
-    checkpoint_every_s: float = 60.0
+    engine: Literal["tempering"]
+    seeds: list[int]
+    control_seeds: list[int]
+    replicas: int
+    sweeps: int
+    race_sweeps: int
+    span: float
+    step: tuple[float, float]
+    swap_every: int
+    exchange: float
+    n_random: int
+    cluster_tol: float
+    polish_maxiter: int
+    seed: int
+    heartbeat_sweeps: int | None = None
+    checkpoint_every_s: float = 0.0
     total_budget_seconds: float | None = None
-    seed: int = 0
 
     def to_spec(self):
         from ..solve.engines import SolveSpec
 
-        return SolveSpec(engine=self.engine, seeds=tuple(self.seeds),
-                         control_seeds=tuple(self.control_seeds), replicas=self.replicas,
-                         sweeps=self.sweeps, race_sweeps=self.race_sweeps,
-                         heartbeat_sweeps=self.heartbeat_sweeps,
-                         checkpoint_every_s=self.checkpoint_every_s,
-                         total_budget_seconds=self.total_budget_seconds, seed=self.seed)
+        return SolveSpec(**{name: (tuple(getattr(self, name))
+                                   if isinstance(getattr(self, name), list)
+                                   else getattr(self, name))
+                            for name in type(self).model_fields})
 
 
 class SolvedAtom(Base):
@@ -177,7 +169,11 @@ class StructureCandidate(Base):
     are the seed indices whose polished states joined the cluster, so
     ``n_finders`` is how many independent starts reached it, and
     ``finder_rmsd`` the largest member's RMSD from the leader after alignment
-    (Å).  ``chi2_ratio`` is χ²_data/χ²_floor."""
+    (Å).  ``chi2_ratio`` is χ²_data/χ²_floor.  ``control_rmsd_ang`` is the
+    leader's RMSD (Å) from the prior-off control arm's best leader and
+    ``control_chi2_data`` that leader's χ²_data, both ``None`` when the run
+    had no control seeds (:class:`~rietx.solve.cluster.RankedSolution`).
+    ``partial`` is true when the run stopped before its units finished."""
 
     rank: int
     space_group: str
@@ -195,10 +191,9 @@ class StructureCandidate(Base):
     finder_rmsd: float
     n_members: int
     margin_to_next: float | None
-    confidence: SolveConfidence
-    confidence_caveats: list[SolveCaveat] = Field(default_factory=list)
-    partial: bool = False
-    thresholds_version: str
+    control_rmsd_ang: float | None
+    control_chi2_data: float | None
+    partial: bool
 
 
 class SolveEvidence(Base):
@@ -208,22 +203,24 @@ class SolveEvidence(Base):
     rank: int
     space_group: str
     assignment: int | None
+    chi2_data: float
     chi2_ratio: float
     n_finders: int
     finder_rmsd: float
     margin_to_next: float | None
-    confidence: SolveConfidence
-    confidence_caveats: list[SolveCaveat]
+    control_rmsd_ang: float | None
+    control_chi2_data: float | None
     partial: bool
 
 
 def candidate_evidence(index: int, c: StructureCandidate) -> SolveEvidence:
     """The one evidence shape, for the stream and for :meth:`SolutionResult.evidence`."""
     return SolveEvidence(index=index, rank=c.rank, space_group=c.space_group,
-                         assignment=c.assignment, chi2_ratio=c.chi2_ratio,
-                         n_finders=c.n_finders, finder_rmsd=c.finder_rmsd,
-                         margin_to_next=c.margin_to_next, confidence=c.confidence,
-                         confidence_caveats=list(c.confidence_caveats), partial=c.partial)
+                         assignment=c.assignment, chi2_data=c.chi2_data,
+                         chi2_ratio=c.chi2_ratio, n_finders=c.n_finders,
+                         finder_rmsd=c.finder_rmsd, margin_to_next=c.margin_to_next,
+                         control_rmsd_ang=c.control_rmsd_ang,
+                         control_chi2_data=c.control_chi2_data, partial=c.partial)
 
 
 class SolveProvenance(Base):
@@ -239,8 +236,8 @@ class SolutionResult(Base):
     """A structure-solution run's answer (module docstring).
 
     ``status`` is ``"done"``, ``"cancelled"`` (the caller's token) or
-    ``"budget"`` (the run's ceiling); in the last two ``partial`` is true,
-    every candidate carries the ``partial`` caveat, and ``units_not_run``
+    ``"budget"`` (the run's ceiling); in the last two ``partial`` is true on
+    the result and on every candidate, and ``units_not_run``
     names what the run did not reach.  ``search_complete`` says per unit
     whether it ran all its sweeps."""
 
@@ -258,23 +255,11 @@ class SolutionResult(Base):
     partial: bool = False
     resumed: bool = False
     spec: SolveSpecSpec
-    preset: str
     phase: Phase
     n_reflections: int
     chi2_floor: float
-    thresholds_version: str
     timings: dict[str, float] = Field(default_factory=dict)
     provenance: SolveProvenance
-
-    def best_or_none(self) -> StructureCandidate | None:
-        """The single candidate, or ``None``.
-
-        A candidate only when exactly one has ``confidence == "high"``; one
-        seed's solution, two ``high`` solutions (two space groups each with a
-        confident leader) and a leader above the χ² ratio bar all answer
-        ``None``, the reason in each candidate's ``confidence_caveats``."""
-        high = [c for c in self.candidates if c.confidence == "high"]
-        return high[0] if len(high) == 1 else None
 
     def evidence(self) -> list[SolveEvidence]:
         """Every candidate's evidence row, computed on each call."""
@@ -287,7 +272,6 @@ class SolutionResult(Base):
         return self.model_dump_json(exclude={"timings", "provenance", "resumed"})
 
 
-__all__ = ["SOLVE_REFUTING_CAVEATS", "PolishedState", "RaceRecord", "RaceRound",
-           "SearchLayout", "SolutionResult", "SolveCaveat", "SolveConfidence", "SolveEvidence",
-           "SolveProvenance", "SolveSpecSpec", "SolvedAtom", "StructureCandidate", "UnitRecord",
-           "candidate_evidence"]
+__all__ = ["PolishedState", "RaceRecord", "RaceRound", "SearchLayout", "SolutionResult",
+           "SolveEvidence", "SolveProvenance", "SolveSpecSpec", "SolvedAtom",
+           "StructureCandidate", "UnitRecord", "candidate_evidence"]

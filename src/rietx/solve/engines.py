@@ -1,9 +1,24 @@
-"""The solve run's settings, its engine registry and its presets (#562 S2b; WP number pending).
+"""The solve run's settings and its engine registry (#562 S2b; WP number pending).
 
 :class:`SolveSpec` is the engine-side settings object, as
 :class:`~rietx.indexing.engines.SearchSpec` is indexing's; its request chair
 is :class:`~rietx.solve.solution.SolveSpecSpec`, and the two convert into
 each other exactly (``tests/test_solve_entry.py``).
+
+**The engine chooses no search setting** (yue-here/rietx#1224, as #1153
+merged it).  Every field that moves what a run computes is the caller's and
+has no default: the engine, the seeds and control seeds, the ladder (replicas,
+``span``, ``step``), the move set (``swap_every``, ``exchange``), the length
+(``sweeps``, ``race_sweeps``), the random-structure count the top temperature
+is measured from (``n_random``, :func:`~rietx.solve.tempering.random_spread`'s
+``n``), the clustering tolerance (``cluster_tol``,
+:func:`~rietx.solve.cluster.cluster`'s ``tol``), the polish's iteration cap
+(``polish_maxiter``) and the base ``seed``.  A missing one is a
+``TypeError``; an impossible one is refused here, by name, before any unit
+runs.  The three defaulted fields decide only when a run talks, writes or
+stops, never what a unit computes, and each default is the off state: no
+heartbeat, a checkpoint at every boundary (no throttle), no ceiling.  The
+result records the spec it ran (``SolutionResult.spec``).
 
 **Seeds are indices, and a unit's generator is derived, never hashed**
 (:func:`unit_seed`): unit k of kind K draws from
@@ -17,20 +32,13 @@ process and is never used (indexing's ``SearchSpec.seed`` rule).
 what it suits; ``capabilities().solve_engines`` quotes it live.  One engine
 today, ``tempering`` (S2a's parallel tempering); charge flipping is S6's.
 
-**The presets** (:data:`SOLVE_PRESETS`, :data:`SOLVE_PRESET_INFO`, a bijection
-by test, quoted by ``capabilities().solve_presets``): ``quick`` is the default,
-a whole-run ceiling of the architecture's 600 s (WP-1515's 2026-09-29 plan,
-the twin of indexing's ``quick``), which a binding run reports as status
-``"budget"`` with what it did not reach; ``full`` has no ceiling.  A declared
-``total_budget_seconds`` is never overridden and runs as ``custom``.
-
 Nothing here is exported from :mod:`rietx`.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import dataclass, field, fields
 
 import numpy as np
 
@@ -41,38 +49,67 @@ UNIT_KINDS = ("seed", "control", "race", "ladder")
 
 @dataclass(frozen=True)
 class SolveSpec:
-    """What one solve run is asked to do (field meanings: ``help.SOLVE_FIELD_HELP``).
+    """What one solve run is asked to do (field meanings: ``help.SOLVE_FIELD_HELP``;
+    module docstring for why the search settings have no default).
 
     ``sweeps`` is each seed's and control seed's length; ``race_sweeps`` the
     first race round's, doubled each round; ``heartbeat_sweeps`` the
-    ``solve_step`` cadence; ``checkpoint_every_s`` the shortest interval
-    between two checkpoint writes at the engine's boundaries (a finished unit
-    always writes); ``total_budget_seconds`` the whole-run ceiling, ``None``
-    for none."""
+    ``solve_step`` cadence, ``None`` for none; ``checkpoint_every_s`` the
+    shortest interval between two checkpoint writes at the engine's
+    boundaries (a finished unit always writes; 0 writes at every boundary);
+    ``total_budget_seconds`` the whole-run ceiling, ``None`` for none."""
 
-    engine: str = "tempering"
-    seeds: tuple[int, ...] = (0, 1, 2, 3)
-    control_seeds: tuple[int, ...] = (0, 1)
-    replicas: int = 6
-    sweeps: int = 20000
-    race_sweeps: int = 2000
-    heartbeat_sweeps: int = 1000
-    checkpoint_every_s: float = 60.0
+    engine: str
+    seeds: tuple[int, ...]
+    control_seeds: tuple[int, ...]
+    replicas: int
+    sweeps: int
+    race_sweeps: int
+    span: float
+    step: tuple[float, float]
+    swap_every: int
+    exchange: float
+    n_random: int
+    cluster_tol: float
+    polish_maxiter: int
+    seed: int
+    heartbeat_sweeps: int | None = None
+    checkpoint_every_s: float = 0.0
     total_budget_seconds: float | None = None
-    seed: int = 0
 
     def __post_init__(self):
         # seed indices are a set: sorted, so a run and its merge name them alike
         object.__setattr__(self, "seeds", tuple(sorted(self.seeds)))
         object.__setattr__(self, "control_seeds", tuple(sorted(self.control_seeds)))
-        if self.replicas < 2:
-            raise ValueError("a ladder needs at least two replicas")
-        for name in ("sweeps", "race_sweeps", "heartbeat_sweeps"):
-            if getattr(self, name) < 1:
-                raise ValueError(f"{name} must be at least 1")
+        object.__setattr__(self, "step", tuple(float(x) for x in self.step))
         if len(set(self.seeds)) != len(self.seeds) or len(set(self.control_seeds)) != len(
                 self.control_seeds):
             raise ValueError("a seed index appears twice")
+        if self.replicas < 2:
+            raise ValueError("a ladder needs at least two replicas")
+        for name in ("sweeps", "race_sweeps", "polish_maxiter"):
+            v = getattr(self, name)
+            if not (v >= 1 and int(v) == v):
+                raise ValueError(f"{name} {v!r} must be a whole number, at least 1")
+        if self.heartbeat_sweeps is not None and not self.heartbeat_sweeps >= 1:
+            raise ValueError(f"heartbeat_sweeps {self.heartbeat_sweeps} must be at least 1, "
+                             "or None for no heartbeat")
+        if not self.span > 1.0:
+            raise ValueError(f"span {self.span} must be above 1 (top over bottom temperature)")
+        if len(self.step) != 2 or not (self.step[0] > 0.0 and self.step[1] > 0.0):
+            raise ValueError(f"step {self.step} must be two positive move sizes (Å)")
+        if not (self.swap_every >= 1 and int(self.swap_every) == self.swap_every):
+            raise ValueError(f"swap_every {self.swap_every!r} must be a whole number of "
+                             "sweeps, at least 1")
+        if not 0.0 <= self.exchange <= 1.0:
+            raise ValueError(f"exchange {self.exchange} is a probability, in [0, 1]")
+        if not self.n_random >= 2:
+            raise ValueError(f"n_random {self.n_random} must be at least 2: a spread needs "
+                             "two random structures")
+        if not self.cluster_tol > 0.0:
+            raise ValueError(f"cluster_tol {self.cluster_tol} must be a positive RMSD in Å")
+        if not self.checkpoint_every_s >= 0.0:
+            raise ValueError(f"checkpoint_every_s {self.checkpoint_every_s} must be 0 or more")
 
     def to_spec_spec(self):
         from .solution import SolveSpecSpec
@@ -129,28 +166,5 @@ def _load() -> None:
     from . import workflow  # noqa: F401  (registers the engines)
 
 
-# ----------------------------------------------------------------------
-# presets
-# ----------------------------------------------------------------------
-#: The fields each preset sets; everything else is :class:`SolveSpec`'s default.
-SOLVE_PRESETS: dict[str, dict] = {
-    "quick": {"total_budget_seconds": 600.0},
-    "full": {"total_budget_seconds": None},
-}
-
-SOLVE_PRESET_INFO: dict[str, str] = {
-    "quick": ("The default: every seed and control seed under a whole-run ceiling of 600 s; "
-              "a run the ceiling stops is graded partial and says what it did not reach."),
-    "full": "No ceiling: every unit runs its sweeps.",
-}
-
-
-def preset_spec(name: str, base: SolveSpec | None = None) -> SolveSpec:
-    if name not in SOLVE_PRESETS:
-        raise ValueError(f"unknown solve preset {name!r}; known: {sorted(SOLVE_PRESETS)}")
-    return replace(base or SolveSpec(), **SOLVE_PRESETS[name])
-
-
-__all__ = ["SOLVE_PRESETS", "SOLVE_PRESET_INFO", "UNIT_KINDS", "EngineEntry", "SolveSpec",
-           "engine_descriptions", "engine_names", "get_engine", "preset_spec",
-           "register_engine", "unit_seed"]
+__all__ = ["UNIT_KINDS", "EngineEntry", "SolveSpec", "engine_descriptions", "engine_names",
+           "get_engine", "register_engine", "unit_seed"]

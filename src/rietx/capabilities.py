@@ -263,16 +263,6 @@ class ReaderOptionCapability(Base):
     help: str
 
 
-class SolvePresetCapability(Base):
-    """One structure-solution preset (#562 S2b): ``solve.engines.SOLVE_PRESETS``
-    and its info, quoted live (the bijection is a test)."""
-
-    name: str
-    description: str
-    default: bool
-    total_budget_seconds: float | None
-
-
 class Capabilities(Base):
     """The whole answer.  JSON-serialisable; WP-1008 serves it verbatim."""
 
@@ -282,8 +272,7 @@ class Capabilities(Base):
     #: which is the argument for putting them here rather than in prose: a client
     #: reads the arm, not a paragraph that has to be remembered — and from five
     #: to six when WP-1003's review found the indexing thresholds riding on
-    #: every ``IndexingResult`` without being quoted here.  Seven since #562
-    #: S2b: the provisional grades of a structure-solution answer.
+    #: every ``IndexingResult`` without being quoted here.
     schema_version: str
     report_thresholds_version: str
     event_schema_version: str
@@ -295,9 +284,6 @@ class Capabilities(Base):
     #: vocabularies, gate thresholds) — ``schemas.indexing``'s peer of
     #: ``report_thresholds_version``, stamped on every ``IndexingResult``
     indexing_thresholds_version: str
-    #: the structure-solution grades' contract (``solve.cluster.THRESHOLDS_VERSION``),
-    #: stamped on every ``StructureCandidate`` (#562 S2b; provisional)
-    solve_thresholds_version: str
 
     backends: list[BackendCapability] = Field(default_factory=list)
     solvers: list[str] = Field(default_factory=list)
@@ -307,10 +293,9 @@ class Capabilities(Base):
     #: registries so the GUI form, the agent schema and ``SearchSpec`` cannot
     #: disagree about what may be asked for
     indexing_engines: list[EngineCapability] = Field(default_factory=list)
-    #: the structure-solution vocabularies (#562 S2b), quoted from the live
-    #: registries, as the indexing ones are
+    #: the structure-solution engines (#562 S2b), quoted from the live
+    #: registry, as the indexing ones are
     solve_engines: list[EngineCapability] = Field(default_factory=list)
-    solve_presets: list[SolvePresetCapability] = Field(default_factory=list)
     #: ``SYSTEM_ORDER`` verbatim — the order *is* information (cheapest first)
     crystal_systems: list[str] = Field(default_factory=list)
     #: Bravais centrings each system admits, ``engines.CENTRINGS`` verbatim
@@ -362,8 +347,6 @@ def capabilities() -> Capabilities:
     from .gui.textdoc import FORMAT_VERSION as TEXTDOC_FORMAT_VERSION
     from .model import compiled
     from .skill import skill_path
-    from .solve.cluster import THRESHOLDS_VERSION as SOLVE_THRESHOLDS_VERSION
-    from .solve.engines import SOLVE_PRESET_INFO, SOLVE_PRESETS
     from .solve.engines import engine_descriptions as solve_engine_descriptions
 
     _skill = skill_path()
@@ -377,7 +360,6 @@ def capabilities() -> Capabilities:
         project_format_version=PROJECT_FORMAT_VERSION,
         textdoc_format_version=TEXTDOC_FORMAT_VERSION,
         indexing_thresholds_version=INDEXING_THRESHOLDS_VERSION,
-        solve_thresholds_version=SOLVE_THRESHOLDS_VERSION,
         backends=[_backend(name) for name in BACKEND_NAMES],
         solvers=list(SOLVERS),
         plans=[PlanCapability(name=name, title=info.title,
@@ -398,10 +380,6 @@ def capabilities() -> Capabilities:
             for name, desc in sorted(engine_descriptions().items())],
         solve_engines=[EngineCapability(name=name, description=desc)
                        for name, desc in solve_engine_descriptions().items()],
-        solve_presets=[SolvePresetCapability(
-            name=name, description=SOLVE_PRESET_INFO[name], default=name == "quick",
-            total_budget_seconds=preset.get("total_budget_seconds"))
-            for name, preset in SOLVE_PRESETS.items()],
         crystal_systems=list(SYSTEM_ORDER),
         centrings={system: list(letters)
                    for system, letters in CENTRINGS.items()},

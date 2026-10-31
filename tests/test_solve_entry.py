@@ -19,7 +19,6 @@ from __future__ import annotations
 import dataclasses
 import inspect
 import json
-import re
 import sys
 import typing
 import urllib.request
@@ -39,18 +38,21 @@ from rietx.solve.chemistry import PriorWeights, SolvePriors
 from rietx.solve.cost import SolveCost
 from rietx.solve.engines import SolveSpec
 from rietx.solve.moves import FragmentUnit, SearchSpace
-from rietx.solve.solution import (
-    SOLVE_REFUTING_CAVEATS,
-    SolutionResult,
-    SolveCaveat,
-    SolveSpecSpec,
-)
+from rietx.solve.solution import SolutionResult, SolveSpecSpec
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_acceptance_nac import build_nac_inputs  # noqa: E402
 from test_solve_engine import (  # noqa: E402
+    CLUSTER_TOL,
+    EXCHANGE,
+    N_RANDOM,
     NAC_COMPOSITION,
     NAC_LIMITS,
+    POLISH_ITER,
+    REPLICAS,
+    SPAN,
+    STEP,
+    SWAP_EVERY,
     _acr_phase,
     _acr_truth,
     _priors,
@@ -60,10 +62,24 @@ from test_solve_engine import (  # noqa: E402
 
 pytestmark = pytest.mark.xdist_group("solve-entry")
 
+#: Every search setting, stated: the engine chooses none (``solve.engines``'
+#: docstring).  The ladder, move and clustering values are the ones S2a's tests
+#: declare beside their measurements (``tests/test_solve_engine.py``).
+SETTINGS = dict(engine="tempering", replicas=REPLICAS, race_sweeps=2000, span=SPAN, step=STEP,
+                swap_every=SWAP_EVERY, exchange=EXCHANGE, n_random=N_RANDOM,
+                cluster_tol=CLUSTER_TOL, polish_maxiter=POLISH_ITER, seed=0)
+#: The NAC biso the composition's free sites are placed with (Å²).
+NAC_BISO = 1.0
+
+
+def _spec(**kw) -> SolveSpec:
+    return SolveSpec(**{**SETTINGS, **kw})
+
+
 #: The mechanics run: two seeds and one control seed of 2 000 sweeps, so every
 #: unit crosses one rebuild boundary (tempering.REFRESH_EVERY = 1000) inside it.
-ACR_SPEC = SolveSpec(seeds=(0, 1), control_seeds=(0,), sweeps=2000, heartbeat_sweeps=250,
-                     checkpoint_every_s=0.0)
+ACR_SPEC = _spec(seeds=(0, 1), control_seeds=(0,), sweeps=2000, heartbeat_sweeps=250,
+                 checkpoint_every_s=0.0)
 GROUP = "P 1 21/n 1"
 
 
@@ -84,8 +100,7 @@ class Acr:
     def solve(self, spec=ACR_SPEC, **kw):
         kw.setdefault("telemetry", False)
         return wf.solve_structure(self.cost, self.phase, instrument=self.ins, priors=_priors(),
-                                  units=[FragmentUnit(acridine(), biso=3.0)], spec=spec,
-                                  preset="full", **kw)
+                                  units=[FragmentUnit(acridine(), biso=3.0)], spec=spec, **kw)
 
 
 @pytest.fixture(scope="module")
@@ -140,7 +155,7 @@ class Nac:
     def solve(self, spec, **kw):
         kw.setdefault("telemetry", False)
         return wf.solve_structure(self.cost, self.phase, instrument=self.ins, priors=_priors(),
-                                  composition=NAC_COMPOSITION, spec=spec, preset="full", **kw)
+                                  composition=NAC_COMPOSITION, spec=spec, biso=NAC_BISO, **kw)
 
     def rmsd(self, cand) -> float:
         pool: dict[str, list] = {}
@@ -159,58 +174,54 @@ def nac():
 # ===================================================================================
 # the answer type
 # ===================================================================================
-def test_the_answer_carries_no_structure(acr_run):
+def test_the_answer_carries_no_structure_and_no_grade(acr_run):
     res = acr_run[0]
     assert "structure" not in SolutionResult.model_fields
     assert not hasattr(res, "structure")
     assert res.candidates and all(c.structure.phases[0].atoms for c in res.candidates)
+    # machinery only (yue-here/rietx#1224): no grade, no verdict, no singleton accessor
+    fields = set(SolutionResult.model_fields) | set(type(res.candidates[0]).model_fields)
+    assert not fields & {"confidence", "confidence_caveats", "grade", "caveats",
+                         "thresholds_version", "preset"}
+    assert not hasattr(res, "best_or_none")
 
 
-def test_best_or_none_answers_for_one_high_candidate_only(acr, acr_run):
-    """The positive arm and the three None cases, through the real gate."""
+def test_the_candidates_carry_the_engines_evidence(acr, acr_run):
+    """The positive arm (two seeds reach the truth), then the same records
+    with one seed's dropped: the evidence moves with them, nothing judges."""
     res = acr_run[0]
     lead = res.candidates[0]
-    assert lead.confidence == "high" and lead.n_finders == 2
-    assert res.best_or_none() is lead                       # the positive arm
+    assert lead.n_finders == 2 and lead.seeds == [0, 1]
     assert cl.align(wf._equivalence(acr.phase, GROUP), acr.truth, np.array(lead.xyz),
                     lead.species).rmsd < 0.10
-
-    def again(records, floor=res.chi2_floor):
-        return wf._assemble(
-            phase=res.phase, spec=res.spec.to_spec(), preset=res.preset,
-            n_reflections=res.n_reflections, floor=floor, groups=res.space_groups_searched,
-            races=res.races, layouts=res.layouts, records=records, status="done",
-            units_not_run=[], timings={}, resumed=False, provenance=res.provenance)
-
-    # one finder: seed 1's records dropped, so the leader is one seed's
-    one = again([r for r in res.records if r.seed_index == 0 or r.kind == "control"])
-    assert one.candidates[0].n_finders == 1
-    assert "single_seed" in one.candidates[0].confidence_caveats
-    assert one.best_or_none() is None
-    # χ²_data above the bar: the same records against a floor a tenth of the real one
-    high_ratio = again(res.records, floor=res.chi2_floor / 10.0)
-    assert high_ratio.candidates[0].chi2_ratio > cl.CHI2_RATIO_INSPECT
-    assert "chi2_ratio_high" in high_ratio.candidates[0].confidence_caveats
-    assert high_ratio.best_or_none() is None
-    # two high candidates (two groups' confident leaders)
-    twin = lead.model_copy(update={"rank": 2, "space_group": "P 1 21/c 1"})
-    two = res.model_copy(update={"candidates": [lead, twin]})
-    assert [c.confidence for c in two.candidates] == ["high", "high"]
-    assert two.best_or_none() is None
+    assert lead.chi2_ratio == pytest.approx(lead.chi2_data / res.chi2_floor, rel=1e-15)
+    # the control arm ran: its best reads within the clustering tolerance here
+    assert lead.control_chi2_data is not None and lead.control_rmsd_ang is not None
+    assert lead.control_rmsd_ang < SETTINGS["cluster_tol"]
+    assert not lead.partial and not res.partial
+    assert res.spec.to_spec() == ACR_SPEC                     # the result records the spec
+    one = wf._assemble(
+        phase=res.phase, spec=res.spec.to_spec(), n_reflections=res.n_reflections,
+        floor=res.chi2_floor, groups=res.space_groups_searched, races=res.races,
+        layouts=res.layouts, records=[r for r in res.records if r.seed_index == 0
+                                      or r.kind == "control"], status="done",
+        units_not_run=[], timings={}, resumed=False, provenance=res.provenance)
+    assert one.candidates[0].n_finders == 1 and one.candidates[0].seeds == [0]
 
 
-def test_a_one_seed_run_grades_every_candidate_low(acr):
-    res = acr.solve(SolveSpec(seeds=(0,), control_seeds=(), sweeps=1000))
+def test_a_run_with_no_control_seeds_reports_no_control_evidence(acr):
+    res = acr.solve(_spec(seeds=(0,), control_seeds=(), sweeps=1000))
     assert res.candidates
-    assert {c.confidence for c in res.candidates} == {"low"}
-    assert all("single_seed" in c.confidence_caveats for c in res.candidates)
-    assert res.best_or_none() is None
+    assert all(c.control_rmsd_ang is None and c.control_chi2_data is None
+               for c in res.candidates)
+    assert all(c.n_finders == 1 for c in res.candidates)
 
 
 def test_the_control_seeds_run_prior_off_and_feed_the_rank(acr, acr_run, monkeypatch):
     """The control units run with every prior at zero weight, and their
-    clusters reach ``rank(control=…)``: a control leader that is structurally
-    different and better by CONTROL_BETTER caps the prior-on leader."""
+    clusters reach ``rank(control=…)``: a planted control leader that is
+    structurally different and better reads as such in the candidate's
+    evidence, and nothing caps or grades it."""
     res = acr_run[0]
     ctrl = [r for r in res.records if r.kind == "control"]
     assert [r.seed_index for r in ctrl] == [0] and all(r.polished for r in ctrl)
@@ -228,30 +239,59 @@ def test_the_control_seeds_run_prior_off_and_feed_the_rank(acr, acr_run, monkeyp
         "xyz": moved.tolist(), "chi2": 0.5 * lead.chi2_data, "j": 0.0}) for p in r.polished]})
         if r.kind == "control" else r for r in res.records]
     got = wf._assemble(
-        phase=res.phase, spec=res.spec.to_spec(), preset=res.preset,
-        n_reflections=res.n_reflections, floor=res.chi2_floor, groups=res.space_groups_searched,
-        races=res.races, layouts=res.layouts, records=fake, status="done", units_not_run=[],
-        timings={}, resumed=False, provenance=res.provenance)
-    assert seen["control"] and seen["control"][0].leader.control
-    assert "prior_excludes_better_fit" in got.candidates[0].confidence_caveats
-    assert got.candidates[0].confidence == "low"
+        phase=res.phase, spec=res.spec.to_spec(), n_reflections=res.n_reflections,
+        floor=res.chi2_floor, groups=res.space_groups_searched, races=res.races,
+        layouts=res.layouts, records=fake, status="done", units_not_run=[], timings={},
+        resumed=False, provenance=res.provenance)
+    assert seen["control"] and seen["control"][0].seeds == (0,)
+    c0 = got.candidates[0]
+    assert c0.control_chi2_data == pytest.approx(0.5 * lead.chi2_data, rel=1e-12)
+    assert c0.control_rmsd_ang > SETTINGS["cluster_tol"]
+    assert c0.xyz == lead.xyz and c0.rank == 1                # the evidence moved, nothing else
     # the control problem's clash term is weighted zero, the prior-on one's is not
     searches = wf._searches(acr.cost, acr.phase, acr.ins, _priors(), [GROUP], None,
                             [FragmentUnit(acridine(), biso=3.0)], ACR_SPEC, 1.0)
     assert searches[0].problem.clash.weight > 0.0 == searches[0].control.clash.weight
 
 
-def test_every_caveat_has_its_writer_and_the_refuting_split_is_one():
-    members = set(typing.get_args(SolveCaveat))
-    written = set(re.findall(r'caveats\.append\("([a-z0-9_]+)"\)', inspect.getsource(cl.rank)))
-    assert members == written
-    assert SOLVE_REFUTING_CAVEATS == cl.REFUTING
+def test_the_entry_point_chooses_no_search_setting(acr):
+    """Every search setting is required (no default anywhere: the spec, its
+    request chair, the entry point), and an impossible one is refused by
+    name before any unit runs."""
+    required = {f.name for f in dataclasses.fields(SolveSpec)
+                if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING}
+    assert required == set(SETTINGS) | {"seeds", "control_seeds", "sweeps"}
+    assert required >= {"span", "step", "swap_every", "exchange", "n_random", "cluster_tol",
+                        "polish_maxiter"}
+    full = {**SETTINGS, "seeds": (0,), "control_seeds": (), "sweeps": 1000}
+    for name in sorted(required):
+        with pytest.raises(TypeError, match=name):
+            SolveSpec(**{k: v for k, v in full.items() if k != name})
+        assert SolveSpecSpec.model_fields[name].is_required()
+    # the three defaulted fields are the off state of something that computes nothing
+    assert {f.name: f.default for f in dataclasses.fields(SolveSpec) if f.name not in required} \
+        == {"heartbeat_sweeps": None, "checkpoint_every_s": 0.0, "total_budget_seconds": None}
+    sig = inspect.signature(wf.solve_structure)
+    assert sig.parameters["spec"].default is inspect.Parameter.empty
+    with pytest.raises(TypeError, match="spec"):
+        wf.solve_structure(acr.cost, acr.phase, instrument=acr.ins, priors=_priors(),
+                           units=[FragmentUnit(acridine(), biso=3.0)])
+    with pytest.raises(wf.SolveRefused, match="biso"):
+        wf.solve_structure(acr.cost, acr.phase, instrument=acr.ins, priors=_priors(),
+                           composition={"C": 4}, spec=SolveSpec(**full))
+    bad = {"span": 1.0, "step": (0.0, 1.0), "swap_every": 0, "exchange": 1.5, "n_random": 1,
+           "cluster_tol": 0.0, "polish_maxiter": 0, "replicas": 1, "sweeps": 0,
+           "race_sweeps": 0}
+    for name, value in bad.items():
+        with pytest.raises(ValueError, match=name if name != "replicas" else "two replicas"):
+            SolveSpec(**{**full, name: value})
 
 
 def test_the_spec_and_its_request_chair_are_each_others_inverse():
-    assert SolveSpecSpec().to_spec() == SolveSpec()
-    assert SolveSpec().to_spec_spec() == SolveSpecSpec()
-    odd = SolveSpec(seeds=(3, 1), control_seeds=(), sweeps=7, total_budget_seconds=9.0, seed=5)
+    assert ACR_SPEC.to_spec_spec().to_spec() == ACR_SPEC
+    assert SolveSpecSpec.model_validate_json(ACR_SPEC.to_spec_spec().model_dump_json()
+                                             ).to_spec() == ACR_SPEC
+    odd = _spec(seeds=(3, 1), control_seeds=(), sweeps=7, total_budget_seconds=9.0, seed=5)
     assert odd.to_spec_spec().to_spec() == odd
     assert odd.seeds == (1, 3)
     assert set(SolveSpecSpec.model_fields) == {f.name for f in dataclasses.fields(SolveSpec)}
@@ -262,25 +302,22 @@ def test_solve_field_defaults_are_the_schemas_own():
 
     wrong = []
     for name, field in SolveSpecSpec.model_fields.items():
-        value = field.get_default(call_default_factory=True)
+        value = None if field.is_required() else field.get_default(call_default_factory=True)
         quoted = None if value is None else json.dumps(value)
         if SOLVE_FIELD_HELP[name].default != quoted:
             wrong.append((name, SOLVE_FIELD_HELP[name].default, quoted))
     assert not wrong
 
 
-def test_presets_engines_and_capabilities_quote_the_live_registries():
-    from rietx.capabilities import capabilities
+def test_engines_and_capabilities_quote_the_live_registry():
+    from rietx.capabilities import Capabilities, capabilities
     from rietx.help import SOLVE_FIELD_HELP
 
     caps = capabilities()
-    assert set(en.SOLVE_PRESETS) == set(en.SOLVE_PRESET_INFO)
-    assert [p.name for p in caps.solve_presets] == list(en.SOLVE_PRESETS)
     assert [e.name for e in caps.solve_engines] == list(en.engine_names()) == ["tempering"]
-    assert caps.solve_thresholds_version == cl.THRESHOLDS_VERSION
     assert set(SOLVE_FIELD_HELP) == set(SolveSpecSpec.model_fields)
-    assert en.preset_spec("quick").total_budget_seconds == 600.0
-    assert wf._resolve_spec(SolveSpec(total_budget_seconds=5.0), None)[1] == "custom"
+    # no preset and no grade contract: those are the heuristic's (#1224)
+    assert not {n for n in Capabilities.model_fields if n.startswith("solve_")} - {"solve_engines"}
 
 
 # ===================================================================================
@@ -367,7 +404,7 @@ def test_a_stop_from_watch_returns_what_the_run_has(acr, tmp_path):
         runs.set_enabled(was)
     assert res.status == "cancelled" and res.partial
     assert res.records[0].stopped == "cancelled" and res.records[0].polished
-    assert res.candidates and all("partial" in c.confidence_caveats for c in res.candidates)
+    assert res.candidates and all(c.partial for c in res.candidates)
     assert res.units_not_run
     (run,) = runs.discover(tmp_path)
     assert run.status.state == "cancelled" and run.status.cancelled_by == "test"
@@ -389,7 +426,7 @@ def test_an_interrupted_run_resumes_byte_identical(acr, acr_run, tmp_path, unit,
     cut = acr.solve(checkpoint=ck, cancel=token, events=_cancel_at(token, target, sweep))
     assert cut.status == "cancelled" and cut.partial
     assert any(r.stopped == "cancelled" for r in cut.records)
-    assert all("partial" in c.confidence_caveats for c in cut.candidates)
+    assert cut.candidates and all(c.partial for c in cut.candidates)
     saved = json.loads(ck.read_text(encoding="utf-8"))
     assert saved["current"]["unit"] == target
     assert saved["current"]["state"]["done"] == (sweep // 1000) * 1000
@@ -400,17 +437,17 @@ def test_an_interrupted_run_resumes_byte_identical(acr, acr_run, tmp_path, unit,
 
 def test_a_finished_checkpoint_returns_the_run_without_running_it(acr, acr_run, tmp_path):
     ck = tmp_path / "done.ckpt"
-    first = acr.solve(SolveSpec(seeds=(0,), control_seeds=(), sweeps=1000,
-                                checkpoint_every_s=0.0), checkpoint=ck)
+    first = acr.solve(_spec(seeds=(0,), control_seeds=(), sweeps=1000, heartbeat_sweeps=250),
+                      checkpoint=ck)
     events: list[dict] = []
-    again = acr.solve(SolveSpec(seeds=(0,), control_seeds=(), sweeps=1000,
-                                checkpoint_every_s=0.0), checkpoint=ck, events=events.append)
+    again = acr.solve(_spec(seeds=(0,), control_seeds=(), sweeps=1000, heartbeat_sweeps=250),
+                      checkpoint=ck, events=events.append)
     assert again.comparable_json() == first.comparable_json()
     assert not [e for e in events if e["kind"] == "solve_step"]
 
 
 def test_a_mismatched_checkpoint_is_refused_by_name(acr, tmp_path):
-    spec = SolveSpec(seeds=(0,), control_seeds=(), sweeps=1000, checkpoint_every_s=0.0)
+    spec = _spec(seeds=(0,), control_seeds=(), sweeps=1000)
     ck = tmp_path / "m.ckpt"
     acr.solve(spec, checkpoint=ck)
     # the cost: one reflection's b moved
@@ -418,18 +455,21 @@ def test_a_mismatched_checkpoint_is_refused_by_name(acr, tmp_path):
     with pytest.raises(wf.CheckpointMismatch) as err:
         wf.solve_structure(other, acr.phase, instrument=acr.ins, priors=_priors(),
                            units=[FragmentUnit(acridine(), biso=3.0)], spec=spec,
-                           preset="full", checkpoint=ck, telemetry=False)
+                           checkpoint=ck, telemetry=False)
     assert err.value.field == "cost"
-    # the spec: another sweep count, and another prior
+    # the spec: another sweep count, another search setting, and another prior
     with pytest.raises(wf.CheckpointMismatch) as err:
-        acr.solve(SolveSpec(seeds=(0,), control_seeds=(), sweeps=2000), checkpoint=ck)
+        acr.solve(_spec(seeds=(0,), control_seeds=(), sweeps=2000), checkpoint=ck)
+    assert err.value.field == "spec"
+    with pytest.raises(wf.CheckpointMismatch) as err:
+        acr.solve(_spec(seeds=(0,), control_seeds=(), sweeps=1000, exchange=0.2), checkpoint=ck)
     assert err.value.field == "spec"
     with pytest.raises(wf.CheckpointMismatch) as err:
         wf.solve_structure(acr.cost, acr.phase, instrument=acr.ins,
                            priors=SolvePriors(weights=PriorWeights(coordination=0.0),
                                               sigma=0.2, fraction=0.8),
                            units=[FragmentUnit(acridine(), biso=3.0)], spec=spec,
-                           preset="full", checkpoint=ck, telemetry=False)
+                           checkpoint=ck, telemetry=False)
     assert err.value.field == "spec"
     # the version
     bumped = tmp_path / "v.ckpt"
@@ -440,8 +480,8 @@ def test_a_mismatched_checkpoint_is_refused_by_name(acr, tmp_path):
         acr.solve(spec, checkpoint=bumped)
     assert err.value.field == "version"
     # what decides only when the run writes, talks or stops may change
-    acr.solve(SolveSpec(seeds=(0,), control_seeds=(), sweeps=1000, heartbeat_sweeps=100,
-                        checkpoint_every_s=5.0, total_budget_seconds=1e6), checkpoint=ck)
+    acr.solve(_spec(seeds=(0,), control_seeds=(), sweeps=1000, heartbeat_sweeps=100,
+                    checkpoint_every_s=5.0, total_budget_seconds=1e6), checkpoint=ck)
 
 
 def test_a_killed_checkpoint_write_leaves_the_last_one_whole(tmp_path, monkeypatch):
@@ -464,8 +504,8 @@ def test_a_killed_checkpoint_write_leaves_the_last_one_whole(tmp_path, monkeypat
 def test_the_assignment_race_resumes_byte_identical(nac, tmp_path):
     """A stop inside the race's third round, which continues each chain from
     its second-round state, resumes to the same bytes."""
-    spec = SolveSpec(seeds=(0,), control_seeds=(), sweeps=1000, race_sweeps=1000,
-                     heartbeat_sweeps=500, checkpoint_every_s=0.0)
+    spec = _spec(seeds=(0,), control_seeds=(), sweeps=1000, race_sweeps=1000,
+                 heartbeat_sweeps=500)
     events: list[dict] = []
     whole = nac.solve(spec, events=events.append)
     assert len(whole.races[0].rounds) == 3
@@ -496,8 +536,8 @@ def test_merged_seed_results_equal_the_in_process_run(acr, acr_run, tmp_path):
     whole = acr_run[0]
     paths = []
     for seeds, controls in (((0,), ()), ((1,), ()), ((), (0,))):
-        r = acr.solve(SolveSpec(seeds=seeds, control_seeds=controls, sweeps=2000,
-                                heartbeat_sweeps=250, checkpoint_every_s=0.0))
+        r = acr.solve(_spec(seeds=seeds, control_seeds=controls, sweeps=2000,
+                            heartbeat_sweeps=250))
         p = tmp_path / f"part{len(paths)}.json"
         p.write_text(r.model_dump_json(), encoding="utf-8")
         paths.append(p)
@@ -513,11 +553,15 @@ def test_merged_seed_results_equal_the_in_process_run(acr, acr_run, tmp_path):
 @pytest.mark.slow
 def test_nac_is_solved_from_its_composition_through_the_race(nac):
     """The race over NAC's six site-class assignments, with no deposited
-    assignment, at the default spec: its winner is the deposited assignment
-    and the leader lies within 0.10 Å of the deposited structure.  The recovery
-    rate over eight spec seeds is the S2b report's table."""
+    assignment, at settings stated here: its winner is the deposited
+    assignment and the leader lies within 0.10 Å of the deposited structure.
+    Measured at these settings (S2b's 2026-10-23 run, the settings then the
+    module defaults): the deposited assignment won and the leader was 0.017 Å
+    from it, found by all four seeds, in 8 of 8 spec seeds, against this
+    test's one."""
     assert len(nac.deposited) == 1
-    res = nac.solve(SolveSpec(seed=0))
+    res = nac.solve(_spec(seeds=(0, 1, 2, 3), control_seeds=(0, 1), sweeps=20000,
+                          race_sweeps=2000, heartbeat_sweeps=1000))
     race = res.races[0]
     assert race.n_assignments == 6 and [len(r.ran) for r in race.rounds] == [6, 3, 2]
     assert race.winner == nac.deposited[0]

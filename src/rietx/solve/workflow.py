@@ -3,8 +3,11 @@
 :func:`solve_structure` takes a cost (:class:`~rietx.solve.cost.SolveCost`,
 built from a Pawley or Le Bail fit of the verified cell), the phase that fit
 used, what the chemist declares, and returns a
-:class:`~rietx.solve.solution.SolutionResult`: ranked candidates with their
-evidence and provisional grades, never one structure.
+:class:`~rietx.solve.solution.SolutionResult`: ranked candidates with the
+engine's evidence, never one structure and never a grade.  Every search
+setting is the caller's, in the :class:`~rietx.solve.engines.SolveSpec` it
+must pass (that module's docstring): the entry point chooses none, and the
+result records the spec it ran.
 
 **Units.**  A run is a flat ladder of units, each a ``stage_start``/
 ``stage_end`` pair on the event stream (``history/events.py``), the way
@@ -18,12 +21,12 @@ indexing's (engine × system) units are:
 * ``control:<group>:a<i>:s<k>`` — seed k with every prior at zero weight, the
   control arm of #562's amendment (c), read by
   :func:`~rietx.solve.cluster.rank`'s ``control=``;
-* ``consensus:<group>`` — the clusters of that group's seeds, graded, and
-  streamed in the evidence row's shape
+* ``consensus:<group>`` — the clusters of that group's seeds, ranked with
+  their evidence, and streamed in the evidence row's shape
   (:func:`~rietx.solve.solution.candidate_evidence`).
 
 Inside a unit, ``solve_step`` is the heartbeat every ``heartbeat_sweeps``
-sweeps.  ``solve_start`` and ``solve_end`` bracket the run.
+sweeps, when the spec asks for one.  ``solve_start`` and ``solve_end`` bracket the run.
 
 **The race** is successive halving (Karnin, Koren & Somekh 2013, *ICML*,
 Sequential Halving; Jamieson & Talwalkar 2016, *AISTATS*): every assignment
@@ -38,8 +41,8 @@ the caller's ``cancel``, watched for a stop request from ``rietx watch`` when
 the run is recorded (``runs.attach_cancel``), wrapped in a
 :class:`~rietx.indexing.engines.Deadline` when the spec declares a ceiling.  A
 stopped run returns what it has — the finished units and the in-flight seed's
-polished best-so-far — with ``partial`` set, every candidate carrying the
-``partial`` caveat, and ``units_not_run`` naming the rest.  With
+polished best-so-far — with ``partial`` set on the result and on every
+candidate, and ``units_not_run`` naming the rest.  With
 ``checkpoint=`` a run writes, atomically (temp file, flush, fsync, rename),
 the finished units' records and the in-flight unit's
 :class:`~rietx.solve.tempering.TemperState` at the engine's boundaries, at most
@@ -76,7 +79,7 @@ from ..crystallography.site_classes import site_assignments, site_classes
 from ..crystallography.symmetry import resolve_group
 from . import cluster as cl
 from . import tempering as tp
-from .engines import SolveSpec, preset_spec, register_engine, unit_seed
+from .engines import SolveSpec, register_engine, unit_seed
 from .moves import Clash, FreeSite, Radiation, Scattering, SearchSpace
 from .solution import (
     PolishedState,
@@ -240,8 +243,9 @@ def _group_phase(phase, group: str):
 
 def _ladder(problem: tp.SearchProblem, spec: SolveSpec, index: int) -> tp.Ladder:
     rng = np.random.default_rng(unit_seed(spec, "ladder", index))
-    t_top, _ = tp.random_spread(problem, rng)
-    return tp.Ladder.planned(t_top, problem.space.n_par, spec.replicas)
+    t_top, _ = tp.random_spread(problem, rng, n=spec.n_random)
+    return tp.Ladder.planned(t_top, problem.space.n_par, spec.replicas, span=spec.span,
+                             step=spec.step)
 
 
 def _searches(cost, phase, instrument, priors, groups, composition, units, spec,
@@ -378,11 +382,14 @@ def _run_unit(run: _Run, search: _Search, kind: str, idx: int, sweeps: int, *,
                  swap_acceptance=info["swap_acceptance"])
 
     t0 = time.perf_counter()
-    seed_run = tp.temper(problem, ladder, seed=rng_seed, sweeps=sweeps, cancel=run.token,
-                         heartbeat=beat, heartbeat_sweeps=run.spec.heartbeat_sweeps,
-                         on_boundary=boundary,
+    seed_run = tp.temper(problem, ladder, seed=rng_seed, sweeps=sweeps,
+                         swap_every=run.spec.swap_every, exchange=run.spec.exchange,
+                         cancel=run.token,
+                         heartbeat=None if run.spec.heartbeat_sweeps is None else beat,
+                         heartbeat_sweeps=run.spec.heartbeat_sweeps, on_boundary=boundary,
                          resume=None if resume is None else tp.TemperState.from_json(resume))
-    polished = [] if kind == "race" else [tp.polish(problem, v) for v in seed_run.best]
+    polished = ([] if kind == "race" else
+                [tp.polish(problem, v, maxiter=run.spec.polish_maxiter) for v in seed_run.best])
     run.timings[uid] = round(time.perf_counter() - t0, 3)
     record = _record(uid, kind, search, idx, rng_seed, seed_run, sweeps, polished, round_)
     done = seed_run.stopped is None
@@ -480,10 +487,9 @@ def _equivalence(phase, group: str):
 
 
 def _consensus(phase, group: str, layout: SearchLayout, records: list[UnitRecord],
-               floor: float, partial: bool) -> list[cl.RankedSolution]:
+               floor: float, tol: float) -> list[cl.RankedSolution]:
     def sols(kind):
-        return [cl.Solution(np.array(p.xyz), p.j, p.chi2, p.clash, r.seed_index,
-                            control=kind == "control")
+        return [cl.Solution(np.array(p.xyz), p.j, p.chi2, p.clash, r.seed_index)
                 for r in records if r.kind == kind and r.space_group == group
                 and r.assignment == layout.assignment for p in r.polished]
 
@@ -493,22 +499,22 @@ def _consensus(phase, group: str, layout: SearchLayout, records: list[UnitRecord
     eq = _equivalence(phase, group)
     species = [a.species for a in layout.atoms]
     labels = [a.label for a in layout.atoms]
-    clusters = cl.cluster(on, eq, species)
-    control = cl.cluster(off, eq, species) if off else None
+    clusters = cl.cluster(on, eq, species, tol=tol)
+    control = cl.cluster(off, eq, species, tol=tol) if off else None
     return cl.rank(clusters, floor=floor, labels=labels, species=species, control=control,
-                   eq=eq, partial=partial)
+                   eq=eq)
 
 
-def _candidates(phase, group, layout, ranked) -> list[StructureCandidate]:
+def _candidates(phase, group, layout, ranked, partial: bool) -> list[StructureCandidate]:
     return [StructureCandidate(
         rank=r.rank, space_group=group, assignment=layout.assignment, labels=list(r.labels),
         species=list(r.species), xyz=r.xyz.tolist(),
         structure=_candidate_structure(phase, group, layout, r.xyz),
         chi2_data=r.chi2_data, chi2_ratio=r.chi2_ratio, clash_raw=r.clash_raw, j=r.j,
         seeds=list(r.seeds), n_finders=len(r.seeds), finder_rmsd=r.spread_ang,
-        n_members=r.n_members, margin_to_next=r.margin_to_next, confidence=r.grade,
-        confidence_caveats=list(r.caveats), partial="partial" in r.caveats,
-        thresholds_version=r.thresholds_version) for r in ranked]
+        n_members=r.n_members, margin_to_next=r.margin_to_next,
+        control_rmsd_ang=r.control_rmsd_ang, control_chi2_data=r.control_chi2_data,
+        partial=partial) for r in ranked]
 
 
 def _sort_records(records: list[UnitRecord], groups: list[str]) -> list[UnitRecord]:
@@ -517,7 +523,7 @@ def _sort_records(records: list[UnitRecord], groups: list[str]) -> list[UnitReco
                                           -1 if r.round is None else r.round, r.seed_index))
 
 
-def _assemble(*, phase, spec: SolveSpec, preset: str, n_reflections: int, floor: float,
+def _assemble(*, phase, spec: SolveSpec, n_reflections: int, floor: float,
               groups: list[str], races: list[RaceRecord], layouts: list[SearchLayout],
               records: list[UnitRecord], status: str, units_not_run: list[str],
               timings: dict, resumed: bool, provenance: SolveProvenance,
@@ -531,8 +537,8 @@ def _assemble(*, phase, spec: SolveSpec, preset: str, n_reflections: int, floor:
                and (g not in winners or x.assignment == winners[g])]
         if not lay:
             continue
-        ranked = _consensus(phase, g, lay[0], records, floor, partial)
-        got = _candidates(phase, g, lay[0], ranked)
+        ranked = _consensus(phase, g, lay[0], records, floor, spec.cluster_tol)
+        got = _candidates(phase, g, lay[0], ranked, partial)
         if progress is not None:
             label = f"consensus:{g}"
             progress.start(label, space_group=g, consensus=True)
@@ -549,28 +555,18 @@ def _assemble(*, phase, spec: SolveSpec, preset: str, n_reflections: int, floor:
         seeds_run=sorted({r.seed_index for r in records if r.kind == "seed"}),
         control_seeds_run=sorted({r.seed_index for r in records if r.kind == "control"}),
         units_not_run=units_not_run, status=status, partial=partial, resumed=resumed,
-        spec=spec.to_spec_spec(), preset=preset, phase=phase, n_reflections=n_reflections,
-        chi2_floor=floor, thresholds_version=cl.THRESHOLDS_VERSION, timings=timings,
+        spec=spec.to_spec_spec(), phase=phase, n_reflections=n_reflections,
+        chi2_floor=floor, timings=timings,
         provenance=provenance)
 
 
 # ----------------------------------------------------------------------
 # the entry point
 # ----------------------------------------------------------------------
-def _resolve_spec(spec, preset: str | None) -> tuple[SolveSpec, str]:
-    if isinstance(spec, SolveSpecSpec):
-        spec = spec.to_spec()
-    if spec is not None and spec.total_budget_seconds is not None:
-        return spec, "custom"
-    name = preset or "quick"
-    return preset_spec(name, spec), name
-
-
-def solve_structure(cost, phase, *, instrument, priors,
+def solve_structure(cost, phase, *, instrument, priors, spec: SolveSpec | SolveSpecSpec,
                     composition: Mapping[str, int] | None = None,
                     units: Sequence | None = None, space_groups: Sequence[str] | None = None,
-                    spec: SolveSpec | SolveSpecSpec | None = None, preset: str | None = None,
-                    biso: float = 1.0, events=None, cancel=None, telemetry=None,
+                    biso: float | None = None, events=None, cancel=None, telemetry=None,
                     label: str | None = None,
                     checkpoint: str | Path | None = None) -> SolutionResult:
     """Solve a structure on a verified cell (module docstring).
@@ -581,8 +577,11 @@ def solve_structure(cost, phase, *, instrument, priors,
     site-class assignment and raced) or ``units`` (free sites and rigid
     fragments, used as given).  ``priors`` is a
     :class:`~rietx.solve.chemistry.SolvePriors`, with no default: its σ,
-    radius fraction and weights are the caller's (#1016).  ``space_groups``
-    defaults to ``phase``'s own.  ``biso`` is every free site's B (Å²).
+    radius fraction and weights are the caller's (#1016).  ``spec`` is a
+    :class:`~rietx.solve.engines.SolveSpec` (or its request chair), with no
+    default: every search setting is the caller's.  ``space_groups``
+    defaults to ``phase``'s own.  ``biso`` is every placed free site's B
+    (Å²), required with ``composition=`` (declared units carry their own).
     ``events``, ``cancel``, ``telemetry`` and ``label`` are ``fit``'s.
     ``checkpoint`` is a path: written as the run goes, resumed when it
     exists."""
@@ -593,7 +592,13 @@ def solve_structure(cost, phase, *, instrument, priors,
 
     if (composition is None) == (units is None):
         raise SolveRefused("declare exactly one of composition= and units=")
-    spec, ran_preset = _resolve_spec(spec, preset)
+    if biso is None and composition is not None:
+        raise SolveRefused("composition= places free sites: declare their biso= (Å²)")
+    if isinstance(spec, SolveSpecSpec):
+        spec = spec.to_spec()
+    if not isinstance(spec, SolveSpec):
+        raise SolveRefused(f"spec must be a SolveSpec or a SolveSpecSpec, not "
+                           f"{type(spec).__name__}")
     if spec.engine != "tempering":
         raise SolveRefused(f"engine {spec.engine!r} is not built yet; registered: tempering")
     if spec.race_sweeps % tp.REFRESH_EVERY:
@@ -636,8 +641,10 @@ def solve_structure(cost, phase, *, instrument, priors,
                  n_assignments={g: len(by_group[g]) for g in groups},
                  seeds=list(spec.seeds), control_seeds=list(spec.control_seeds),
                  replicas=spec.replicas, sweeps=spec.sweeps, race_sweeps=spec.race_sweeps,
-                 heartbeat_sweeps=spec.heartbeat_sweeps,
-                 total_budget_seconds=spec.total_budget_seconds, preset=ran_preset,
+                 span=spec.span, step=list(spec.step), swap_every=spec.swap_every,
+                 exchange=spec.exchange, n_random=spec.n_random, cluster_tol=spec.cluster_tol,
+                 polish_maxiter=spec.polish_maxiter, heartbeat_sweeps=spec.heartbeat_sweeps,
+                 total_budget_seconds=spec.total_budget_seconds,
                  n_reflections=int(len(cost.d)), chi2_floor=floor,
                  resumed=resumed_from is not None, n_stages=total)
         races: list[RaceRecord] = []
@@ -668,7 +675,7 @@ def solve_structure(cost, phase, *, instrument, priors,
         else:
             status = "cancelled"
         out = _assemble(
-            phase=phase, spec=spec, preset=ran_preset, n_reflections=int(len(cost.d)),
+            phase=phase, spec=spec, n_reflections=int(len(cost.d)),
             floor=floor, groups=groups, races=races, layouts=[s.layout() for s in searches],
             records=records, status=status, units_not_run=run.not_run, timings=run.timings,
             resumed=resumed_from is not None,
@@ -676,11 +683,8 @@ def solve_structure(cost, phase, *, instrument, priors,
                                        created_utc=_utcnow(),
                                        compiled=any(r.compiled for r in records) or None),
             progress=progress)
-        best = out.best_or_none()
         run.emit("solve_end", status=status, partial=out.partial,
-                 n_candidates=len(out.candidates),
-                 confidence=[c.confidence for c in out.candidates],
-                 abstained=best is None, units_not_run=len(out.units_not_run))
+                 n_candidates=len(out.candidates), units_not_run=len(out.units_not_run))
         return out
     except BaseException:
         if recorder is not None:
@@ -714,8 +718,8 @@ def merge_seed_results(results: Sequence[SolutionResult | str | Path]) -> Soluti
         spec = r.spec.model_dump(exclude={"seeds", "control_seeds", *_RESUMABLE_FIELDS})
         return json.dumps([spec, r.phase.model_dump(mode="json"), r.chi2_floor,
                            r.n_reflections, [x.model_dump(mode="json") for x in r.layouts],
-                           [x.model_dump(mode="json") for x in r.races], r.preset,
-                           r.thresholds_version, r.space_groups_searched], sort_keys=True)
+                           [x.model_dump(mode="json") for x in r.races],
+                           r.space_groups_searched], sort_keys=True)
 
     want = shared(first)
     for r in got[1:]:
@@ -737,7 +741,7 @@ def merge_seed_results(results: Sequence[SolutionResult | str | Path]) -> Soluti
     for r in got:
         timings.update(r.timings)
     return _assemble(
-        phase=first.phase, spec=spec, preset=first.preset, n_reflections=first.n_reflections,
+        phase=first.phase, spec=spec, n_reflections=first.n_reflections,
         floor=first.chi2_floor, groups=list(first.space_groups_searched), races=first.races,
         layouts=first.layouts, records=list(records.values()), status=status,
         units_not_run=sorted({u for r in got for u in r.units_not_run}), timings=timings,
