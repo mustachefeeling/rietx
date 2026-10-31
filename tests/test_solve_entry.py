@@ -287,6 +287,42 @@ def test_the_entry_point_chooses_no_search_setting(acr):
             SolveSpec(**{**full, name: value})
 
 
+def test_every_stated_setting_reaches_the_engine(acr, monkeypatch):
+    """Odd values for every search setting, and each engine call receives the
+    spec's own: the entry point substitutes none."""
+    from rietx.solve import tempering as tp
+
+    spec = _spec(seeds=(0,), control_seeds=(0,), sweeps=1000, replicas=4, span=17.0,
+                 step=(0.07, 0.9), swap_every=7, exchange=0.25, n_random=11, cluster_tol=0.29,
+                 polish_maxiter=13)
+    seen: dict[str, set] = {}
+
+    def spy(mod, name, keys):
+        real = getattr(mod, name)
+
+        def f(*a, **kw):
+            for k in keys:
+                seen.setdefault(f"{name}.{k}", set()).add(
+                    tuple(kw[k]) if isinstance(kw[k], (tuple, list)) else kw[k])
+            return real(*a, **kw)
+        monkeypatch.setattr(mod, name, f)
+
+    spy(tp, "random_spread", ["n"])
+    spy(tp, "temper", ["swap_every", "exchange"])
+    spy(tp, "polish", ["maxiter"])
+    spy(cl, "cluster", ["tol"])
+    real_planned = tp.Ladder.planned
+
+    def planned(t_top, n_par, n_replicas, **kw):
+        seen.setdefault("planned", set()).add((n_replicas, kw["span"], tuple(kw["step"])))
+        return real_planned(t_top, n_par, n_replicas, **kw)
+    monkeypatch.setattr(tp.Ladder, "planned", staticmethod(planned))
+    acr.solve(spec)
+    assert seen == {"random_spread.n": {11}, "temper.swap_every": {7}, "temper.exchange": {0.25},
+                    "polish.maxiter": {13}, "cluster.tol": {0.29},
+                    "planned": {(4, 17.0, (0.07, 0.9))}}
+
+
 def test_the_spec_and_its_request_chair_are_each_others_inverse():
     assert ACR_SPEC.to_spec_spec().to_spec() == ACR_SPEC
     assert SolveSpecSpec.model_validate_json(ACR_SPEC.to_spec_spec().model_dump_json()
