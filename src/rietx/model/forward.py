@@ -1180,9 +1180,9 @@ class CompiledModel:
 
         This is the one place that walks a phase's cell, lines and positions
         for a tick.  ``refine._build_result``, ``multi.MultiHistogramRefinement
-        ._ticks`` and ``viz.snapshot.stage_ticks`` each carried their own copy
-        until WP-1908's review, and a copy is how a builder forgets the shift.
-        The first two now share ``refine._tick_rows`` (WP-2028).
+        ._build_result`` and ``viz.snapshot.stage_ticks`` each carried their
+        own copy until WP-1908's review, and a copy is how a builder forgets
+        the shift.  The first two now share ``refine._tick_rows`` (WP-2028).
         A time-of-flight axis owes a twin here, not a fifth walk.  Positions come
         from :meth:`apparent_two_theta`, so they are where the model draws each
         peak.  The satellite report's lattice enumerates differently and calls

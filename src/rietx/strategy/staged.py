@@ -1654,12 +1654,20 @@ def check_biso_plausible(table, model) -> list[GuardFinding]:
     those multiplicities feed is weighted by occupancy, since the bound is per
     atom rather than per site.
     """
+    return [GuardFinding.large_biso(p, b, bound)
+            for p, b, bound in biso_over_bound(table, model)]
+
+
+def biso_over_bound(table, model) -> list[tuple[str, float, float]]:
+    """``(path, B, bound)`` for each isotropic B past its cell's Lindemann
+    bound: the numbers :func:`check_biso_plausible` words, kept apart so a
+    joint fit can set one B against several cells' bounds (WP-2028)."""
     from ..crystallography.lattice import cell_volume
 
     if model is None:
         return []
     values = {e.path: e.value for e in table.entries}
-    out: list[GuardFinding] = []
+    out: list[tuple[str, float, float]] = []
     for ip, cp in enumerate(model.phases):
         base = f"phases.{ip}"
         try:
@@ -1684,7 +1692,7 @@ def check_biso_plausible(table, model) -> list[GuardFinding]:
             path = f"{base}.atoms.{j}.biso"
             biso = values.get(path)
             if biso is not None and biso > bound:
-                out.append(GuardFinding.large_biso(path, biso, bound))
+                out.append((path, float(biso), bound))
     return out
 
 

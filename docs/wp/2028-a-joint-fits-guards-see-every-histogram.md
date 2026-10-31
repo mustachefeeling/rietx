@@ -1,6 +1,6 @@
 # WP-2028 — a joint fit's guards see every histogram
 
-Milestone: unscheduled · Status: 🔄 2026-10-28 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7's four mechanical folds done, three items await a ruling; 8 measured on #1124
+Milestone: unscheduled · Status: 🔄 2026-10-28 — tasks 1-3, 5, 6 merged from outside as PR #1128 (`1ba6c216`); 4 measured, not wired; 7's census closed 2026-10-31 (#1205; two follow-on items open); 8 measured on #1124
 Track: What fires, and what stays silent
 Depends on: — (1341 closed: it built the joint report this WP completes; 1325
 soft: its parametric codes and per-pattern holds are what tasks 3 and 6
@@ -168,11 +168,21 @@ that caveat until 1421 lands.
       (`SCALE_B_INSEPARABLE`, `PARAMETRIC_OUT_OF_RANGE`,
       `PARAMETRIC_FORM_REJECTED`) appear once. Decide whether a row with
       `equations` quotes `parametric_value()` beside it.
-- [ ] The `multi.py` census: list each member that re-derives something
+- [x] The `multi.py` census: list each member that re-derives something
       `Refinement` derives, `_ticks` first, compare it with the single path,
       and fold it or record why it stays, as `DIAGNOSTIC_SCOPES` does. Say
       whether a joint `parameters()` is owed. Include the declared-peak and
       parameter-space screens the joint path skips (Context item 7).
+- [ ] Joint identifiability screens (census, ruled 2026-10-31 on #1205): the
+      tables `check_guards` builds after the loop (`measured_top_correlations`,
+      `soft_modes`) run on the joint matrix, since that is what was solved; the
+      declared-peak absorption screen runs per histogram, since a declared peak
+      is one instrument's. This adds output, so it is its own change.
+- [ ] A joint `parameters()` (census, ruled 2026-10-31 on #1205): read-only
+      first, returning the single fit's `ParameterRow` with paths spelled as
+      the joint table spells them; `set_vary` and `set_values` on the joint
+      follow when someone needs them. Re-point `STAGE_PATH_UNKNOWN`'s
+      suggestion to it.
 - [ ] Decide a joint observations-per-parameter for `DATA_SUPPORT_LOW`, or write
       why there is none in that scope reason (Context item 8). Re-point the four
       comments naming WP-1341 as owner (`multi.py:237`, `:411`, `:1920`, `:1923`)
@@ -209,6 +219,24 @@ shows the findings that name histogram h.
   WP-2001 and WP-2004 (the tier rule).
 
 ## Handover log
+
+- **2026-10-31** — review round on #1205 (task 7's census closed). The
+  maintainer ruled on the three open questions. (1) *Lindemann bound for a
+  shared B*: tested against the **loosest** bound among the histograms that
+  hold it, the message naming that histogram, since the case arises only with
+  per-histogram cells and the tightest or histogram 0's bound would report one
+  cell's reading as a fact about the B. Built here: `_large_biso_once`
+  (`multi.py`) over `strategy.staged.biso_over_bound`, which
+  `check_biso_plausible` now words; a per-histogram B keeps its own cell's
+  bound, and a single fit's findings are unchanged.
+  `test_a_shared_biso_is_tested_against_the_loosest_cell` fails on the
+  histogram-0-first rule (B = 20 shared over cells 1x and 3x in a: flagged
+  there, silent here). (2) *Per-histogram screens*: the identifiability tables
+  on the joint matrix, the declared-peak screen per histogram; adds output, so
+  its own change, listed above as a new item. (3) *Joint `parameters()`*: yes,
+  under that name, read-only first; listed above. The two stale `_ticks`
+  references (`model/forward.py`, `tests/test_tick_positions.py`) now name
+  `_build_result` and `_tick_rows`. Task 8 stays open.
 
 - **2026-10-28** — task 7's `_ticks` fold, from outside (claim #1124). The
   joint path's tick loop is gone: `refine._tick_rows` is the one builder, and

@@ -163,10 +163,10 @@ from .strategy.staged import (
     RefinementPlan,
     _correlation_findings,
     _exact_active_bounds,
+    biso_over_bound,
     bound_findings,
     check_adp_positive_definite,
     check_biso_negative,
-    check_biso_plausible,
     check_discarded_directions,
     check_hump_width,
     check_resolution_positive,
@@ -391,7 +391,9 @@ GUARD_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
     "large_biso": (
         (SPECIMEN,), "the Lindemann bound is the cell's, and a B or a cell "
                      "can be per histogram: asked of every histogram's "
-                     "compile, one finding per path (WP-2028)"),
+                     "compile, one finding per path; a shared B meets the "
+                     "loosest bound among the cells it serves and names that "
+                     "histogram (WP-2028, _large_biso_once)"),
     "negative_biso": (
         (SPECIMEN,), "the structure's B values, asked of every histogram's "
                      "compile, one finding per path, a per-histogram B named "
@@ -2276,7 +2278,7 @@ class MultiHistogramRefinement:
         # named with its histogram (WP-2028)
         report.nonpositive_adps = _specimen_once(
             mt, models, lambda t, _m: check_adp_positive_definite(t))
-        report.large_biso = _specimen_once(mt, models, check_biso_plausible)
+        report.large_biso = _large_biso_once(mt, models)
         report.negative_biso = _specimen_once(mt, models, check_biso_negative)
         report.nonpositive_strain = _stephens_once(mt, models)
         report.nonpositive_texture = _texture_once(mt, models)
@@ -2367,6 +2369,39 @@ def _specimen_once(mtable, models, check) -> list[GuardFinding]:
                                               message=message)
             seen.setdefault(paths, finding)
     return list(seen.values())
+
+
+def _large_biso_once(mtable, models) -> list[GuardFinding]:
+    """``BISO_UNUSUALLY_LARGE`` for the joint fit (WP-2028, maintainer's ruling
+    on #1205).
+
+    The Lindemann bound is the *cell's*, so a B shared across histograms that
+    each hold their own cell is read against several bounds.  It is tested
+    against the **loosest** of them and the message names that histogram: the
+    tightest, or histogram 0's, would report one cell's reading as a fact
+    about the B while another histogram's cell admits it.  A per-histogram B
+    is one cell's alone and keeps its own bound.  Firing past the loosest
+    bound says the B is implausible for every cell it serves.
+    """
+    flagged: dict[str, list[tuple[int, float, float]]] = {}
+    for h, (table, model) in enumerate(zip(mtable.tables, models, strict=True)):
+        for path, biso, bound in biso_over_bound(table, model):
+            flagged.setdefault(mtable._canonical(h, path), []).append(
+                (h, biso, bound))
+    n = len(mtable.tables)
+    out: list[GuardFinding] = []
+    for scoped, rows in flagged.items():
+        shared = not scoped.startswith("hist.")
+        if shared and len(rows) < n:
+            continue  # a histogram's cell admits it: not a fact about the B
+        h, biso, bound = max(rows, key=lambda r: r[2])
+        finding = GuardFinding.large_biso(scoped, biso, bound)
+        if shared and n > 1:
+            finding = dataclasses.replace(
+                finding, message=finding.message[:-1]
+                + f"; the loosest of {n} histograms' cells, histogram {h})")
+        out.append(finding)
+    return out
 
 
 def _occupancy_once(mtable, per_values, per_esds) -> list[Diagnostic]:
