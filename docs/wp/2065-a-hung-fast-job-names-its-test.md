@@ -1,6 +1,6 @@
 # WP-2065 — a hung fast job names its test, and the hang is fixed
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-10-31 — claimed by @yue-here
 Track: The repo's own process
 Depends on: —
 Priority: P1 2026-10-31 — a required check red on main: the `fast` job hangs at `[ 99%]` and is cancelled at its 40-min cap, 8 times in about 15 hours, main's own push run among them; every PR it hits waits 40 min and reruns
