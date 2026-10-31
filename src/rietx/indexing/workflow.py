@@ -318,16 +318,6 @@ def validation_plan(candidate: CellCandidate, instrument: Instrument,
     0.46 against 0.09 with the widths free (0.57 against 0.10 under the Le
     Bail fit #941 measured), while nothing the fit reports gates any more.
     Frozen, the Pawley fit still leaves FAP's true cell 31 unmatched peaks
-    against 5 free (WP-2011).  The shared pre-fit F1 asked for needs a
-    0.57 against 0.10 with the widths free, and the rival/truth Rwp ratio the
-    acceptance rows read falls from above 2 to 1.78, while nothing the fit
-    reports gates any more.  Across the acceptance corpus's real families
-    and both PbSO₄ histograms (#941's follow-ups) freezing moves no
-    candidate's rank or grade, raises the true cell's Rwp 1.4-5.7×, narrows
-    the best rival's Rwp over it on 9 of 13 runs (SRM 676a 21.6× to 6.8×)
-    and saves 1-8 s a run.  The shared pre-fit F1 asked for needs a
-    cell-free width law fitted to the peak list; until that lands,
-    ``validate_by_lebail(freeze_profile=True)`` is the caller's choice.
     against 5 free (WP-2011).  Across the acceptance corpus's real families
     and both PbSO₄ histograms (#941's follow-ups, re-measured under the
     Pawley fit on the same searches) freezing moves no candidate's rank or
