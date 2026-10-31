@@ -453,6 +453,12 @@ def contains(child: LineScreen, parent: LineScreen) -> bool:
     themselves, so the relation stays antisymmetric and
     ``consensus.below_refuting_parents``'s "a parent is strictly smaller than
     its child" holds without a tiebreak.
+
+    The relation chooses which pairs are asked. It does not decide the
+    verdict. On a dense low-symmetry pattern the density order can make a true
+    cell the child of a wrong one, whose lines merge into fewer resolved
+    positions. The verdict never refutes a child seen more often than its
+    parent (#1230).
     """
     if len(child.indexed) != len(parent.indexed):
         return False
@@ -484,6 +490,8 @@ def containment_evidence(pattern: PatternScreen, child: LineScreen,
     :meth:`~rietx.indexing.ambiguity.SupercellEvidence.verdict`'s three bands.
     ``index`` is the sublattice index where the parent is a true sublattice
     of the child (index 2–4), else 0 with ``relation="containment"``.
+    Both cells' own seen fractions ride along, and a child seen more often
+    than its parent is never refuted (#1230).
     """
     from scipy.stats import binom
 
@@ -526,7 +534,9 @@ def containment_evidence(pattern: PatternScreen, child: LineScreen,
         p0=p0, p_value=tail(k),
         extra_seen_unexplained=tuple(bool(v) for v in alone[extra]),
         p_value_unexplained=tail(k_un),
-        relation="containment" if index == 0 else "sublattice")
+        relation="containment" if index == 0 else "sublattice",
+        child_seen_fraction=child.seen_fraction,
+        parent_seen_fraction=parent.seen_fraction)
 
 
 __all__ = ["SCREEN_WINDOW_LINES", "LineScreen", "PatternScreen",

@@ -711,7 +711,8 @@ ROWS: tuple[Row, ...] = (
     Row("INDEX_SUPERCELL_REFUTED", "code", tier=3, ambiguity=2,
         evidence=("warning; fires when the containment refuter reads 'refuted' for a pair "
                   "beyond index 4: the extra lines no extinction could remove sit on an "
-                  "observed line no more often than chance p0 predicts; it ranks the "
+                  "observed line no more often than chance p0 predicts and the child's own "
+                  "lines are seen no more often than its parent's (#1230); it ranks the "
                   "superlattice below its parent and leaves it in the list; the explanation "
                   "names the weak superstructure the radiation barely sees (PR #941 round 4)"),
         grounds=("Ranks below the parent and withholds nothing else; a superstructure is "

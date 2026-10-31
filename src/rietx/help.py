@@ -2946,7 +2946,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Measured: it refutes Si's cubic I √2·a₀ (0 of 12 extra lines seen) and "
             "kept every truth tested as a child, the lowest at p = 0.0072; on the "
             "finished acceptance searches it put brucite's and 11-BM NAC's truths "
-            "first. Untested beyond those patterns."
+            "first. Untested beyond those patterns. A cell whose own lines are seen more "
+            "often than the smaller cell's is never refuted: an oversized cell cannot "
+            "do that. On dense low-symmetry patterns chance alone covers most of the "
+            "range, and three synthetic truths were refuted before this rule."
         ),
     ),
     "INDEX_SYSTEMS_NOT_COVERED": HelpEntry(
