@@ -121,6 +121,21 @@ their manuals discusses it.
 | EasyDiffraction | none | H_G² floored at machine ε; a negative H_L passes | none |
 | BGMN | no Caglioti widths | fatal error | Profex writes B1 ≤ 0.01 and k2 ≤ 1e-4 into the files it creates |
 
+## Limits a control file declares
+
+Checked 2026-10-30 for PR #1199 (the `.pcr` reader's `Nre` limits), FullProf only.
+
+FullProf's hard limits (`Nre` > 0, one LINE 47 per limit) clamp in least squares, not only
+in simulated annealing (ran). On FullProf's own `ce1.pcr` (`Cry = 0`, which ships two limits),
+a limit of [5.400, 5.405] Å on cell a, below its converged 5.41222(3), held a at 5.40500(3)
+from the first cycle. The volume went from 158.536 to 157.902 Å³. The `.out` file lists the
+limits it read and converts a cell limit to its internal metric. A limit applies to the first
+value carrying its codeword, and that value must have a positive sign and a unit multiplier.
+Other values tied to it follow through their multipliers (manual § Hard limits for parameters,
+LINE 47; checked). The periodic boundary type (`IBOUND = 1`) was not tested. MAUD's declared
+limits are not enforced by its least squares (§ Peak-width limits above). The other five
+programs were not surveyed for this.
+
 ## Instrument and specimen widths refined together
 
 Read 2026-10-23 (WP-2002, 8th session), after removing rietx's U and Y floors exposed the
