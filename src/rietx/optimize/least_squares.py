@@ -1357,16 +1357,18 @@ def _moment_reach_ok(path: str, extra: list[str]) -> bool:
     the derivative** (``d_magnetic_f2_d_dofs`` returns the angle rows, held to
     the same exact oracle).  A moment seeded on a direction the symmetry fixes
     — (2.5, 0, 2.5) on P 1 2/m 1 puts the azimuth at exactly 0 — sits where
-    the pattern is even in the angle, so its exact column is zero (3.2e-14 of
-    the modulus column there).  Where that direction is a *maximum* along the
-    angle the solver cannot leave it: on ``test_magnetic_moment_frame``'s
-    fixture the analytic arm stopped at φ = 0 with χ² 10.9 above the minima
-    at φ = ±0.047, while the peak chain's forward difference, which reads
-    ½·r″·h there, walked off.  The forward difference escapes by its
-    truncation, which is not a mechanism anyone chose; the analytic angle
-    column waits on one that is — an angle seeded off its stationary point
-    before the stage that frees it, ``moments.tilted_seed``'s shape for the
-    same stationary point (WP-1327 handover).  A modulus has no such point a
+    the pattern is even in the angle, so its exact column is zero up to
+    round-off (2.3e-16 of the modulus column there).  Where that direction is
+    a *maximum* along the angle, whether the solver leaves it depends on that
+    round-off: on ``test_magnetic_moment_frame``'s fixture the analytic arm
+    stopped at φ = 0 with χ² 10.9 above the minima at φ = ±0.047 on
+    darwin/arm64, while on linux/x86-64 the round-off column walked off
+    unaided.  The peak chain's forward difference reads ½·r″·h there and
+    walks off on both.  That escape is truncation, which is not a mechanism
+    anyone chose; the analytic angle column waits on one that is — an angle
+    seeded off its stationary point before the stage that frees it,
+    ``moments.tilted_seed``'s shape for the same stationary point, in its own
+    PR.  The decline stands on either platform.  A modulus has no such point a
     fit can start at: a varied moment of zero is refused by the schema.
     """
     m = _MOMENT_PATH.match(path)

@@ -696,8 +696,9 @@ def _state_magnetic_angles_tied():
 
     ``magnetic`` frees one modulus on a one-dimensional subspace.  The branch
     claims any column whose reach is moment **moduli** of one phase, so an
-    affine tie between two sites' moduli is a new way to widen C onto it,
-    which is what obliges a row here (root CLAUDE.md § Backends).  The angles
+    affine tie between two sites' moduli, and a named variable driving one of
+    them, are new ways to widen C onto it, which is what obliges a row here
+    (root CLAUDE.md § Backends).  The angles
     beside it — a site's own azimuth, and a named variable driving the other
     site's — are columns the dispatch declines by name and builds on the peak
     chain (``_moment_reach_ok``), so this row also holds that the decline
@@ -714,9 +715,11 @@ def _state_magnetic_angles_tied():
                     [f"{M0}.dof0", f"{M0}.dof1", "phases.0.scale",
                      "instrument.background.c0", "instrument.zero_shift"],
                     ties=[(f"{M1}.dof0",
-                           AffineTie(terms=((f"{M0}.dof0", -0.8),), const=0.3)),
+                           AffineTie(terms=((f"{M0}.dof0", -0.8),
+                                            (f"{VAR_PREFIX}MU", 0.5)),
+                                     const=0.3)),
                           (f"{M1}.dof1", AffineTie.identity(f"{VAR_PREFIX}PHI"))],
-                    variables=[("PHI", 0.7)]), {})
+                    variables=[("PHI", 0.7), ("MU", 0.4)]), {})
 
 
 def _state_satellites():

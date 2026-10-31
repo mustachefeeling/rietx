@@ -640,9 +640,11 @@ def magnetic_f2(members, seg, counts, stol, msites: MagneticSites, cell,
     that is still refining, the traced twin **declines by name**
     (``backend.traced.make_traced_residual``) and jax/torch fall back to the
     host path for a magnetic phase.  The numpy answer is exact, and so is
-    the Jacobian column for a moment DOF: analytic since WP-1327's last task
-    (:func:`d_magnetic_f2_d_dofs`, ``optimize.least_squares._moment_column``),
-    the peak chain's re-run of the forward model where that branch declines.
+    the Jacobian column for a moment modulus: analytic since WP-1327's last
+    task (:func:`d_magnetic_f2_d_dofs`,
+    ``optimize.least_squares._moment_column``).  An angle column, and a split
+    draw with extinction evaluated, take the peak chain's re-run of the
+    forward model.
     """
     m_hkl = np.asarray(members, dtype=np.float64)
     seg_i = np.asarray(seg, dtype=np.int64)
@@ -695,11 +697,11 @@ def d_magnetic_f2_d_dofs(members, seg, counts, stol, msites: MagneticSites,
         ∂|F_⊥|²/∂d = 2·Re[(P·F)ᴴ · ∂F/∂d]
 
     with no ∂P term, Q̂ being a function of h and the cell alone (Halpern &
-    Johnson, 1939; the Wirtinger form of a real quadratic in a complex
-    vector, Brandwood, 1983, *IEE Proc. F* **130**, 11).  Averaged over the
+    Johnson, 1939, *Phys. Rev.* **55**, 898; the Wirtinger form of a real
+    quadratic in a complex vector, Brandwood, 1983, *IEE Proc. F* **130**, 11).  Averaged over the
     same frozen Laue orbit as the forward model and multiplied by p².  The
     derivation, with the exact oracles the tests hold it to, is WP-1327's
-    analytic-branch entry.
+    analytic-branch entry (PR #1206).
 
     Every carrying atom's DOFs are returned in one call, because the
     projected total F_⊥ is the expensive half and is shared by all of them.

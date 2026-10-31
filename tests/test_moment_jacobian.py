@@ -10,7 +10,7 @@ a perturbed θ.  ``_moment_column`` now builds a **modulus** column from
 ``scattering.d_magnetic_f2_d_dofs`` (∂|F_⊥|² = 2·Re[(P·F)ᴴ·∂F], with ∂F the
 forward orbit sum of one atom at ∂m/∂d) chained through the same intensity
 factors as the coordinate columns.  The derivation is in the WP-1327
-handover and the spike's ``DERIVATION.md``.
+PR #1206's description (and, once written, the WP-1327 handover).
 
 **Angles are built and checked here, and not dispatched.**  The derivative
 covers them (the same function returns their rows), and every test below
@@ -164,15 +164,18 @@ def _state(name):
                       [f"{M0}.dof0", f"{M0}.dof1", f"{M0}.dof2",
                        "phases.0.cell.a"])
     if name == "two_sites_tied":
-        # a general affine tie between two sites' moduli (−0.8, + 0.3), and a
-        # named variable driving both azimuths at coefficient 1
+        # site 1's modulus follows site 0's (−0.8, + 0.3) **and** a named
+        # variable MU (0.5), so a variable drives a modulus beside the own
+        # column that reaches it; a second variable drives both azimuths at 1
         return _build(_ortho([(2.0, 1.0, 0.0), (-1.0, 1.5, 0.0)], PLANE),
                       [f"{M0}.dof0"],
                       ties=[(f"{M1}.dof0",
-                             AffineTie(terms=((f"{M0}.dof0", -0.8),), const=0.3)),
+                             AffineTie(terms=((f"{M0}.dof0", -0.8),
+                                              (f"{VAR_PREFIX}MU", 0.5)),
+                                       const=0.3)),
                             (f"{M0}.dof1", AffineTie.identity(f"{VAR_PREFIX}PHI")),
                             (f"{M1}.dof1", AffineTie.identity(f"{VAR_PREFIX}PHI"))],
-                      variables=[("PHI", 0.7)])
+                      variables=[("PHI", 0.7), ("MU", 0.4)])
     if name == "extinction_live":
         return _build(_ortho([(2.0, 1.0, 0.7)], ANY, extinction=0.8),
                       [f"{M0}.dof0", f"{M0}.dof1", f"{M0}.dof2",
@@ -415,12 +418,15 @@ def test_an_exact_angle_column_cannot_leave_a_symmetric_seed():
     seeded at its truth (2.5, 0, 2.5), so the azimuth starts at exactly 0,
     a direction the b-axis mirror makes the pattern even about).  There the
     exact azimuth column is roundoff — measured 2.3e-16 of the modulus
-    column — so no step of a solver driven by it moves the azimuth, while
+    column — so a solver driven by it has nothing to move the azimuth with
+    (whether round-off alone does depends on the platform, below), while
     the peak chain's forward difference reads ½·r″·h, measured 7.6e-7 of it,
     and walks off.  With the analytic azimuth dispatched (measured
-    2026-10-28 before the decline), that file's fits from β₀ = 101.1° and
-    103.0° stopped at φ = 0 with χ² 10.9 and 3.7 above the minima at
-    φ = ±0.047 the peak chain reaches, and failed its pinned |m|.  When an angle is seeded
+    2026-10-28 on darwin/arm64, before the decline), that file's fits from
+    β₀ = 101.1° and 103.0° stopped at φ = 0 with χ² 10.9 and 3.7 above the
+    minima at φ = ±0.047 the peak chain reaches, and failed its pinned |m|.
+    On linux/x86-64 the round-off column walked off unaided, so the stall is
+    the platform's and the decline's reason is that it can happen.  When an angle is seeded
     off its stationary point before the stage that frees it, this test is
     the one to change, and the angle can join the branch.
     """
@@ -500,7 +506,7 @@ def test_a_fit_reaches_the_same_minimum_and_esds_either_way():
     § Budgets in tests), so they are set at what "the same minimum" means —
     1e-9 of χ², 1e-4 of an esd — rather than at 10× a stopping accident.
     Where the normal matrix is near-singular the esds move by more (the
-    WP-1327 handover's near-flat measurement), which is the analytic column
+    near-flat measurement in PR #1206's description), which is the analytic column
     being exact where the forward difference is not — not a disagreement
     this test should absorb, so its fixture is a determinable two-site
     moment.
