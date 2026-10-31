@@ -1835,7 +1835,7 @@ ROWS: tuple[Row, ...] = (
                   "cells. Rayleigh/Sparrow put one line or two at 0.58-0.85 FWHM and do not "
                   "cover the seen window or p0. Fails where a real split under 1 FWHM ties a "
                   "truth with its higher-symmetry description."),
-        grounds=("Kept, ruled 2026-10-21 (PR #939); the real-family sweep (PR #1177) found "
+        grounds=("Kept, ruled 2026-10-21 (PR #941); the real-family sweep (PR #1177) found "
                  "nothing below 1.0 better. Bounded above only by the synthetic tests, a "
                  "1.7-FWHM split; nothing above 1.0 was run on real data."),
         approved="2026-10-21"),
