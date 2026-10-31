@@ -228,6 +228,8 @@ RECORD_SCHEMAS: tuple[str, ...] = (
     "rietx.schemas.sequential.SeriesEntry",
     "rietx.schemas.results.RefinementResult",
     "rietx.schemas.results.Statistics",
+    "rietx.schemas.indexing.IndexingResult",
+    "rietx.schemas.indexing.PeakList",
 )
 
 
@@ -443,6 +445,29 @@ def row_source(name: str, kind: str, value: object = None) -> str:
 #: Fields of :data:`RECORD_SCHEMAS` that report no action the filing named.
 #: An audit that finds one reporting an action moves it into :data:`ROWS`.
 OTHER_RECORD_FIELDS: frozenset[str] = frozenset({
+    "rietx.schemas.indexing.IndexingResult.candidates",
+    "rietx.schemas.indexing.IndexingResult.diagnostics",
+    "rietx.schemas.indexing.IndexingResult.engine_stats",
+    "rietx.schemas.indexing.IndexingResult.engines_run",
+    "rietx.schemas.indexing.IndexingResult.fom_panel_disagrees",
+    "rietx.schemas.indexing.IndexingResult.formula",
+    "rietx.schemas.indexing.IndexingResult.n_usable_lines",
+    "rietx.schemas.indexing.IndexingResult.preset",
+    "rietx.schemas.indexing.IndexingResult.provenance",
+    "rietx.schemas.indexing.IndexingResult.quality",
+    "rietx.schemas.indexing.IndexingResult.search_complete",
+    "rietx.schemas.indexing.IndexingResult.systems_searched",
+    "rietx.schemas.indexing.IndexingResult.temperature",
+    "rietx.schemas.indexing.IndexingResult.thresholds_version",
+    "rietx.schemas.indexing.IndexingResult.validated",
+    "rietx.schemas.indexing.IndexingResult.wavelength",
+    "rietx.schemas.indexing.PeakList.diagnostics",
+    "rietx.schemas.indexing.PeakList.peaks",
+    "rietx.schemas.indexing.PeakList.source",
+    "rietx.schemas.indexing.PeakList.thresholds_version",
+    "rietx.schemas.indexing.PeakList.two_theta_max",
+    "rietx.schemas.indexing.PeakList.two_theta_min",
+    "rietx.schemas.indexing.PeakList.wavelength",
     "rietx.schemas.results.RefinementResult.cell_volumes",
     "rietx.schemas.results.RefinementResult.data_support",
     "rietx.schemas.results.RefinementResult.diagnostics",
@@ -1086,7 +1111,7 @@ ROWS: tuple[Row, ...] = (
     Row("TOPAS_SPECIES_WRITTEN_NEUTRAL", "code"),
     Row("WAVELENGTH_CALIBRATION", "code"),
     Row("XRDML_ATTENUATOR_APPLIED", "code"),
-    # action: 23
+    # action: 24
     Row("rietx.schemas.results.StageResult.held", "action", tier=3, ambiguity=1,
         evidence=("WP-1301/1523: free, an absent phase's cell walked 14.9 A from truth over 13 "
                   "sub-onset ramp patterns at unchanged Rwp; silent on IUCr CPD cpd-1c; GSAS-II, "
@@ -1304,6 +1329,15 @@ ROWS: tuple[Row, ...] = (
                   "no-line count, so a line a zero shift moved into range cannot quote the "
                   "handed-in value (#1103 item 1), and in a joint fit a scale shared with a "
                   "histogram that has lines counts as measured in every histogram (item 2)")),
+    Row("rietx.schemas.indexing.PeakList.instrument_undeclared", "action", tier=1, ambiguity=1,
+        evidence=("reads the declaration: the picker checks the instrument only where "
+                  "indexing.diagnostics.lab_source finds a laboratory tube in the declared "
+                  "source (a Ka doublet, or one line within LAB_LINE_TOLERANCE_ANGSTROM of an "
+                  "anode's Ka1, Ka2 or weighted mean, tier 1 at its row) and records None, "
+                  "not checked, elsewhere; what it records is arithmetic, the declared "
+                  "geometry and profile blocks compared with their defaults (WP-2030, #1123). "
+                  "It moves no search, rank or value: INDEX_DATA_INSUFFICIENT names the "
+                  "recorded blocks first in its suggestion")),
     Row("rietx.schemas.results.Statistics.esd_inflation", "action", tier=3, ambiguity=1,
         evidence=("Berar & Lelann (1991) J. Appl. Cryst. 24, 1, § IV (docstring; not in the "
                   "corpus); f 1.13 on uncorrelated residuals, 2.15 on FAP, 8.07 on NAC; GSAS-II "
