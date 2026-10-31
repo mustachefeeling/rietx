@@ -123,8 +123,33 @@ symbols, joint fits) and get one or a declared exception.
 
 ## Tasks
 
-- [ ] The list of the 15 features with no acceptance claim, in this file, with what
+- [x] The list of the 15 features with no acceptance claim, in this file, with what
       verifies each today (a unit test by name, a cross-code pin) or `unverified`.
+      Re-derived on main at 8b9c0a3ae (2026-10-31): the 15 of #1051's first pass, plus two
+      features that landed since it (distortion modes, subgroup enumeration). None is
+      `unverified`; each names the test that verifies it against a formula, a published
+      table, another code or a known synthetic answer. Two read a file and are never
+      evaluated, and the fit's refusal is their fence.
+
+      | Feature | Verified by (`tests/…::`) | Against |
+      |---|---|---|
+      | Capillary offsets | `test_capillary_displacement.py::test_eq4_is_the_ray_trace_to_first_order` | a ray trace, to second order in d/R |
+      | TOF calibration (DIFC, DIFA, DIFB, TZERO) | `test_tof_axis.py::test_a_synthetic_bank_converts_back_to_the_d_spacings_it_was_built_from` | the d-spacings a synthetic bank was built from; fenced from fitting by `test_tof_axis.py::test_fit_refuses_a_tof_pattern_against_a_cw_instrument` |
+      | TOF peak shape and incident spectrum | `test_instrument_tof.py::test_the_default_type_three_block_is_read_in_the_manuals_order` | the GSAS manual's coefficient order (read only); never evaluated, fenced by the same refusal |
+      | Neutron scattering lengths | `test_neutron_scattering.py::test_natural_element_scattering_lengths_match_gemmi_sears_1992` | gemmi's independent copy of Sears (1992) |
+      | Rigid bodies | `test_rigid_body.py::test_body_esds_equal_the_central_fd_chain` | a central finite-difference chain; and `::test_orientation_recovered_from_a_synthetic_pattern` |
+      | Soft restraints | `test_restraints.py::test_restraint_jacobian_matches_fd_per_kind` | finite differences of the augmented residual; and `::test_bond_restraint_recovers_perturbed_coordinate` |
+      | Flat-plate absorption | `test_flat_plate.py::test_reflection_matches_the_defining_integral` | the defining integral, numerically; and `::test_transmission_matches_the_defining_integral` |
+      | Surface roughness | `test_surface_roughness.py::test_suortti_matches_an_independent_transcription_of_the_published_form` | Suortti (1972) transcribed independently; and `::test_injected_roughness_is_recovered_and_is_resolved_not_merely_fitted` |
+      | A width read as a size or a strain | `test_microstructure.py::test_the_strain_coefficient_is_360_over_pi_times_the_strain` | a hand computation; and `::test_a_size_reads_back_the_crystallite_it_was_built_from` |
+      | Magnetic candidates (representation analysis) | `test_magnetic_irreps.py::test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups` | spgrep, all 230 groups; and `test_magnetic_isotropy.py::test_pnma_at_gamma_has_exactly_four_maximal_magnetic_subgroups` |
+      | Satellites of a propagation vector | `test_satellites.py::test_the_manuals_two_worked_examples_on_a_c_lattice` | the manual's worked examples; and `::test_a_satellite_orbit_is_a_multiplicity` (enumeration) |
+      | Model-free background estimate | `test_profiles_background.py::test_arpls_recovers_baseline_under_peaks` | a known synthetic baseline; the Whittaker system itself gains a test in this WP |
+      | Extinction symbols | `test_extinction_symbol.py::test_the_condition_derivation_is_measured_over_the_whole_table` | International Tables' conditions over every setting; and `::test_corundum_returns_the_class_its_certificate_names` |
+      | Bond lengths and angles with esds | `test_geometry_table.py::test_corundum_matches_the_published_geometry` | Lewis, Schwarzenbach & Flack (1982); and `::test_esd_matches_a_monte_carlo_through_decode` |
+      | Parametric refinement | `test_parametric_series.py::test_a_constant_declaration_is_refine_multi_bit_for_bit` | `refine_multi`, bit for bit; and `::test_a_parametric_slope_recovers_a_known_expansion_within_its_esd` |
+      | Distortion-mode amplitudes (since #1051) | `test_distortion_modes.py::test_lamno3_reproduces_table_13` | Perez-Mato et al. (2010) Table 13 |
+      | Subgroup enumeration (since #1051) | `test_subgroups.py::test_each_published_subgroup_is_present_with_its_transformation` | International Tables A1; and `::test_pmmm_has_eight_fmmm_subgroups` |
 - [ ] Each `unverified` feature verified (a test against a formula or another code) or
       fenced until it is.
 - [ ] The feature registry: each feature with its help keys, its Theory section and the
