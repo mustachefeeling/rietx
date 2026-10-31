@@ -190,14 +190,6 @@ A list whose lines all carry one intensity, such as `PeakList.from_positions` wi
 
 Under every rule, what a cell leaves is reported rather than hidden: `CellCandidate.n_search_unindexed` counts the driven lines it left, and `CellCandidate.unindexed_two_theta` lists every usable line it left, the residue a second phase would explain.
 
-To index that residue, pass the result to `rietx.indexing.index_residue` with the pattern and instrument.
-It fits the first cell (or the one you name with `candidate=`) with the validation's Pawley fit, subtracts its peaks, picks what remains with the widths that fit refined, and indexes the picks as a second result.
-A pick standing on more of the subtracted profile than its own height is flagged `residue_misfit`: it counts as an unexplained line and lowers the grade, but never drives the search.
-On a single-phase pattern the residue holds no pick (synthetic Si) or only such lines (SRM 660c), so the second result abstains.
-A cell whose fit needs widths more than three times the list's own does not describe the pattern: nothing is picked from its residue and the result says why (skipped for a list passed in as positions, whose widths are assumed).
-On synthetic Si with MgO at 0.05 to 0.3 of its scale, the second result holds MgO's cell first.
-Each cell was validated alone: refine both phases together before quoting either.
-
 #### Priors from a structural analogue
 
 A prior steers the search and never gates it.

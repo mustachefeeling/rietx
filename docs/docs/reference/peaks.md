@@ -132,6 +132,14 @@ Ten take a line out of `PeakList.usable`; the other ten report evidence and leav
 
 A contamination line is flagged and left out, never subtracted, because stripping redistributes the noise and biases what is left.
 
+To index the residue a cell leaves, pass the result to `rietx.indexing.index_residue` with the pattern and instrument.
+It fits the first cell (or the one you name with `candidate=`) with the validation's Pawley fit, subtracts its peaks, picks what remains with the widths that fit refined, and indexes the picks as a second result.
+A pick standing on more of the subtracted profile than its own height is flagged `residue_misfit`: it counts as an unexplained line and lowers the grade, but never drives the search.
+On a single-phase pattern the residue holds no pick (synthetic Si) or only such lines (SRM 660c), so the second result abstains.
+A cell whose fit needs widths more than three times the list's own does not describe the pattern: nothing is picked from its residue and the result says why (skipped for a list passed in as positions, whose widths are assumed).
+On synthetic Si with MgO at 0.05 to 0.3 of its scale, the second result holds MgO's cell first.
+Each cell was validated alone: refine both phases together before quoting either.
+
 The evidence flags leave a line in because one pattern cannot say what the line is.
 A real reflection can stand on an extrapolated background, on a stronger line's axial tail or at a predicted Kα2 position, and on the certified laboratory patterns a component under the false-discovery bar is often a real weak line the certified cell indexes.
 
