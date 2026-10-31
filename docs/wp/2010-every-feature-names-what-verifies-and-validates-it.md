@@ -8,9 +8,9 @@ Priority: P3 2026-10-18 — outside the gate after 2004, so it waits on nothing;
 ## Goal
 
 Every feature rietx refines or corrects for names what verifies its code and, where one
-exists, the independent referent that validates its physics, in DESIGN.md § Rules, 2's
-sense as narrowed on 2026-10-27. A feature no test verifies is verified or fenced. A
-feature with no validating referent is recorded as *not yet validated* in the validation
+exists, the independent measurement that validates its physics, in DESIGN.md § Rules,
+2's sense as narrowed on 2026-10-27. A feature no test verifies is verified or fenced. A
+feature with no independent measurement is recorded as *not yet validated* in the validation
 matrix and its generated page, for the developers, and a result that reports a number
 from such a feature says so beside the number in its report. A test holds the feature
 list to the help vocabulary and the Theory headings, partitioned both ways, and joins
@@ -21,11 +21,11 @@ is in. That test is the tripwire Rule 4's test for a new topic lacks.
 
 DESIGN.md § Rules, 2. Verification asks whether the code computes its model correctly and
 is the package's gate. Validation asks whether the model matches the specimen, and its
-referent is an independent experimental measurement. In `tests/validation_matrix.py`'s
+reference value is an independent measurement. In `tests/validation_matrix.py`'s
 tiers, `identity`, `own_result` and `cross_code` verify; `certificate` and `spread`
-validate; `prediction` validates where its referent is experimental and verifies where it
-is the package's own arithmetic or another code; `characterisation` does neither. A topic
-without a validating referent states its equation, source and code plainly and is
+validate; `prediction` validates where its reference value is an independent measurement and
+verifies where it is the package's own arithmetic or another code; `characterisation` does neither. A topic
+without an independent measurement states its equation, source and code plainly and is
 recorded not yet validated. That state is separate from *provisional*, which
 `tests/api_surface.PROVISIONAL_MODULES` keeps for an API that may change.
 
@@ -37,15 +37,16 @@ recorded not yet validated. That state is separate from *provisional*, which
   a validation verdict, no agent-harness round measures the label, and the GUI help
   field waits until something shows a human reads it. The seat is the matrix and
   `docs/VALIDATION.md`, keyed by the feature registry. `capabilities()` is unchanged: a
-  per-feature referent kind there would be the verdict in machine form.
+  per-feature kind of reference value there would be the verdict in machine form.
 - *Rule 2 narrowed to the book's meaning.* Agreement with another code or with a
   published refinement of the same pattern verifies. A validation result reports the
-  mismatch in the quantity's units with the referent's uncertainty and the fit's esd,
-  over a stated domain, and says whether the data is development data. A dataset is
-  development data or sealed; a sealed family is spent into development data at the
-  close. DESIGN.md § Rules, 2 carries the text; `generality.md` § Acceptance's two rows
-  follow it.
-- *A number with no referent says so in the report.* Chosen over a diagnostic on every
+  mismatch in the quantity's units with the measurement's uncertainty and the fit's
+  esd, over a stated domain, and says whether the data is development data. A dataset
+  is unused, development data or sealed; a sealed family is spent into development data
+  at the close. Wording of 2026-10-31: "independent measurement" and "reference value"
+  replace "referent". DESIGN.md § Rules, 2 carries the text; `generality.md`
+  § Acceptance's two rows follow it.
+- *A number with no independent measurement says so in the report.* Chosen over a diagnostic on every
   such fit (a new code on every magnetic fit; the reporter's objection, #1051) and over
   the manual alone. One FitReport sentence, present only when the result reports such a
   quantity, read from the registry: the one place the fact reaches a reader of results.
@@ -55,7 +56,7 @@ recorded not yet validated. That state is separate from *provisional*, which
   development data in Rule 2's sense: 6 set a threshold or margin so the seen data's
   known answer passes, 2 were kept because a seen acceptance bar went red (GTOL, XTOL
   against the Stephens suite's characterisation bar), and 3 by whether a number moved
-  toward its referent (`Source:dispersion`, tier 2 on seven programs' practice but
+  toward its reference value (`Source:dispersion`, tier 2 on seven programs' practice but
   argued from the round-robin RMS; `width_twins_held`, W never held;
   `REFLECTION_MARGIN_DEG`'s reverted edge rule). All three rest on the CPD QPA round
   robin's weighed compositions. Validating claims under the old tiers: 24 on 7 datasets,
@@ -111,7 +112,7 @@ symbols, joint fits) and get one or a declared exception.
 
 ## Non-goals
 
-- New validation data. Finding a referent for an unvalidated feature is a follow-up per
+- New validation data. Finding an independent measurement for an unvalidated feature is a follow-up per
   feature; this WP records the state and files the follow-ups worth doing. The IUCr
   ceria size-strain round robin (Balzar et al. 2004) is the first, for microstructure.
 - Retiering heuristics: 2002 to 2007.
@@ -133,26 +134,26 @@ symbols, joint fits) and get one or a declared exception.
       mismatch, its domain and the development-data flag, and *not yet validated* where
       the second is empty; `docs/VALIDATION.md` regenerated with the feature table.
 - [ ] `prediction` claims retiered by rule: a claim validates only against an
-      experimental referent. The reviewer's count at feae4c75e: 9 `prediction` claims,
+      independent measurement. The reviewer's count at feae4c75e: 9 `prediction` claims,
       of which 6 (two capillary identities, three Nd₂Ru₂O₇ joint-wavelength, one Si 640c
       against XND) are referenced to the package's own arithmetic or another code and a
       7th to the package's own v0.3 table, over four features; the Si 640c held-cell
       claim is an identity. The meta-test enumerates them. `TIERS["prediction"]`'s
       text, which calls the capillary ΔB prediction the strongest evidence in the repo,
-      rewritten to say which referent a prediction checks against.
+      rewritten to say which kind of reference value a prediction checks against.
 - [ ] The matrix's own prose uses of *validate* in verification's sense reworded
       (start dependence as "a validation axis", "would validate a configuration", the
       anode wavelength tables, the multi-phase CIF round trip), `docs/VALIDATION.md`
       regenerated.
 - [ ] The report sentence: a result that reports a quantity from a feature with no
-      referent lists it once, read from the registry; absent otherwise.
+      independent measurement lists it once, read from the registry; absent otherwise.
 - [ ] The meta-test: the feature list partitions the help vocabulary and the Theory
       headings both ways; every claim and test a feature names exists; every
-      `prediction` claim names its referent's kind.
+      `prediction` claim names its reference value's kind.
 - [ ] Root CLAUDE.md § Invariants: the clause "Every physics function cites its
       reference" names the meta-test.
 - [ ] 1327's `### Inherited` note updated: the report sentence's wording for the moment.
-- [ ] Follow-ups filed: the ceria round robin as a microstructure referent; references
+- [ ] Follow-ups filed: the ceria round robin as a microstructure measurement; references
       for data already in the tree (a Le Bail cell against the SRM 660c and 676a
       certificates, published space groups for the extinction symbols, LaMnO₃'s Pn′ma′).
 - [ ] Tests; the fast count moved by exactly the tests added.

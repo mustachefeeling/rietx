@@ -145,7 +145,7 @@ rule above applies to the form factors.
   that the validation record is for the developers (DESIGN.md § Rules, 2, narrowed that
   day): no help entry or `capabilities()` arm says a feature is unvalidated. What a
   caller sees instead is one sentence in the fit report beside a moment, saying the
-  package's moment has no independent referent, read from 2010's feature registry. A
+  package's moment has no independent measurement, read from 2010's feature registry. A
   published moment refined from the same pattern verifies the code; an independently
   measured moment (magnetometry, a single-crystal experiment) would validate it. The
   2026-10-19 note below describes the label as first proposed; 2010's task list

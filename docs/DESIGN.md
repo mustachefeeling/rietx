@@ -12,7 +12,7 @@ section a work package links, not the whole file.
 
 **rietx exists so that a scientist can trust a Rietveld refinement they did not drive
 by hand.** Trust is built four ways. Every result is checked against an independent
-referent where one exists, and where none does the method, its source and its code are
+measurement where one exists, and where none does the method, its source and its code are
 stated plainly. The package decides alone only where every competent refiner would
 decide the same way; where the data can rank the alternatives it ranks them, and where
 they cannot it reports the number and stops. Every action is recorded. The report says
@@ -61,7 +61,9 @@ number. A sentence that nobody would use to make a choice does not belong here.
 
 2. **Verification and validation.** rietx is written by agents, so both are its
    foundation and not a check at the end. The words carry the field's meanings (Roache
-   1998; Oberkampf & Roy 2010, chapters 2 and 10 to 13).
+   1998; Oberkampf & Roy 2010, chapters 2 and 10 to 13). A check compares a result with
+   a *reference value*, and the kind of reference value decides which of the two the
+   check is.
 
    *Verification* asks whether the code computes its model correctly, and it is the
    package's gate: a feature ships verified or does not ship. Its forms: an exact
@@ -69,43 +71,50 @@ number. A sentence that nobody would use to make a choice does not belong here.
    close); an analytic Jacobian against finite differences; a refactor that reproduces
    every number; two backends agreeing on one residual; and, weakest, two codes
    agreeing on the same data under the same protocol, or a published refinement of the
-   same pattern reproduced under its protocol. The last is weakest because its referent
-   is a model's answer and can share the model's error; under a different protocol it
-   is no comparison, only a measure of drift. In `tests/validation_matrix.py`'s tiers,
-   `identity`, `own_result` and `cross_code` verify. Every physics function cites its
-   reference.
+   same pattern reproduced under its protocol. The last is weakest because its
+   reference value is a model's answer and can share the model's error. Under a
+   different protocol it verifies nothing and measures only drift. In
+   `tests/validation_matrix.py`'s tiers, `identity`, `own_result` and `cross_code`
+   verify. `characterisation`, which records the shape of a known error or that a model
+   is inadmissible, claims no accuracy and is neither. Every physics function cites its
+   source.
 
-   *Validation* asks whether the model matches the specimen, and its referent is an
-   independent experimental measurement: a certified cell, a weighed composition (judged
-   against the inter-laboratory spread of refinements), a composition from another
-   probe. A prediction written down before the measurement validates only against such
-   a referent; checked against the package's own arithmetic or another code, it
-   verifies. So `certificate` and `spread` validate, and `prediction` validates where
-   its referent is experimental. A validation result reports the mismatch in the
-   quantity's own units, with the referent's uncertainty and the fit's esd beside it,
-   over a stated domain (the families, laboratories and instruments it was measured
-   on), never only a pass; and it says whether the data is development data. Where no
-   referent exists, the equation, its source and its code are stated plainly, the topic
-   is recorded not yet validated until one arrives, and a result that reports a number
-   from such a topic says so beside the number, the one place the fact reaches a reader
-   of results (the writer is WP-2010's). That state is separate from *provisional*, which rietx keeps for an API
-   that may still change (PEP 411's sense). The validation record is for the
-   developers. An agent or a user chooses a feature by the sample and the data, and
-   whether the package has validated the feature should not move that choice, so the
-   record is kept in the matrix and its generated page and no surface an agent reads to
-   choose a feature carries a validation verdict (ruled 2026-10-27).
+   *Validation* asks whether the model matches the specimen, and its reference value is
+   an *independent measurement*: a certified cell, a weighed composition (judged against
+   the inter-laboratory spread of refinements), a composition from another probe. A
+   prediction written down before the measurement validates only against an
+   independent measurement; checked against the package's own arithmetic or another
+   code, it verifies. So `certificate` and `spread` validate, and `prediction` validates
+   where its reference value is an independent measurement. A validation result reports
+   the mismatch in the quantity's own units, with the measurement's uncertainty and the
+   fit's esd beside it, over a stated domain (the families, laboratories and instruments
+   it was measured on), never only a pass; and it says whether the data is development
+   data. Where no independent measurement exists, the equation, its source and its code
+   are stated plainly, the topic is recorded *not yet validated* until one arrives, and a
+   result that reports a number from such a topic says so beside the number, the one
+   place the fact reaches a reader of results (the writer is WP-2010's). That state is
+   separate from *provisional*, which rietx keeps for an API that may still change (PEP
+   411's sense). The validation record is for the developers. An agent or a user
+   chooses a feature by the sample and the data, and whether the package has validated
+   the feature should not move that choice, so the record is kept in the matrix and its
+   generated page and no surface an agent reads to choose a feature carries a
+   validation verdict (ruled 2026-10-27).
 
-   *A dataset is development data or sealed.* Data used to choose a threshold, a
+   *A dataset is unused, development data or sealed.* Data used to choose a threshold, a
    default or a plan, or to rework a change until a number comes back, is development
-   data, and a referent it carries calibrates as much as it validates (Oberkampf & Roy
-   pp. 31-32, 44 and 401). A test on it still measures, but weakly, and the record says
-   so. A family named at a milestone's open and used in no development by anyone who
-   changes the package is sealed: it is run once at the close, its mismatch is
-   reported, and it is then spent, which makes it development data. Nothing goes the
-   other way. A pinned number that moves has moved for the right reason only if the new
-   value is no further from its referent than the old; that rule tunes the package
-   toward the development data, and only the sealed families show whether the tuning
-   generalises.
+   data, and an independent measurement it carries calibrates as much as it validates
+   (Oberkampf & Roy pp. 31-32, 44 and 401). A test on it still measures, but weakly, and
+   the record says so. Data nobody has yet run is unused. A family is sealed when its
+   first run is on the tree as it stood at a milestone's open and nothing between the
+   open and the close is chosen or reworked on it, by anyone who changes the package.
+   Running it for another purpose, such as a benchmark whose results steer no change,
+   leaves the seal intact. It is run again at the close, its mismatch against each
+   reference value is reported at the open and at the close, and it is then spent,
+   which makes it development data. Nothing goes the other way, and an unused family
+   that misses an open waits for the next one. A pinned number that moves has moved for
+   the right reason only if the new value is no further from its reference value than
+   the old; that rule tunes the package toward the development data, and only the sealed
+   families show whether the tuning generalises.
 
 3. **Feedback teaches.** The report, each diagnostic's explanation and the manual bring
    a non-expert to competent steering, since steering is what the package leaves to
@@ -128,11 +137,11 @@ number. A sentence that nobody would use to make a choice does not belong here.
    it fired. Kind 2 ranks with evidence and picks only in Rule 1's two cases. Kind 3
    reports the number and stops. An Rwp comparison is never its evidence.
 
-   *A new topic.* Its independent referent is named before the code is written:
-   dataset, measured value with its uncertainty, the mismatch the test will report. Its
-   equation is in the manual with its source, its
-   off state reproduces every earlier number, and without a referent it is recorded
-   not yet validated.
+   *A new topic.* A test that verifies it lands with the code (Rule 2's gate). Where an
+   independent measurement exists, it is named before the code is written: the dataset,
+   the measured value with its uncertainty, and the mismatch the test will report. Where
+   none exists, the topic is recorded not yet validated. Its equation is in the manual
+   with its source, and its off state reproduces every earlier number.
 
    *A new API.* It takes the shape the surface already has: a verb in, a typed result
    out, a raise on failure, documented or deferred with a reason. The signature and
@@ -767,7 +776,7 @@ Two things about that document are load-bearing. It is **generated** from
 `tests/validation_matrix.py` and a fast test fails when the two drift, so it
 cannot go stale the way the hand-maintained README table did (it claimed eight
 suites while nine were committed). And the vocabulary needed **seven**
-referents where this section's prose implies three: alongside `certificate`,
+kinds of reference value where this section's prose implies three: alongside `certificate`,
 `cross_code` and `spread` sit `identity` (referenced to floating-point
 arithmetic, not to any physical quantity), `own_result`, and two that are
 kinds of *evidence* rather than kinds of tolerance — `characterisation` (a row

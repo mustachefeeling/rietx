@@ -130,7 +130,7 @@ inherits `rcond`'s tier, the 2 is tiered on its own evidence).
    `evidence` naming the one family and the table row tiered `3` with grounds that say so,
    and the diagnostic's explanation names the families its threshold was measured on and
    says it is untested beyond them. That wording is kept apart from DESIGN.md § Rules,
-   2's *not yet validated*, which means a topic with no independent referent; a threshold
+   2's *not yet validated*, which means a topic with no independent measurement; a threshold
    checked against a certified value on one family is checked there, on development
    data, and untested elsewhere (ruled 2026-10-19; wording narrowed 2026-10-27). The row is re-tiered when a second and third family arrive. The whole field is in
    scope (DESIGN.md § Why this package exists), so rare features will multiply. Chosen at
@@ -386,38 +386,40 @@ sharpens its own row here.
   on rietx's own data; the total falls and the caps re-land at the new sizes.
 - **Every feature names what verifies it and what validates it** (2010). The feature list
   partitions the help vocabulary and the Theory headings both ways. Each feature names the
-  tests that verify it and, where one exists, the independent referent that validates it,
+  tests that verify it and, where one exists, the independent measurement that validates it,
   with the measured mismatch, its domain and whether the data was development data; a
   feature no test verifies is verified or fenced before the close; the prediction claims
   referenced to the package's own arithmetic or another code (six to seven of nine, over
   four features) are retiered as verification. The record is the validation matrix's and
   its generated page, kept for
-  developers, and a result that reports a number from a topic with no referent says so
-  in its report (ruled 2026-10-27).
+  developers, and a result that reports a number from a topic with no independent
+  measurement says so in its report (ruled 2026-10-27).
 - **The rulebooks state Rule 1's three outcomes** (2001, 2009): act and record where every
   competent refiner would act, rank where the data can rank, otherwise report the number
   with its meaning; and the rule that rewards a firing code is rewritten.
-- **A sealed family moved no number away from its referent** (every audit, checked at
-  close). Families named at 2002's open and used in no development; at close the
-  standards' acceptance protocol is run on them, and every number with a referent is no
-  further from it than at the open, the mismatch reported in the quantity's units with
-  the referent's uncertainty and the fit's esd. The one row that measures generality
+- **A sealed family moved no number away from its reference value** (every audit, checked
+  at close). The families are sealed in DESIGN.md § Rules, 2's sense: first run on the
+  tree at 2002's open, and nothing chosen or reworked on them before the close. At close
+  the same recipe runs again, and every number with a reference value is no further from
+  it than at the open. Each mismatch is reported in the quantity's units, with the
+  reference value's uncertainty and the fit's esd. The one row that measures generality
   rather than the audit (fourth review). Named at 2002's open (2026-10-19): the Nd₂Ru₂O₇
   pair (`tests/data/mg090*`, 11-BM X-ray and NCNR BT-1 neutron, a published joint
-  refinement), WP-2002 § The batch giving the reason. It is not sealed in DESIGN.md
-  § Rules, 2's sense: it sits in seven test files and carries three prediction claims
-  (verification under the narrowed rule), so it is development data that no audit may
-  cite, and its close run measures drift from a published refinement. Added 2026-10-26
-  (#1052, decided by the maintainer): Zr₆(BDC)₃(Fum)₃ on Diamond I11, HfIn on a lab
-  Bragg–Brentano instrument and CrCl₂(pyrimidine) on ILL D1B, each with a peer-reviewed
-  refinement of the same pattern. Run under McCusker's plan rather than each paper's
-  protocol, the comparison validates nothing and measures drift from the published answer
-  between the open and the close, which is what this row asks. HfIn's EDX composition is
-  the set's one independent referent, and HfIn's seal is partial, since it sits in the
-  reporter's own benchmarks, uncited until the close. The reporter runs them, the open
-  baseline on the tree at 2002's open commit. WP-2017 cites none of them; at the close
-  they are spent and become development data (ruled 2026-10-27, replacing the 2026-10-26
-  "out of audit evidence for good").
+  refinement), WP-2002 § The batch giving the reason. It is not sealed: it sits in seven
+  test files and carries three prediction claims (verification under the narrowed rule),
+  so it is development data that no audit may cite, and its close run measures drift
+  from a published refinement. Added 2026-10-26 (#1052, decided by the maintainer):
+  Zr₆(BDC)₃(Fum)₃ on Diamond I11, HfIn on a lab Bragg–Brentano instrument and
+  CrCl₂(pyrimidine) on ILL D1B, each with a peer-reviewed refinement of the same pattern.
+  Run under McCusker's plan rather than each paper's protocol, the comparison validates
+  nothing and measures drift from the published answer between the open and the close,
+  which is what this row asks. HfIn's EDX composition is the set's one independent
+  measurement. HfIn also sits in the reporter's own benchmarks, and it stays sealed while
+  no result on it is cited in a PR or steers a change before the close. The reporter ran
+  the open baseline on 2026-10-28 on `2df48c95e`, the code at 2002's open, with the recipe
+  fixed before the first fit. WP-2017 cites none of them; at the close they are spent and
+  become development data (ruled 2026-10-27, replacing the 2026-10-26 "out of audit
+  evidence for good").
 - **An agent given the number reaches the answer the verdict gave** (2004, 2008). For each
   demoted class the harness is run once (twice where the explanation is reworked),
   registered first and approved per session, and
@@ -668,23 +670,26 @@ reverse it knowing what it would be giving up.
 - **Rule 2 narrowed to the book's meaning, and the validation record is for the
   developers** (2026-10-27, the maintainer, in session; WP-2010 § Context has the
   measurements). Agreement with another code or a published refinement of the same
-  pattern verifies; validation needs an independent experimental referent and reports
-  the mismatch in the quantity's units with the referent's uncertainty and the fit's esd
-  over a stated domain, saying whether the data is development data; a dataset is
+  pattern verifies; validation needs an independent measurement and reports the mismatch
+  in the quantity's units with the measurement's uncertainty and the fit's esd over a
+  stated domain, saying whether the data is development data; a dataset is unused,
   development data or sealed, and a sealed family is spent into development data at the
   close, which replaces the 2026-10-26 "out of audit evidence for good" on #1052. The
+  wording followed on 2026-10-31 (the maintainer, in session): "independent measurement"
+  and "reference value" replace "referent", which had carried both meanings, and the
+  unused state closes the gap a dataset nobody has run fell into. The
   maintainer's ground for the second half: which feature to use follows from the sample
   and the data by the agent's own reasoning, and whether the package has validated the
   feature should not move that choice. So no surface an agent reads to choose a feature
   carries a verdict, the GUI help field waits, no harness round measures the label, and
-  a result that reports a number from a topic with no referent says so once in its
+  a result that reports a number from a topic with no independent measurement says so once in its
   report, the one place the fact reaches a reader of results. Chosen over the earlier
   proposal of three verdict words (not yet validated, validated on development data,
   validated blind) shown wherever a caller reads a feature, and over leaving Rule 2's
   word wider than its cited source. Measured behind it, by a hand reading of the audit
   table's evidence text: of 66 rows citing an acceptance dataset, 11 were selected on
   development data in Rule 2's sense, 3 of those by whether a number moved toward its
-  referent, all three on the CPD round robin's weighed compositions, so the
+  reference value, all three on the CPD round robin's weighed compositions, so the
   development-data risk is real and narrow; a physics feature carries at most one tier-3
   number (rietx's own, unsourced) on its path, the background picker 13 and the staged
   plan 15. Reversed on a user's or a handover's report that the report sentence is
