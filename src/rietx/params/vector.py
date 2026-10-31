@@ -98,14 +98,14 @@ _MOMENT_REFRAME_TOL = 1e-12
 #: in units of ``symmetry.SITE_TOL``.  For an operation fixing both a body atom
 #: and its origin (mod the lattice), R(p − o) − (p − o) is a lattice vector
 #: plus the two positions' residuals from their sites, each at most SITE_TOL
-#: per component for an operation ``site_orbit``'s step 1 admitted (one the
-#: snap added could allow 3×).  On the atom's own element the vector is zero
-#: and the miss at most 2 × SITE_TOL, a bound reached and never exceeded on 25
-#: site pairs in 17 groups, hexagonal and cubic included; on an element a
-#: lattice vector away it is at least 1 − 2 × SITE_TOL.  Any factor from 2 to
-#: 1/SITE_TOL − 2 refuses the same inputs; 4 keeps a factor of two from the
-#: attained bound, so float rounding there cannot decide.
-_BODY_SITE_MISS_FACTOR = 4.0
+#: per component for an operation ``site_orbit``'s step 1 admitted and at most
+#: 3 × SITE_TOL for one the snap added.  Taking the larger, the two positions
+#: miss by at most 6 × SITE_TOL on the atom's own element (the step-1 case is
+#: 2 ×, attained and never exceeded on 25 site pairs in 17 groups); on an
+#: element a lattice vector away the miss is at least 1 − 6 × SITE_TOL.  Any
+#: factor from 6 to 1/SITE_TOL − 6 refuses the same inputs; 8 keeps a
+#: factor-of-two margin over 6, so float rounding there cannot decide.
+_BODY_SITE_MISS_FACTOR = 8.0
 
 
 def _is_wavelength(path: str) -> bool:

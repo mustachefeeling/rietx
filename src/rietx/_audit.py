@@ -1642,7 +1642,7 @@ ROWS: tuple[Row, ...] = (
         evidence=("unaudited, for the maintainer's tier. Besides site_orbit's snap it has two "
                   "rigid-body uses (WP-1807, #1005). (1) params.vector._refuse_body_off_its_"
                   "sites holds the exact invariance miss to _BODY_SITE_MISS_FACTOR x SITE_TOL, "
-                  "the two positions' snap residuals with a factor of two to spare. (2) "
+                  "the two positions' snap residuals (at most 6 x SITE_TOL, 8 chosen). (2) "
                   "params.bodies.RigidBodyBlock._increment_basis compares a linear body's "
                   "unit-vector residuals |n.u| and |u - (n.u)n|, a tilt in radians, with this "
                   "fractional tolerance, so the two checks agree only for a body long against "
@@ -2711,21 +2711,22 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.params.vector._BACKSTOP_THETA_MAX_DEG", "constant", tier=1, value=89.0,
         evidence=("numerical floor: pole guard at 2theta = 180 deg; moves no number for any pattern"
                   " ending below 2theta = 178 deg")),
-    Row("rietx.params.vector._BODY_SITE_MISS_FACTOR", "constant", tier=1, value=4.0,
+    Row("rietx.params.vector._BODY_SITE_MISS_FACTOR", "constant", tier=1, value=8.0,
         evidence=("arithmetic: _refuse_body_off_its_sites's exact test R(p - o) = p - o, in "
                   "units of symmetry.SITE_TOL. For an operation fixing a body atom and its "
                   "origin mod the lattice the miss is a lattice vector plus the two positions' "
                   "residuals from their sites, each at most SITE_TOL per component for an "
-                  "operation site_orbit's step 1 admitted (3x for one the snap added, by "
-                  "arithmetic alone), so an atom "
-                  "on the origin's own element misses by at most 2 x SITE_TOL and one on an "
-                  "element a lattice vector away by at least 1 - 2 x SITE_TOL. Any factor from "
-                  "2 to 1/SITE_TOL - 2 refuses the same inputs; 4 is twice the bound. The 2x bound "
-                  "is attained and never exceeded on 25 site pairs in 17 groups (corner and "
-                  "hill-climbed typed offsets, hexagonal, trigonal and cubic included; WP-1807 "
-                  "follow-up, #1005 round 2). Tested: an atom and origin typed SITE_TOL/2 off "
-                  "the P n m a mirror on opposite sides build at 4 and are refused at 1.9; the "
-                  "mirror a lattice vector away is refused (tests/test_rigid_body_special.py)"),
+                  "operation site_orbit's step 1 admitted and at most 3 x SITE_TOL for one the "
+                  "snap added, so an atom on the origin's own element misses by at most "
+                  "6 x SITE_TOL and one on an element a lattice vector away by at least "
+                  "1 - 6 x SITE_TOL. Any factor from 6 to 1/SITE_TOL - 6 refuses the same "
+                  "inputs; 8 keeps a factor of two over 6. The step-1 case, 2 x, is attained "
+                  "and never exceeded on 25 site pairs in 17 groups (corner and hill-climbed "
+                  "typed offsets, hexagonal, trigonal and cubic included; WP-1807 follow-up, "
+                  "#1005 round 2, #1226 round 1). Tested: an atom and origin typed SITE_TOL/2 "
+                  "off the P n m a mirror on opposite sides build at 8 and are refused at 1.9; "
+                  "the mirror a lattice vector away is refused "
+                  "(tests/test_rigid_body_special.py)"),
         grounds=("Decides no input differently from any other value in its window, so no "
                  "refiner's choice turns on it; the decision itself, a body atom on an "
                  "element a lattice vector from its origin's, is RIGID_BODY_NOT_INVARIANT's")),

@@ -845,13 +845,14 @@ def test_the_exact_site_test_holds_two_typed_residuals_and_refuses_a_lattice_vec
         monkeypatch):
     """``_BODY_SITE_MISS_FACTOR`` (#1005's follow-up): the origin and an atom
     on the P n m a mirror, each typed SITE_TOL/2 off it on opposite sides (the
-    most the mirror snaps), miss by exactly 2 × SITE_TOL, the bound the factor
-    sits above, so the body builds at 4 and is refused at 1.9.  The mirror a
+    most the mirror snaps), miss by exactly 2 × SITE_TOL, the step-1 bound; the
+    factor sits above 6 × SITE_TOL, the bound for an operation the snap added,
+    so the body builds at 8 and is refused at 1.9.  The mirror a
     lattice vector away (y = 3/4) misses by 1 and is refused."""
     from rietx.crystallography.symmetry import SITE_TOL
     from rietx.params import vector
 
-    assert 2.0 < vector._BODY_SITE_MISS_FACTOR < 1.0 / SITE_TOL - 2.0
+    assert 6.0 < vector._BODY_SITE_MISS_FACTOR < 1.0 / SITE_TOL - 6.0
     h = SITE_TOL / 2.0
     corner = _mirror_triangle(0.25 - h, 0.25 + h)
     assert _dofs(ParameterTable(corner, LAB)) == (2, 1)
