@@ -88,6 +88,7 @@
     strain_seed: "strain",
     restraint_weight_scale: "restraint",
     window_slack_deg: "slack",
+    lorentz_window_tol: "lorentz tol",
   };
 
   let stages = $state<Stage[]>([]);
