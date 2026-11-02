@@ -11,6 +11,7 @@ The codes are filed by the part of the package that raises them:
 
 - [Refinement](diagnostics-refinement.md): the stages, the guards, the corrections and the report.
 - [Series and joint fits](diagnostics-series.md): a chain of fits, or one fit over several patterns.
+- [Time-of-flight banks](diagnostics-tof.md): what a fit on a neutron time-of-flight bank applied, and the checks that did not run on one.
 - [Peaks and indexing](diagnostics-indexing.md): peak picking, the indexing search and the extinction screen.
 - [Reading files](diagnostics-files.md): patterns, instrument files and recipes.
 - [Other programs' projects](diagnostics-projects.md): GSAS-II, GSAS, FullProf and TOPAS files.
@@ -21,6 +22,7 @@ The codes are filed by the part of the package that raises them:
 
 diagnostics-refinement
 diagnostics-series
+diagnostics-tof
 diagnostics-indexing
 diagnostics-files
 diagnostics-projects

@@ -537,6 +537,7 @@ DIAGNOSTIC_GROUPS = (
      ("rietx/crystallography/", "rietx/strategy/magnetic",
       "rietx/report/magnetic")),
     ("diagnostics-series", "Series and joint fits", ("rietx/sequential", "rietx/multi")),
+    ("diagnostics-tof", "Time-of-flight banks", ("rietx/report/tof",)),
     ("diagnostics-refinement", "Refinement", ("",)),
 )
 
