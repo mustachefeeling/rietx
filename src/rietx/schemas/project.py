@@ -60,7 +60,11 @@ from .plan import PlanSpec
 #: absent-phase hold's threshold.  Minor, as 1.4 was for ``lebail_passes``.
 #: Also in 1.5 (WP-2002, the sixth round's Q1 and Q2): ``closing_window_tol``,
 #: the closing stage's window area fraction, unreleased beside it.
-PROJECT_FORMAT_VERSION = "1.5"
+#: ``1.6`` (issue #193): the persisted plan gained
+#: ``intermediate_lorentz_window_tol``, a bank's Lorentzian window tolerance in
+#: every declared stage but the last, and its stages ``lorentz_window_tol``.
+#: Minor, as 1.2 was for ``intermediate_ftol``.
+PROJECT_FORMAT_VERSION = "1.6"
 
 
 def check_interval(kind: str, lo: float, hi: float) -> None:

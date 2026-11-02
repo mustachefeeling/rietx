@@ -20,14 +20,16 @@ from typing import Literal
 from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
-# INTERMEDIATE_FTOL, CORRELATION_GUARD, PHASE_SUPPORT_SIGMA and
-# CLOSING_WINDOW_TOL are defined beside the mirror because the pydantic fields
-# need them at class-definition time and this module is the *upper* layer;
-# they are re-exported here, where plan policy is read.
+# INTERMEDIATE_FTOL, INTERMEDIATE_LORENTZ_WINDOW_TOL, CORRELATION_GUARD,
+# PHASE_SUPPORT_SIGMA and CLOSING_WINDOW_TOL are defined beside the mirror
+# because the pydantic fields need them at class-definition time and this
+# module is the *upper* layer; they are re-exported here, where plan policy is
+# read.
 from ..schemas.plan import (
     CLOSING_WINDOW_TOL,
     CORRELATION_GUARD,
     INTERMEDIATE_FTOL,
+    INTERMEDIATE_LORENTZ_WINDOW_TOL,
     PHASE_SUPPORT_SIGMA,
     PlanSpec,
     check_closing_window_tol,
@@ -182,6 +184,16 @@ class Stage:
     #: (``indexing.workflow.VALIDATION_WINDOW_SLACK_DEG``).  ``None`` = the
     #: default; frozen at stage compile like every other discrete choice.
     window_slack_deg: float | None = None
+    #: **time-of-flight only**: the per-side area fraction of each peak's
+    #: *Lorentzian component* this stage's frozen windows may leave outside,
+    #: overriding the plan's schedule.  ``None`` = take it from the plan
+    #: (:attr:`RefinementPlan.intermediate_lorentz_window_tol` for every
+    #: declared stage but the last, ``forward_tof.TOF_WINDOW_AREA_TOL`` for the
+    #: last declared stage and for the closing stage when the plan has one).
+    #: The exponential wings and the Gaussian extent are never loosened by it,
+    #: and a constant-wavelength pattern or a Gaussian-branch bank ignores it.
+    #: Frozen at stage compile like every other window input.
+    lorentz_window_tol: float | None = None
 
     def __getattr__(self, name: str):
         if name in _PYDANTIC_SURFACE:
@@ -378,6 +390,14 @@ class RefinementPlan:
     #: runs the declared stages alone, which reproduces every fit before the
     #: field, bit for bit.
     closing_window_tol: float | None = CLOSING_WINDOW_TOL
+    #: the Lorentzian-component window tolerance every declared stage but the
+    #: last compiles a time-of-flight bank at, unless that stage declares its
+    #: own :attr:`Stage.lorentz_window_tol` (issue #193).  ``None`` = the
+    #: answer tolerance in every stage, bit for bit the windows before the
+    #: schedule existed.  See :meth:`stage_lorentz_window_tols` for the rule
+    #: and :data:`INTERMEDIATE_LORENTZ_WINDOW_TOL` for what the number is and
+    #: buys.
+    intermediate_lorentz_window_tol: float | None = INTERMEDIATE_LORENTZ_WINDOW_TOL
 
     def closing_stage(self) -> Stage | None:
         """The stage a fit runs after the declared ones, or ``None``.
@@ -388,7 +408,12 @@ class RefinementPlan:
         state is what it re-solves.  It seeds nothing: a row back on its floor
         at the answer is where the data put it.  Its window fraction is
         :attr:`closing_window_tol`, which :meth:`stage_window_tols` carries.
-        ``None`` when that is ``None`` or the plan declares no stage.
+        It does **not** take the last stage's ``lorentz_window_tol``: the
+        closing stage computes the answer, so a bank's Lorentzian windows are
+        sized at the answer tolerance there whatever a declared stage asked
+        for (:meth:`stage_lorentz_window_tols`).
+        ``None`` when :attr:`closing_window_tol` is ``None`` or the plan
+        declares no stage.
         """
         if check_closing_window_tol(self.closing_window_tol) is None or not self.stages:
             return None
@@ -403,8 +428,8 @@ class RefinementPlan:
         """The stages a fit runs, in order: the declared ones, then :meth:`closing_stage`.
 
         Every runner iterates this, never :attr:`stages`, together with
-        :meth:`stage_ftols` and :meth:`stage_window_tols`, which are parallel
-        to it.
+        :meth:`stage_ftols`, :meth:`stage_window_tols` and
+        :meth:`stage_lorentz_window_tols`, which are parallel to it.
         """
         closing = self.closing_stage()
         return [*self.stages, closing] if closing is not None else list(self.stages)
@@ -419,6 +444,26 @@ class RefinementPlan:
         if self.closing_stage() is not None:
             tols.append(self.closing_window_tol)
         return tols
+
+    def stage_lorentz_window_tols(self) -> list[float | None]:
+        """The Lorentzian window tolerance each of :meth:`run_stages` compiles at.
+
+        :meth:`stage_ftols`' rule, endpoints included, for a time-of-flight
+        bank's own schedule, and here for the same reason: only the plan knows
+        which stage is last.  A stage's own ``lorentz_window_tol`` wins;
+        the last declared stage and the closing stage take ``None`` —
+        ``forward_tof.TOF_WINDOW_AREA_TOL``, one rule for every component —
+        because they produce the answer; every other stage takes
+        :attr:`intermediate_lorentz_window_tol`.  A one-stage plan is all
+        endpoint and nothing is loosened.  The closing stage declares no
+        ``lorentz_window_tol`` of its own (:meth:`closing_stage`), so it is
+        always ``None`` here.
+        """
+        stages = self.run_stages()
+        endpoints = {len(self.stages) - 1, len(stages) - 1}
+        return [s.lorentz_window_tol if s.lorentz_window_tol is not None
+                else (None if i in endpoints else self.intermediate_lorentz_window_tol)
+                for i, s in enumerate(stages)]
 
     def stage_ftols(self) -> list[float | None]:
         """The tolerance each stage runs at, in order — the one authority.
