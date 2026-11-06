@@ -1785,6 +1785,9 @@ class MultiHistogramRefinement:
                                                answer_runaway, opening_diags,
                                                plan.phase_support_sigma,
                                                significance=significance)
+            if any(d.code == "BANK_CELL_INCONSISTENT" for d in self.result_.diagnostics):
+                self.result_ = self.result_.model_copy(update={
+                    "diagnostics": self._confirm_cell_offsets(data, limits, weights)})
             if leave_one_out and n > 1:
                 self.result_ = self.result_.model_copy(update={
                     "diagnostics": self.result_.diagnostics
@@ -2870,6 +2873,48 @@ class MultiHistogramRefinement:
                         at_bound=(row in on_bound) if row in tested else None,
                         equations=equations.get(row, [])))
         return params
+
+    def _confirm_cell_offsets(self, data, limits, weights) -> list[Diagnostic]:
+        """The result's diagnostics with each ``BANK_CELL_INCONSISTENT`` screen
+        replaced by its refit (``report.tof_banks.cell_inconsistent``).
+
+        One refit, from the joint answer (every table holds it), of the answer's
+        free set plus each flagged bank's DIFC, the reference bank's held: the
+        T-5b recipe the suggestion names.  A bank whose refit Δd/d no longer
+        passes the firing test loses its finding.
+        """
+        res = self.result_
+        mt = self.mtable
+        flagged = {int(d.where[0].split(".")[1]): d for d in res.diagnostics
+                   if d.code == "BANK_CELL_INCONSISTENT"}
+        ref = tof_banks.reference_bank(self._models, mt)
+        turn_on = list(mt.free_paths) + [f"hist.{h}.instrument.source.difc"
+                                         for h in sorted(flagged)]
+        sub = MultiHistogramRefinement(
+            [copy.deepcopy(s) for s in mt.structures],
+            [copy.deepcopy(i) for i in mt.instruments],
+            sharing=mt.sharing, backend=self._backend, solver=self._solver)
+        try:
+            r = sub.fit(data, plan=RefinementPlan(stages=[Stage("bank_offsets", turn_on)]),
+                        two_theta_limits=limits, weights=weights, telemetry=False)
+        except (ValueError, NotImplementedError):
+            return list(res.diagnostics)     # the screen stands, worded as one
+        confirmed: dict[int, Diagnostic | None] = {}
+        for h, screen in flagged.items():
+            row = r.parameter(f"hist.{h}.instrument.source.difc")
+            held = mt.instruments[h].source.difc.value
+            eps = row.value / held - 1.0
+            esd = (row.stderr or math.inf) / held
+            confirmed[h] = (tof_banks.cell_diagnostic(mt, h, ref, eps, esd,
+                                                      screen=screen.value)
+                            if tof_banks.cell_confirmed(eps, esd) else None)
+        out = []
+        for d in res.diagnostics:
+            if d.code != "BANK_CELL_INCONSISTENT":
+                out.append(d)
+            elif (c := confirmed[int(d.where[0].split(".")[1])]) is not None:
+                out.append(c)
+        return out
 
     def _leave_one_out(self, data, limits, weights) -> list[Diagnostic]:
         """``BANK_LEAVE_ONE_OUT``: each histogram's pull on the shared answer.
