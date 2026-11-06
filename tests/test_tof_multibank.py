@@ -495,3 +495,67 @@ def test_one_held_reference_bank_recovers_the_offset_and_the_cell(offset_pattern
     assert d0.value / BANK_90["difc"] - 1.0 == pytest.approx(POSITION_OFFSET,
                                                              abs=2e-5)
     assert all(h.statistics.chi2 < 1.3 for h in freed.histograms)
+
+
+# ----------------------------------------------------------------------
+# 5. what the joint fit says about its banks (report.tof_banks)
+# ----------------------------------------------------------------------
+def _codes(result) -> dict[str, list]:
+    out: dict[str, list] = {}
+    for d in result.diagnostics:
+        out.setdefault(d.code, []).append(d)
+    return out
+
+
+def test_the_weight_shares_name_each_bank_and_each_shared_column(two_bank_fit):
+    _ref, result = two_bank_fit
+    (shares,) = _codes(result)["BANK_WEIGHT_SHARES"]
+    assert shares.level == "info"
+    for word in ("points", "χ²", "Bragg weight", "phases.0.cell.a",
+                 "phases.0.atoms.0.biso"):
+        assert word in shares.message
+
+
+def test_the_cell_check_reads_the_offset_it_was_given(offset_patterns):
+    """Both DIFCs held over a 90° bank offset by −1.5e-3: the one-step reading
+    of that bank's d-scale against the 150° reference is the offset to 10 %."""
+    result = rx.MultiHistogramRefinement(
+        started_structure(), [started_bank(**BANK_90), started_bank(**BANK_150)]
+    ).fit(offset_patterns, plan=_position_plan([]), telemetry=False)
+    (cell,) = _codes(result)["BANK_CELL_INCONSISTENT"]
+    assert cell.where == ["hist.0.instrument.source.difc"]
+    assert cell.value == pytest.approx(POSITION_OFFSET, rel=0.1)
+    assert "BANK_DOMINATES_MISFIT" in _codes(result)
+
+
+def test_leave_one_out_is_opt_in_and_names_the_compromise(offset_patterns):
+    ref = rx.MultiHistogramRefinement(
+        started_structure(), [started_bank(**BANK_90), started_bank(**BANK_150)])
+    plain = ref.fit(offset_patterns, plan=_position_plan([]), telemetry=False)
+    assert "BANK_LEAVE_ONE_OUT" not in _codes(plain)
+    result = ref.fit(offset_patterns, plan=_position_plan([]), telemetry=False,
+                     leave_one_out=True)
+    rows = _codes(result)["BANK_LEAVE_ONE_OUT"]
+    assert [d.where for d in rows] == [["hist.0"], ["hist.1"]]
+    # each bank alone reads a different cell, so dropping either moves it by
+    # many joint esds
+    assert all(d.value > 10.0 for d in rows)
+
+
+def test_the_normalisation_factors_agree_when_the_scales_follow_difc_over_sin_theta():
+    """Paddison's s_t ∝ scale·sinθ/DIFC: banks generated with scales in that
+    ratio read one factor (silent); equal scales on these two banks, whose
+    flight paths differ by 5 %, do not (fires)."""
+    import math
+
+    def q(g):
+        return g["difc"] / math.sin(math.radians(0.5 * g["two_theta"]))
+
+    ratio = q(BANK_150) / q(BANK_90)
+    for scales, fires in (((12.0, 12.0 * ratio), False), ((12.0, 12.0), True)):
+        pats = [tof_pattern(bank(**BANK_90), GRID_90, seed=1, scale=scales[0]),
+                tof_pattern(bank(**BANK_150), GRID_150, seed=2, scale=scales[1])]
+        result = rx.MultiHistogramRefinement(
+            started_structure(), [started_bank(**BANK_90), started_bank(**BANK_150)]
+        ).fit(pats, plan=joint_plan(), telemetry=False)
+        assert ("BANK_SCALE_INCONSISTENT" in _codes(result)) is fires, scales
