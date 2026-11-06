@@ -632,7 +632,7 @@ ROWS: tuple[Row, ...] = (
         responds=("check the outlying bank's absorption and normalisation before reading its "
                   "displacement parameters")),
     Row("BANK_SIGMA_SUSPECT", "code", tier=3, ambiguity=3,
-        evidence=("statistic: median over lags 1-20 of std of lag-k differences of y - y_calc "
+        evidence=("statistic: median over lags 1-3 of std of lag-k differences of y - y_calc "
                   "over propagated sigma, on channels outside every frozen reflection window; "
                   "band [0.8, 1.25]; measured 0.92-1.04 on the HRPD Si banks and 1.0-1.28 on "
                   "LaTaO4 (the 2026-11-06 multi-bank practice survey (planning TOF_MULTIBANK_PRACTICE, § 5.3)), 1.00-1.01 on the synthetic Poisson pair"),
@@ -4056,10 +4056,13 @@ ROWS: tuple[Row, ...] = (
                  "out of a warning.")),
     Row("rietx.report.tof_banks.MISFIT_SHARE", "constant", tier=1, value=0.5,
         evidence=("arithmetic: 'dominates' is a majority of the summed positive excess chi2")),
-    Row("rietx.report.tof_banks.SIGMA_LAGS", "constant", tier=3, value=(1, 2, 3, 5, 10, 20),
-        evidence=("the survey's lags (sigma_check.py): 1 channel up to about one HRPD FWHM"),
-        grounds=("Short lags cancel a smooth background; longer ones see the correlation a "
-                 "rebinning leaves.")),
+    Row("rietx.report.tof_banks.SIGMA_LAGS", "constant", tier=3, value=(1, 2, 3),
+        evidence=("the survey's shortest lags (sigma_check.py ran 1-20 after removing a "
+                  "smoothed baseline); here the difference is of y - y_calc, and on the HRPD "
+                  "Si banks (chi2_red 12-13) the ratio is 1.00 at lag 1 and 2.1-2.2 at lag 20, "
+                  "the model's misfit between peaks"),
+        grounds=("Short lags cancel a smooth misfit and still see the correlation a "
+                 "smoothing leaves.")),
     Row("rietx.report.tof_banks.SIGMA_MIN_PAIRS", "constant", tier=3, value=50,
         evidence=("the survey's floor (sigma_check.py) under which a lag is not read"),
         grounds=("Fewer pairs give a ratio whose own scatter (~1/sqrt(2n)) exceeds the band.")),
