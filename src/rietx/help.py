@@ -1653,6 +1653,75 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "measured blank."
         ),
     ),
+    "BANK_CELL_INCONSISTENT": HelpEntry(
+        title="A bank reads the cell at another d-scale",
+        description=(
+            "With every bank's DIFC held, this bank alone would put the shared cell "
+            "at a different scale from the reference bank, by more than the stated "
+            "esds and more than a delivered calibration promises. That is a "
+            "sample-position or calibration offset, and the joint cell splits it "
+            "between the banks. Free this bank's DIFC (or its TZERO), keep the "
+            "highest-angle bank's held, and refit."
+        ),
+    ),
+    "BANK_DOMINATES_MISFIT": HelpEntry(
+        title="One histogram holds most of the misfit",
+        description=(
+            "Most of the joint fit's excess χ² is in one histogram, whose reduced χ² "
+            "is well above the others'. Its misfit is systematic, so it pulls the "
+            "shared parameters toward a compromise. A sharper or better-counted bank "
+            "shows a larger reduced χ² legitimately, so this says where to look, "
+            "not that the bank is wrong. Crop its window, free its profile or "
+            "background, or drop it. A smaller weight still biases the answer."
+        ),
+    ),
+    "BANK_LEAVE_ONE_OUT": HelpEntry(
+        title="How far the answer moves without a histogram",
+        description=(
+            "You asked for `leave_one_out=True`: each histogram was dropped in turn "
+            "and the rest refitted from the joint answer. The message gives each "
+            "shared parameter's shift in units of its joint esd. A shift of "
+            "several esds names the histogram the joint answer compromises with."
+        ),
+    ),
+    "BANK_REFERENCE_NOT_HIGHEST_ANGLE": HelpEntry(
+        title="A lower-angle bank pins the cell's scale",
+        description=(
+            "The DIFC held to fix the cell's scale is not the highest-angle bank's, "
+            "which is free. A sample-position error moves a backscattering bank "
+            "least, so the cell now carries the held bank's position error. Hold "
+            "the highest-angle bank's DIFC and free the others'."
+        ),
+    ),
+    "BANK_SCALE_INCONSISTENT": HelpEntry(
+        title="The banks' normalisation factors disagree",
+        description=(
+            "On banks normalised to one vanadium, each bank's scale·sinθ/DIFC is the "
+            "same physical factor (Paddison 2025, eq. 19). Here they differ by more "
+            "than three esds. A difference points at absorption, extinction or "
+            "normalisation in the outlying bank, so check those before you read "
+            "its displacement parameters."
+        ),
+    ),
+    "BANK_SIGMA_SUSPECT": HelpEntry(
+        title="A bank's esds are not its scatter",
+        description=(
+            "Away from the reflections, the bank's channel-to-channel scatter is "
+            "not the esd column it was read with. A joint fit weights each point "
+            "by 1/σ², so this bank carries the wrong share of the weight against "
+            "the others. Check how σ was propagated through reduction before you "
+            "quote the joint esds."
+        ),
+    ),
+    "BANK_WEIGHT_SHARES": HelpEntry(
+        title="Which bank determined which number",
+        description=(
+            "Per histogram: the share of points, of χ², of Bragg weight (the pull on "
+            "scale, displacement parameters and occupancies) and, for each shared "
+            "parameter, of its Fisher information. A bank's χ² share follows its "
+            "point count, not what it measures."
+        ),
+    ),
     "BISO_NEGATIVE": HelpEntry(
         title="A displacement parameter is negative",
         description=(

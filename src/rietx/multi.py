@@ -153,6 +153,7 @@ from .refine import (
     _width_twin_flats,
     _window_loss_diagnostics,
 )
+from .report import tof_banks
 from .report.magnetic import moment_angle_stationary_diagnostics
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
@@ -180,6 +181,7 @@ from .strategy.staged import (
     GuardFinding,
     GuardReport,
     RefinementPlan,
+    Stage,
     _correlation_findings,
     _exact_active_bounds,
     biso_over_bound,
@@ -1666,8 +1668,14 @@ class MultiHistogramRefinement:
             plan: RefinementPlan | PlanSpec | str = "mccusker_default",
             two_theta_limits=None, weights: list[float] | None = None,
             events=None, cancel=None, telemetry=None, label: str | None = None,
-            progress=None) -> RefinementResult:
+            progress=None, leave_one_out: bool = False) -> RefinementResult:
         """Run a staged joint refinement.
+
+        ``leave_one_out=True`` (T-5, off by default: it costs one refit per
+        histogram) refits the answer's free set without each histogram in
+        turn, from the answer, and reports how far each shared parameter moves
+        in units of its joint esd (``BANK_LEAVE_ONE_OUT``): which histogram the
+        joint answer compromises with (Fujioka et al. 2014's "compromises").
 
         ``events``, ``cancel``, ``telemetry``, ``label`` and ``progress`` mean
         what they mean on :meth:`Refinement.fit <rietx.refine.Refinement.fit>`
@@ -1716,6 +1724,8 @@ class MultiHistogramRefinement:
             require_matched_axis(d, f"MultiHistogramRefinement.fit(), histogram "
                                     f"{i} of {n}", instrument=ins)
         _refuse_sigma_less_banks(data, weights)
+        # whether each histogram's σ is the file's (``BANK_SIGMA_SUSPECT``)
+        self._sigma_measured = [d.sigma is not None for d in data]
         if mode != "rietveld":
             raise NotImplementedError(
                 "multi-histogram refinement is Rietveld-only; Le Bail / "
@@ -1775,6 +1785,10 @@ class MultiHistogramRefinement:
                                                answer_runaway, opening_diags,
                                                plan.phase_support_sigma,
                                                significance=significance)
+            if leave_one_out and n > 1:
+                self.result_ = self.result_.model_copy(update={
+                    "diagnostics": self.result_.diagnostics
+                    + self._leave_one_out(data, limits, weights)})
             self._answer = self._freeze_answer()
             if stream is not None:
                 stream.emit("fit_end", status=self.result_.status,
@@ -2480,6 +2494,10 @@ class MultiHistogramRefinement:
             # was applied.  Silent on a constant-wavelength histogram.
             diags.extend(_tof_absorption_diagnostics(model))
             diags.extend(_tof_intensity_basis_diagnostics(model))
+            if _is_tof(model) and n > 1:
+                # whether this bank's σ can carry the weight a joint fit gives it
+                diags.extend(tof_banks.sigma_suspect(
+                    h, model, y_calc, measured=self._sigma_measured[h]))
             # A joint fit's shared cell draws from every histogram, so a
             # capillary that could not express its eq (4) offsets folds them
             # into that one cell — the misreading WP-1073 exists to name, at its
@@ -2605,6 +2623,9 @@ class MultiHistogramRefinement:
                                       answer_runaway, outcome.esd_inflation)
         diagnostics = list(opening_diags) + self._top_diagnostics(
             outcome, correlation_guard, top_bg, at_bounds, models)
+        # which bank determined what, and whether the banks agree (T-5, FIT)
+        diagnostics = diagnostics + self._bank_diagnostics(
+            models, outcome, weights, per_values, per_ycalc, per_ybkg, parameters)
         # what a parametric declaration did to each pattern's dependent that
         # no bound the solve saw could stop (WP-1325, FIT)
         diagnostics = diagnostics + _parametric_range_diagnostics(mt)
@@ -2849,6 +2870,85 @@ class MultiHistogramRefinement:
                         at_bound=(row in on_bound) if row in tested else None,
                         equations=equations.get(row, [])))
         return params
+
+    def _leave_one_out(self, data, limits, weights) -> list[Diagnostic]:
+        """``BANK_LEAVE_ONE_OUT``: each histogram's pull on the shared answer.
+
+        One refit per histogram, of the others, from the joint answer (every
+        table holds it), freeing the answer's free set with each per-histogram
+        row re-addressed to its histogram's new index; ``telemetry=False``, an
+        internal trial.  A shared parameter's shift is read in units of its
+        joint esd.
+        """
+        if self.mtable.parametric:
+            raise NotImplementedError(
+                "leave_one_out is not built for a parametric joint fit: dropping "
+                "a pattern changes the coordinates its equations were resolved on")
+        res = self.result_
+        mt = self.mtable
+        shared = list(mt.free_paths[:mt.n_shared])
+        esd = {p.path: p.stderr for p in res.parameters}
+        value = {p.path: p.value for p in res.parameters}
+        n = mt.n_histograms
+        out: list[Diagnostic] = []
+        for drop in range(n):
+            keep = [h for h in range(n) if h != drop]
+            index = {h: i for i, h in enumerate(keep)}
+            turn_on = list(shared)
+            for p in mt.free_paths[mt.n_shared:]:
+                _, h, rest = p.split(".", 2)
+                if int(h) != drop:
+                    turn_on.append(f"hist.{index[int(h)]}.{rest}")
+            sub = MultiHistogramRefinement(
+                [copy.deepcopy(mt.structures[h]) for h in keep],
+                [copy.deepcopy(mt.instruments[h]) for h in keep],
+                sharing=mt.sharing, backend=self._backend, solver=self._solver)
+            plan = RefinementPlan(stages=[Stage("leave_one_out", turn_on)])
+            try:
+                r = sub.fit([data[h] for h in keep], plan=plan,
+                            two_theta_limits=[limits[h] for h in keep],
+                            weights=[weights[h] for h in keep], telemetry=False)
+            except (ValueError, NotImplementedError) as exc:
+                out.append(Diagnostic(
+                    level="info", code="BANK_LEAVE_ONE_OUT", where=[f"hist.{drop}"],
+                    message=f"Without histogram {drop} the refit did not run: {exc}"))
+                continue
+            shifts = []
+            for p in shared:
+                e = esd.get(p)
+                if not e:
+                    continue
+                shifts.append(((r.parameter(p).value - value[p]) / e, p))
+            shifts.sort(key=lambda t: -abs(t[0]))
+            worst = abs(shifts[0][0]) if shifts else None
+            out.append(Diagnostic(
+                level="info", code="BANK_LEAVE_ONE_OUT", where=[f"hist.{drop}"],
+                value=worst,
+                message=(f"Without histogram {drop}, the shared parameters move by "
+                         + ", ".join(f"{p} {z:+.2g}σ" for z, p in shifts[:4])
+                         + f" (joint esds; refit {r.status}). A shift of several σ "
+                           f"names the histogram the joint answer compromises with.")))
+        return out
+
+    def _bank_diagnostics(self, models, outcome, weights, per_values, per_ycalc,
+                          per_ybkg, parameters) -> list[Diagnostic]:
+        """The joint statements about banks (``report.tof_banks``), T-5.
+
+        Raised when the list holds a time-of-flight bank and at least two
+        histograms; a constant-wavelength joint fit gets none of them.
+        """
+        if len(models) < 2 or not any(_is_tof(m) for m in models):
+            return []
+        mt = self.mtable
+        esd = {p.path: p.stderr for p in parameters}
+        n_free = [mt.n_shared + len(mt.per_hist_paths[h]) for h in range(len(models))]
+        return (tof_banks.weight_shares(models, mt, per_ycalc, per_ybkg,
+                                        outcome.jac, weights)
+                + tof_banks.dominates_misfit(models, per_ycalc, n_free, weights)
+                + tof_banks.reference_not_highest(models, mt)
+                + tof_banks.cell_inconsistent(models, mt, per_values, outcome.jac,
+                                              weights)
+                + tof_banks.scale_inconsistent(models, mt, per_values, esd.get))
 
     def _top_diagnostics(self, outcome, correlation_guard, bg_scoped,
                          at_bounds, models) -> list[Diagnostic]:
