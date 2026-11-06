@@ -1697,7 +1697,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         title="The banks' normalisation factors disagree",
         description=(
             "On banks normalised to one vanadium, each bank's scale·sinθ/DIFC is the "
-            "same physical factor (Paddison 2025, eq. 19). Here they differ by more "
+            "same physical factor (Paddison 2025; eq. 19 of its arXiv v1). Here they differ by more "
             "than three esds. A difference points at absorption, extinction or "
             "normalisation in the outlying bank, so check those before you read "
             "its displacement parameters."
