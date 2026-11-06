@@ -511,8 +511,8 @@ def test_the_weight_shares_name_each_bank_and_each_shared_column(two_bank_fit):
     _ref, result = two_bank_fit
     (shares,) = _codes(result)["BANK_WEIGHT_SHARES"]
     assert shares.level == "info"
-    for word in ("points", "χ²", "Bragg weight", "phases.0.cell.a",
-                 "phases.0.atoms.0.biso"):
+    for word in ("points", "χ²", "Bragg weight", "cell",
+                 "ADPs"):
         assert word in shares.message
 
 

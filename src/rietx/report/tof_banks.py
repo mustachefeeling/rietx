@@ -55,10 +55,11 @@ INCONSISTENT_SIGMA = 3.0
 #: Measured 0.92-1.04 on the three HRPD Si banks and 1.0-1.28 on the LaTaO4
 #: banks (2026-11-06 survey, § 1.3): HRPD only, untested beyond it.
 SIGMA_RATIO_BAND = (0.8, 1.25)
-#: The lags of the σ test, in channels: short enough that a smooth background
-#: cancels in the difference, long enough to see correlated noise a rebinning
-#: introduced.
-SIGMA_LAGS = (1, 2, 3, 5, 10, 20)
+#: The lags of the σ test, in channels.  Short, because the difference is of
+#: y − y_calc and a fitted model misfits between peaks: on the HRPD Si banks
+#: (χ²_red 12-13) the ratio is 1.00 at lag 1 and rises to 2.1-2.2 at lag 20,
+#: which is the misfit's structure and not σ (2026-11-06, T-5 acceptance).
+SIGMA_LAGS = (1, 2, 3)
 #: Pairs a lag needs before it is read.
 SIGMA_MIN_PAIRS = 50
 #: Relative step of the central difference giving a bank's ∂y/∂ln DIFC column.
@@ -90,8 +91,27 @@ def _hist_rows(models) -> list[slice]:
     return [slice(int(off[h]), int(off[h + 1])) for h in range(len(models))]
 
 
+def _family(path: str) -> str:
+    """The family a shared column's Fisher share is summed over, so the
+    message carries one share per kind of parameter rather than one per atom."""
+    tail = path.rsplit(".", 1)[-1]
+    if ".cell." in path:
+        return "cell"
+    if ".dof." in path or tail in ("x", "y", "z"):
+        return "coordinates"
+    if tail == "biso" or ".adp." in path:
+        return "ADPs"
+    if tail == "occ":
+        return "occupancies"
+    return path
+
+
 def weight_shares(models, mtable, per_ycalc, per_ybkg, jac, weights) -> list[Diagnostic]:
-    """``BANK_WEIGHT_SHARES``: which histogram determines which number."""
+    """``BANK_WEIGHT_SHARES``: which histogram determines which number.
+
+    The Fisher shares are summed per family of shared column (:func:`_family`):
+    cell, coordinates, ADPs, occupancies, and any other shared path by name.
+    """
     n = len(models)
     pts = [m.n_points for m in models]
     chi2 = [w * float(np.sum(((m.y_obs - yc) / m.sigma) ** 2))
@@ -104,12 +124,15 @@ def weight_shares(models, mtable, per_ycalc, per_ybkg, jac, weights) -> list[Dia
     J = _dense_jac(jac)
     if J is not None and J.shape[0] == sum(pts) and mtable.n_shared:
         rows = _hist_rows(models)
-        total = np.sum(J ** 2, axis=0)
+        families: dict[str, list[int]] = {}
         for k, path in enumerate(mtable.free_paths[:mtable.n_shared]):
-            if total[k] <= 0.0:
+            families.setdefault(_family(path), []).append(k)
+        for name, ks in families.items():
+            total = float(np.sum(J[:, ks] ** 2))
+            if total <= 0.0:
                 continue
-            per = [float(np.sum(J[r, k] ** 2)) / float(total[k]) for r in rows]
-            parts.append(f"{path} {'/'.join(_pct(s) for s in per)} %")
+            per = [float(np.sum(J[r][:, ks] ** 2)) / total for r in rows]
+            parts.append(f"{name} {'/'.join(_pct(s) for s in per)} %")
     order = ", ".join(f"histogram {h}" for h in range(n))
     return [Diagnostic(
         level="info", code="BANK_WEIGHT_SHARES",
