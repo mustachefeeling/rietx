@@ -273,6 +273,7 @@ PtGeSe
 [pP]ydantic
 [pP]yroelectric
 [pP]ytest
+Qin
 [qQ]uadratically
 [qQ]uantile
 [qQ]uartic
