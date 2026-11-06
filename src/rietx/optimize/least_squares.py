@@ -3018,10 +3018,25 @@ def _freeze_size_cap_multi(models: list[CompiledModel],
     histogram's units.  Only a histogram whose copy has reached its cap arms
     it, and the arming asymmetry decides where the intersection lands.
     """
+    axes = {getattr(m, "axis", "two_theta") for m in models}
     caps = [size_cap(m.tt_min, m.tt_max)
             if getattr(m, "axis", "two_theta") == "two_theta"
             else _tof_model_size_cap(m)
             for m in models]
+    if len(axes) > 1:
+        # a bank beside a scan (T-5c): the caps are in two units, K/L in Å⁻¹
+        # and degrees at λ, so each is taken into the shared column's unit by
+        # its histogram's value scale, the widest is chosen there, and every
+        # table is handed it back in its own unit; the intersection is then
+        # that one bound
+        scales = [mtable.value_scales[h].get("phases.0.lor_size", 1.0)
+                  if h < len(mtable.value_scales) else 1.0
+                  for h in range(len(models))]
+        col = [c / s for c, s in zip(caps, scales, strict=True) if c is not None]
+        widest = max(col) if col else None
+        for table, s in zip(mtable.tables, scales, strict=True):
+            table.freeze_size_cap(None if widest is None else widest * s)
+        return
     caps = [c for c in caps if c is not None]
     cap = max(caps) if caps else None
     for table in mtable.tables:

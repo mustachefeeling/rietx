@@ -5699,10 +5699,12 @@ ROWS: tuple[Row, ...] = (
                   "TWIN_COORD_TOL from the position, read from the constant) that keeps a "
                   "real displacement")),
     Row("SIZE_NORMALISED_ACROSS_WAVELENGTHS.suggestion", "suggestion", tier=1, ambiguity=1,
-        value=1,
+        value=2,
         evidence=("arithmetic: names the conversion at a histogram's own wavelength "
                   "(caglioti.apparent_size_from_size_coefficient) and the argument that "
-                  "declares a size per histogram instead (multi.py:2293-2298)")),
+                  "declares a size per histogram instead (multi.py:2293-2298); its T-5c "
+                  "twin (_size_unit_diagnostics, a bank beside a scan) names the "
+                  "microstructure block and the same argument")),
     Row("SIZE_UNUSUALLY_SMALL.suggestion", "suggestion", value=1),
     Row("SPACE_GROUP_SETTING_ASSUMED.suggestion", "suggestion", value=1),
     Row("SPECIES_FALLBACK_NEUTRAL.suggestion", "suggestion", value=1),
