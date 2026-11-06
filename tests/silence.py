@@ -1009,7 +1009,102 @@ def _basis_assumed(basis) -> list:
     return _tof_intensity_basis_diagnostics(_BasisModel(basis))
 
 
+# ------------------------------------------------- the joint fit over banks (T-5)
+class _BankStub:
+    """The fields ``report.tof_banks`` reads off a compiled bank, and no more."""
+
+    axis = "tof"
+    phases = ()
+
+    def __init__(self, y_obs, sigma, windows=()):
+        import numpy as np
+
+        self.y_obs = np.asarray(y_obs, dtype=np.float64)
+        self.sigma = np.asarray(sigma, dtype=np.float64)
+        self.n_points = len(self.y_obs)
+        self.flat_windows = list(windows)
+
+
+def _misfit(red0: float, red1: float) -> list:
+    import numpy as np
+
+    from rietx.report.tof_banks import dominates_misfit
+
+    n = 1000
+    models = [_BankStub(np.full(n, np.sqrt(red)), np.ones(n)) for red in (red0, red1)]
+    return dominates_misfit(models, [np.zeros(n), np.zeros(n)], [5, 5], [1.0, 1.0])
+
+
+def _sigma_scatter(ratio: float) -> list:
+    import numpy as np
+
+    from rietx.report.tof_banks import sigma_suspect
+
+    rng = np.random.default_rng(7)
+    n = 4000
+    model = _BankStub(100.0 + ratio * 10.0 * rng.standard_normal(n), np.full(n, 10.0))
+    return sigma_suspect(0, model, np.full(n, 100.0), measured=True)
+
+
+class _Source:
+    def __init__(self, angle):
+        self.two_theta_bank_deg = angle
+        self.kind = "neutron_tof"
+
+
+class _Ins:
+    def __init__(self, angle):
+        self.source = _Source(angle)
+
+
+class _Table:
+    def __init__(self, free, angles):
+        self.free_paths = free
+        self.instruments = [_Ins(a) for a in angles]
+        self.n_shared = 1
+
+
+def _reference(free_bank: int) -> list:
+    from rietx.report.tof_banks import reference_not_highest
+
+    models = [_BankStub([0.0], [1.0]), _BankStub([0.0], [1.0])]
+    free = ["phases.0.cell.a", f"hist.{free_bank}.instrument.source.difc"]
+    return reference_not_highest(models, _Table(free, (90.0, 150.0)))
+
+
+@functools.cache
+def _offset_fits() -> dict:
+    """``tests/test_tof_multibank.py``'s 90°/150° pair, the 90° bank offset by
+    −1.5e-3 in d or not, refit with both DIFCs held (each fit about 0.5 s)."""
+    import rietx as rx
+    from tests import test_tof_multibank as t
+
+    out = {}
+    for label, pats in (("offset", t._offset_patterns()),
+                        ("clean", [t.tof_pattern(t.bank(**t.BANK_90), t.GRID_90, seed=1),
+                                   t.tof_pattern(t.bank(**t.BANK_150), t.GRID_150,
+                                                 seed=2)])):
+        ref = rx.MultiHistogramRefinement(
+            t.started_structure(), [t.started_bank(**t.BANK_90),
+                                    t.started_bank(**t.BANK_150)])
+        out[label] = ref.fit(pats, plan=t._position_plan([]), telemetry=False).diagnostics
+    return out
+
+
 SILENCE: dict[str, Pair] = {
+    "BANK_CELL_INCONSISTENT": Pair(
+        lambda: _offset_fits()["offset"], lambda: _offset_fits()["clean"],
+        "tests/test_tof_multibank.py (two synthetic banks, both DIFCs held)"),
+    "BANK_DOMINATES_MISFIT": Pair(
+        lambda: _misfit(9.0, 1.0),
+        lambda: _misfit(1.0, 1.1) + _misfit(9.0, 8.0),
+        "report/tof_banks.dominates_misfit on stub banks"),
+    "BANK_REFERENCE_NOT_HIGHEST_ANGLE": Pair(
+        lambda: _reference(1), lambda: _reference(0),
+        "report/tof_banks.reference_not_highest on stub banks"),
+    "BANK_SIGMA_SUSPECT": Pair(
+        lambda: _sigma_scatter(2.0), lambda: _sigma_scatter(1.0),
+        "report/tof_banks.sigma_suspect on a stub bank"),
     "CIF_SITE_LISTED_TWICE": Pair(
         _listed_twice_fires, _listed_twice_silent, "tests/test_cif_sites_coincide.py"),
     "CIF_SITE_MULTIPLICITY_DISAGREES": Pair(

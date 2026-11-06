@@ -582,6 +582,72 @@ ROWS: tuple[Row, ...] = (
         responds=("note that the baseline's smoothing strength is the grid's end and not "
                   "the scan's choice, before holding that baseline fixed"),
         scope=("all",)),
+    Row("BANK_CELL_INCONSISTENT", "code", tier=3, ambiguity=2,
+        evidence=("statistic: one Gauss-Newton step at the joint answer with a DIFC column "
+                  "added per held non-reference bank, its esd from the extended covariance "
+                  "(report/tof_banks.cell_inconsistent); threshold > 3 esd and > 2e-4 in d, "
+                  "the 2e-4 from the HRPD era-to-era calibration scatter 2-6e-4 and the "
+                  "furnace offset -1.65e-3 (HRPD only); synthetic 90/150 deg pair offset "
+                  "-1.5e-3 reads -1.45e-3 (tests/test_tof_multibank.py), silent unoffset"),
+        grounds=("The banks' disagreement is invisible in a joint fit with every DIFC held, "
+                 "since the cell absorbs it; the recipe it names (free the bank's DIFC, hold "
+                 "the backscattering bank's) is T-5b's rule and is measurable."),
+        response="warning",
+        responds=("quote no shared cell from this fit: free the named bank's DIFC (or TZERO) "
+                  "with the reference bank's held and refit")),
+    Row("BANK_DOMINATES_MISFIT", "code", tier=3, ambiguity=3,
+        evidence=("statistic: excess chi2 E_h = chi2_h - (N_h - p_h) per histogram; fires on a "
+                  "histogram holding a majority of the summed positive excess with chi2_red "
+                  "above 2x the others' median (Toby 2006 p. 69 on why chi2_red alone condemns "
+                  "nothing); synthetic offset pair 83 vs 37 fires, clean pair 1.03/1.06 silent"),
+        grounds=("A pooled chi2 hides which bank carries a systematic misfit; the code "
+                 "locates it and acts on nothing."),
+        response="warning",
+        responds=("quote no shared cell, adp or scale before reading the named histogram's "
+                  "difference curve: crop, free its profile or background, or drop it")),
+    Row("BANK_LEAVE_ONE_OUT", "code", tier="caller", ambiguity=1,
+        evidence=("opt-in: fit(leave_one_out=False) by default; refits the answer's free set "
+                  "without each histogram from the joint answer, reports the shared shifts in "
+                  "joint esds, applies no threshold (Fujioka et al. 2014, 'compromises')"),
+        response="info",
+        responds=("read which histogram the shared answer moves most without"),
+        scope=("all",)),
+    Row("BANK_REFERENCE_NOT_HIGHEST_ANGLE", "code", tier=2, ambiguity=1,
+        evidence=("McCusker et al. 1999, J. Appl. Cryst. 32, 36, p. 45: free all "
+                  "diffractometer constants except the highest-angle detectors'; the WISH "
+                  "tutorial's 'all but the highest resolution bank'; dt/t = dL/L + cot(theta) "
+                  "dtheta (Attfield 2004, p. 100); fires when a lower-angle bank's DIFC is "
+                  "held and the highest-angle bank's is free"),
+        response="warning",
+        responds=("quote no shared cell until the highest-angle bank's DIFC is the held one "
+                  "and the others' are free")),
+    Row("BANK_SCALE_INCONSISTENT", "code", tier=3, ambiguity=3,
+        evidence=("statistic: scale*sin(theta)/DIFC per vanadium-normalised bank (no incident "
+                  "spectrum), Paddison 2025 eq. 19 of the arXiv v1, against the highest-angle "
+                  "bank's; fires past 3 combined esds; equality across banks is our inference "
+                  "from the equation (the paper reports one bank)"),
+        grounds=("Banks normalised to one vanadium are one physical quantity, so a "
+                 "difference names an uncorrected wavelength-dependent effect; info only."),
+        response="info",
+        responds=("check the outlying bank's absorption and normalisation before reading its "
+                  "displacement parameters")),
+    Row("BANK_SIGMA_SUSPECT", "code", tier=3, ambiguity=3,
+        evidence=("statistic: median over lags 1-20 of std of lag-k differences of y - y_calc "
+                  "over propagated sigma, on channels outside every frozen reflection window; "
+                  "band [0.8, 1.25]; measured 0.92-1.04 on the HRPD Si banks and 1.0-1.28 on "
+                  "LaTaO4 (the 2026-11-06 multi-bank practice survey (planning TOF_MULTIBANK_PRACTICE, § 5.3)), 1.00-1.01 on the synthetic Poisson pair"),
+        grounds=("A joint fit's inter-bank balance is the sigma column; a sigma that is not "
+                 "the scatter misweights a bank silently."),
+        response="warning",
+        responds=("quote no joint esd of a shared cell, adp or scale until the bank's sigma "
+                  "propagation is checked")),
+    Row("BANK_WEIGHT_SHARES", "code", tier=1, ambiguity=1,
+        evidence=("arithmetic: shares of points, chi2, Bragg weight sum((y_calc - y_bkg)/sigma)^2 "
+                  "and, per shared column, diag(J_h^T J_h)/diag(J^T J) off the joint Jacobian; "
+                  "computes, acts on nothing (the 2026-11-06 multi-bank practice survey (planning TOF_MULTIBANK_PRACTICE, § 5.3))"),
+        response="info",
+        responds=("read which histogram determined each shared number"),
+        scope=("all",)),
     Row("BISO_NEGATIVE", "code"),
     Row("BISO_UNUSUALLY_LARGE", "code"),
     Row("BOUND_HIT", "code"),
@@ -3972,6 +4038,34 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.report.strain._C", "constant", value=5.729577951308232e-05),
     Row("rietx.report.strain._GAUSS_NEWTON_ITERATIONS", "constant", value=4),
     Row("rietx.report.strain._QUOTABLE_WEIGHT_FRAC", "constant", value=0.01),
+    Row("rietx.report.tof_banks.CELL_SCALE_TOLERANCE", "constant", tier=3, value=0.0002,
+        evidence=("HRPD era-to-era bank-2 calibration scatter 2-6e-4 and furnace sample-position "
+                  "offset -1.65e-3 (2026-11-06 HRPD calibration and batch scans); HRPD only"),
+        grounds=("A difference under the scatter a delivered calibration carries is not a "
+                 "bank disagreement worth a refit.")),
+    Row("rietx.report.tof_banks.DIFC_STEP", "constant", tier=1, value=1e-05,
+        evidence=("numerical: central difference, truncation O(1e-10) of the curvature, a "
+                  "position shift of 1e-5 t (0.1-1 us) inside every frozen window's slack")),
+    Row("rietx.report.tof_banks.INCONSISTENT_SIGMA", "constant", tier=3, value=3.0,
+        evidence=("the package's three-esd significance, as PHASE_SUPPORT_SIGMA and "
+                  "PEAK_MASK_SIGMA; no source for 3 here"),
+        grounds=("Two consistency codes read a difference only past three esds.")),
+    Row("rietx.report.tof_banks.MISFIT_CHI2_RATIO", "constant", tier=3, value=2.0,
+        evidence=("the survey's proposal; HRPD Si chi2_red 1.0-1.3 across banks stays under it"),
+        grounds=("Keeps the ordinary spread of reduced chi2 across banks (Toby 2006 p. 69) "
+                 "out of a warning.")),
+    Row("rietx.report.tof_banks.MISFIT_SHARE", "constant", tier=1, value=0.5,
+        evidence=("arithmetic: 'dominates' is a majority of the summed positive excess chi2")),
+    Row("rietx.report.tof_banks.SIGMA_LAGS", "constant", tier=3, value=(1, 2, 3, 5, 10, 20),
+        evidence=("the survey's lags (sigma_check.py): 1 channel up to about one HRPD FWHM"),
+        grounds=("Short lags cancel a smooth background; longer ones see the correlation a "
+                 "rebinning leaves.")),
+    Row("rietx.report.tof_banks.SIGMA_MIN_PAIRS", "constant", tier=3, value=50,
+        evidence=("the survey's floor (sigma_check.py) under which a lag is not read"),
+        grounds=("Fewer pairs give a ratio whose own scatter (~1/sqrt(2n)) exceeds the band.")),
+    Row("rietx.report.tof_banks.SIGMA_RATIO_BAND", "constant", tier=3, value=(0.8, 1.25),
+        evidence=("HRPD Si 0.92-1.04, LaTaO4 1.0-1.28 (2026-11-06 survey, § 1.3); HRPD only"),
+        grounds=("Outside it a bank's 1/sigma^2 weight is off by more than 1.5x.")),
     Row("rietx.report.texture._BLOCK_ELEMENTS", "constant", tier="invariant",
         evidence="Answer-invariant by construction: a memory bound that only partitions "
                  "the r grid (WP-1335); "
@@ -5330,6 +5424,19 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: names the argument that overrides the fallback and the "
                   "package's other background forms, and ranks none of them, so no dissenter is "
                   "left (a held SNIP under a broad hump is one, references/judging.md)")),
+    Row("BANK_CELL_INCONSISTENT.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
+        evidence=("names the bank's DIFC (or TZERO) to free and the reference's to hold, "
+                  "T-5b's measurable recipe; moves nothing")),
+    Row("BANK_DOMINATES_MISFIT.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence=("names crop, profile, background or drop, and says a smaller weight still "
+                  "biases; ranks none, moves nothing")),
+    Row("BANK_REFERENCE_NOT_HIGHEST_ANGLE.suggestion", "suggestion", tier=2, ambiguity=1,
+        value=1,
+        evidence=("McCusker et al. 1999 p. 45's rule, named; moves nothing")),
+    Row("BANK_SCALE_INCONSISTENT.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence=("names absorption and normalisation to check; moves nothing")),
+    Row("BANK_SIGMA_SUSPECT.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence=("names the reduction steps that change sigma; moves nothing")),
     Row("BISO_NEGATIVE.suggestion", "suggestion", value=1),
     Row("BISO_UNUSUALLY_LARGE.suggestion", "suggestion", value=1),
     Row("BOUND_HIT.suggestion", "suggestion", value=1),
