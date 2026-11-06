@@ -284,7 +284,8 @@ def test_the_capabilities_arm_grows_a_third_radiation_and_does_not_call_it_one_l
 
     The note is what a client reads to decide whether to hand the build a
     bank, so it may not overstate the answer: it names the flight-time model a
-    bank refines with, and what is still **not** written on one.
+    bank refines with (one bank or several, a moment included since T-6), and
+    what is still **not** written on one.
     """
     arms = {r.kind: r for r in rx.capabilities().radiations}
     assert set(arms) == {"xray_cw", "neutron_cw", "neutron_tof"}
@@ -294,9 +295,9 @@ def test_the_capabilities_arm_grows_a_third_radiation_and_does_not_call_it_one_l
     assert tof.anomalous_dispersion is False
     note = tof.scatterer.lower()
     assert "flight time" in note
-    assert "rietveld refinement of one bank" in note
-    assert "several banks" in note and "not written" in note
-    assert "le bail" in note
+    assert "rietveld refinement of one bank or several" in note
+    assert "magnetic moment" in note
+    assert "le bail" in note and "not written" in note
 
 
 # ---------------------------------------------------------------------------
