@@ -23,6 +23,7 @@ from rietx.model.forward_tof import (
     compile_tof_model,
 )
 from rietx.model.profiles.tof import tof_from_d
+from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
     BackgroundChebyshev,
@@ -631,11 +632,13 @@ def test_preferred_orientation_and_stephens_strain_are_refused_naming_the_issue(
         compile_tof_model(st, ins, blank_pattern())
 
 
-def test_a_texture_and_a_moment_are_refused_on_a_bank_by_name():
-    """Two phase blocks the constant-wavelength model draws and this arm does
-    not.  A spherical-harmonic texture is refused here.  A magnetic moment is
-    refused by ``forward.magnetic_wanted``, the one dispatch authority, rather
-    than compiled as the nuclear part alone."""
+def test_a_texture_is_refused_and_a_moment_is_drawn_on_a_bank():
+    """A spherical-harmonic texture is a block the constant-wavelength model
+    draws and this arm does not, and it is refused here by name.  A magnetic
+    moment was refused the same way until T-6; since then
+    ``forward.magnetic_wanted`` admits a bank and the term is built, so the
+    same phase compiles with its magnetic data and a different pattern from
+    the nuclear part alone (the term itself: ``tests/test_tof_magnetic.py``)."""
     from rietx.schemas.structure import (
         MagneticSymmetry,
         Moment,
@@ -660,11 +663,15 @@ def test_a_texture_and_a_moment_are_refused_on_a_bank_by_name():
                     moment=Moment.from_values((2.0, 0.0, 0.0), "Mn2+"))],
         magnetic_symmetry=MagneticSymmetry(operations=["x,y,z,+1"]),
         scale=Parameter(value=SCALE))])
-    with pytest.raises(ValueError, match="carries a magnetic moment") as exc:
-        compile_tof_model(magnetic, bank(), blank_pattern())
-    assert "'neutron_tof'" in str(exc.value)
+    with_moment = compile_tof_model(magnetic, bank(), blank_pattern())
+    assert with_moment.phases[0].magnetic is not None
+    table = ParameterTable(magnetic, bank())
+    y_m = with_moment.evaluate(table.decode(table.x0()))
     magnetic.phases[0].atoms[0].moment = None
-    assert compile_tof_model(magnetic, bank(), blank_pattern()).n_points > 10
+    nuclear = compile_tof_model(magnetic, bank(), blank_pattern())
+    assert nuclear.phases[0].magnetic is None
+    table = ParameterTable(magnetic, bank())
+    assert np.max(np.abs(y_m - nuclear.evaluate(table.decode(table.x0())))) > 0.0
 
 
 def test_an_all_zero_profile_is_refused_by_name():

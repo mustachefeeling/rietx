@@ -58,7 +58,7 @@ import pytest
 
 import rietx as rx
 from rietx.crystallography.magnetic.scattering import MAGNETIC_SOURCE_KINDS
-from rietx.schemas.instrument import Dispersion
+from rietx.schemas.instrument import Dispersion, ProfileTOF
 from rietx.schemas.structure import Moment
 
 CORUNDUM_CELL = (4.758877, 4.758877, 12.992880)
@@ -269,13 +269,12 @@ def test_each_histogram_scatters_off_its_own_amplitude():
 
 # ------------------------------------------------------- the audit table ---
 #: Source kinds an ``Instrument`` can carry that this table's joint fit cannot
-#: take.  A time-of-flight bank joins a joint fit since T-5, but this table's
-#: fixture shares a magnetic phase (MnF₂, the magnetic row), and a moment on a
-#: bank is refused until T-6 builds the flight-time magnetic term.  Held to that
-#: by :func:`test_a_kind_left_out_of_the_table_is_one_no_fit_takes`, which
-#: fails the day the fixture's fit accepts a bank, and the kind then needs its
-#: line below.
-NOT_REFINED_KINDS = {"neutron_tof"}
+#: take.  Empty since T-6: a time-of-flight bank joined a joint fit in T-5, and
+#: the fixture's shared magnetic phase (MnF₂, the magnetic row) reaches a bank
+#: since T-6 built the flight-time magnetic term, so every kind has its column.
+#: A kind entered here is held to it by
+#: :func:`test_a_kind_left_out_of_the_table_is_one_no_fit_takes`.
+NOT_REFINED_KINDS: set[str] = set()
 
 
 def _source_kinds() -> set[str]:
@@ -294,7 +293,19 @@ INSTRUMENT_FOR_KIND: dict[str, Callable[[], rx.Instrument]] = {
         LAM_X, capillary_radius_mm=0.15),
     "neutron_cw": lambda: rx.Instrument.constant_wavelength_neutron(
         LAM_N, fwhm_deg=0.3, capillary_radius_mm=3.0),
+    "neutron_tof": lambda: rx.Instrument.tof_neutron_bank(
+        5000.0, two_theta_bank_deg=90.0, capillary_radius_mm=3.0,
+        profile=ProfileTOF(alpha1=0.4, beta0=0.05, sig1=100.0)),
 }
+
+
+def _pattern_for_kind(kind: str) -> rx.PatternData:
+    """A flat pattern on the kind's own abscissa: 2θ for a scan, µs for a bank."""
+    if kind != "neutron_tof":
+        return _flat(20.0, 80.0)
+    tof = np.linspace(4000.0, 20000.0, 400)
+    return rx.PatternData(tof=tof.tolist(), intensity=[10.0] * len(tof),
+                          sigma=[3.0] * len(tof))
 
 
 @dataclass(frozen=True)
@@ -316,42 +327,51 @@ def _entry(joint, h: int, path: str):
     return next(e for e in joint.mtable.tables[h].entries if e.path == path)
 
 
+def _kind(joint, h: int) -> str:
+    return joint.mtable.instruments[h].source.kind
+
+
 RADIATION_KEYED = [
     # b (fm, no s dependence) against f₀(s): the amplitude itself
     Keyed("scattering amplitude is b, not f0(s)",
           lambda j, h: all(cp.sites.b_coh is not None
                            for cp in j._models[h].phases),
-          {"xray_cw": False, "neutron_cw": True}),
+          {"xray_cw": False, "neutron_cw": True, "neutron_tof": True}),
     # f′ + i·f″ is an X-ray core-level effect, on by default since v1.0
     Keyed("anomalous dispersion f' + i f''",
           lambda j, h: any(cp.sites.f_anom is not None
                            for cp in j._models[h].phases),
-          {"xray_cw": True, "neutron_cw": False}),
+          {"xray_cw": True, "neutron_cw": False, "neutron_tof": False}),
     # K is the Thomson cross-section's; a neutron's is pinned at 1 and locked
     Keyed("polarisation K refinable",
           lambda j, h: not _entry(j, h, "instrument.polarization").locked,
-          {"xray_cw": True, "neutron_cw": False}),
-    # WP-1327: the moment couples to a neutron's own moment and nothing else's
+          {"xray_cw": True, "neutron_cw": False, "neutron_tof": False}),
+    # WP-1327: the moment couples to a neutron's own moment and nothing else's,
+    # at every wavelength of a white beam (T-6)
     Keyed("magnetic structure factor built",
           lambda j, h: j._models[h].phases[1].magnetic is not None,
-          {"xray_cw": False, "neutron_cw": True}),
+          {"xray_cw": False, "neutron_cw": True, "neutron_tof": True}),
     # Both kinds estimate a µR from composition since WP-1132, each off its
     # own table (McMaster photoabsorption, Sears cross-sections), so the rows
-    # key on which table was read rather than on whether a µR exists
+    # key on which table was read rather than on whether a µR exists.  A
+    # bank's µR is a line in λ (``CompiledTOFModel.absorption_terms``), read
+    # at three wavelengths against each table's own µR there
     Keyed("capillary muR read off the McMaster (X-ray) table",
           lambda j, h: _mu_r_is_from_table(j, h, "xray_cw"),
-          {"xray_cw": True, "neutron_cw": False}),
+          {"xray_cw": True, "neutron_cw": False, "neutron_tof": False}),
     Keyed("capillary muR read off the Sears (neutron) table",
           lambda j, h: _mu_r_is_from_table(j, h, "neutron_cw"),
-          {"xray_cw": False, "neutron_cw": True}),
+          {"xray_cw": False, "neutron_cw": True, "neutron_tof": True}),
     # #543: Brindley's µ read the X-ray table on every histogram, so on the
     # neutron one a sub-percent correction moved the fractions by the X-ray µ
+    # A bank runs no Brindley correction: it has no one wavelength to
+    # evaluate µ at, and its QPA says so (``microabsorption_skipped``)
     Keyed("Brindley mu read off the McMaster (X-ray) table",
           lambda j, h: _brindley_mu_is_from_table(j, h, "xray_cw"),
-          {"xray_cw": True, "neutron_cw": False}),
+          {"xray_cw": True, "neutron_cw": False, "neutron_tof": False}),
     Keyed("Brindley mu read off the Sears (neutron) table",
           lambda j, h: _brindley_mu_is_from_table(j, h, "neutron_cw"),
-          {"xray_cw": False, "neutron_cw": True}),
+          {"xray_cw": False, "neutron_cw": True, "neutron_tof": False}),
 ]
 
 #: Every phase of the joint fixture carries a radius, so each histogram's QPA
@@ -368,16 +388,32 @@ def _mu_r_is_from_table(joint, h: int, table_kind: str) -> bool:
     """
     from rietx.optimize.qpa import estimate_capillary_mu_r
     from rietx.params.vector import ParameterTable
+    structure = rx.Structure(phases=[corundum(), mnf2()])
+    ins = INSTRUMENT_FOR_KIND[_kind(joint, h)]()
+    table = ParameterTable(structure, ins)
+
+    def want_at(lam: float):
+        return estimate_capillary_mu_r(
+            structure, table.decode(table.x0()), lam,
+            ins.geometry.capillary_radius_mm, ins.geometry.packing_fraction,
+            source_kind=table_kind)[0]
+
+    if _kind(joint, h) == "neutron_tof":
+        # compiled at the same starting scales the estimate reads, since the
+        # fixture's one stage leaves the compiled specimen as it found it
+        from rietx.model.forward_tof import compile_tof_model
+        terms = compile_tof_model(structure, ins,
+                                  _pattern_for_kind("neutron_tof")).absorption_terms
+        if terms is None:
+            return False
+        a, b = terms
+        wants = [(a * lam + b, want_at(lam)) for lam in (1.0, 2.078, 3.5)]
+        return all(w is not None and bool(np.isclose(g, w, rtol=1e-12))
+                   for g, w in wants)
     got = joint.fitted_instruments[h].geometry.mu_r
     if got is None:
         return False
-    structure = rx.Structure(phases=[corundum(), mnf2()])
-    ins = INSTRUMENT_FOR_KIND[joint.mtable.instruments[h].source.kind]()
-    table = ParameterTable(structure, ins)
-    want, _ = estimate_capillary_mu_r(
-        structure, table.decode(table.x0()), ins.source.primary_wavelength,
-        ins.geometry.capillary_radius_mm, ins.geometry.packing_fraction,
-        source_kind=table_kind)
+    want = want_at(ins.source.primary_wavelength)
     return want is not None and bool(np.isclose(got, want, rtol=1e-12))
 
 
@@ -430,7 +466,7 @@ def every_kind_jointly():
     joint = rx.MultiHistogramRefinement(
         rx.Structure(phases=phases),
         [INSTRUMENT_FOR_KIND[k]() for k in kinds])
-    joint.fit([_flat(20.0, 80.0) for _ in kinds], plan=_short_plan())
+    joint.fit([_pattern_for_kind(k) for k in kinds], plan=_short_plan())
     return joint, kinds
 
 
@@ -448,24 +484,14 @@ def test_every_row_answers_for_every_source_kind():
 
 
 def test_a_kind_left_out_of_the_table_is_one_no_fit_takes():
-    """``NOT_REFINED_KINDS`` is an exemption only while it is true: the
-    fixture's joint fit refuses a bank by name (the shared moment, T-6), so
-    the table has nothing to ask it yet."""
-    from rietx.schemas.instrument import ProfileTOF
-
-    assert NOT_REFINED_KINDS == {"neutron_tof"}
-    bank = rx.Instrument.tof_neutron_bank(
-        5000.0, two_theta_bank_deg=90.0,
-        profile=ProfileTOF(alpha1=0.4, beta0=0.05, sig1=100.0))
-    joint = rx.MultiHistogramRefinement(rx.Structure(phases=[corundum(), mnf2()]),
-                                        [INSTRUMENT_FOR_KIND["xray_cw"](), bank])
-    tof = np.linspace(4000.0, 20000.0, 400)
-    with pytest.raises(ValueError, match=r"histogram 1 of 2: .*magnetic moment"
-                                         r".*'neutron_tof'"):
-        joint.fit([_flat(20.0, 80.0),
-                   rx.PatternData(tof=tof.tolist(), intensity=[10.0] * 400,
-                                  sigma=[3.0] * 400)],
-                  plan=_short_plan(), telemetry=False)
+    """``NOT_REFINED_KINDS`` is an exemption only while it is true.  It held
+    ``neutron_tof`` until T-6, while the fixture's shared moment was refused on
+    a bank; since then it is empty, and every kind an ``Instrument`` can carry
+    is a column of the table."""
+    assert NOT_REFINED_KINDS == set()
+    union = rx.Instrument.model_fields["source"].annotation
+    assert _source_kinds() == {arm.model_fields["kind"].default
+                               for arm in typing.get_args(union)}
 
 
 def test_the_magnetic_row_is_the_forward_models_own_dispatch():

@@ -82,8 +82,11 @@ P_MAGNETIC_FM = 2.695
 #: so the arm a client reads cannot disagree with what the forward model does.
 #: A neutron couples to the magnetization density through its own moment; an
 #: X-ray of a laboratory or ordinary synchrotron experiment does not, to many
-#: orders of magnitude.
-MAGNETIC_SOURCE_KINDS = frozenset({"neutron_cw"})
+#: orders of magnitude.  A time-of-flight bank (T-6) is the same coupling at
+#: every wavelength of its white beam: p²⟨|F_⊥|²⟩ is a function of the
+#: reflection (the form factor at s = 1/2d, the projection on Q̂), never of λ
+#: or of an angle, so the term is built there exactly as on a scan.
+MAGNETIC_SOURCE_KINDS = frozenset({"neutron_cw", "neutron_tof"})
 NON_MAGNETIC_SOURCE_KINDS = frozenset({"xray_cw"})
 
 
