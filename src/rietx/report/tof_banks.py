@@ -404,12 +404,16 @@ def sigma_suspect(h: int, model, y_calc, *, measured: bool) -> list[Diagnostic]:
     lo, hi = SIGMA_RATIO_BAND
     if ratio is None or lo <= ratio <= hi:
         return []
+    # a residual with no channel-to-channel scatter at all (noiseless or
+    # synthetic counts) has ratio exactly 0, and the weight it implies is
+    # unbounded rather than a number to divide out
+    weight = "an unbounded multiple of" if ratio == 0.0 else f"{1 / ratio ** 2:.2g} ×"
     return [Diagnostic(
         level="warning", code="BANK_SIGMA_SUSPECT", where=[f"hist.{h}"], value=ratio,
         message=(f"Histogram {h}'s channel-to-channel scatter off the reflections is "
                  f"{ratio:.3g} × its esd column (lags {SIGMA_LAGS[0]}-{SIGMA_LAGS[-1]} "
                  f"channels). A joint fit weights each point by 1/σ², so this bank "
-                 f"carries {1 / ratio ** 2:.2g} × the weight its counts justify "
+                 f"carries {weight} the weight its counts justify "
                  f"against the others. Measured 0.92-1.28 on HRPD banks; untested "
                  f"beyond HRPD."),
         suggestion=("check how the bank's σ was propagated through reduction "

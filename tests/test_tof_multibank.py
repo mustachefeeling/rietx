@@ -686,3 +686,20 @@ def test_one_window_across_two_axes_is_refused(patterns):
     assert min(result.histograms[0].tof) >= 10000.0
     assert max(result.histograms[0].tof) <= 30000.0
     assert min(result.histograms[1].two_theta) >= 20.0
+
+
+def test_a_residual_with_no_scatter_reads_as_an_unbounded_weight():
+    """A noiseless bank (a flat pattern fitted exactly, a synthetic one) has a
+    σ ratio of exactly 0; ``BANK_SIGMA_SUSPECT`` says the weight is unbounded
+    rather than dividing by it (it raised ``ZeroDivisionError`` on T-6's
+    radiation table, whose bank is a flat pattern)."""
+    from types import SimpleNamespace
+
+    from rietx.report.tof_banks import sigma_suspect
+
+    y = np.full(200, 10.0)
+    model = SimpleNamespace(n_points=200, flat_windows=[], y_obs=y,
+                            sigma=np.full(200, 3.0))
+    (d,) = sigma_suspect(1, model, y.copy(), measured=True)
+    assert d.code == "BANK_SIGMA_SUSPECT" and d.value == 0.0
+    assert "an unbounded multiple of the weight" in d.message
