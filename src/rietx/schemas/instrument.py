@@ -2536,9 +2536,10 @@ class Instrument(_InheritsDeclaredDefaults):
 
         **A multi-bank experiment is several instruments, not one.**  DIFC,
         DIFA, TZERO and the whole profile differ per bank — that is what a bank
-        *is* — so each bank gets its own ``Instrument``.  A joint fit over
-        several banks, the way several wavelengths meet today
-        (:class:`rietx.multi.MultiHistogramRefinement`), is not written yet.
+        *is* — so each bank gets its own ``Instrument``, and several banks of
+        one sample meet in a joint fit
+        (:class:`rietx.multi.MultiHistogramRefinement`, T-5), one instrument
+        per bank.
 
         :meth:`rietx.Refinement.fit` refines one such bank against a
         time-of-flight pattern; see :class:`TOFSource` for what the rest of the

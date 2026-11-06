@@ -330,7 +330,7 @@ def require_two_theta(pattern: PatternData | None, where: str, *,
     d⁴·sinθ Lorentz factor.  What this helper says is that **the entry point
     named in ``where`` is constant-wavelength only**, which is true of peak
     picking, indexing, extinction-symbol determination, the background
-    diagnostics, the project container and the joint multi-histogram path.  The
+    diagnostics and the project container.  The
     matched-pair check the routing entry points use instead is
     :func:`require_matched_axis`.
     """

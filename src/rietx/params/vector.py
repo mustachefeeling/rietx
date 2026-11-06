@@ -181,10 +181,9 @@ def check_wavelength_freedom(free_wavelengths: list[str], n_wavelengths: int,
     own surface spells them; ``n_wavelengths`` is how many wavelength rows the
     whole problem has and ``n_histograms`` how many patterns it stacks.
 
-    **Scope: constant-wavelength only.**  The same fence generalises verbatim to
-    a time-of-flight multi-bank fit, where each bank carries its own DIFC
-    calibration and exactly one of them must be held to pin the cell; nothing
-    here implements TOF.
+    **Scope: constant-wavelength only.**  Its time-of-flight form, a bank's
+    DIFC against the shared cell, is
+    :func:`rietx.params.multi.check_calibration_freedom` (T-5b).
     """
     if not free_wavelengths:
         return
