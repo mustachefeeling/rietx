@@ -1559,7 +1559,10 @@ def _analytic_angle_block(model: CompiledModel, table: ParameterTable):
     sparsity: a derived row a column moves carries no coefficient in C, and
     the branch declines it rather than reading it as unmoved.
     """
+    # a model with no analytic bases (a time-of-flight bank, T-6) keeps the
+    # central differences: the block below is built from ``derivative_bases``
     if (model.mode != "rietveld" or model.pawley is not None
+            or not getattr(model, "analytic_jacobian", True)
             or all(cp.magnetic is None for cp in model.phases)):
         return None
     coef = table.constraint_block()[0].tocsc()
