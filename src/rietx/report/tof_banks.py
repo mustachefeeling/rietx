@@ -17,7 +17,7 @@ measurements: the 2026-11-06 multi-bank practice survey, § 5.3):
 * ``BANK_CELL_INCONSISTENT`` (warning): with every DIFC held, a bank reads the
   shared cell at a different d-scale from the reference bank.
 * ``BANK_SCALE_INCONSISTENT`` (info): vanadium-normalised banks whose
-  absolute-normalisation factors (Paddison 2025, eq. 19) disagree.
+  absolute-normalisation factors (Paddison 2025; eq. 19 of its arXiv v1) disagree.
 * ``BANK_SIGMA_SUSPECT`` (warning): a bank's esd column is not its own
   channel-to-channel scatter.
 * ``BANK_REFERENCE_NOT_HIGHEST_ANGLE`` (warning): the DIFC held to pin the
@@ -355,7 +355,7 @@ def scale_inconsistent(models, mtable, per_values, esd_of) -> list[Diagnostic]:
                 where=[f"hist.{h}.phases.{ip}.scale" for h, _r, _e in bad],
                 value=worst[1],
                 message=(f"Phase {ip}: the banks' normalisation factors "
-                         f"scale·sinθ/DIFC (Paddison 2025, eq. 19) differ from "
+                         f"scale·sinθ/DIFC (Paddison 2025; eq. 19 of its arXiv v1) differ from "
                          f"histogram {ref[0]}'s by "
                          + ", ".join(f"{100 * r:+.2g} % (histogram {h}, ± {100 * e:.2g})"
                                      for h, r, e in bad)
