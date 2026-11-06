@@ -524,7 +524,10 @@ def test_the_cell_check_reads_the_offset_it_was_given(offset_patterns):
     ).fit(offset_patterns, plan=_position_plan([]), telemetry=False)
     (cell,) = _codes(result)["BANK_CELL_INCONSISTENT"]
     assert cell.where == ["hist.0.instrument.source.difc"]
-    assert cell.value == pytest.approx(POSITION_OFFSET, rel=0.1)
+    # screened by one Gauss-Newton step, then measured by a refit with the
+    # bank's DIFC free, which is the number reported
+    assert cell.value == pytest.approx(POSITION_OFFSET, rel=0.02)
+    assert "Measured by a refit" in cell.message
     assert "BANK_DOMINATES_MISFIT" in _codes(result)
 
 

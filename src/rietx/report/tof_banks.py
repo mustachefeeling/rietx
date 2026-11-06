@@ -234,6 +234,14 @@ def cell_inconsistent(models, mtable, per_values, jac, weights) -> list[Diagnost
     where one step is the answer to the order the step is small in.  Silent
     unless a shared cell length is free, at least two banks hold their DIFC,
     and the Jacobian has one row per channel.
+
+    **A screen, confirmed by a refit.**  Far from linear the step overshoots:
+    on HRPD LaTaO4 in the furnace (χ²_red 159/169 with both DIFCs held) it read
+    −2.37e-3 where a refit with the bank's DIFC free gives −1.75e-3, against
+    −1.14e-3 and −1.11e-3 on the 483 K run.  So
+    :meth:`rietx.multi.MultiHistogramRefinement.fit` refits each flagged bank
+    from the answer with its DIFC free and reports that refit's Δd/d
+    (:func:`cell_diagnostic`), the one-step reading beside it.
     """
     banks = [h for h, m in enumerate(models) if _is_bank(m)]
     if len(banks) < 2 or not _cell_length_free(mtable):
@@ -273,20 +281,35 @@ def cell_inconsistent(models, mtable, per_values, jac, weights) -> list[Diagnost
         c = J.shape[1] + i
         eps = float(step[c] / norm[c])
         esd = float(math.sqrt(max(cov[c, c], 0.0)) / norm[c])
-        if abs(eps) > CELL_SCALE_TOLERANCE and abs(eps) > INCONSISTENT_SIGMA * esd:
-            out.append(Diagnostic(
-                level="warning", code="BANK_CELL_INCONSISTENT",
-                where=[f"hist.{h}.instrument.source.difc"], value=eps,
-                message=(f"Histogram {h} (2θ = {_bank_angle(mtable, h):g}°) reads the "
-                         f"shared cell at Δd/d = {eps:+.3g} ± {esd:.2g} against "
-                         f"histogram {ref} (2θ = {_bank_angle(mtable, ref):g}°, the "
-                         f"reference), with every DIFC held. That is a sample-position "
-                         f"or calibration offset of the bank, and the joint cell splits "
-                         f"it between the banks. Linearised at the joint answer (one "
-                         f"Gauss-Newton step with this bank's DIFC added)."),
-                suggestion=(f"free hist.{h}.instrument.source.difc (or its TZERO) and "
-                            f"keep hist.{ref}.instrument.source.difc held, then refit")))
+        if cell_confirmed(eps, esd):
+            out.append(cell_diagnostic(mtable, h, ref, eps, esd, screen=None))
     return out
+
+
+def cell_diagnostic(mtable, h: int, ref: int, eps: float, esd: float, *,
+                    screen: float | None) -> Diagnostic:
+    """One ``BANK_CELL_INCONSISTENT``.  ``screen`` is the one-step reading
+    when ``eps`` is the confirming refit's, ``None`` when ``eps`` is the
+    one-step reading itself."""
+    how = ("Linearised at the joint answer (one Gauss-Newton step with this bank's "
+           "DIFC added)." if screen is None else
+           f"Measured by a refit from the joint answer with this bank's DIFC free; "
+           f"the one-step screen read {screen:+.3g}.")
+    return Diagnostic(
+        level="warning", code="BANK_CELL_INCONSISTENT",
+        where=[f"hist.{h}.instrument.source.difc"], value=eps,
+        message=(f"Histogram {h} (2θ = {_bank_angle(mtable, h):g}°) reads the shared "
+                 f"cell at Δd/d = {eps:+.3g} ± {esd:.2g} against histogram {ref} "
+                 f"(2θ = {_bank_angle(mtable, ref):g}°, the reference), with every "
+                 f"DIFC held. That is a sample-position or calibration offset of the "
+                 f"bank, and the joint cell splits it between the banks. {how}"),
+        suggestion=(f"free hist.{h}.instrument.source.difc (or its TZERO) and keep "
+                    f"hist.{ref}.instrument.source.difc held, then refit"))
+
+
+def cell_confirmed(eps: float, esd: float) -> bool:
+    """The firing test, applied to the screen and to the confirming refit alike."""
+    return abs(eps) > CELL_SCALE_TOLERANCE and abs(eps) > INCONSISTENT_SIGMA * esd
 
 
 def scale_inconsistent(models, mtable, per_values, esd_of) -> list[Diagnostic]:
