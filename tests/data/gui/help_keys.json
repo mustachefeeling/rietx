@@ -171,6 +171,7 @@
   "diagnostics:LEBAIL_CYCLES_AT_CAP",
   "diagnostics:LOW_ANGLE_UNMODELLED",
   "diagnostics:MAGNETIC_ION_ASSUMED",
+  "diagnostics:MAGNETIC_SCALE_UNPINNED",
   "diagnostics:MAGNETIC_SUBGROUP_PREFERRED",
   "diagnostics:MAGNETIC_WIDTH_MOVED_MOMENT",
   "diagnostics:MAGNETIC_WIDTH_UNMEASURED",

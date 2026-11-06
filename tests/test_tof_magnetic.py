@@ -294,3 +294,95 @@ def test_a_moment_is_recovered_from_one_bank():
     evidence = ref.report().magnetic
     assert len(evidence) == 1 and evidence[0].supported is True
     assert evidence[0].magnitude == pytest.approx(row.value)
+
+
+# ----------------------------------------------------------------------
+# T-6b: the moment is scaled by the bank's nuclear lines
+# ----------------------------------------------------------------------
+#: (1 0 0) alone, d = 4.87 Å at 24.4 ms: a magnetic-only window.
+MAGNETIC_ONLY = (22000.0, 28000.0)
+#: (1 1 0) nuclear-only at 17.2 ms beside it, and no line carrying both.
+TWO_LINES = (15000.0, 28000.0)
+
+
+def _started(scale: float) -> rx.Structure:
+    start = rx.Structure(phases=[mnf2()])
+    start.phases[0].scale.value = 1.5 * scale
+    start.phases[0].atoms[0].moment = Moment.from_values(
+        (0.0, 0.0, 3.5), "Mn2+", vary=True)
+    return start
+
+
+def _unpinned(result):
+    return [d for d in result.diagnostics if d.code == "MAGNETIC_SCALE_UNPINNED"]
+
+
+def test_the_information_kept_is_the_nuclear_share_where_lines_do_not_overlap():
+    """1 − ρ² of the scale and magnitude columns equals W_N/(W_N + W_M) on a
+    window whose nuclear and magnetic lines are apart, and 0 on a window
+    with no nuclear line."""
+    from rietx.report.tof_banks import moment_information_kept
+
+    structure = rx.Structure(phases=[mnf2()])
+    ins = bank()
+    v = values(structure, ins)
+    m = compile_tof_model(structure, ins, tof_grid(*TWO_LINES))
+    f, w_m = moment_information_kept(m, v, 0)
+    zero = dict(v, **{"phases.0.atoms.0.moment.dof0": 0.0})
+    y_n = m.phase_component(0, zero)
+    w_n = float(np.sum((y_n / m.sigma) ** 2))
+    assert 0.0 < f < 1.0
+    assert f == pytest.approx(w_n / (w_n + w_m), rel=1e-6)
+    m0 = compile_tof_model(structure, ins, tof_grid(*MAGNETIC_ONLY))
+    assert moment_information_kept(m0, v, 0)[0] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_magnetic_only_bank_with_a_free_scale_is_named():
+    """The positive arm: (1 0 0) alone, scale and moment free.  The code
+    fires at 0 and says no other histogram fixes the magnitude; the
+    covariance agrees (|ρ| = 1)."""
+    data, scale = _synthetic_bank(rx.Structure(phases=[mnf2()]),
+                                  lo=MAGNETIC_ONLY[0], hi=MAGNETIC_ONLY[1])
+    result = rx.Refinement(_started(scale), bank()).fit(
+        data, plan=MOMENT_PLAN, telemetry=False)
+    (d,) = _unpinned(result)
+    assert d.level == "warning" and d.where == ["phases.0.scale"]
+    assert d.value == pytest.approx(0.0, abs=1e-9)
+    assert "No other histogram fixes it" in d.message
+
+
+def test_a_bank_with_its_nuclear_lines_is_silent_and_so_is_a_held_scale():
+    """Negative arms: the full window (nuclear lines in reach), and the
+    magnetic-only window with its scale held, which pins the magnitude."""
+    data, scale = _synthetic_bank(rx.Structure(phases=[mnf2()]))
+    result = rx.Refinement(_started(scale), bank()).fit(
+        data, plan=MOMENT_PLAN, telemetry=False)
+    assert _unpinned(result) == []
+    data, scale = _synthetic_bank(rx.Structure(phases=[mnf2()]),
+                                  lo=MAGNETIC_ONLY[0], hi=MAGNETIC_ONLY[1])
+    start = _started(scale)
+    start.phases[0].scale.value = scale
+    held = rx.RefinementPlan(stages=[
+        rx.Stage("bkg", ["instrument.background.c*"]),
+        rx.Stage("moment", ["instrument.background.c*",
+                            "phases.*.atoms.*.moment.*"])])
+    result = rx.Refinement(start, bank()).fit(data, plan=held, telemetry=False)
+    assert _unpinned(result) == []
+    row = next(p for p in result.parameters if ".moment." in p.path)
+    assert abs(row.value - 4.6) < 4.0 * row.stderr
+
+
+def test_in_a_joint_fit_the_bank_that_pins_the_moment_is_named():
+    """Two banks share the moment: one with the nuclear lines, one
+    magnetic-only.  The second is named, the first is quoted as fixing the
+    magnitude, and the shared moment comes back at the truth."""
+    d_a, s_a = _synthetic_bank(rx.Structure(phases=[mnf2()]), seed=2)
+    d_b, _ = _synthetic_bank(rx.Structure(phases=[mnf2()]), seed=3,
+                             lo=MAGNETIC_ONLY[0], hi=MAGNETIC_ONLY[1])
+    result = rx.MultiHistogramRefinement(_started(s_a), [bank(), bank()]).fit(
+        [d_a, d_b], plan=MOMENT_PLAN, telemetry=False)
+    (d,) = _unpinned(result)
+    assert d.where == ["hist.1.phases.0.scale"]
+    assert "The other histograms fix it (histogram 0 keeps" in d.message
+    row = next(p for p in result.parameters if ".moment." in p.path)
+    assert abs(row.value - 4.6) < 4.0 * row.stderr

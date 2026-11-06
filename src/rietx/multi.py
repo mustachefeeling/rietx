@@ -3022,6 +3022,7 @@ class MultiHistogramRefinement:
             return []
         mt = self.mtable
         esd = {p.path: p.stderr for p in parameters}
+        free = set(mt.free_paths)
         n_free = [mt.n_shared + len(mt.per_hist_paths[h]) for h in range(len(models))]
         return (tof_banks.weight_shares(models, mt, per_ycalc, per_ybkg,
                                         outcome.jac, weights)
@@ -3029,7 +3030,13 @@ class MultiHistogramRefinement:
                 + tof_banks.reference_not_highest(models, mt)
                 + tof_banks.cell_inconsistent(models, mt, per_values, outcome.jac,
                                               weights)
-                + tof_banks.scale_inconsistent(models, mt, per_values, esd.get))
+                + tof_banks.scale_inconsistent(models, mt, per_values, esd.get)
+                + tof_banks.magnetic_scale_unpinned(
+                    models, per_values,
+                    scale_free=lambda h, ip: f"hist.{h}.phases.{ip}.scale" in free,
+                    moment_free=lambda ip: any(
+                        p.startswith(f"phases.{ip}.atoms.")
+                        and p.endswith(".moment.dof0") for p in free)))
 
     def _top_diagnostics(self, outcome, correlation_guard, bg_scoped,
                          at_bounds, models) -> list[Diagnostic]:
