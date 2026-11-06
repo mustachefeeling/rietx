@@ -950,7 +950,7 @@ ROWS: tuple[Row, ...] = (
                   "f = 0 (rho = 1, FLAT_DIRECTION), (1 1 0) + (1 0 0) window f = 0.0062, full "
                   "window f = 0.2 silent; the degeneracy is the 2026-11-06 multi-bank practice "
                   "survey's (planning TOF_MULTIBANK_PRACTICE, section 4) and Qin et al. "
-                  "2026's reason for pairing banks (p. 3)"),
+                  "2026's reason for pairing banks (arXiv v1, p. 3)"),
         grounds=("A moment's magnitude reaches a pattern only as scale x m^2, so a bank "
                  "whose scale fits its magnetic lines contributes no magnitude; the code "
                  "names the histograms that do pin it and acts on nothing. Ours: the floor."),
@@ -5591,7 +5591,7 @@ ROWS: tuple[Row, ...] = (
     Row("MAGNETIC_ION_ASSUMED.suggestion", "suggestion", tier=1, ambiguity=3, value=2,
         evidence="arithmetic: names the argument that overrides the default"),
     Row("MAGNETIC_SCALE_UNPINNED.suggestion", "suggestion", tier=2, ambiguity=1, value=1,
-        evidence=("names pairing with a bank holding the nuclear lines (Qin et al. 2026 p. 3), "
+        evidence=("names pairing with a bank holding the nuclear lines (Qin et al. 2026, arXiv v1, p. 3), "
                   "a wider window, or a scale tie; ranks none, moves nothing")),
     Row("MAGNETIC_SUBGROUP_PREFERRED.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
         evidence="arithmetic: defers the pick to the caller, as Rule 1's second kind asks"),
