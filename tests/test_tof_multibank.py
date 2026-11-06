@@ -562,3 +562,127 @@ def test_the_normalisation_factors_agree_when_the_scales_follow_difc_over_sin_th
             started_structure(), [started_bank(**BANK_90), started_bank(**BANK_150)]
         ).fit(pats, plan=joint_plan(), telemetry=False)
         assert ("BANK_SCALE_INCONSISTENT" in _codes(result)) is fires, scales
+
+
+# ----------------------------------------------------------------------
+# 6. a bank beside a constant-wavelength scan (T-5c)
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def mixed_fit(patterns):
+    """Two banks and a constant-wavelength histogram of the same structure."""
+    ref = rx.MultiHistogramRefinement(
+        started_structure(),
+        [started_bank(**BANK_90), started_bank(**BANK_150), cw_instrument()])
+    return ref, ref.fit(patterns, plan=joint_plan(cw=True), telemetry=False)
+
+
+def test_a_mixed_list_shares_the_cell_and_keeps_both_axes(mixed_fit):
+    _ref, result = mixed_fit
+    assert result.status == "converged"
+    assert [h.axis for h in result.histograms] == ["tof", "tof", "two_theta"]
+    a = result.parameter("phases.0.cell.a")
+    assert abs(a.value - A_GEN) < 3.0 * a.stderr
+    assert result.histograms[2].two_theta is not None
+    assert result.histograms[2].tof is None
+
+
+def test_the_shared_column_is_the_full_finite_difference_on_a_mixed_pair(mixed_fit):
+    """The stacked Jacobian's shared cell column against a central difference
+    of the stacked residual: the CW histogram's analytic rows and the banks'
+    finite-difference rows meet in one column."""
+    from rietx.optimize.least_squares import _multi_closures
+
+    ref, _result = mixed_fit
+    mt = ref.mtable
+    mt.set_vary(["phases.*.cell.a", "phases.*.scale"], True)
+    resid, jac, _n = _multi_closures(ref._models, mt)
+    theta = np.asarray(mt.x0(), dtype=float)
+    k = list(mt.free_paths).index("phases.0.cell.a")
+    h = 1e-7 * abs(theta[k])
+    up, dn = theta.copy(), theta.copy()
+    up[k] += h
+    dn[k] -= h
+    fd = (resid(up) - resid(dn)) / (2 * h)
+    col = jac(theta)[:, k]
+    n = [m.n_points for m in ref._models]
+    cw = slice(n[0] + n[1], n[0] + n[1] + n[2])
+    banks = slice(0, n[0] + n[1])
+    # the scan's rows are its analytic column, exact against a central difference
+    assert np.max(np.abs(col[cw] - fd[cw])) <= 1e-5 * np.max(np.abs(fd[cw]))
+    # the banks' rows are the arm's own (forward) finite difference, O(h)
+    assert np.max(np.abs(col[banks] - fd[banks])) <= 2e-3 * np.max(np.abs(fd[banks]))
+    assert np.any(fd[banks] != 0.0)
+
+
+def test_the_size_column_converts_between_a_bank_and_a_scan():
+    """K/L in Å⁻¹ on a bank, (180/π)·K·λ/L in degrees on a scan: the factor
+    between the two copies is (180/π)·λ for ``lor_size`` and its square for
+    ``gauss_size``, either way round."""
+    import math
+
+    ref = rx.MultiHistogramRefinement(silicon(), [bank(**BANK_90), cw_instrument()])
+    scale = ref.mtable.value_scales
+    assert scale[0] == {}
+    assert scale[1]["phases.0.lor_size"] == pytest.approx(math.degrees(CW_LAMBDA))
+    assert scale[1]["phases.0.gauss_size"] == pytest.approx(math.degrees(CW_LAMBDA) ** 2)
+    back = rx.MultiHistogramRefinement(silicon(), [cw_instrument(), bank(**BANK_90)])
+    assert back.mtable.value_scales[1]["phases.0.lor_size"] == pytest.approx(
+        1.0 / math.degrees(CW_LAMBDA))
+
+
+def test_one_crystallite_size_across_a_bank_and_a_scan():
+    """Patterns of one 500 Å crystallite (K = 1), each in its own unit, refit
+    jointly with one shared ``lor_size``: the column comes back at the size."""
+    import math
+
+    from rietx.model.forward import compile_model
+    from rietx.model.forward_tof import compile_tof_model
+
+    k_over_l = 1.0 / 500.0
+    gen = silicon()
+    gen.phases[0].scale.value = 12.0
+    gen.phases[0].lor_size.value = k_over_l
+    b = bank(**BANK_90)
+    for kk, v in enumerate((40.0, -8.0)):
+        b.background.coefficients[kk].value = v
+    x = np.arange(8000.0, 45000.0, 5.0)
+    blank = PatternData(tof=x.tolist(), intensity=[1.0] * len(x), intensity_basis="counts")
+    y = _poisson_from(compile_tof_model(gen, b, blank), gen, b, 11)
+    tof = PatternData(tof=x.tolist(), intensity=y.tolist(),
+                      sigma=np.sqrt(np.maximum(y, 1.0)).tolist(), intensity_basis="counts")
+    gen_cw = silicon()
+    gen_cw.phases[0].scale.value = 0.05
+    gen_cw.phases[0].lor_size.value = math.degrees(CW_LAMBDA) * k_over_l
+    c = cw_instrument()
+    for kk, v in enumerate((40.0, -5.0)):
+        c.background.coefficients[kk].value = v
+    tt = np.arange(15.0, 120.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(), intensity=[1.0] * len(tt))
+    y = _poisson_from(compile_model(gen_cw, c, blank), gen_cw, c, 12)
+    cw = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+    start = silicon()
+    start.phases[0].scale.value = SCALE_START
+    start.phases[0].lor_size.value = 0.5 * k_over_l
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("size", ["phases.*.lor_size"])])
+    result = rx.MultiHistogramRefinement(start, [bank(**BANK_90), cw_instrument()]).fit(
+        [tof, cw], plan=plan, telemetry=False)
+    row = result.parameter("phases.0.lor_size")
+    assert row.value == pytest.approx(k_over_l, rel=0.05)
+    assert "SIZE_NORMALISED_ACROSS_WAVELENGTHS" in _codes(result)
+
+
+def test_one_window_across_two_axes_is_refused(patterns):
+    ref = rx.MultiHistogramRefinement(
+        started_structure(), [started_bank(**BANK_90), cw_instrument()])
+    with pytest.raises(ValueError, match="do not share an abscissa"):
+        ref.fit([patterns[0], patterns[2]], plan=joint_plan(cw=True),
+                two_theta_limits=(20.0, 90.0), telemetry=False)
+    result = ref.fit([patterns[0], patterns[2]], plan=joint_plan(cw=True),
+                     two_theta_limits=[(10000.0, 30000.0), (20.0, 90.0)],
+                     telemetry=False)
+    assert min(result.histograms[0].tof) >= 10000.0
+    assert max(result.histograms[0].tof) <= 30000.0
+    assert min(result.histograms[1].two_theta) >= 20.0
