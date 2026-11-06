@@ -3983,9 +3983,9 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
 def magnetic_wanted(phase, source) -> bool:
     """Whether this phase's moment contributes to *this* histogram (WP-1327).
 
-    **The magnetic term enters a neutron histogram and nothing else.**  A
-    neutron sees the
-    magnetization density through its own moment; an X-ray of a laboratory or
+    **The magnetic term enters a neutron histogram and nothing else**, a
+    constant-wavelength scan or a time-of-flight bank (T-6).  A neutron sees
+    the magnetization density through its own moment; an X-ray of a laboratory or
     ordinary synchrotron experiment does not, to many orders of magnitude, so
     on an X-ray histogram of a joint fit the term is identically zero — and it
     is not *computed* and then found to be zero, it is never built, so the
@@ -4011,7 +4011,7 @@ def magnetic_wanted(phase, source) -> bool:
         f"the neutron's own moment coupling to the magnetization density, and "
         f"an X-ray of a laboratory or ordinary synchrotron experiment does not "
         f"see it to many orders of magnitude. This package computes it for "
-        f"neutron_cw, returns False for xray_cw, and refuses "
+        f"neutron_cw and neutron_tof, returns False for xray_cw, and refuses "
         f"any other source by name rather than guessing which of the two it "
         f"resembles. Refine the moment against a neutron histogram, or drop "
         f"the moment to fit the nuclear structure against this source")
