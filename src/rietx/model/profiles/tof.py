@@ -358,9 +358,22 @@ def _gauss_parts(dt, alpha, beta, sigma):
     u < 0 (the exponent is clamped at 0 for the unselected branch).  The
     expressions are written α↔β, dt↔−dt symmetric term by term, so the
     exchange symmetry holds bit for bit.
+
+    **σ = 0 is the σ → 0 limit, selected, not computed.**  ``sig0``, ``sig1``
+    and ``sig2`` are each floored at zero (``ProfileTOF``), so a fit holding
+    two of them at 0 can step the third onto its floor, and σ²(d) is then
+    identically zero: a convolution with a delta, i.e. the bare pulse
+    :func:`back_to_back_exponential`.  Computed, every term above divides by
+    zero (y, z → ±∞/NaN, g → 0/0).  So where σ = 0 the limits are selected:
+    g = [dt = 0]; A = 2e^{α·dt} for dt < 0, 1 at dt = 0, else 0; B its mirror.
+    Then N·(A + B) is the pulse exactly, the partials of
+    :func:`back_to_back_gaussian_derivs` reduce to their own limits, and a
+    safe σ (1) feeds the unselected branch so a traced Jacobian sees no NaN.
     """
     xp = get_backend()
     dt = xp.asarray(dt, dtype=np.float64)
+    zero = sigma == 0.0
+    sigma = xp.where(zero, 1.0, sigma)
     s2 = sigma * sigma
     rt = sigma * _SQRT2
     y = (alpha * s2 + dt) / rt
@@ -372,6 +385,12 @@ def _gauss_parts(dt, alpha, beta, sigma):
     gz = g * _erfcx_abs(z)
     a_term = xp.where(y >= 0.0, gy, 2.0 * xp.exp(xp.minimum(u, 0.0)) - gy)
     b_term = xp.where(z >= 0.0, gz, 2.0 * xp.exp(xp.minimum(v, 0.0)) - gz)
+    at_peak = xp.where(dt == 0.0, 1.0, 0.0)
+    g = xp.where(zero, at_peak, g)
+    a_term = xp.where(zero, xp.where(dt < 0.0, 2.0 * xp.exp(alpha * xp.minimum(dt, 0.0)),
+                                     at_peak), a_term)
+    b_term = xp.where(zero, xp.where(dt > 0.0, 2.0 * xp.exp(-beta * xp.maximum(dt, 0.0)),
+                                     at_peak), b_term)
     norm = alpha * beta / (2.0 * (alpha + beta))
     return norm, a_term, b_term, g
 
