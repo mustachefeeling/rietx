@@ -111,6 +111,78 @@ def _longest_wavelength(instrument: Instrument) -> float | None:
     return max(lams) if lams else None
 
 
+#: The bank calibration term whose scale is the cell's: TOF = DIFC·d + …,
+#: so DIFC·(1 + ε) against d/(1 + ε) leaves every DIFC·d position unchanged.
+DIFC_PATH = "instrument.source.difc"
+
+
+def _is_cell_length(path: str) -> bool:
+    return ".cell." in path and path.rsplit(".", 1)[-1] in ("a", "b", "c")
+
+
+def check_calibration_freedom(mtable: "MultiParameterTable",
+                              combined_paths: list[str], *,
+                              cell_shared: bool = True) -> None:
+    """Refuse every bank's DIFC free beside a free cell (T-5b).
+
+    The time-of-flight form of :func:`~rietx.params.vector.check_wavelength_freedom`.
+    A bank measures TOF = DIFC·d + DIFA·d² + TZERO + DIFB/d, so on one bank
+    DIFC and the cell's scale are one product, as λ and the cell are on a
+    constant-wavelength pattern.  Across N banks sharing one cell, holding one
+    bank's DIFC pins the scale and the other N − 1 are measurable against it:
+    "allowing all diffractometer constants, except that of the highest-angle
+    detectors, to vary simultaneously with the lattice parameters" (McCusker
+    et al. 1999, *J. Appl. Cryst.* 32, 36, p. 45).  Freeing all of them
+    restores the flat direction.  DIFA and DIFB break it only through the
+    curvature of the calibration, which is the near-flat direction this rule
+    exists to keep out of an answer, so only DIFC is counted; TZERO is an offset
+    and no scale, and every bank may free one.
+
+    The scale may also be pinned by a constant-wavelength histogram whose
+    wavelength is held (a mixed list), which ``check_wavelength_freedom``
+    already guarantees whenever the list has one.  So the refusal fires only
+    when a cell length is free, every bank's DIFC is free and no
+    constant-wavelength histogram is in the list.  With the cell per-histogram
+    every free DIFC beside its own free cell is refused, the
+    ``cell_shared=False`` arm of the wavelength rule.
+    """
+    kinds = [ins.source.kind for ins in mtable.instruments]
+    banks = [h for h, k in enumerate(kinds) if k == "neutron_tof"]
+    if not banks:
+        return
+    cell_free = any(_is_cell_length(_unscoped(p)) for p in combined_paths)
+    if not cell_free:
+        return
+    free = set(combined_paths)
+
+    def difc_free(h: int) -> bool:
+        return (DIFC_PATH in free and mtable.sharing.is_shared(DIFC_PATH)) or \
+            f"hist.{h}.{DIFC_PATH}" in free
+
+    free_banks = [h for h in banks if difc_free(h)]
+    if not free_banks:
+        return
+    if not cell_shared:
+        raise ValueError(
+            f"hist.{free_banks[0]}.{DIFC_PATH} cannot vary while the cell is "
+            f"per-histogram and free: TOF = DIFC·d, so a bank's DIFC beside its "
+            f"own free cell is one product, an exactly flat direction. Share the "
+            f"cell (SharingMap's default does) or hold the DIFC")
+    if len(free_banks) < len(banks) or len(banks) < len(kinds):
+        return
+    angles = {h: mtable.instruments[h].source.two_theta_bank_deg for h in banks}
+    ref = max(banks, key=lambda h: angles[h])
+    raise ValueError(
+        f"{len(free_banks)} of {len(banks)} bank DIFCs are free beside a free "
+        f"cell; hold one. TOF = DIFC·d, so scaling every DIFC and the cell "
+        f"together leaves every position unchanged: across banks sharing one "
+        f"cell, one held DIFC pins the scale and the other N − 1 are measurable "
+        f"against it. Hold hist.{ref}.{DIFC_PATH} (the highest-angle bank, "
+        f"2θ = {angles[ref]:g}°, least sensitive to the sample position: "
+        f"McCusker et al. 1999, p. 45) and leave the others free, or hold the "
+        f"cell.")
+
+
 def size_value_scales(structure: Structure, instruments: list[Instrument],
                       sharing: "SharingMap") -> list[dict[str, float]]:
     """Per-histogram factors that turn a shared size column into one specimen.
@@ -953,6 +1025,8 @@ class MultiParameterTable:
         check_wavelength_freedom(
             [p for p in combined_paths if _is_wavelength(_unscoped(p))],
             n_wavelengths, len(self.tables), cell_shared=cell_shared)
+        # its time-of-flight form, where a bank's DIFC is the d-scale (T-5b)
+        check_calibration_freedom(self, combined_paths, cell_shared=cell_shared)
 
         self.shared_paths = shared_order
         self.per_hist_paths = per_hist_paths
