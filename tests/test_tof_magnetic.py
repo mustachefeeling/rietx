@@ -386,3 +386,39 @@ def test_in_a_joint_fit_the_bank_that_pins_the_moment_is_named():
     assert "The other histograms fix it (histogram 0 keeps" in d.message
     row = next(p for p in result.parameters if ".moment." in p.path)
     assert abs(row.value - 4.6) < 4.0 * row.stderr
+
+
+def test_a_moment_free_in_direction_refines_on_a_bank():
+    """Freeing a moment's angles reaches the stationary-angle test, whose
+    analytic block is built from ``derivative_bases``; a bank has none, so it
+    keeps the central differences (it raised AttributeError, found on the
+    T-6 real-data run, and reproduces here without the gate).  A ferromagnet
+    on one site of a tetragonal P 1 cell (in a cubic one the powder average
+    is blind to the direction), 3 μ_B along a planted, refined from a tilted
+    start with modulus and angles free; the angle test then runs."""
+    from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Phase
+
+    def ferro(m):
+        a = 4.4
+        return rx.Structure(phases=[Phase(
+            name="M", space_group="P 1",
+            cell=Cell(a=P(value=a), b=P(value=a), c=P(value=3.3), alpha=P(value=90.0),
+                      beta=P(value=90.0), gamma=P(value=90.0)),
+            scale=P(value=1.0, min=0.0),
+            atoms=[Atom(label="Mn", species="Mn", x=P(value=0.0), y=P(value=0.0),
+                        z=P(value=0.0), biso=P(value=0.3, min=0.0, max=5.0),
+                        moment=Moment.from_values(m, "Mn2+", vary=True))],
+            magnetic_symmetry=MagneticSymmetry(operations=["x,y,z,+1"]))])
+
+    data, scale = _synthetic_bank(ferro((3.0, 0.0, 0.0)))
+    start = ferro((2.6, 0.8, 0.5))
+    start.phases[0].scale.value = scale
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("moment", ["phases.*.scale", "phases.*.atoms.*.moment.*"])])
+    result = rx.Refinement(start, bank()).fit(data, plan=plan, telemetry=False)
+    assert result.status == "converged"
+    assert any(".moment.dof1" in p.path for p in result.parameters)
+    assert "MOMENT_ANGLE_STATIONARY" in {d.code for d in result.diagnostics}
+    row = next(p for p in result.parameters if p.path.endswith("moment.dof0"))
+    assert abs(row.value - 3.0) < 4.0 * row.stderr
