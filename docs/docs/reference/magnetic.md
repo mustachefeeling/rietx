@@ -3,7 +3,7 @@
 This page gives the magnetic side of a refinement: the satellite test for intensity the nuclear model leaves unexplained, how a moment and its magnetic space group are stated, what the fit reports about a moment, the magnetic peak width, and `solve_magnetic` with the answer it returns.
 
 The magnetic term is a neutron term.
-It enters a constant-wavelength neutron pattern and nothing else.
+It enters a neutron pattern, constant-wavelength or time-of-flight, and nothing else.
 [Patterns and structures](data.md#propagation-vector) gives the phase fields that declare a propagation vector, a magnetic space group and a moment, and [Structure files](structure-files.md) gives what a magnetic CIF reads and writes.
 The magnetic structure factor and the dipole approximation are in [Intensities](../theory/intensities.md#the-magnetic-structure-factor).
 
@@ -165,7 +165,8 @@ Each of these is refused where it is made, because nothing later can rescue it:
 - a free moment that is exactly zero, because the magnetic intensity goes as m² and its derivative vanishes there; seed a physical estimate, such as 1-5 μ<sub>B</sub> for a 3d ion;
 - a phase that declares both `Phase.propagation_vector` and `Phase.magnetic_symmetry`, which state one magnetic structure two ways.
 
-A moment refines against a `neutron_cw` pattern only.
+A moment refines against a `neutron_cw` pattern or a `neutron_tof` bank.
+On a bank the magnetic peaks take the phase's own widths, and a non-zero or free `magnetic_lor_size` or `magnetic_lor_strain` is refused; [Joint fits](joint.md#magnetic-banks) gives what a bank needs to fix a moment's size.
 On an X-ray pattern in a joint fit the magnetic term is not built, so the moment has no gradient there and the report has no moment row for that pattern.
 Any other source kind is refused by name.
 
