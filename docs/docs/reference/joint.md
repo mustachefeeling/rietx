@@ -197,21 +197,29 @@ A bank may also sit beside a constant-wavelength scan of the same specimen.
 Each (pattern, instrument) pair must match: a flight-time pattern on a `neutron_tof` source, a 2θ scan on a constant-wavelength one.
 A crossed pair is refused, naming its histogram.
 
-**What is shared.** The default `SharingMap` keeps each bank's scale, background, calibration (DIFC, DIFA, TZERO, DIFB) and instrument profile (`instrument.source.profile_tof.*`) per bank, and shares the structure, the extinction and the sample widths.
+### What a bank shares
+
+The default `SharingMap` keeps each bank's scale, background, calibration (DIFC, DIFA, TZERO, DIFB) and instrument profile (`instrument.source.profile_tof.*`) per bank, and shares the structure, the extinction and the sample widths.
 A bank holds a crystallite size as K/L in Å⁻¹, and a scan holds (180/π)·K·λ/L in degrees, so a shared size column carries the factor (180/π)·λ between them (its square for `gauss_size`).
 Absorption is computed from the composition and each bank's own angle and held, never refined: on HRPD banks 1 and 2, sin θ differs only 1.4× and the displacement parameters cannot be separated from it.
 
-**Weights.** Each point is weighted by 1/σ² from the file's propagated σ, and the banks' χ² are summed with unit weights, the default in GSAS-II, FullProf and every multi-bank TOPAS file surveyed.
+### Weights
+
+Each point is weighted by 1/σ² from the file's propagated σ, and the banks' χ² are summed with unit weights, the default in GSAS-II, FullProf and every multi-bank TOPAS file surveyed.
 So σ is what balances one bank against another, and a bank with no esd column is refused in a joint fit unless `weights=` states the balance.
 `weights=` is recorded in provenance, and no automatic balancing by points or peaks is done: a bank's weight is not its number of points.
 
-**Calibration.** TOF = DIFC·d + …, so DIFC and the cell's scale trade exactly, as λ and the cell do.
+### Bank calibration
+
+TOF = DIFC·d + …, so DIFC and the cell's scale trade exactly, as λ and the cell do.
 With a shared cell free, at most N − 1 of the banks' DIFC values may be free, and the refusal counts them (`2 of 2 bank DIFCs are free beside a free cell; hold one`).
 Hold the highest-angle bank's DIFC: a sample-position error moves the bank nearest 180° least (McCusker et al. 1999, p. 45).
 A scan with its λ held pins the scale too, and a held certified cell lets every DIFC refine.
 Calibrations are held from a standard by default; free a bank's DIFC (or TZERO) with a scoped path such as `hist.1.instrument.source.difc` when the banks disagree.
 
-**What the joint result says about its banks.** The pooled statistics cannot say which bank determined which number, so these codes do (the reference is [the time-of-flight diagnostics](diagnostics-tof.md)):
+### What the result says about its banks
+
+The pooled statistics cannot say which bank determined which number, so these codes do (the reference is [the time-of-flight diagnostics](diagnostics-tof.md)):
 
 - `BANK_WEIGHT_SHARES` gives each bank's share of points, χ², Bragg weight and Fisher information per kind of shared parameter.
   On HRPD Si the 168.6° bank carried 83 % of the cell's information and 28 % of the Bragg weight.
@@ -222,7 +230,9 @@ Calibrations are held from a standard by default; free a bank's DIFC (or TZERO) 
 - `BANK_SIGMA_SUSPECT`, `BANK_SCALE_INCONSISTENT` and `BANK_REFERENCE_NOT_HIGHEST_ANGLE` check the σ column, the banks' normalisation factors and the choice of reference bank.
 - `fit(leave_one_out=True)` refits without each bank in turn and reports `BANK_LEAVE_ONE_OUT`, how far each shared parameter moves in units of its joint esd.
 
-**One bank on its own** is an ordinary single fit.
+### One bank on its own
+
+One bank on its own is an ordinary single fit.
 It gives the cell to that bank's calibration, the coordinates of a structure whose reflections it resolves, and peak positions.
 It cannot tell a calibration or sample-position error from the cell, and it says nothing beyond its own d range.
 Two banks hold more information about the displacement parameters than one, and neither separates them from absorption, so hold absorption.

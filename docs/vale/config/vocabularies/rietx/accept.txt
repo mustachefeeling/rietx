@@ -17,6 +17,7 @@ Altomare
 [aA]utodiff
 [bB]ackend
 [bB]ackends
+[bB]anks'
 [bB]cc
 [bB]eamline
 [bB]eamstop
