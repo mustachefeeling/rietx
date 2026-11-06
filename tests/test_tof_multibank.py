@@ -413,3 +413,85 @@ def test_a_constant_wavelength_joint_fit_compiles_the_same_objects():
         assert isinstance(routed, CompiledModel)
         assert routed.axis == "two_theta"
         assert np.array_equal(routed.tt, direct.tt)
+
+
+# ----------------------------------------------------------------------
+# 4. the reference bank (T-5b): at most N − 1 DIFCs free beside a free cell
+# ----------------------------------------------------------------------
+#: A sample-position offset on the 90° bank: its peaks sit where a DIFC 1.5e-3
+#: smaller puts them, which the file's DIFC (the fit's start) does not know.
+#: The HRPD furnace run measured −1.65e-3 on its 90° bank.
+POSITION_OFFSET = -1.5e-3
+
+
+def _offset_patterns() -> list[PatternData]:
+    gen90 = dict(BANK_90)
+    gen90["difc"] = BANK_90["difc"] * (1.0 + POSITION_OFFSET)
+    return [tof_pattern(bank(**gen90), GRID_90, seed=1),
+            tof_pattern(bank(**BANK_150), GRID_150, seed=2)]
+
+
+def _position_plan(extra: list[str]) -> rx.RefinementPlan:
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("calibration", ["instrument.source.tzero"]),
+        rx.Stage("cell", ["phases.*.cell.a", *extra]),
+        rx.Stage("displacement", ["phases.*.atoms.*.biso"]),
+    ])
+
+
+@pytest.fixture(scope="module")
+def offset_patterns() -> list[PatternData]:
+    return _offset_patterns()
+
+
+def test_every_bank_difc_free_beside_a_free_cell_is_refused_by_name(offset_patterns):
+    """The positive arm of the N − 1 rule: TOF = DIFC·d, so every DIFC free
+    with the shared cell is an exactly flat direction, refused naming the
+    count and the bank to hold (the highest-angle one)."""
+    ref = rx.MultiHistogramRefinement(
+        started_structure(), [started_bank(**BANK_90), started_bank(**BANK_150)])
+    with pytest.raises(ValueError, match=r"2 of 2 bank DIFCs are free beside a "
+                                         r"free cell; hold one\..*Hold "
+                                         r"hist\.1\.instrument\.source\.difc"):
+        ref.fit(offset_patterns, plan=_position_plan(["instrument.source.difc"]),
+                telemetry=False)
+
+
+def test_every_difc_free_against_a_held_cell_is_a_calibration_and_allowed(
+        offset_patterns):
+    """The negative arm: with the cell held (a certified standard), every
+    bank's DIFC is measurable, as the single-bank calibration is."""
+    s = silicon()
+    s.phases[0].scale.value = SCALE_START
+    ref = rx.MultiHistogramRefinement(
+        s, [started_bank(**BANK_90), started_bank(**BANK_150)])
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("calibration", ["instrument.source.tzero",
+                                 "instrument.source.difc"])])
+    result = ref.fit(offset_patterns, plan=plan, telemetry=False)
+    d0 = result.parameter("hist.0.instrument.source.difc")
+    assert d0.value / BANK_90["difc"] - 1.0 == pytest.approx(POSITION_OFFSET,
+                                                             abs=5e-5)
+
+
+def test_one_held_reference_bank_recovers_the_offset_and_the_cell(offset_patterns):
+    """N − 1 free: the 150° bank's DIFC held, the 90° bank's free.  The offset
+    comes back as that bank's DIFC and the shared cell at the generating one,
+    where holding both splits the offset into the cell."""
+    held = rx.MultiHistogramRefinement(
+        started_structure(), [started_bank(**BANK_90), started_bank(**BANK_150)]
+    ).fit(offset_patterns, plan=_position_plan([]), telemetry=False)
+    a_held = held.parameter("phases.0.cell.a")
+    assert abs(a_held.value / A_GEN - 1.0) > 2e-4      # the offset leaks in
+    freed = rx.MultiHistogramRefinement(
+        started_structure(), [started_bank(**BANK_90), started_bank(**BANK_150)]
+    ).fit(offset_patterns, plan=_position_plan(["hist.0.instrument.source.difc"]),
+          telemetry=False)
+    a = freed.parameter("phases.0.cell.a")
+    assert abs(a.value - A_GEN) < 3.0 * a.stderr
+    d0 = freed.parameter("hist.0.instrument.source.difc")
+    assert d0.value / BANK_90["difc"] - 1.0 == pytest.approx(POSITION_OFFSET,
+                                                             abs=2e-5)
+    assert all(h.statistics.chi2 < 1.3 for h in freed.histograms)
