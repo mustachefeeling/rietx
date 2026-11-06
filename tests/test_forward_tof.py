@@ -687,6 +687,28 @@ def test_a_negative_variance_law_is_refused_and_says_the_terms_are_variances():
             blank_pattern())
 
 
+def test_an_identically_zero_variance_law_evaluates_as_the_bare_pulse():
+    """``sig0 = sig2 = 0`` held and ``sig1`` stepped onto its 0 floor is a
+    trial point every fit freeing ``sig1`` can reach; the WISH acceptance fit
+    met it (2026-11-06) and the profile divided by zero inside LM.  σ²(d) ≡ 0
+    is the σ → 0 limit, i.e. the bare back-to-back pulse, evaluated without a
+    single floating-point warning."""
+    import warnings
+
+    st = silicon()
+    inst = bank()
+    model = compile_tof_model(st, inst, blank_pattern())
+    values = values_of(st, inst)
+    values[P + "sig1"] = 0.0
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        y = np.asarray(model.evaluate(values))
+    assert np.all(np.isfinite(y))
+    values[P + "sig1"] = 1e-12
+    y_tiny = np.asarray(model.evaluate(values))
+    assert np.max(np.abs(y - y_tiny)) <= 1e-6 * np.max(np.abs(y))
+
+
 def test_the_pspline_air_term_is_refused_on_a_flight_time():
     """The 1/x air row is a statement about 2θ, so a P-spline declaring one is
     refused; the spline without it (``air_scatter=None``, the default since

@@ -544,6 +544,28 @@ def test_no_shape_overflows_anywhere_on_the_line(a, b, s):
     assert all(np.all(np.isfinite(x)) for x in back_to_back_gaussian_derivs(dt, a, b, s))
 
 
+def test_sigma_zero_is_the_bare_pulse_and_its_partials_their_limits():
+    """σ = 0 selects the σ → 0 limit rather than dividing by it: the shape is
+    :func:`back_to_back_exponential` bit for bit (dt = 0 included, where the
+    pulse is 2N), no floating-point warning is raised, and every closed-form
+    partial is the limit a small positive σ approaches."""
+    import warnings
+
+    dt = np.linspace(-60.0, 60.0, 121)
+    a, b = 0.3, 0.05
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        h0 = back_to_back_gaussian(dt, a, b, 0.0)
+        hp = back_to_back_pseudovoigt(dt, a, b, np.zeros_like(dt), np.zeros_like(dt))
+        d0 = back_to_back_gaussian_derivs(dt, a, b, 0.0)
+    pulse = back_to_back_exponential(dt, a, b)
+    assert np.array_equal(h0, pulse) and np.array_equal(hp, pulse)
+    assert np.array_equal(d0[0], pulse)
+    d_small = back_to_back_gaussian_derivs(dt, a, b, 1e-8)
+    for k in range(5):
+        assert np.max(np.abs(d0[k] - d_small[k])) <= 1e-6 * max(np.max(np.abs(d_small[k])), 1e-3)
+
+
 def test_the_maximum_against_the_bound():
     """max H = 1.7987e-2 against 2N = 1.9737e-2 for (1.5, 0.02, 2)."""
     dt = np.linspace(-20.0, 40.0, 60001)
