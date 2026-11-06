@@ -268,11 +268,13 @@ def test_each_histogram_scatters_off_its_own_amplitude():
 
 
 # ------------------------------------------------------- the audit table ---
-#: Source kinds an ``Instrument`` can carry that no fit takes in this build: a
-#: time-of-flight bank is read and never refined (issue #193's first cut), so
-#: there is no joint fit for the table to probe.  Held to that by
-#: :func:`test_a_kind_left_out_of_the_table_is_one_no_fit_takes`, which fails
-#: the day a fit accepts it, and the kind then needs its line below.
+#: Source kinds an ``Instrument`` can carry that this table's joint fit cannot
+#: take.  A time-of-flight bank joins a joint fit since T-5, but this table's
+#: fixture shares a magnetic phase (MnF₂, the magnetic row), and a moment on a
+#: bank is refused until T-6 builds the flight-time magnetic term.  Held to that
+#: by :func:`test_a_kind_left_out_of_the_table_is_one_no_fit_takes`, which
+#: fails the day the fixture's fit accepts a bank, and the kind then needs its
+#: line below.
 NOT_REFINED_KINDS = {"neutron_tof"}
 
 
@@ -446,14 +448,24 @@ def test_every_row_answers_for_every_source_kind():
 
 
 def test_a_kind_left_out_of_the_table_is_one_no_fit_takes():
-    """``NOT_REFINED_KINDS`` is an exemption only while it is true: a joint
-    fit refuses a bank by name, so the table has nothing to ask it yet."""
+    """``NOT_REFINED_KINDS`` is an exemption only while it is true: the
+    fixture's joint fit refuses a bank by name (the shared moment, T-6), so
+    the table has nothing to ask it yet."""
+    from rietx.schemas.instrument import ProfileTOF
+
     assert NOT_REFINED_KINDS == {"neutron_tof"}
-    with pytest.raises(ValueError, match="time-of-flight"):
-        rx.MultiHistogramRefinement(
-            rx.Structure(phases=[corundum()]),
-            [INSTRUMENT_FOR_KIND["xray_cw"](),
-             rx.Instrument.tof_neutron_bank(5000.0, two_theta_bank_deg=90.0)])
+    bank = rx.Instrument.tof_neutron_bank(
+        5000.0, two_theta_bank_deg=90.0,
+        profile=ProfileTOF(alpha1=0.4, beta0=0.05, sig1=100.0))
+    joint = rx.MultiHistogramRefinement(rx.Structure(phases=[corundum(), mnf2()]),
+                                        [INSTRUMENT_FOR_KIND["xray_cw"](), bank])
+    tof = np.linspace(4000.0, 20000.0, 400)
+    with pytest.raises(ValueError, match=r"histogram 1 of 2: .*magnetic moment"
+                                         r".*'neutron_tof'"):
+        joint.fit([_flat(20.0, 80.0),
+                   rx.PatternData(tof=tof.tolist(), intensity=[10.0] * 400,
+                                  sigma=[3.0] * 400)],
+                  plan=_short_plan(), telemetry=False)
 
 
 def test_the_magnetic_row_is_the_forward_models_own_dispatch():

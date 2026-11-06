@@ -33,7 +33,6 @@ from .crystallography.twins import merge_site_twins
 from .history.events import _attach_progress, as_event_stream
 from .model.forward import (
     PHASE_SUPPORT_SIGMA,
-    compile_model,
     orbit_split_of,
     recorded_window_tol,
     window_loss,
@@ -88,6 +87,7 @@ from .refine import (
     _cell_runaway_diagnostic,
     _cell_runaway_withheld,
     _column_separation,
+    _compile_for,
     _constraint_diagnostics,
     _covariance_diagnostics,
     _data_support_diagnostics,
@@ -105,6 +105,7 @@ from .refine import (
     _guard_diagnostics,
     _harmonic_diagnostics,
     _held_scale_phases,
+    _is_tof,
     _judge_magnetic_groups,
     _lineless_phases,
     _low_angle_diagnostics,
@@ -139,6 +140,9 @@ from .refine import (
     _strain_flag_diagnostics,
     _symmetry_silence_diagnostics,
     _tick_rows,
+    _tof_absorption_diagnostics,
+    _tof_background_peak_diagnostics,
+    _tof_intensity_basis_diagnostics,
     _uncorrected,
     _unknown_path_diagnostics,
     _unmeasured_phases,
@@ -160,7 +164,7 @@ from .schemas.parametric import (
     ParametricFormTest,
 )
 from .schemas.params import ParameterRow, TieSpec
-from .schemas.pattern import PatternData, require_two_theta
+from .schemas.pattern import PatternData, require_matched_axis
 from .schemas.plan import PlanSpec, check_phase_support_sigma
 from .schemas.results import (
     HistogramResult,
@@ -1405,6 +1409,57 @@ def _refuse_centroid_origin(structure: Structure) -> None:
                 "for a joint fit")
 
 
+def _compile_histogram(h: int, n: int, structure, instrument, data, **kw):
+    """``refine._compile_for`` for histogram ``h`` of ``n``, a refusal named.
+
+    A compiler's refusal (an all-zero ``ProfileTOF``, a negative variance law,
+    a window holding no channel) is about one (pattern, instrument) pair, and a
+    joint fit holds several, so the message gains the histogram's address and
+    keeps the compiler's own words verbatim, the original chained as
+    ``__cause__``.
+    """
+    try:
+        return _compile_for(structure, instrument, data, mode="rietveld", **kw)
+    except ValueError as exc:
+        raise ValueError(f"MultiHistogramRefinement.fit(), histogram {h} of {n}: "
+                         f"{exc}") from exc
+
+
+def _refuse_sigma_less_banks(data: list[PatternData],
+                             weights: list[float] | None) -> None:
+    """A time-of-flight bank with no esd column, in a joint fit (T-5).
+
+    The banks' χ² are summed with unit weights, each point weighted by 1/σ²
+    from the file's propagated counting statistics: the default in GSAS-II,
+    FullProf (equal ``W_PAT``) and every multi-bank TOPAS file read for the
+    survey (``weighting = 1/SigmaYobs^2``).  So the inter-bank balance *is*
+    the σ column.  A bank without one falls back to √max(y, 1), which on
+    vanadium-normalised data is a number in the units the normalisation chose:
+    on the HRPD banks it moved the 30° bank's share of the Bragg weight from
+    about 1 % to 14-16 % (2026-11-06 survey, § 1.3).  One bank alone is
+    weighted the same way and is not refused: a single histogram's weights
+    scale its esds by one factor, the reduced χ², and rank nothing against
+    anything else.  A caller who passes ``weights`` has stated the balance and
+    is not refused either; the weights are recorded in provenance.
+    """
+    if weights is not None or len(data) < 2:
+        return
+    bare = [h for h, d in enumerate(data) if d.axis == "tof" and d.sigma is None]
+    if not bare:
+        return
+    raise ValueError(
+        f"MultiHistogramRefinement.fit(): histogram"
+        f"{'' if len(bare) == 1 else 's'} {', '.join(str(h) for h in bare)} "
+        f"{'is a' if len(bare) == 1 else 'are'} time-of-flight bank"
+        f"{'' if len(bare) == 1 else 's'} with no esd column. A joint fit "
+        f"weights each point by 1/σ² and sums the banks' χ², so σ is what "
+        f"balances one bank against another; the √y fallback on normalised "
+        f"data would make that balance depend on how each bank was "
+        f"normalised rather than on the counts it holds. Read the bank with "
+        f"its esd column (a GSAS reader returns None when every esd is 0), or "
+        f"pass weights= to state the balance yourself.")
+
+
 class MultiHistogramRefinement:
     """Joint Rietveld refinement of a shared structure against several patterns.
 
@@ -1462,12 +1517,12 @@ class MultiHistogramRefinement:
         for start in {id(s): s for s in starts}.values():
             _judge_magnetic_groups(start)       # a caller's statement (issue #597)
             _refuse_centroid_origin(start)
-        for i, ins in enumerate(instruments):
-            # Same reason as ``Refinement.__init__``: MultiParameterTable is
-            # built on the next line and reaches for a wavelength a TOF bank
-            # does not carry.
-            require_two_theta(None, f"MultiHistogramRefinement(), instrument "
-                                    f"{i} of {len(instruments)}", instrument=ins)
+        # No axis refusal here (T-5): ``MultiParameterTable`` registers a
+        # bank's own DIFC/DIFA/TZERO/DIFB and ``ProfileTOF`` rows, as the single
+        # table does.  The pair (this instrument against *this* pattern) is
+        # checked at :meth:`fit`, where the pattern exists, by
+        # :func:`~rietx.schemas.pattern.require_matched_axis` naming the
+        # histogram.
         self.mtable = MultiParameterTable(structure, instruments, sharing=sharing,
                                           parametric=parametric,
                                           coordinates=coordinates)
@@ -1658,8 +1713,9 @@ class MultiHistogramRefinement:
         # it is about.
         for i, (d, ins) in enumerate(zip(data, self.mtable.instruments,
                                          strict=True)):
-            require_two_theta(d, f"MultiHistogramRefinement.fit(), histogram "
-                                 f"{i} of {n}", instrument=ins)
+            require_matched_axis(d, f"MultiHistogramRefinement.fit(), histogram "
+                                    f"{i} of {n}", instrument=ins)
+        _refuse_sigma_less_banks(data, weights)
         if mode != "rietveld":
             raise NotImplementedError(
                 "multi-histogram refinement is Rietveld-only; Le Bail / "
@@ -1694,10 +1750,10 @@ class MultiHistogramRefinement:
                           for d, lim in zip(data, limits, strict=True)]
                 stream.emit("fit_start", mode=mode,
                             stages=[s.name for s in plan.run_stages()],
-                            n_points=sum(len(d.two_theta) for d in data),
+                            n_points=sum(len(d.intensity) for d in data),
                             n_fitted=sum(fitted), n_histograms=n,
                             histograms=[{"histogram_index": h,
-                                         "n_points": len(d.two_theta),
+                                         "n_points": len(d.intensity),
                                          "n_fitted": fitted[h]}
                                         for h, d in enumerate(data)])
             try:
@@ -1925,9 +1981,9 @@ class MultiHistogramRefinement:
         # schedule (WP-2002, the sixth round's Q1 and Q2)
         stages = plan.run_stages()
         n_stages = len(stages)
-        for index, (stage, ftol, window_tol) in enumerate(
+        for index, (stage, ftol, window_tol, lorentz_tol) in enumerate(
                 zip(stages, plan.stage_ftols(), plan.stage_window_tols(),
-                    strict=True), start=1):
+                    plan.stage_lorentz_window_tols(), strict=True), start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 freed = self.mtable.set_vary(stage.turn_on, True)
                 # what the glob matched and a hold refused (WP-1435): here only
@@ -1959,14 +2015,19 @@ class MultiHistogramRefinement:
                 # moment frames follow the cell this stage starts from, and the
                 # compile reads the DOFs in the table's frames, not its own
                 self.mtable.reframe_moments()
+                # one compiler per histogram, chosen by the (pattern,
+                # instrument) pair at the single fit's one routing point
+                # (``refine._compile_for``, T-5), so a bank compiles here as it
+                # does there; ``lim`` is on each pattern's own axis
                 models = [
-                    compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
-                                  moving_paths=set(tab.moving_paths),
-                                  window_area_tol=recorded_window_tol(window_tol),
-                                  orbit_split=split)
-                    for s, ins, d, lim, tab, split in zip(
+                    _compile_histogram(
+                        h, len(data), s, ins, d, limits=lim,
+                        moving_paths=set(tab.moving_paths),
+                        window_area_tol=recorded_window_tol(window_tol),
+                        orbit_split=split, lorentz_window_tol=lorentz_tol)
+                    for h, (s, ins, d, lim, tab, split) in enumerate(zip(
                         self.mtable.structures, self.mtable.instruments, data, limits,
-                        self.mtable.tables, orbit_splits, strict=True)]
+                        self.mtable.tables, orbit_splits, strict=True))]
                 self.mtable.push_moment_frames(models)
                 stage_ftol = {} if ftol is None else {"ftol": ftol}
                 # A phase the data cannot see is flat here too (WP-1301), and
@@ -2272,10 +2333,11 @@ class MultiHistogramRefinement:
             self.mtable.tables, self.mtable.split(outcome.theta), strict=True)]
         # each at the solve's orbit split, as the single runner's (WP-2052)
         fresh = [
-            compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
-                          moving_paths=set(tab.moving_paths),
-                          window_area_tol=recorded_window_tol(window_tol),
-                          orbit_split=orbit_split_of(old))
+            _compile_for(s, ins, d, mode="rietveld", limits=lim,
+                         moving_paths=set(tab.moving_paths),
+                         window_area_tol=recorded_window_tol(window_tol),
+                         orbit_split=orbit_split_of(old),
+                         lorentz_window_tol=getattr(old, "lorentz_window_tol", None))
             for s, ins, d, lim, tab, old in zip(
                 self.mtable.structures, self.mtable.instruments, data, limits,
                 self.mtable.tables, models, strict=True)]
@@ -2309,10 +2371,10 @@ class MultiHistogramRefinement:
                     freed=list(freed), n_free=len(self.mtable.free_paths),
                     free_paths=list(self.mtable.free_paths), held=list(held),
                     unknown_paths=list(unknown_paths),
-                    n_points=sum(len(m.tt) for m in models),
+                    n_points=sum(m.n_points for m in models),
                     index=index, n_stages=n_stages,
                     n_histograms=self.n_histograms,
-                    histograms=[{"histogram_index": h, "n_points": len(m.tt),
+                    histograms=[{"histogram_index": h, "n_points": m.n_points,
                                  "unreached": list(unreached.get(h, []))}
                                 for h, m in enumerate(models)],
                     **extra)
@@ -2331,7 +2393,7 @@ class MultiHistogramRefinement:
         thetas = mt.split(outcome.theta)
         stderr = outcome.stderr_internal
         corr = outcome.correlation
-        n_data = [len(m.tt) for m in models]
+        n_data = [m.n_points for m in models]
         data_off = np.concatenate([[0], np.cumsum(n_data)]).astype(int)
 
         # per-histogram slices ---------------------------------------------------
@@ -2413,6 +2475,11 @@ class MultiHistogramRefinement:
                                             self._mu_r_skipped[h], values)
             if absorption is not None:
                 diags.extend(_absorption_diagnostics(absorption))
+            # a bank's own two statements (T-5), per histogram as in the single
+            # fit: µR at both ends of its window, and whether its channel width
+            # was applied.  Silent on a constant-wavelength histogram.
+            diags.extend(_tof_absorption_diagnostics(model))
+            diags.extend(_tof_intensity_basis_diagnostics(model))
             # A joint fit's shared cell draws from every histogram, so a
             # capillary that could not express its eq (4) offsets folds them
             # into that one cell — the misreading WP-1073 exists to name, at its
@@ -2430,6 +2497,8 @@ class MultiHistogramRefinement:
             if narrow:
                 diags.extend(_guard_diagnostics(
                     GuardReport(narrow_humps=narrow)))
+            # and, on a bank, that the background-peak width guard abstained
+            diags.extend(_tof_background_peak_diagnostics(model))
             # this instrument's resolution function, over this histogram's
             # range (GUARD_SCOPES: HISTOGRAM)
             diags.extend(_guard_diagnostics(GuardReport(
@@ -2482,15 +2551,22 @@ class MultiHistogramRefinement:
             # the measurement's half only: support=None withholds the ratio,
             # which has no joint definition (DIAGNOSTIC_SCOPES says why)
             diags.extend(_data_support_diagnostics(None, model))
-            diags.extend(_low_angle_diagnostics(model, values, y_calc, stats,
-                                                ticks, tick_support))
+            if not _is_tof(model):
+                # reads the Caglioti profile a bank does not carry (the single
+                # fit's abstention, ``refine._build_result``)
+                diags.extend(_low_angle_diagnostics(model, values, y_calc, stats,
+                                                    ticks, tick_support))
             diags.extend(_air_scatter_undeclared_diagnostics(model, values,
                                                              y_calc, stats))
 
             histograms.append(HistogramResult(
                 label=model.meta.get("label", "") or f"hist{h}",
                 weight=float(weights[h]), statistics=stats,
-                two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
+                # this histogram's own abscissa, as a matched pair: a
+                # microsecond never reaches a member called ``two_theta``
+                two_theta=None if _is_tof(model) else model.grid.tolist(),
+                tof=model.grid.tolist() if _is_tof(model) else None,
+                y_obs=model.y_obs.tolist(),
                 y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
                 sigma=model.sigma.tolist(),
                 ticks=ticks, tick_hkl=tick_hkl,
@@ -2646,7 +2722,8 @@ class MultiHistogramRefinement:
             stages=stage_results, diagnostics=diagnostics, provenance=provenance,
             # top-level arrays mirror histogram 0 so .plot() and existing
             # consumers keep working; the real per-pattern data is in histograms.
-            two_theta=histograms[0].two_theta, y_obs=histograms[0].y_obs,
+            two_theta=histograms[0].two_theta, tof=histograms[0].tof,
+            y_obs=histograms[0].y_obs,
             y_calc=histograms[0].y_calc, y_background=histograms[0].y_background,
             sigma=histograms[0].sigma, ticks=histograms[0].ticks,
             radiation=histograms[0].radiation,
@@ -2664,7 +2741,7 @@ class MultiHistogramRefinement:
             microstructure=microstructure_table(
                 mt.structures[0], per_values[0],
                 wavelength=_longest_line_wavelength(models[0]),
-                esds=esd_hist0),
+                esds=esd_hist0, tof=_is_tof(models[0])),
             # each histogram's background screen, ``hist.<h>.``-scoped, so
             # ``for_histogram`` hands a report its own (WP-1341); ``None``
             # where nothing was screened, the single fit's empty state

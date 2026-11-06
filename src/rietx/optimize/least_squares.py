@@ -1475,7 +1475,7 @@ def _moment_column(model: CompiledModel, table: ParameterTable,
         term = w * grads[(int(m.group(2)), int(m.group(3)))]
         df2 = term if df2 is None else df2 + term
     if df2 is None:
-        return np.zeros(len(model.tt))
+        return np.zeros(model.n_points)
     parts = []
     for pp, dint in zip(bases.components(ip),
                         model.moment_intensity_grad(ip, df2, values),
@@ -1483,7 +1483,7 @@ def _moment_column(model: CompiledModel, table: ParameterTable,
         coef = np.where(pp.finite, _gather_per_line(pp.layout, dint), 0.0)
         parts.append((pp.layout,
                       [(coef, pp.omega)] if np.any(coef != 0.0) else []))
-    return _accumulate(len(model.tt), parts)
+    return _accumulate(model.n_points, parts)
 
 
 def _moment_reach_ok(path: str, extra: list[str], *,
@@ -1566,7 +1566,7 @@ def _analytic_angle_block(model: CompiledModel, table: ParameterTable):
     reach = list(table.column_reach().values())
     n_table = len(table.free_paths)
     sqrt_w = 1.0 / model.sigma
-    n_pts = len(model.tt)
+    n_pts = model.n_points
     frozen: dict[int, list] = {}
 
     def freeze(values: dict[str, float], phases) -> None:
@@ -3018,7 +3018,11 @@ def _freeze_size_cap_multi(models: list[CompiledModel],
     histogram's units.  Only a histogram whose copy has reached its cap arms
     it, and the arming asymmetry decides where the intersection lands.
     """
-    caps = [size_cap(m.tt_min, m.tt_max) for m in models]
+    caps = [size_cap(m.tt_min, m.tt_max)
+            if getattr(m, "axis", "two_theta") == "two_theta"
+            else _tof_model_size_cap(m)
+            for m in models]
+    caps = [c for c in caps if c is not None]
     cap = max(caps) if caps else None
     for table in mtable.tables:
         table.freeze_size_cap(cap)
@@ -3291,7 +3295,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
 def _stacked_rows(models: list[CompiledModel]) -> tuple[int, int]:
     """``(n_data_total, n_rows)`` of the stacked joint residual: every
     histogram's data rows, then every histogram's background-penalty rows."""
-    n_data = sum(len(m.tt) for m in models)
+    # ``n_points``, the axis-blind channel count: ``tt`` raises on a bank (T-5)
+    n_data = sum(m.n_points for m in models)
     n_pen = sum(0 if m.bkg_penalty is None else m.bkg_penalty.shape[0] for m in models)
     return n_data, n_data + n_pen
 

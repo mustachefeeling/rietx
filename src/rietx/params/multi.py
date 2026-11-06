@@ -103,7 +103,10 @@ def _longest_wavelength(instrument: Instrument) -> float | None:
     package attributes a coefficient to the longest line, so a Kα2 offset can
     never move an attribution on its own.
     """
-    lams = [line.wavelength.value for line in instrument.source.lines
+    # a time-of-flight bank declares no line (T-5): every d is measured at its
+    # own λ = 2d·sinθ_bank, so the bank has no wavelength to normalise by
+    lams = [line.wavelength.value
+            for line in getattr(instrument.source, "lines", None) or ()
             if line.wavelength.value > 0.0]
     return max(lams) if lams else None
 
