@@ -236,7 +236,7 @@ The pooled statistics cannot say which bank determined which number, so these co
 A moment refines on a bank as on a constant-wavelength neutron scan, and it is shared like the rest of the structure.
 The magnetic lines sit at long d, in the low-angle banks, where a structure often has few nuclear lines.
 A moment's size reaches the pattern only as the phase scale times m², and each bank has its own scale, so a bank with magnetic lines and no nuclear ones fits them with its scale.
-Pair such a bank with one that holds the nuclear lines, as Qin et al. (2026 preprint, p. 3) pair a 58° WISH bank for the long-d magnetic lines with a 153° one for the nuclear lines, or widen its window to reach them.
+Pair such a bank with one that holds the nuclear lines, as Qin et al. (2026, p. 3 of the first posted version) pair a 58° WISH bank for the long-d magnetic lines with a 153° one for the nuclear lines, or widen its window to reach them.
 `MAGNETIC_SCALE_UNPINNED` reports the fraction of its information on the size that each such bank keeps.
 On a bank the magnetic peaks take the phase's own widths: the separate magnetic width of a scan is refused there.
 
