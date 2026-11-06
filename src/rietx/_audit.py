@@ -941,6 +941,22 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: fires exactly when the substitution was made (info); the "
                   "substitution's own tier is crystallography.magnetic.form_factor._ASSUMED_ION, "
                   "a hand row (a dict the walk cannot see; docs/wp/2002-batch/inventory.json)")),
+    Row("MAGNETIC_SCALE_UNPINNED", "code", tier=3, ambiguity=2,
+        evidence=("statistic (arithmetic): f = 1 - rho^2 between a bank's scale column y and "
+                  "its moment-magnitude column 2*y_M under 1/sigma^2, i.e. the nuclear share "
+                  "of the phase's Bragg weight where the lines do not overlap; fires on a "
+                  "bank with the scale and a moment modulus free and f below "
+                  "MAGNETIC_SCALE_NUCLEAR_FLOOR; synthetic MnF2 bank: magnetic-only window "
+                  "f = 0 (rho = 1, FLAT_DIRECTION), (1 1 0) + (1 0 0) window f = 0.0062, full "
+                  "window f = 0.2 silent; the degeneracy is the 2026-11-06 multi-bank practice "
+                  "survey's (planning TOF_MULTIBANK_PRACTICE, section 4) and Qin et al. "
+                  "2026's reason for pairing banks (p. 3)"),
+        grounds=("A moment's magnitude reaches a pattern only as scale x m^2, so a bank "
+                 "whose scale fits its magnetic lines contributes no magnitude; the code "
+                 "names the histograms that do pin it and acts on nothing. Ours: the floor."),
+        response="warning",
+        responds=("quote no moment magnitude no histogram pins: pair the bank with one "
+                  "holding the nuclear lines, widen its window, or tie its scale")),
     Row("MAGNETIC_SUBGROUP_PREFERRED", "code", tier=3, ambiguity=2,
         evidence=("warning; fires when a maximal subgroup refit from the winner beats it by "
                   "more than SOLVE_TIE_DELTA_BIC at the winner's own N/f² (WP-2002 B12); never "
@@ -4053,6 +4069,14 @@ ROWS: tuple[Row, ...] = (
         evidence=("the package's three-esd significance, as PHASE_SUPPORT_SIGMA and "
                   "PEAK_MASK_SIGMA; no source for 3 here"),
         grounds=("Two consistency codes read a difference only past three esds.")),
+    Row("rietx.report.tof_banks.MAGNETIC_SCALE_NUCLEAR_FLOOR", "constant", tier=3,
+        value=0.05,
+        evidence=("a bank keeping under 5 % of its own information on the magnitude has "
+                  "its esd on it inflated more than 1/sqrt(0.05) = 4.5x by the free scale; "
+                  "synthetic MnF2 banks only (0, 0.0062 fire; 0.2 silent); untested on a "
+                  "real bank"),
+        grounds=("Below it the bank's scale, not its nuclear lines, decides its share of "
+                 "the moment; the number only sets where a warning starts.")),
     Row("rietx.report.tof_banks.MISFIT_CHI2_RATIO", "constant", tier=3, value=2.0,
         evidence=("the survey's proposal; HRPD Si chi2_red 1.0-1.3 across banks stays under it; "
                   "on one GEM pattern (2026-11-09) the two best-counted banks read 2.26 and "
@@ -5566,6 +5590,9 @@ ROWS: tuple[Row, ...] = (
     Row("LOW_ANGLE_UNMODELLED.suggestion", "suggestion", value=1),
     Row("MAGNETIC_ION_ASSUMED.suggestion", "suggestion", tier=1, ambiguity=3, value=2,
         evidence="arithmetic: names the argument that overrides the default"),
+    Row("MAGNETIC_SCALE_UNPINNED.suggestion", "suggestion", tier=2, ambiguity=1, value=1,
+        evidence=("names pairing with a bank holding the nuclear lines (Qin et al. 2026 p. 3), "
+                  "a wider window, or a scale tie; ranks none, moves nothing")),
     Row("MAGNETIC_SUBGROUP_PREFERRED.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
         evidence="arithmetic: defers the pick to the caller, as Rule 1's second kind asks"),
     Row("MAGNETIC_WIDTH_MOVED_MOMENT.suggestion", "suggestion", value=1),

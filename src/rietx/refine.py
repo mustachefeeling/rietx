@@ -9056,6 +9056,19 @@ def _uncorrected(stderr: float | None, esd_inflation: float | None) -> float | N
     return stderr / esd_inflation
 
 
+def _magnetic_scale_unpinned_single(model, values, free: set[str]
+                                    ) -> list[Diagnostic]:
+    """``MAGNETIC_SCALE_UNPINNED`` on a single bank (``report.tof_banks``)."""
+    from .report.tof_banks import magnetic_scale_unpinned
+
+    return magnetic_scale_unpinned(
+        [model], [values],
+        scale_free=lambda _h, ip: f"phases.{ip}.scale" in free,
+        moment_free=lambda ip: any(
+            p.startswith(f"phases.{ip}.atoms.") and p.endswith(".moment.dof0")
+            for p in free))
+
+
 def _build_result(model: AnyCompiledModel, table: ParameterTable,
                   theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
@@ -9231,6 +9244,11 @@ def _build_result(model: AnyCompiledModel, table: ParameterTable,
     # The other half of GSAS's I_o = I'_o/(W·I_i): whether the channel width
     # was applied, and — the case that matters — whether nobody said.
     diagnostics = diagnostics + _tof_intensity_basis_diagnostics(model)
+
+    # T-6: a bank whose free scale absorbs a free moment's magnitude
+    if getattr(model, "axis", "two_theta") == "tof":
+        diagnostics = diagnostics + _magnetic_scale_unpinned_single(
+            model, values, set(table.free_paths))
 
     # The position aberration this geometry has and could not express, for the
     # same reason as above: nothing else in the result says it was unavailable

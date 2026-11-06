@@ -25,6 +25,11 @@ measurements: the 2026-11-06 multi-bank practice survey, § 5.3):
 
 ``BANK_LEAVE_ONE_OUT`` (info) is the opt-in seventh, ``fit(leave_one_out=True)``,
 built in ``multi.py`` because it refits.
+
+``MAGNETIC_SCALE_UNPINNED`` (warning, T-6) is raised on a bank in a single
+fit too, from :func:`magnetic_scale_unpinned`: a bank whose free scale
+absorbs a free moment's magnitude because the bank holds magnetic intensity
+and almost no nuclear Bragg weight (the survey's § 4).
 """
 
 from __future__ import annotations
@@ -75,6 +80,16 @@ SIGMA_LAGS = (2, 3)
 SIGMA_MIN_PAIRS = 50
 #: Relative step of the central difference giving a bank's ∂y/∂ln DIFC column.
 DIFC_STEP = 1e-5
+#: ``MAGNETIC_SCALE_UNPINNED`` fires on a bank that keeps less than this
+#: fraction of its own information on a phase's moment magnitude once its
+#: scale is free (:func:`moment_information_kept`; the fraction is
+#: 1 − ρ² between the bank's scale and moment-magnitude columns, which is the
+#: nuclear share of the phase's Bragg weight where the two families do not
+#: overlap).  Below 0.05 the bank's own esd on the magnitude is inflated
+#: more than 1/√0.05 ≈ 4.5×.  Measured on synthetic banks only (a
+#: magnetic-only window at 0, the same bank with its nuclear lines at 0.5-0.9);
+#: untested on a real bank.
+MAGNETIC_SCALE_NUCLEAR_FLOOR = 0.05
 
 
 def _is_bank(model) -> bool:
@@ -428,3 +443,98 @@ def sigma_suspect(h: int, model, y_calc, *, measured: bool) -> list[Diagnostic]:
         suggestion=("check how the bank's σ was propagated through reduction "
                     "(rebinning, smoothing, a σ written as √y on normalised data) "
                     "before quoting the joint esds"))]
+
+
+def moment_information_kept(model, values, ip: int) -> tuple[float, float] | None:
+    """``(f, W_M)`` for phase ``ip`` on one histogram, or ``None``.
+
+    A moment's magnitude reaches a pattern only as m² times the phase's
+    scale, and the scale also carries the nuclear lines, so it is the nuclear
+    lines that let one histogram tell the two apart.  With y the phase's
+    component and y_M its magnetic part (y with every moment modulus set to
+    zero, subtracted), the scale's column is ∂y/∂ln s = y and the column of a
+    common change of every modulus is ∂y/∂ln μ = 2·y_M.  ``f`` = 1 − ρ² of
+    those two columns under the fit's 1/σ² weights: the fraction of this
+    histogram's information on the magnitude that survives freeing its scale
+    (1 with no scale to fear, 0 when the two are the same column).  Where the
+    nuclear and magnetic lines do not overlap it is exactly
+    W_N/(W_N + W_M), the nuclear share of the phase's Bragg weight.
+
+    ``W_M`` = Σ(y_M/σ)² is the magnetic Bragg weight; ``None`` when the phase
+    has no magnetic data on this histogram, or no magnetic intensity in its
+    window.  Extinction couples the two terms; at ``extinction = 0`` the split
+    is exact.
+    """
+    cp = model.phases[ip]
+    if getattr(cp, "magnetic", None) is None:
+        return None
+    dof0 = [f"phases.{ip}.atoms.{j}.moment.dof0" for j in range(cp.sites.n_asym)
+            if cp.magnetic.n_dofs(j) > 0]
+    if not dof0:
+        return None
+    zero = dict(values)
+    for path in dof0:
+        zero[path] = 0.0
+    y = np.asarray(model.phase_component(ip, values), dtype=np.float64)
+    y_m = y - np.asarray(model.phase_component(ip, zero), dtype=np.float64)
+    w = 1.0 / np.asarray(model.sigma, dtype=np.float64) ** 2
+    w_m = float(np.sum(y_m * y_m * w))
+    w_t = float(np.sum(y * y * w))
+    if w_m <= 0.0 or w_t <= 0.0:
+        return None
+    rho2 = float(np.sum(y * y_m * w)) ** 2 / (w_t * w_m)
+    return max(0.0, 1.0 - rho2), w_m
+
+
+def magnetic_scale_unpinned(models, per_values, *, scale_free, moment_free
+                            ) -> list[Diagnostic]:
+    """``MAGNETIC_SCALE_UNPINNED``: a bank whose free scale absorbs a moment.
+
+    ``scale_free(h, ip)`` says whether histogram h's scale for phase ip is a
+    free column (a held or tied scale pins the moment and is never reported);
+    ``moment_free(ip)`` whether any moment modulus of phase ip is free.
+    Fires per (bank, phase) where :func:`moment_information_kept` is below
+    :data:`MAGNETIC_SCALE_NUCLEAR_FLOOR`, and names the histograms that do pin
+    the magnitude, or says none does.  Silent on constant-wavelength
+    histograms (the same arithmetic holds there; the code is the
+    time-of-flight track's, where low-angle banks see the magnetic lines and
+    little else).
+    """
+    out: list[Diagnostic] = []
+    n_phases = min(len(m.phases) for m in models)
+    for ip in range(n_phases):
+        if not moment_free(ip):
+            continue
+        kept = {}
+        for h, (m, v) in enumerate(zip(models, per_values, strict=True)):
+            k = moment_information_kept(m, v, ip)
+            if k is not None:
+                kept[h] = 1.0 if not scale_free(h, ip) else k[0]
+        weak = [h for h, f in kept.items() if f < MAGNETIC_SCALE_NUCLEAR_FLOOR
+                and _is_bank(models[h])]
+        if not weak:
+            continue
+        pins = [h for h, f in kept.items() if f >= MAGNETIC_SCALE_NUCLEAR_FLOOR]
+        prefix = "hist.{h}." if len(models) > 1 else ""
+        for h in weak:
+            others = ", ".join(f"histogram {g} keeps {kept[g]:.2g}" for g in pins)
+            pinned = (f"The other histograms fix it ({others})." if pins else
+                      "No other histogram fixes it, so its esd carries the whole "
+                      "scale-moment correlation, and at 0 the two are one "
+                      "direction and the moment is not measured.")
+            where = prefix.format(h=h) + f"phases.{ip}.scale"
+            out.append(Diagnostic(
+                level="warning", code="MAGNETIC_SCALE_UNPINNED", where=[where],
+                value=kept[h],
+                message=(f"Phase {ip}, histogram {h}: with its scale free this "
+                         f"bank keeps {kept[h]:.2g} of its information on the "
+                         f"moment's magnitude (1 − ρ² of the scale and magnitude "
+                         f"columns; the nuclear share of the phase's Bragg weight "
+                         f"where the lines do not overlap), because its scale fits "
+                         f"its magnetic lines. {pinned} Floor "
+                         f"{MAGNETIC_SCALE_NUCLEAR_FLOOR:g}, measured on synthetic "
+                         f"banks only."),
+                suggestion=("pair the bank with one holding the phase's nuclear "
+                            "lines (a joint fit), widen its window to reach them, "
+                            "or tie its scale to another bank's")))
+    return out

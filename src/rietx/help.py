@@ -3240,6 +3240,17 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "its size. State the ion for the site to override the default."
         ),
     ),
+    "MAGNETIC_SCALE_UNPINNED": HelpEntry(
+        title="A bank's scale absorbs the moment",
+        description=(
+            "A moment's size reaches a pattern only as the phase scale times m², and "
+            "the scale also carries the nuclear lines. This bank has the phase's "
+            "magnetic lines and almost none of its nuclear ones, so with its scale "
+            "free it says next to nothing about the moment's size. The message names "
+            "the histograms that do fix it, or says none does. Pair the bank with one "
+            "that holds the nuclear lines, widen its window, or tie its scale."
+        ),
+    ),
     "MAGNETIC_SUBGROUP_PREFERRED": HelpEntry(
         title="A subgroup fits better than the winner",
         description=(
