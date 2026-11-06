@@ -1503,9 +1503,15 @@ class ParameterTable:
                 # and ``run_least_squares`` refuses one by name, which a plan
                 # freeing ``phases.*.magnetic_lor_*`` would hit with advice
                 # it cannot take.  Not in a joint table: there a neutron
-                # histogram shares the entry and does see it.
+                # histogram shares the entry and does see it.  **A bank is
+                # the X-ray case for this pair** (T-6): it draws the magnetic
+                # term, but at the phase's own widths, since WP-1343's
+                # separate width has no flight-time law yet — so a bank alone
+                # locks it, and ``compile_tof_model`` refuses it by name
+                # where a joint table leaves it free.
                 off = (not self._joint
-                       and not _magnetic_component_drawn(phase, instrument))
+                       and (tof or not _magnetic_component_drawn(phase,
+                                                                 instrument)))
                 self._add(f"{base}.magnetic_lor_size", phase.magnetic_lor_size,
                           force_fixed=off)
                 self._add(f"{base}.magnetic_lor_strain",
