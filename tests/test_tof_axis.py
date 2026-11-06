@@ -1190,14 +1190,19 @@ def test_fit_refuses_a_crossed_pair_either_way(tof_pattern, cw_models):
 
 def test_the_multi_histogram_entry_names_which_histogram(tof_pattern, cw_models):
     """A joint fit is where a TOF bank most plausibly arrives beside CW ones,
-    so the refusal names which histogram of how many."""
+    so the refusal of a *crossed* pair names which histogram of how many.
+    Since T-5 a matched bank is admitted there, so the message is the
+    matched-pair door's (``require_matched_axis``), not the 2θ-only one."""
     structure, instrument = cw_models
     cw = PatternData(two_theta=[10.0 + 0.02 * i for i in range(200)],
                      intensity=[10.0] * 200)
     with pytest.raises(ValueError) as exc:
         rx.MultiHistogramRefinement(structure, [instrument, instrument]).fit(
             [cw, tof_pattern])
-    _assert_authored(exc, "MultiHistogramRefinement.fit(), histogram 1 of 2")
+    message = str(exc.value)
+    assert message.startswith("MultiHistogramRefinement.fit(), histogram 1 of 2")
+    assert "time of flight in microseconds" in message
+    assert "tof_neutron_bank" in message
 
 
 def test_the_sequential_entry_names_which_pattern(tof_pattern, cw_models):
@@ -1406,13 +1411,12 @@ def test_the_instrument_writers_refuse_a_bank_by_name(tmp_path, cw_models):
     assert not list(tmp_path.iterdir())
 
 
-def test_a_bank_constructs_a_refinement_and_the_joint_entry_still_refuses(
-        cw_models):
-    """A single ``Refinement`` over a bank is a legitimate object now — its
-    table registers the bank's calibration, and the pattern is checked at
-    ``fit`` — and an edit that swaps a bank in is the same.  The joint
-    constructor still reads a wavelength per histogram and has no flight-time
-    arm, so it refuses a bank by name, saying which instrument."""
+def test_a_bank_constructs_a_refinement_and_a_joint_one(cw_models):
+    """A single ``Refinement`` over a bank is a legitimate object — its table
+    registers the bank's calibration, and the pattern is checked at ``fit`` —
+    and an edit that swaps a bank in is the same.  Since T-5 the joint
+    constructor is too: it registers the bank's own rows beside the
+    constant-wavelength histogram's, and the pair is checked at ``fit``."""
     structure, instrument = cw_models
     bank = rx.Instrument.tof_neutron_bank(difc=5123.45, two_theta_bank_deg=61.2)
     ref = rx.Refinement(structure, bank, history=False)
@@ -1420,12 +1424,9 @@ def test_a_bank_constructs_a_refinement_and_the_joint_entry_still_refuses(
     edited = rx.Refinement(structure, instrument, history=False)
     edited.edit(instrument=bank)
     assert edited.instrument.source.kind == "neutron_tof"
-    with pytest.raises(ValueError) as exc:
-        rx.MultiHistogramRefinement(structure, [instrument, bank])
-    message = str(exc.value)
-    assert message.startswith("MultiHistogramRefinement(), instrument 1 of 2"), message
-    assert "neutron_tof bank" in message
-    assert "issue #193" in message
+    joint = rx.MultiHistogramRefinement(structure, [instrument, bank])
+    assert "instrument.source.difc" in {e.path for e in joint.mtable.tables[1].entries}
+    assert "instrument.source.difc" not in {e.path for e in joint.mtable.tables[0].entries}
 
 
 def test_require_two_theta_passes_a_constant_wavelength_pattern(cw_models):
