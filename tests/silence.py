@@ -1035,6 +1035,22 @@ def _misfit(red0: float, red1: float) -> list:
     return dominates_misfit(models, [np.zeros(n), np.zeros(n)], [5, 5], [1.0, 1.0])
 
 
+def _magnetic_scale(window: tuple[float, float], scale_free: bool) -> list:
+    from rietx.model.forward_tof import compile_tof_model
+    from rietx.report.tof_banks import magnetic_scale_unpinned
+    from tests import test_tof_magnetic as t
+
+    structure = t.rx.Structure(phases=[t.mnf2()])
+    ins = t.bank()
+    # counting-statistics weights, as a fit has: under unit σ the strong
+    # (1 0 0) line outweighs every nuclear line of the full window
+    data, _scale = t._synthetic_bank(structure, lo=window[0], hi=window[1])
+    model = compile_tof_model(structure, ins, data)
+    return magnetic_scale_unpinned(
+        [model], [t.values(structure, ins)],
+        scale_free=lambda _h, _ip: scale_free, moment_free=lambda _ip: True)
+
+
 def _sigma_scatter(ratio: float) -> list:
     import numpy as np
 
@@ -1128,6 +1144,12 @@ SILENCE: dict[str, Pair] = {
     "LEBAIL_CYCLES_AT_CAP": Pair(
         functools.partial(_lebail_cap, False), _lebail_settled_or_unasked,
         "tests/test_lebail_cycles.py"),
+    "MAGNETIC_SCALE_UNPINNED": Pair(
+        lambda: _magnetic_scale((22000.0, 28000.0), True),
+        lambda: (_magnetic_scale((6000.0, 28000.0), True)
+                 + _magnetic_scale((22000.0, 28000.0), False)),
+        "tests/test_tof_magnetic.py (MnF2 on a synthetic bank: (1 0 0) alone, and "
+        "the full window or a held scale)"),
     "MOMENT_UNSUPPORTED": Pair(
         _unsupported_fires, _unsupported_silent, "tests/test_modulus_interval.py"),
     "PARAMETRIC_OUT_OF_RANGE": Pair(
