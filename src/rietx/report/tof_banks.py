@@ -33,6 +33,7 @@ import math
 
 import numpy as np
 
+from ..optimize import lapack
 from ..schemas.common import Diagnostic
 
 #: ``BANK_DOMINATES_MISFIT``: a histogram "dominates" when it holds more than
@@ -272,10 +273,10 @@ def cell_inconsistent(models, mtable, per_values, jac, weights) -> list[Diagnost
     norm = np.sqrt(np.sum(A ** 2, axis=0))
     norm[norm == 0.0] = 1.0
     An = A / norm
-    step, *_ = np.linalg.lstsq(An, -r, rcond=None)
+    step, *_ = lapack.lstsq(An, -r, rcond=None)
     dof = max(A.shape[0] - A.shape[1], 1)
     s2 = float(np.sum((r + An @ step) ** 2)) / dof
-    cov = np.linalg.pinv(An.T @ An) * s2
+    cov = lapack.pinv(An.T @ An) * s2
     out = []
     for i, h in enumerate(test):
         c = J.shape[1] + i
