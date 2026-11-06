@@ -207,6 +207,9 @@ def size_value_scales(structure: Structure, instruments: list[Instrument],
     there is no λ to normalise by; and equal wavelengths, where every factor is
     exactly 1.0 — which is every joint fit that existed before this change.
     """
+    banks = [getattr(ins.source, "kind", None) == "neutron_tof" for ins in instruments]
+    if any(banks):
+        return _mixed_size_scales(structure, instruments, sharing, banks)
     lams = [_longest_wavelength(ins) for ins in instruments]
     if len(lams) < 2 or any(lam is None for lam in lams):
         return [{} for _ in instruments]
@@ -214,6 +217,52 @@ def size_value_scales(structure: Structure, instruments: list[Instrument],
     scales: list[dict[str, float]] = []
     for lam in lams:
         ratio = lam / ref
+        one: dict[str, float] = {}
+        if ratio != 1.0:
+            for ip, ph in enumerate(structure.phases):
+                for term, power in SIZE_LAMBDA_POWER.items():
+                    if not _phase_carries(ph, term):
+                        continue
+                    path = f"phases.{ip}.{term}"
+                    if sharing.is_shared(path):
+                        one[path] = ratio ** power
+        scales.append(one)
+    return scales
+
+
+def size_unit(instrument: Instrument) -> float | None:
+    """One size coefficient's unit, per specimen K/L in Å⁻¹ (T-5c).
+
+    A time-of-flight bank holds ``lor_size`` as K/L in Å⁻¹ (T-3c,
+    :func:`~rietx.model.forward_tof.sample_broadening_terms`): 1.  A
+    constant-wavelength histogram holds (180/π)·K·λ/L in degrees (WP-1131): its
+    unit is (180/π)·λ, at the longest declared line.  ``None`` for a source
+    with no declared line, which has no unit to convert by.
+    """
+    if getattr(instrument.source, "kind", None) == "neutron_tof":
+        return 1.0
+    lam = _longest_wavelength(instrument)
+    return None if lam is None else math.degrees(lam)
+
+
+def _mixed_size_scales(structure, instruments, sharing, banks) -> list[dict[str, float]]:
+    """:func:`size_value_scales` for a list holding a time-of-flight bank (T-5c).
+
+    WP-1131's map with each histogram's own unit: the factor between histogram
+    h's coefficient and the shared column (histogram 0's unit) is
+    (u_h/u_0)^p with :func:`size_unit`'s u and ``SIZE_LAMBDA_POWER``'s p, so a
+    bank beside a scan at λ carries the column times (180/π)·λ or its inverse.
+    Every bank alone (all units 1) needs no factor, nor does a source without a
+    line, whose size the column cannot convert (the pre-T-5 empty answer).
+    """
+    if all(banks):
+        return [{} for _ in instruments]
+    units = [size_unit(ins) for ins in instruments]
+    if any(u is None for u in units):
+        return [{} for _ in instruments]
+    scales: list[dict[str, float]] = []
+    for u in units:
+        ratio = u / units[0]
         one: dict[str, float] = {}
         if ratio != 1.0:
             for ip, ph in enumerate(structure.phases):

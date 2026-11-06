@@ -337,6 +337,9 @@ DIAGNOSTIC_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
                 "per histogram and its displacement parameters shared (WP-1534)"),
     "_size_sharing_diagnostics": (
         (FIT,), "joint-only: what the sharing map did to a size across λ"),
+    "_size_unit_diagnostics": (
+        (FIT,), "joint-only, T-5c: the same statement where a bank holds the size "
+                "in Å⁻¹ beside a scan's degrees"),
     "_unreached_histogram_diagnostics": (
         (FIT,), "joint-only, and the plan's (WP-1414): a stage's reach is "
                 "decided before any histogram is compiled"),
@@ -448,6 +451,26 @@ GUARD_SCOPES: dict[str, tuple[tuple[str, ...], str]] = {
                                      "off the joint Jacobian"),
     "at_bounds": ((FIT,), "the joint θ's bounds"),
 }
+
+
+def _refuse_one_window_across_axes(ttl, data: list[PatternData]) -> None:
+    """One ``(lo, hi)`` over histograms that do not share an abscissa (T-5c).
+
+    The window is on each histogram's own axis, degrees on a scan and µs on a
+    bank, so a single pair applied to both would ask for 10-90 µs of a bank.
+    Refused rather than broadcast: the alternative fits an empty grid.
+    """
+    if not (isinstance(ttl, tuple) and len(ttl) == 2
+            and all(isinstance(x, (int, float)) for x in ttl)):
+        return
+    axes = sorted({d.axis for d in data})
+    if len(axes) > 1:
+        raise ValueError(
+            f"two_theta_limits={ttl!r} is one window and these histograms do not "
+            f"share an abscissa ({', '.join(axes)}): each window is on its "
+            f"histogram's own axis, degrees on a scan and microseconds on a bank. "
+            f"Pass one window per histogram (a list of {len(data)}, None to fit "
+            f"one whole).")
 
 
 def _normalize_limits(ttl, n: int) -> list[tuple[float, float] | None]:
@@ -1740,6 +1763,7 @@ class MultiHistogramRefinement:
             raise ValueError("a plan with no stages refines nothing: every "
                              "stage is a group of parameters to free, so an "
                              "empty list frees none")
+        _refuse_one_window_across_axes(two_theta_limits, data)
         limits = _normalize_limits(two_theta_limits, n)
         weights = [1.0] * n if weights is None else list(weights)
         if len(weights) != n or any(w <= 0 for w in weights):
@@ -3197,6 +3221,8 @@ def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
     scales = getattr(mtable, "value_scales", None)
     if not scales or not any(scales):
         return []
+    if any(ins.source.kind == "neutron_tof" for ins in mtable.instruments):
+        return _size_unit_diagnostics(mtable, scales)
     lams = [_longest_wavelength(ins) for ins in mtable.instruments]
     out: list[Diagnostic] = []
     ref = lams[0]
@@ -3223,6 +3249,42 @@ def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
                 "Read the size with rietx.model.profiles.caglioti."
                 "apparent_size_from_size_coefficient and each histogram's own "
                 "λ. To refine an independent size per histogram, use "
+                'SharingMap(per_histogram=["phases.*.lor_size", '
+                '"phases.*.gauss_size"]).'),
+        ))
+    return out
+
+
+def _size_unit_diagnostics(mtable, scales) -> list[Diagnostic]:
+    """``SIZE_NORMALISED_ACROSS_WAVELENGTHS`` on a list holding a bank (T-5c).
+
+    The same statement in each histogram's own unit: K/L in Å⁻¹ on a bank,
+    (180/π)·K·λ/L in degrees on a scan (``params.multi.size_unit``)."""
+    out: list[Diagnostic] = []
+    units = ["Å⁻¹" if ins.source.kind == "neutron_tof"
+             else f"deg at λ = {_longest_wavelength(ins):.5g} Å"
+             for ins in mtable.instruments]
+    for path in sorted(set().union(*(set(sc) for sc in scales))):
+        values = [t.entries[t._paths[path]].value for t in mtable.tables
+                  if path in t._paths]
+        if not any(v != 0.0 for v in values):
+            continue
+        factors = [sc.get(path, 1.0) for sc in scales]
+        square = path.rsplit(".", 1)[-1].startswith("gauss")
+        out.append(Diagnostic(
+            level="info", code="SIZE_NORMALISED_ACROSS_WAVELENGTHS",
+            where=[path], value=float(max(factors) / min(factors)),
+            message=(
+                f"{path} is one specimen size held in each histogram's own unit: "
+                f"K/L in Å⁻¹ on a time-of-flight bank, (180/π)·K·λ/L on a scan. "
+                f"The shared column is histogram 0's ({units[0]}"
+                f"{', squared' if square else ''}); each histogram carries "
+                f"{', '.join(f'{f:.4g}' for f in factors)}× it: "
+                + ", ".join(f"{v:.6g} ({u})" for v, u in zip(values, units, strict=True))
+                + "."),
+            suggestion=(
+                "Read the size off the result's microstructure block. To refine "
+                "an independent size per histogram, use "
                 'SharingMap(per_histogram=["phases.*.lor_size", '
                 '"phases.*.gauss_size"]).'),
         ))
