@@ -10,6 +10,18 @@ resolution.  See :mod:`rietx.params.multi` for the parameter-sharing map and
 :func:`rietx.optimize.least_squares.run_multi_least_squares` for the stacked
 solve.
 
+**Time-of-flight banks included (T-5).**  A time-of-flight experiment is
+several detector banks of one sample, each with its own calibration, angle,
+resolution and channel width, and one structure, so a histogram here is a
+(pattern, instrument) pair compiled through :func:`rietx.refine._compile_for`,
+the single fit's routing point, and a list may mix banks with constant-wavelength
+scans.  Per bank: scale, background, calibration, ``ProfileTOF``; shared: the
+structure, extinction and the sample widths, a size converted between a bank's
+Å⁻¹ and a scan's degrees (``params.multi.size_unit``).  At most N − 1 bank DIFCs
+are free beside a free cell (``params.multi.check_calibration_freedom``), and
+:mod:`rietx.report.tof_banks` says which bank determined which number and
+whether the banks agree.
+
 Rietveld mode only: Le Bail / Pawley intensities are per-pattern empirical
 extractions, not shared quantities, so a multi-histogram fit of them is just
 independent single fits — not the joint-residual point of this module.

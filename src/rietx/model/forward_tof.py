@@ -269,9 +269,8 @@ def sample_broadening_terms(ip: int, values: dict[str, float]) -> tuple:
     ``neutron_tof`` table ``lor_size`` holds K/L in Å⁻¹ and ``gauss_size``
     its square in Å⁻², the d-space form
     (:func:`~rietx.model.profiles.caglioti.apparent_size_from_d_size_coefficient`).
-    A joint fit sharing one size column between a bank and a scan has to
-    convert between the two units; that fit is not written yet, and
-    ``MultiHistogramRefinement`` refuses a bank by name.
+    A joint fit sharing one size column between a bank and a scan converts
+    between the two units by (180/π)·λ (``params.multi.size_unit``, T-5c).
 
     The Gaussian pair are **variances** in both arms' units and are handed on
     as variances: (K/L)² in Å⁻² and (Δd/d)², which is what
