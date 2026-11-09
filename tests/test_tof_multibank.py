@@ -705,3 +705,21 @@ def test_the_sigma_message_states_the_weight_as_the_ratio_squared():
     assert d.value == pytest.approx(0.5, abs=0.03)
     assert f"carries {d.value ** 2:.2g} × the weight its counts justify" in d.message
     assert d.value ** 2 < 0.3
+
+
+def test_a_residual_with_no_scatter_carries_no_weight():
+    """A noiseless bank (a flat pattern fitted exactly, a synthetic one) has a
+    σ ratio of exactly 0; ``BANK_SIGMA_SUSPECT`` says the bank carries none of
+    the weight its scatter justifies (ratio², never a division by the ratio:
+    one raised ``ZeroDivisionError`` on T-6's radiation table, whose bank is a
+    flat pattern)."""
+    from types import SimpleNamespace
+
+    from rietx.report.tof_banks import sigma_suspect
+
+    y = np.full(200, 10.0)
+    model = SimpleNamespace(n_points=200, flat_windows=[], y_obs=y,
+                            sigma=np.full(200, 3.0))
+    (d,) = sigma_suspect(1, model, y.copy(), measured=True)
+    assert d.code == "BANK_SIGMA_SUSPECT" and d.value == 0.0
+    assert "carries 0 × the weight its counts justify" in d.message
