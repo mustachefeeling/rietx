@@ -1706,6 +1706,16 @@ WP-1806 part 1: what the rigid body itself owns, on acridine form IX (COD 224287
 
 **Measured:** worst fractional difference 5.6e-17 (bar 1e-9)
 
+#### `test_the_record_table_carries_the_cell`
+
+`identity` · dataset `acridine_ix`
+
+**Claims:** the per-atom record table carries the cell, one row per free P2_1/n parameter (a, b, c, beta), and asserts nothing about a fit
+
+**Referenced to:** the deposited cell, read at the deposit itself, so every |delta| is zero by construction (ruled 2026-11-07: the cell is another model's answer and only recorded)
+
+**Measured:** 4 rows, every |delta| 0.00000
+
 #### `test_a_perturbed_start_reaches_the_same_minimum`
 
 `own_result` `ceiling` · dataset `acridine_ix` · survives 2 starts

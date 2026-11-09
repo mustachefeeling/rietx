@@ -108,11 +108,21 @@ def _published() -> tuple[dict, dict]:
             vals.append(float(m[1]) if m else float(row[k]))
             esds.append(float(f"{m[3]}e-{len(m[2])}") if m else None)
         atoms[row[0]] = (vals, esds)
+    return atoms, {key: v for key, (v, _) in _published_cell().items()}
+
+
+#: the cell's free parameters in P2₁/n, as the record table names them
+CELL = (("a", "length_a"), ("b", "length_b"), ("c", "length_c"), ("beta", "angle_beta"))
+
+
+def _published_cell() -> dict[str, tuple[float, float]]:
+    """The deposit's free cell parameters with their esds, as typed."""
+    block = gemmi.cif.read(str(FIXTURE)).sole_block()
     cell = {}
-    for key in ("length_a", "length_b", "length_c", "angle_beta"):
+    for _, key in CELL:
         m = _SU.fullmatch(block.find_value("_cell_" + key))
-        cell[key] = float(m[1])
-    return atoms, cell
+        cell[key] = (float(m[1]), float(f"{m[3]}e-{len(m[2])}"))
+    return cell
 
 
 def _deposited_phase() -> Phase:
@@ -256,7 +266,8 @@ def _deposit_table(phase: Phase, rwp: float) -> str:
     pub, _ = _published()
     lines = ["# Acridine form IX, deposited start: the deposit record (not asserted)",
              "", f"Rwp {rwp:.5f}.  ratio = |Δ| / max(published esd, rietx esd), "
-             "per component.  A record: it asserts nothing, and part 2's bar is a "
+             "per component, and the cell's |Δ| in Å and degrees.  A record: it "
+             "asserts nothing, and part 2's bar is a "
              "free-atom control in rietx.", "",
              "| atom | axis | |Δ| frac | published esd | rietx esd | ratio |",
              "|---|---|---|---|---|---|"]
@@ -267,6 +278,16 @@ def _deposit_table(phase: Phase, rwp: float) -> str:
             r = d / max(p or 0.0, esd[k] or 0.0)
             lines.append(f"| {lab} | {c} | {d:.5f} | {'None' if p is None else f'{p:g}'} | "
                          f"{'None' if esd[k] is None else f'{esd[k]:.5f}'} | {r:.2f} |")
+    # the cell joins the record (2026-11-07): another model's answer under
+    # another protocol, so it is compared and asserts nothing
+    lines += ["", "| cell | |Δ| | published esd | rietx esd | ratio |", "|---|---|---|---|---|"]
+    for name, key in CELL:
+        par = getattr(phase.cell, name)
+        v, p = _published_cell()[key]
+        d = abs(float(par.value) - v)
+        r = d / max(p, par.stderr or 0.0)
+        lines.append(f"| {name} | {d:.5f} | {p:g} | "
+                     f"{'None' if par.stderr is None else f'{par.stderr:.5f}'} | {r:.2f} |")
     return "\n".join(lines) + "\n"
 
 
@@ -350,6 +371,18 @@ def test_the_deposited_body_reproduces_the_deposited_atoms():
     worst = max(float(np.abs(xyz - np.asarray(pub[lab][0])).max())
                 for lab, (xyz, _) in _heavy(placed).items())
     assert worst < 1e-9, worst
+
+
+def test_the_record_table_carries_the_cell():
+    """The cell joins the per-atom record (2026-11-07), one row per free
+    P2₁/n parameter; read at the deposit itself every |Δ| is zero.  This
+    pins the record's shape, not any number of a fit."""
+    phase = _deposited_phase()
+    table = _deposit_table(_with(phase, _deposited_body(phase), perturb=False), 0.0)
+    rows = {line.split("|")[1].strip(): line for line in table.splitlines()
+            if line.startswith("| ") and line.split("|")[1].strip() in dict(CELL)}
+    assert sorted(rows) == sorted(dict(CELL)), table
+    assert all(float(r.split("|")[2]) == 0.0 for r in rows.values()), table
 
 
 @pytest.mark.slow

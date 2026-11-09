@@ -2885,6 +2885,16 @@ CLAIMS: tuple[Claim, ...] = (
         measured="worst fractional difference 5.6e-17 (bar 1e-9)",
     ),
     Claim(
+        "test_acceptance_acridine_ix", "test_the_record_table_carries_the_cell",
+        "acridine_ix", ("identity",),
+        "the per-atom record table carries the cell, one row per free P2_1/n "
+        "parameter (a, b, c, beta), and asserts nothing about a fit",
+        reference="the deposited cell, read at the deposit itself, so every "
+                  "|delta| is zero by construction (ruled 2026-11-07: the cell "
+                  "is another model's answer and only recorded)",
+        measured="4 rows, every |delta| 0.00000",
+    ),
+    Claim(
         "test_acceptance_acridine_ix", "test_a_perturbed_start_reaches_the_same_minimum",
         "acridine_ix", ("own_result", "ceiling"),
         "the deposited pose and one turned 10 deg and shifted 0.3 A (atoms "
