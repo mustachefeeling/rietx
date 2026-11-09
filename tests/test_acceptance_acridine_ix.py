@@ -224,18 +224,21 @@ _PROFILE = ["phases.*.cell.*", "instrument.zero_shift", "instrument.profile.u",
 _POSE = ["phases.*.rigid_bodies.*.origin.dof.*", "phases.*.rigid_bodies.*.rotation.*"]
 
 
-def _fit(structure: Structure, pattern: rx.PatternData):
+def _fit(structure: Structure, pattern: rx.PatternData, pose: list[str] | None = None):
+    """The four-stage plan; ``pose`` replaces the body's pose globs (the
+    free-atom control passes the heavy atoms' coordinate DOFs)."""
     ref = rx.Refinement(structure, _instrument(), history=False)
     atoms = structure.phases[0].atoms
     heavy = [f"phases.0.atoms.{i}.biso" for i, a in enumerate(atoms) if a.label in HEAVY]
+    pose = _POSE if pose is None else pose
     ref.tie_equal(heavy)
     for i, a in enumerate(atoms):
         if a.label in HYDROGENS:
             ref.tie(f"phases.0.atoms.{i}.biso", heavy[0], scale=1.5)
     stages = [rx.Stage("scale_bkg", _BKG, max_iter=200),
               rx.Stage("profile_cell", _BKG + _PROFILE, max_iter=300, strain_seed=1000.0),
-              rx.Stage("pose", _BKG + _PROFILE + _POSE, max_iter=2000),
-              rx.Stage("biso", _BKG + _PROFILE + _POSE + [heavy[0]], max_iter=2000)]
+              rx.Stage("pose", _BKG + _PROFILE + pose, max_iter=2000),
+              rx.Stage("biso", _BKG + _PROFILE + pose + [heavy[0]], max_iter=2000)]
     # the shipped schedule and closing stage, declared: these numbers are what
     # a user's own run of this plan produces
     plan = rx.RefinementPlan(stages=stages, intermediate_ftol=INTERMEDIATE_FTOL,
@@ -291,6 +294,32 @@ def _deposit_table(phase: Phase, rwp: float) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _free_dofs(phase: Phase) -> list[str]:
+    """The heavy atoms' coordinate DOFs: the free-atom control's pose."""
+    return [f"phases.0.atoms.{i}.dof.*" for i, a in enumerate(phase.atoms) if a.label in HEAVY]
+
+
+def _control_table(body: Phase, free: Phase, rwp_body: float, rwp_free: float) -> str:
+    """Body against the free-atom control, per component, in the control's
+    own esds: a record while the bar is open (WP-1806 handover 2026-11-09)."""
+    pub, _ = _published()
+    b, f = _heavy(body), _heavy(free)
+    lines = ["# Acridine form IX: the rigid body against the free-atom control (not asserted)",
+             "", f"Rwp body {rwp_body:.5f}, free atoms {rwp_free:.5f}.  The control frees the 14 "
+             "heavy atoms' coordinates, unrestrained, with the H held at the deposit.", "",
+             "| atom | axis | body − free frac | free esd | ratio | body − deposit | free − deposit |",
+             "|---|---|---|---|---|---|---|"]
+    for lab in HEAVY:
+        for k, c in enumerate("xyz"):
+            d = float(b[lab][0][k] - f[lab][0][k])
+            e = f[lab][1][k]
+            lines.append(f"| {lab} | {c} | {d:+.5f} | {'None' if e is None else f'{e:.5f}'} | "
+                         f"{abs(d) / e if e else math.inf:.2f} | "
+                         f"{float(b[lab][0][k]) - pub[lab][0][k]:+.5f} | "
+                         f"{float(f[lab][0][k]) - pub[lab][0][k]:+.5f} |")
+    return "\n".join(lines) + "\n"
+
+
 def _simulate(ref, result, pattern: rx.PatternData) -> tuple[rx.PatternData, Phase]:
     """y_calc at the deposited coordinates and the converged profile, plus
     Gaussian noise at the deposit's own σ; and the phase it was drawn from."""
@@ -336,6 +365,19 @@ def real_perturbed(pattern):
     ref, result = _fit(_start(_with(_deposited_phase(), _deposited_body(_deposited_phase()),
                                     perturb=True)), pattern)
     _draw(result, "acridine_ix_real_perturbed_start")
+    return ref, result
+
+
+@pytest.fixture(scope="module")
+def free_control(pattern, real_deposited):
+    phase = _deposited_phase()
+    ref, result = _fit(_start(phase), pattern, pose=_free_dofs(phase))
+    _draw(result, "acridine_ix_real_free_atom_control")
+    ref_b, res_b = real_deposited
+    OUT.mkdir(exist_ok=True)
+    (OUT / "acridine_ix_free_control_table.md").write_text(_control_table(
+        ref_b.fitted_structure.phases[0], ref.fitted_structure.phases[0],
+        res_b.statistics.rwp, result.statistics.rwp), encoding="utf-8")
     return ref, result
 
 
@@ -456,3 +498,20 @@ def test_a_regular_hexagon_template_fails_the_known_answer_bound(hexagon_arm):
     assert result.status == "converged"
     worst = max(max(r) for r in _ratios(ref.fitted_structure.phases[0]).values())
     assert worst > KNOWN_ANSWER_BOUND, worst
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("acridine-ix")
+def test_the_free_atom_control_converges_and_is_recorded_against_the_body(free_control):
+    """Part 2's control, under the body's data, profile and background: the
+    14 heavy atoms free and unrestrained, the H held at the deposit.  The
+    comparison with the body goes to ``tests/output/`` as a record; the bar
+    on it is open for the maintainer (WP-1806 handover 2026-11-09), so this
+    asserts only that the control is a converged fit with an esd on every
+    heavy-atom coordinate."""
+    ref, result = free_control
+    assert result.status == "converged"
+    assert result.statistics.rwp < 0.07, result.statistics.rwp
+    esds = [e for _, es in _heavy(ref.fitted_structure.phases[0]).values() for e in es]
+    assert len(esds) == 3 * len(HEAVY) and all(e and e > 0.0 for e in esds)
+    assert (OUT / "acridine_ix_free_control_table.md").exists()

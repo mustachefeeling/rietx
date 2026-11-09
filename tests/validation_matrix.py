@@ -2895,6 +2895,18 @@ CLAIMS: tuple[Claim, ...] = (
         measured="4 rows, every |delta| 0.00000",
     ),
     Claim(
+        "test_acceptance_acridine_ix", "test_the_free_atom_control_converges_and_is_recorded_against_the_body",
+        "acridine_ix", ("own_result",),
+        "the free-atom control (14 heavy atoms free, unrestrained, H held at "
+        "the deposit) converges under the body's protocol with an esd on "
+        "every coordinate; its comparison with the body is a record while "
+        "the bar is open",
+        reference="the body's own fit of the same pattern and protocol",
+        measured="Rwp 0.057795 against the body's 0.058424; body minus free "
+                 "worst 1.96, median 0.74 of the control's esds over 42 "
+                 "components (probe, 2026-11-09)",
+    ),
+    Claim(
         "test_acceptance_acridine_ix", "test_a_perturbed_start_reaches_the_same_minimum",
         "acridine_ix", ("own_result", "ceiling"),
         "the deposited pose and one turned 10 deg and shifted 0.3 A (atoms "

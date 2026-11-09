@@ -1716,6 +1716,16 @@ WP-1806 part 1: what the rigid body itself owns, on acridine form IX (COD 224287
 
 **Measured:** 4 rows, every |delta| 0.00000
 
+#### `test_the_free_atom_control_converges_and_is_recorded_against_the_body`
+
+`own_result` · dataset `acridine_ix`
+
+**Claims:** the free-atom control (14 heavy atoms free, unrestrained, H held at the deposit) converges under the body's protocol with an esd on every coordinate; its comparison with the body is a record while the bar is open
+
+**Referenced to:** the body's own fit of the same pattern and protocol
+
+**Measured:** Rwp 0.057795 against the body's 0.058424; body minus free worst 1.96, median 0.74 of the control's esds over 42 components (probe, 2026-11-09)
+
 #### `test_a_perturbed_start_reaches_the_same_minimum`
 
 `own_result` `ceiling` · dataset `acridine_ix` · survives 2 starts
