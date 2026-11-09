@@ -686,3 +686,22 @@ def test_one_window_across_two_axes_is_refused(patterns):
     assert min(result.histograms[0].tof) >= 10000.0
     assert max(result.histograms[0].tof) <= 30000.0
     assert min(result.histograms[1].two_theta) >= 20.0
+
+
+def test_the_sigma_message_states_the_weight_as_the_ratio_squared():
+    """ratio = scatter/σ, and a point's weight is 1/σ², so the weight a bank
+    carries over the weight its scatter justifies is ratio², not 1/ratio²: σ
+    twice the scatter (ratio 0.5) gives the bank a quarter of its due."""
+    from types import SimpleNamespace
+
+    from rietx.report.tof_banks import sigma_suspect
+
+    rng = np.random.default_rng(3)
+    n = 4000
+    y = 100.0 + 0.5 * 10.0 * rng.standard_normal(n)
+    model = SimpleNamespace(n_points=n, flat_windows=[], y_obs=y,
+                            sigma=np.full(n, 10.0))
+    (d,) = sigma_suspect(0, model, np.full(n, 100.0), measured=True)
+    assert d.value == pytest.approx(0.5, abs=0.03)
+    assert f"carries {d.value ** 2:.2g} × the weight its counts justify" in d.message
+    assert d.value ** 2 < 0.3

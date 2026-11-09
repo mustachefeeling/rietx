@@ -409,7 +409,7 @@ def sigma_suspect(h: int, model, y_calc, *, measured: bool) -> list[Diagnostic]:
         message=(f"Histogram {h}'s channel-to-channel scatter off the reflections is "
                  f"{ratio:.3g} × its esd column (lags {SIGMA_LAGS[0]}-{SIGMA_LAGS[-1]} "
                  f"channels). A joint fit weights each point by 1/σ², so this bank "
-                 f"carries {1 / ratio ** 2:.2g} × the weight its counts justify "
+                 f"carries {ratio ** 2:.2g} × the weight its counts justify "
                  f"against the others. Measured 0.92-1.28 on HRPD banks; untested "
                  f"beyond HRPD."),
         suggestion=("check how the bank's σ was propagated through reduction "
