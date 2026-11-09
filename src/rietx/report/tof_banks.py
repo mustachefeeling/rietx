@@ -42,7 +42,10 @@ MISFIT_SHARE = 0.5
 #: … and its reduced χ² is more than this factor above the others' median.  A
 #: sharper or better-counted bank legitimately shows a larger χ²_red (Toby 2006,
 #: *Powder Diffr.* 21, 67, p. 69), so the factor keeps the ordinary spread of
-#: reduced χ² across HRPD banks (1.0-1.3 on the 2026-11-06 Si fits) out.
+#: reduced χ² across HRPD banks (1.0-1.3 on the 2026-11-06 Si fits) out.  On
+#: one GEM pattern (2026-11-09) the two best-counted banks read 2.26 and 2.42
+#: with no single-bank cause; the code stayed silent there only because
+#: neither held a majority of the excess χ² (:data:`MISFIT_SHARE`).
 MISFIT_CHI2_RATIO = 2.0
 #: ``BANK_CELL_INCONSISTENT`` fires above this |Δd/d| as well as above
 #: :data:`INCONSISTENT_SIGMA` esds: the HRPD era-to-era calibration scatter is
