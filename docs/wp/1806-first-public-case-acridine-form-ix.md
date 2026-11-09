@@ -1,6 +1,6 @@
 # WP-1806 — first public case: acridine form IX
 
-Milestone: rigid-bodies · Status: 🔄 2026-11-06 — Part 1 merged (PR #1416); open: Part 2, the free-atom control
+Milestone: rigid-bodies · Status: 🔄 2026-11-09 — Part 1 merged (PR #1416); Part 2 started on branch wp1806-free-atom-control (cell record rows); open: the free-atom control test
 Depends on: 1805
 Priority: P3 2026-10-23 — the first real-data proof of the body; 1810 closed without it (PR #955), and 1989 waits on it soft for its public case and pdCIF reader
 
@@ -131,7 +131,7 @@ of issue #561, sized M.
 - [x] Part 1: a simulated known answer is recovered, and a regular-hexagon template fails
 - [x] Part 1: the per-atom table goes to `tests/output/` as a record
 - [ ] Part 2: the free-atom control under the same profile and background, compared with the body atom by atom
-- [ ] Part 2: the cell joins the per-atom record table (|Δ|, published esd, rietx esd, ratio), asserting nothing
+- [x] Part 2: the cell joins the per-atom record table (|Δ|, published esd, rietx esd, ratio), asserting nothing
 - [ ] Skill: none expected; say why at handover
 
 ## Acceptance
@@ -148,6 +148,35 @@ of issue #561, sized M.
 - Issue #561; PR #596.
 
 ## Handover log
+
+- **2026-11-09** — A ghostshift runner's partial session; no PR. *Landed* on branch
+  `wp1806-free-atom-control`: the cell joins the record table. `_deposit_table` ends with one
+  row per free P2₁/n parameter (a, b, c, β: |Δ|, published esd, rietx esd, ratio), asserting
+  nothing. A fast test pins the record's shape at the deposit, with its validation-matrix row
+  and a regenerated `docs/VALIDATION.md`.
+
+  *Measured, not yet a test* (probe on this branch's tree, `[dev]`, macOS arm64, Python 3.12;
+  one fit each from the deposited start). The free-atom control is the body's plan with the
+  pose globs replaced by the 14 heavy atoms' `dof.*`. It is unrestrained, and its H atoms are
+  held at the deposited positions, because riding exists only inside a body. It converged at
+  Rwp 0.057795 in about 18 s; the body gave 0.058424. Mean Δz from the deposit was −0.00069
+  (fractional, about −0.0046 Å) for the body and −0.00048 (about −0.0032 Å) for the free atoms.
+  So the free atoms show the body's shift along c, same sign and about 70 % of it. Body minus
+  free, per component, in the free atoms' own esds: worst 1.96 (C8 y), median 0.74, over 42
+  components. Per atom, 0.012 to 0.029 Å. The cell rows of the free fit ran 0.34 to 1.00 of
+  max(published, rietx) esd.
+
+  *Next:* turn the probe into the Part 2 test. Add a `free_control` module fixture to
+  `tests/test_acceptance_acridine_ix.py` (reuse `_fit` with a pose-glob argument), a
+  body-vs-free per-atom table to `tests/output/`, and the obs/calc/diff PNG through `_draw`.
+  Then a validation-matrix row and a handover.
+
+  *Open, for Yue:* (1) the bar. The ruling names no number for "the same shift". A reading off
+  the control's own esds: the free mean-Δz esd is about σ_z/√14 ≈ 0.0006, so body − free on the
+  mean, −0.0002, is about 0.3 of it. Per atom, a bound in free-atom esds (worst 1.96 now) would
+  be the alternative. (2) H held at the deposit in the control, against omitting them or riding
+  them some other way. (3) No restraints were needed for the free fit to converge; the test
+  should say so.
 
 - **2026-11-07** — Yue ruled on Acceptance's "the cell matches the published cell": it
   goes, and the cell joins the per-atom record table, asserting nothing. Grounds, from the
