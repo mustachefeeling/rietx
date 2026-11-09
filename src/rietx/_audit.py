@@ -632,10 +632,13 @@ ROWS: tuple[Row, ...] = (
         responds=("check the outlying bank's absorption and normalisation before reading its "
                   "displacement parameters")),
     Row("BANK_SIGMA_SUSPECT", "code", tier=3, ambiguity=3,
-        evidence=("statistic: median over lags 1-3 of std of lag-k differences of y - y_calc "
+        evidence=("statistic: median over lags 2-3 of std of lag-k differences of y - y_calc "
                   "over propagated sigma, on channels outside every frozen reflection window; "
-                  "band [0.8, 1.25]; measured 0.92-1.04 on the HRPD Si banks and 1.0-1.28 on "
-                  "LaTaO4 (the 2026-11-06 multi-bank practice survey (planning TOF_MULTIBANK_PRACTICE, § 5.3)), 1.00-1.01 on the synthetic Poisson pair"),
+                  "band [0.7, 1.25]; measured 0.92-1.04 on the HRPD Si banks and 1.0-1.28 on "
+                  "LaTaO4 (the 2026-11-06 multi-bank practice survey (planning TOF_MULTIBANK_PRACTICE, § 5.3)), 1.00-1.01 on the synthetic Poisson pair; "
+                  "0.77-0.87 on ordinarily reduced GEM (two banks of one pattern) and WISH "
+                  "(five bank pairs, MnNdMnSbO6, DataShare 10.7488/ds/1408) banks, 2026-11-09; "
+                  "ISIS only"),
         grounds=("A joint fit's inter-bank balance is the sigma column; a sigma that is not "
                  "the scatter misweights a bank silently."),
         response="warning",
@@ -4056,19 +4059,29 @@ ROWS: tuple[Row, ...] = (
                  "out of a warning.")),
     Row("rietx.report.tof_banks.MISFIT_SHARE", "constant", tier=1, value=0.5,
         evidence=("arithmetic: 'dominates' is a majority of the summed positive excess chi2")),
-    Row("rietx.report.tof_banks.SIGMA_LAGS", "constant", tier=3, value=(1, 2, 3),
+    Row("rietx.report.tof_banks.SIGMA_LAGS", "constant", tier=3, value=(2, 3),
         evidence=("the survey's shortest lags (sigma_check.py ran 1-20 after removing a "
                   "smoothed baseline); here the difference is of y - y_calc, and on the HRPD "
                   "Si banks (chi2_red 12-13) the ratio is 1.00 at lag 1 and 2.1-2.2 at lag 20, "
-                  "the model's misfit between peaks"),
-        grounds=("Short lags cancel a smooth misfit and still see the correlation a "
-                 "smoothing leaves.")),
+                  "the model's misfit between peaks; lag 1 left out because on ordinarily "
+                  "reduced GEM and WISH banks (2026-11-09) it read 0.52-0.77 against "
+                  "0.75-0.89 at lags 2-3, the neighbour correlation rebinning leaves"),
+        grounds=("Short lags cancel a smooth misfit; lag 1 reads the correlation "
+                 "rebinning puts between neighbouring channels, which is not a sigma "
+                 "error.")),
     Row("rietx.report.tof_banks.SIGMA_MIN_PAIRS", "constant", tier=3, value=50,
-        evidence=("the survey's floor (sigma_check.py) under which a lag is not read"),
+        evidence=("the survey's floor (sigma_check.py) under which a lag is not read; a "
+                  "coverage gap on dense patterns: on one two-phase GEM pattern (2026-11-09) "
+                  "3 of 5 banks offer fewer peak-free pairs (39, 0, 0), so the code is silent "
+                  "there by construction"),
         grounds=("Fewer pairs give a ratio whose own scatter (~1/sqrt(2n)) exceeds the band.")),
-    Row("rietx.report.tof_banks.SIGMA_RATIO_BAND", "constant", tier=3, value=(0.8, 1.25),
-        evidence=("HRPD Si 0.92-1.04, LaTaO4 1.0-1.28 (2026-11-06 survey, § 1.3); HRPD only"),
-        grounds=("Outside it a bank's 1/sigma^2 weight is off by more than 1.5x.")),
+    Row("rietx.report.tof_banks.SIGMA_RATIO_BAND", "constant", tier=3, value=(0.7, 1.25),
+        evidence=("HRPD Si 0.92-1.04, LaTaO4 1.0-1.28 (2026-11-06 survey, § 1.3); GEM (two "
+                  "banks of one pattern) and WISH (five bank pairs, MnNdMnSbO6, DataShare "
+                  "10.7488/ds/1408) ordinary reductions 0.77-0.87 at lags 2-3 (2026-11-09), "
+                  "which the earlier 0.8 lower edge flagged; ISIS only"),
+        grounds=("Outside it a bank carries more than about 1.5x, or less than about half, "
+                 "the 1/sigma^2 weight its scatter justifies.")),
     Row("rietx.report.texture._BLOCK_ELEMENTS", "constant", tier="invariant",
         evidence="Answer-invariant by construction: a memory bound that only partitions "
                  "the r grid (WP-1335); "
