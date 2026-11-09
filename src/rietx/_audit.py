@@ -4054,7 +4054,11 @@ ROWS: tuple[Row, ...] = (
                   "PEAK_MASK_SIGMA; no source for 3 here"),
         grounds=("Two consistency codes read a difference only past three esds.")),
     Row("rietx.report.tof_banks.MISFIT_CHI2_RATIO", "constant", tier=3, value=2.0,
-        evidence=("the survey's proposal; HRPD Si chi2_red 1.0-1.3 across banks stays under it"),
+        evidence=("the survey's proposal; HRPD Si chi2_red 1.0-1.3 across banks stays under it; "
+                  "on one GEM pattern (2026-11-09) the two best-counted banks read 2.26 and "
+                  "2.42 with no single-bank cause, silent only through the MISFIT_SHARE gate "
+                  "(largest share 0.38), and WISH read 1.2-1.4; two banks are too few to "
+                  "retune on"),
         grounds=("Keeps the ordinary spread of reduced chi2 across banks (Toby 2006 p. 69) "
                  "out of a warning.")),
     Row("rietx.report.tof_banks.MISFIT_SHARE", "constant", tier=1, value=0.5,
