@@ -414,6 +414,9 @@ def sigma_suspect(h: int, model, y_calc, *, measured: bool) -> list[Diagnostic]:
     lo, hi = SIGMA_RATIO_BAND
     if ratio is None or lo <= ratio <= hi:
         return []
+    # a residual with no channel-to-channel scatter at all (noiseless or
+    # synthetic counts) has ratio exactly 0: the bank carries none of the
+    # weight its scatter justifies, and nothing is divided by the ratio
     return [Diagnostic(
         level="warning", code="BANK_SIGMA_SUSPECT", where=[f"hist.{h}"], value=ratio,
         message=(f"Histogram {h}'s channel-to-channel scatter off the reflections is "
