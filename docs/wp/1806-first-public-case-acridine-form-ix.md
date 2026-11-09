@@ -155,7 +155,7 @@ of issue #561, sized M.
   nothing. A fast test pins the record's shape at the deposit, with its validation-matrix row
   and a regenerated `docs/VALIDATION.md`.
 
-  *Measured, not yet a test* (probe on this branch's tree, `[dev]`, macOS arm64, Python 3.12;
+  *Measured* (probe on this branch's tree, `[dev]`, macOS arm64, Python 3.12;
   one fit each from the deposited start). The free-atom control is the body's plan with the
   pose globs replaced by the 14 heavy atoms' `dof.*`. It is unrestrained, and its H atoms are
   held at the deposited positions, because riding exists only inside a body. It converged at
@@ -166,10 +166,16 @@ of issue #561, sized M.
   components. Per atom, 0.012 to 0.029 Å. The cell rows of the free fit ran 0.34 to 1.00 of
   max(published, rietx) esd.
 
-  *Next:* turn the probe into the Part 2 test. Add a `free_control` module fixture to
-  `tests/test_acceptance_acridine_ix.py` (reuse `_fit` with a pose-glob argument), a
-  body-vs-free per-atom table to `tests/output/`, and the obs/calc/diff PNG through `_draw`.
-  Then a validation-matrix row and a handover.
+  *Also landed, later the same session:* the probe became the `free_control` fixture (`_fit`
+  takes a `pose` argument). It draws its obs/calc/diff PNG and writes body against free per
+  component to `tests/output/acridine_ix_free_control_table.md`.
+  `test_the_free_atom_control_converges_and_is_recorded_against_the_body` asserts only
+  convergence, Rwp < 0.07 and an esd on every heavy-atom coordinate. It passed with
+  `tests/test_validation_matrix.py` (781 passed, 50 s, `[dev]`, macOS arm64). It has a matrix row.
+
+  *Next:* the body-vs-free assertion, once Yue rules on the bar below. Then the open
+  "acceptance test + PNGs" task can be ticked, with a full `-m slow` run of this file and a
+  `/wp-handover`.
 
   *Open, for Yue:* (1) the bar. The ruling names no number for "the same shift". A reading off
   the control's own esds: the free mean-Δz esd is about σ_z/√14 ≈ 0.0006, so body − free on the
