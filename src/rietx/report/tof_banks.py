@@ -54,14 +54,21 @@ CELL_SCALE_TOLERANCE = 2e-4
 INCONSISTENT_SIGMA = 3.0
 #: ``BANK_SIGMA_SUSPECT``'s band on (lag-difference scatter)/(propagated σ).
 #: Measured 0.92-1.04 on the three HRPD Si banks and 1.0-1.28 on the LaTaO4
-#: banks (2026-11-06 survey, § 1.3): HRPD only, untested beyond it.
-SIGMA_RATIO_BAND = (0.8, 1.25)
+#: banks (2026-11-06 survey, § 1.3), and 0.77-0.87 at lags 2-3 on ordinarily
+#: reduced GEM and WISH banks (2026-11-09: two GEM banks of one pattern, five
+#: WISH bank pairs), which is why the lower edge is 0.7: ISIS only, untested
+#: beyond it.
+SIGMA_RATIO_BAND = (0.7, 1.25)
 #: The lags of the σ test, in channels.  Short, because the difference is of
 #: y − y_calc and a fitted model misfits between peaks: on the HRPD Si banks
 #: (χ²_red 12-13) the ratio is 1.00 at lag 1 and rises to 2.1-2.2 at lag 20,
 #: which is the misfit's structure and not σ (2026-11-06, T-5 acceptance).
-SIGMA_LAGS = (1, 2, 3)
-#: Pairs a lag needs before it is read.
+#: Not lag 1: on GEM and WISH it read 0.52-0.77 against 0.75-0.89 at lags 2-3,
+#: the neighbour correlation that rebinning leaves, not a σ error (2026-11-09).
+SIGMA_LAGS = (2, 3)
+#: Pairs a lag needs before it is read.  A coverage gap, not only a guard: on a
+#: dense two-phase GEM pattern 3 of 5 banks offer fewer (39, 0 and 0 peak-free
+#: pairs), so the test is silent on them by construction (2026-11-09).
 SIGMA_MIN_PAIRS = 50
 #: Relative step of the central difference giving a bank's ∂y/∂ln DIFC column.
 DIFC_STEP = 1e-5
@@ -410,8 +417,8 @@ def sigma_suspect(h: int, model, y_calc, *, measured: bool) -> list[Diagnostic]:
                  f"{ratio:.3g} × its esd column (lags {SIGMA_LAGS[0]}-{SIGMA_LAGS[-1]} "
                  f"channels). A joint fit weights each point by 1/σ², so this bank "
                  f"carries {ratio ** 2:.2g} × the weight its counts justify "
-                 f"against the others. Measured 0.92-1.28 on HRPD banks; untested "
-                 f"beyond HRPD."),
+                 f"against the others. Measured 0.92-1.28 on HRPD banks and "
+                 f"0.77-0.87 on GEM and WISH banks; untested beyond ISIS."),
         suggestion=("check how the bank's σ was propagated through reduction "
                     "(rebinning, smoothing, a σ written as √y on normalised data) "
                     "before quoting the joint esds"))]
