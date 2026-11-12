@@ -215,7 +215,9 @@ TOF = DIFC·d + …, so DIFC and the cell's scale trade exactly, as λ and the c
 With a shared cell free, at most N − 1 of the banks' DIFC values may be free, and the refusal counts them (`2 of 2 bank DIFCs are free beside a free cell; hold one`).
 Hold the highest-angle bank's DIFC: a sample-position error moves the bank nearest 180° least (McCusker et al. 1999, p. 45).
 Hold that bank's `profile_tof.alpha1` too while the other banks' DIFC values are free: α = α₀ + α₁/d moves each peak by about −d/α₁, in proportion to d as DIFC does, so a free α₁ on the held bank unpins the cell's scale again, and `FLAT_DIRECTION` names the cell against that α₁ (ρ = −1).
-A scan with its λ held pins the scale too, and a held certified cell lets every DIFC refine.
+A scan with its λ held pins the scale too.
+So does a phase whose cell is held, a certified standard, in every bank it is seen in: a standard and a sample fitted together may free each such bank's DIFC beside the sample's free cell.
+A free DIFC is refused when no held DIFC, held cell or scan shares a phase with its bank, and the refusal names that DIFC.
 Calibrations are held from a standard by default; free a bank's DIFC (or TZERO) with a scoped path such as `hist.1.instrument.source.difc` when the banks disagree.
 
 ### What the result says about its banks

@@ -123,67 +123,188 @@ def _is_cell_length(path: str) -> bool:
     return ".cell." in path and path.rsplit(".", 1)[-1] in ("a", "b", "c")
 
 
+def _metric_paths(k: int) -> tuple[str, str]:
+    """The path prefixes that set phase ``k``'s d scale: its cell, or a parent's."""
+    return (f"phases.{k}.cell.", f"phases.{k}.parent_cell.")
+
+
+def _metric_free(free: set[str], h: int, k: int) -> bool:
+    """Whether a free column moves phase ``k``'s d scale in histogram ``h``.
+
+    A shared column arrives bare and moves it in every histogram; a
+    per-histogram one arrives as ``hist.{h}.…`` and moves it in that one only.
+    """
+    prefixes = _metric_paths(k)
+    scoped = f"hist.{h}."
+    for p in free:
+        if p.startswith("hist.") and not p.startswith(scoped):
+            continue
+        tail = _unscoped(p)
+        if tail.startswith(prefixes) and (
+                _is_cell_length(tail) or tail.startswith(prefixes[1])):
+            return True
+    return False
+
+
+def _metric_held(table: ParameterTable, k: int) -> bool:
+    """Whether phase ``k``'s cell lengths are **held** in ``table``: its d scale is known.
+
+    Every cell-length row is fixed, and none is set from outside the cell: a
+    tie to anything but the phase's own cell (a cubic b ← a stays inside it),
+    or a derived block's output (a parent cell, a formula), leaves the scale to
+    something else, which this function does not chase and so does not count.
+    """
+    own = f"phases.{k}.cell."
+    derived = {p for block in table.derived for p in block.outputs}
+    rows = [e for e in table.entries
+            if e.path.startswith(own) and _is_cell_length(e.path)]
+    if not rows:
+        return False
+    for e in rows:
+        if e.vary or e.path in derived:
+            return False
+        if e.tie is not None and not all(src.startswith(own) for src, _ in e.tie.terms):
+            return False
+    return True
+
+
+def _present(mtable: "MultiParameterTable", free: set[str], h: int, k: int) -> bool:
+    """Whether phase ``k`` contributes to histogram ``h``: a non-zero or a free scale.
+
+    A joint fit of a standard and a sample lists every phase in every
+    histogram and holds the absent one's scale at zero.
+    """
+    phase = mtable.structures[h].phases[k]
+    return (phase.scale.value != 0.0 or f"hist.{h}.phases.{k}.scale" in free
+            or f"phases.{k}.scale" in free)
+
+
 def check_calibration_freedom(mtable: "MultiParameterTable",
                               combined_paths: list[str], *,
                               cell_shared: bool = True) -> None:
-    """Refuse every bank's DIFC free beside a free cell (T-5b).
+    """Refuse a bank DIFC free when nothing in the fit holds its d scale (T-5b).
 
     The time-of-flight form of :func:`~rietx.params.vector.check_wavelength_freedom`.
     A bank measures TOF = DIFC·d + DIFA·d² + TZERO + DIFB/d, so on one bank
-    DIFC and the cell's scale are one product, as λ and the cell are on a
-    constant-wavelength pattern.  Across N banks sharing one cell, holding one
-    bank's DIFC pins the scale and the other N − 1 are measurable against it:
-    "allowing all diffractometer constants, except that of the highest-angle
-    detectors, to vary simultaneously with the lattice parameters" (McCusker
-    et al. 1999, *J. Appl. Cryst.* 32, 36, p. 45).  Freeing all of them
-    restores the flat direction.  DIFA and DIFB break it only through the
-    curvature of the calibration, which is the near-flat direction this rule
-    exists to keep out of an answer, so only DIFC is counted; TZERO is an offset
-    and no scale, and every bank may free one.
+    DIFC and the d scale of every phase it sees enter as one product:
+    DIFC·(1 + ε) against d/(1 + ε) leaves every position unchanged.  The scale
+    is **pinned** in a bank by anything there whose d spacings are known:
 
-    The scale may also be pinned by a constant-wavelength histogram whose
-    wavelength is held (a mixed list), which ``check_wavelength_freedom``
-    already guarantees whenever the list has one.  So the refusal fires only
-    when a cell length is free, every bank's DIFC is free and no
-    constant-wavelength histogram is in the list.  With the cell per-histogram
-    every free DIFC beside its own free cell is refused, the
-    ``cell_shared=False`` arm of the wavelength rule.
+    * a held DIFC, or
+    * a phase present in the bank whose cell is held (a certified standard),
+      whose peaks then measure the DIFC, as in a single-bank calibration.
+
+    A free cell shared across histograms carries a pinned scale to every bank
+    that phase appears in, and that bank's DIFC is then measurable against it.
+    A constant-wavelength scan pins the phases it sees, because
+    ``check_wavelength_freedom`` guarantees a held λ whenever the list has one.
+
+    **The rule:** link each bank's DIFC to the free cell of every phase present
+    in it (one DIFC column when the DIFC is shared, one cell column per phase
+    when the cell is shared, else per histogram).  A set of linked columns that
+    reaches no pinned bank and no scan can be scaled together, DIFCs by
+    1/(1 + ε) and cells by 1 + ε, with every position unchanged: an exactly
+    flat direction, refused by name.  Any other free DIFC is a measurement.
+
+    Across N banks of one specimen sharing one cell, with no standard, this is
+    the N − 1 rule: "allowing all diffractometer constants, except that of the
+    highest-angle detectors, to vary simultaneously with the lattice
+    parameters" (McCusker et al. 1999, *J. Appl. Cryst.* 32, 36, p. 45).  With
+    a standard's cell held, every DIFC of a bank that sees the standard is
+    free to refine beside a sample's free cell, the standard-plus-sample joint
+    fit.  DIFA and DIFB break the flat direction only through the curvature of
+    the calibration, which is the near-flat direction this rule exists to keep
+    out of an answer, so only DIFC is counted; TZERO is an offset and no scale,
+    and every bank may free one.  A phase whose cell is set by a tie or a
+    derived block is neither a pin nor a link here.
     """
     kinds = [ins.source.kind for ins in mtable.instruments]
     banks = [h for h, k in enumerate(kinds) if k == "neutron_tof"]
     if not banks:
         return
-    cell_free = any(_is_cell_length(_unscoped(p)) for p in combined_paths)
-    if not cell_free:
-        return
     free = set(combined_paths)
+    if not any(_is_cell_length(_unscoped(p)) for p in combined_paths):
+        return
+    difc_shared = mtable.sharing.is_shared(DIFC_PATH)
 
     def difc_free(h: int) -> bool:
-        return (DIFC_PATH in free and mtable.sharing.is_shared(DIFC_PATH)) or \
-            f"hist.{h}.{DIFC_PATH}" in free
+        return (DIFC_PATH in free and difc_shared) or f"hist.{h}.{DIFC_PATH}" in free
 
     free_banks = [h for h in banks if difc_free(h)]
     if not free_banks:
         return
+
+    parent: dict[tuple, tuple] = {}
+
+    def find(x: tuple) -> tuple:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: tuple, b: tuple) -> None:
+        parent[find(a)] = find(b)
+
+    pinned = ("pinned",)
+
+    def difc_col(h: int) -> tuple:
+        return ("difc",) if difc_shared else ("difc", h)
+
+    def cell_col(h: int, k: int) -> tuple:
+        return ("cell", k) if cell_shared else ("cell", h, k)
+
+    free_cells: set[tuple] = set()
+    for h, kind in enumerate(kinds):
+        bank_h = kind == "neutron_tof"
+        if bank_h and not difc_free(h):
+            union(difc_col(h), pinned)
+        for k in range(len(mtable.structures[h].phases)):
+            if not _present(mtable, free, h, k):
+                continue
+            if _metric_free(free, h, k):
+                free_cells.add(cell_col(h, k))
+                union(cell_col(h, k), difc_col(h) if bank_h else pinned)
+            elif bank_h and _metric_held(mtable.tables[h], k):
+                union(difc_col(h), pinned)
+
+    root_pinned = find(pinned)
+    flat = [h for h in free_banks if find(difc_col(h)) != root_pinned
+            and any(find(c) == find(difc_col(h)) for c in free_cells)]
+    if not flat:
+        return
+    names = {k: mtable.structures[0].phases[k].name or f"phase {k}"
+             for c in free_cells for k in [c[-1]]
+             if any(find(c) == find(difc_col(h)) for h in flat)}
+    standard = ("or include a phase with a held cell (a certified standard) in "
+                "one of these banks")
     if not cell_shared:
         raise ValueError(
-            f"hist.{free_banks[0]}.{DIFC_PATH} cannot vary while the cell is "
+            f"hist.{flat[0]}.{DIFC_PATH} cannot vary while the cell is "
             f"per-histogram and free: TOF = DIFC·d, so a bank's DIFC beside its "
             f"own free cell is one product, an exactly flat direction. Share the "
-            f"cell (SharingMap's default does) or hold the DIFC")
-    if len(free_banks) < len(banks) or len(banks) < len(kinds):
-        return
+            f"cell (SharingMap's default does), hold the DIFC, {standard}")
     angles = {h: mtable.instruments[h].source.two_theta_bank_deg for h in banks}
-    ref = max(banks, key=lambda h: angles[h])
+    ref = max(flat, key=lambda h: angles[h])
+    if len(flat) == len(banks) and len(banks) == len(kinds):
+        raise ValueError(
+            f"{len(free_banks)} of {len(banks)} bank DIFCs are free beside a free "
+            f"cell; hold one. TOF = DIFC·d, so scaling every DIFC and the cell "
+            f"together leaves every position unchanged: across banks sharing one "
+            f"cell, one held DIFC pins the scale and the other N − 1 are measurable "
+            f"against it. Hold hist.{ref}.{DIFC_PATH} (the highest-angle bank, "
+            f"2θ = {angles[ref]:g}°, least sensitive to the sample position: "
+            f"McCusker et al. 1999, p. 45) and leave the others free, hold the "
+            f"cell, {standard}.")
+    paths = ", ".join(f"hist.{h}.{DIFC_PATH}" for h in flat)
     raise ValueError(
-        f"{len(free_banks)} of {len(banks)} bank DIFCs are free beside a free "
-        f"cell; hold one. TOF = DIFC·d, so scaling every DIFC and the cell "
-        f"together leaves every position unchanged: across banks sharing one "
-        f"cell, one held DIFC pins the scale and the other N − 1 are measurable "
-        f"against it. Hold hist.{ref}.{DIFC_PATH} (the highest-angle bank, "
-        f"2θ = {angles[ref]:g}°, least sensitive to the sample position: "
-        f"McCusker et al. 1999, p. 45) and leave the others free, or hold the "
-        f"cell.")
+        f"{paths} {'is' if len(flat) == 1 else 'are'} free beside the free cell "
+        f"of {', '.join(sorted(names.values()))}, and no held DIFC, held cell or "
+        f"held-wavelength scan shares a phase with "
+        f"{'that bank' if len(flat) == 1 else 'those banks'}: TOF = DIFC·d, so "
+        f"scaling {'it' if len(flat) == 1 else 'them'} and that cell together "
+        f"leaves every position unchanged. Hold hist.{ref}.{DIFC_PATH}, hold the "
+        f"cell, {standard}.")
 
 
 def size_value_scales(structure: Structure, instruments: list[Instrument],

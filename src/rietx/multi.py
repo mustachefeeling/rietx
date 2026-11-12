@@ -17,8 +17,10 @@ resolution and channel width, and one structure, so a histogram here is a
 the single fit's routing point, and a list may mix banks with constant-wavelength
 scans.  Per bank: scale, background, calibration, ``ProfileTOF``; shared: the
 structure, extinction and the sample widths, a size converted between a bank's
-Å⁻¹ and a scan's degrees (``params.multi.size_unit``).  At most N − 1 bank DIFCs
-are free beside a free cell (``params.multi.check_calibration_freedom``), and
+Å⁻¹ and a scan's degrees (``params.multi.size_unit``).  A bank DIFC is free
+only where something holds the d scale: another bank's held DIFC (at most
+N − 1 free beside a free cell), a phase with a held cell seen in that bank,
+or a scan (``params.multi.check_calibration_freedom``), and
 :mod:`rietx.report.tof_banks` says which bank determined which number and
 whether the banks agree.
 

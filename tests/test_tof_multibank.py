@@ -498,6 +498,134 @@ def test_one_held_reference_bank_recovers_the_offset_and_the_cell(offset_pattern
 
 
 # ----------------------------------------------------------------------
+# 4b. a held-cell standard anchors its bank (the standard-plus-sample joint fit)
+# ----------------------------------------------------------------------
+# Interpretation table, written before the arms ran:
+#
+# | arm      | the fit                                       | expected        | a miss would mean                    |
+# |----------|-----------------------------------------------|-----------------|--------------------------------------|
+# | positive | Si cell held + CeO2 cell free + one DIFC      | admitted; the   | the rule still refuses a standard    |
+# |          | shared by the Si and CeO2 runs, free          | planted DIFC    | beside a sample, or the pair cannot  |
+# |          |                                               | back within 3σ  | carry a calibration                  |
+# | negative | the same with the Si cell freed               | refused, naming | the rule lost its teeth: the shared  |
+# |          |                                               | the count       | DIFC and both cells are one product  |
+# | apart    | per-run DIFCs; Si (held) only in run 0, CeO2  | refused, naming | the standard's pin leaked to a bank  |
+# |          | (free) only in run 1                          | hist.1's DIFC   | that shares no phase with it         |
+#
+#: CeO2's generating cell, near ceria's, compared against nothing here.
+A_CEO2 = 5.4111
+
+#: Both runs are on one bank (the 90° one), which put every peak where a DIFC
+#: 1.5e-3 smaller than the file's does; the fit starts from the file's.
+DIFC_PLANTED = BANK_90["difc"] * (1.0 + POSITION_OFFSET)
+
+
+def ceria(a: float = A_CEO2) -> Phase:
+    """CeO2, Fm-3m: Ce on 4a, O on 8c, no free coordinate."""
+    return Phase(
+        name="CeO2", space_group="F m -3 m",
+        cell=Cell(a=P(value=a), b=P(value=a), c=P(value=a),
+                  alpha=P(value=90.0), beta=P(value=90.0),
+                  gamma=P(value=90.0)),
+        scale=P(value=1.0, min=0.0),
+        atoms=[Atom(label="Ce", species="Ce", x=P(value=0.0), y=P(value=0.0),
+                    z=P(value=0.0), biso=P(value=0.4, min=0.0, max=5.0)),
+               Atom(label="O", species="O", x=P(value=0.25), y=P(value=0.25),
+                    z=P(value=0.25), biso=P(value=0.6, min=0.0, max=5.0))])
+
+
+def _standard_and_sample(si_scale: float, ceo2_scale: float, *,
+                         ceo2_a: float = A_CEO2) -> Structure:
+    """Both phases in one run's structure; the absent one's scale is zero."""
+    si = silicon().phases[0]
+    si.scale.value = si_scale
+    ce = ceria(ceo2_a)
+    ce.scale.value = ceo2_scale
+    return Structure(phases=[si, ce])
+
+
+def _run(structure: Structure, *, seed: int) -> PatternData:
+    """One run on the 90° bank at the planted DIFC, from ``structure``."""
+    from rietx.model.forward_tof import compile_tof_model
+
+    lo, hi, step = GRID_90
+    x = np.arange(lo, hi + 0.5 * step, step)
+    blank = PatternData(tof=x.tolist(), intensity=[1.0] * len(x),
+                        intensity_basis="counts")
+    gen = bank(**dict(BANK_90, difc=DIFC_PLANTED))
+    gen.background.coefficients[0].value = 40.0
+    y = _poisson_from(compile_tof_model(structure, gen, blank), structure, gen, seed)
+    return PatternData(tof=x.tolist(), intensity=y.tolist(),
+                       sigma=np.sqrt(np.maximum(y, 1.0)).tolist(),
+                       intensity_basis="counts")
+
+
+@pytest.fixture(scope="module")
+def standard_and_sample_runs() -> list[PatternData]:
+    return [_run(_standard_and_sample(12.0, 0.0), seed=11),
+            _run(_standard_and_sample(0.0, 6.0), seed=12)]
+
+
+def _anchor_refinement(*, shared_difc: bool = True) -> rx.MultiHistogramRefinement:
+    from rietx.params.multi import DIFC_PATH, SharingMap
+
+    starts = [_standard_and_sample(SCALE_START, 0.0, ceo2_a=A_CEO2 * 1.002),
+              _standard_and_sample(0.0, SCALE_START, ceo2_a=A_CEO2 * 1.002)]
+    return rx.MultiHistogramRefinement(
+        starts, [bank(**BANK_90), bank(**BANK_90)],
+        sharing=SharingMap(shared=[DIFC_PATH]) if shared_difc else None)
+
+
+def _anchor_plan(*, si_cell_free: bool = False,
+                 difc: str = "instrument.source.difc") -> rx.RefinementPlan:
+    cells = ["phases.1.cell.a"] + (["phases.0.cell.a"] if si_cell_free else [])
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["hist.0.phases.0.scale", "hist.1.phases.1.scale",
+                               "instrument.background.c*"]),
+        rx.Stage("calibration", [difc]),
+        rx.Stage("cell", [*cells, difc]),
+    ])
+
+
+def test_a_held_standard_cell_anchors_a_shared_difc_beside_a_free_sample_cell(
+        standard_and_sample_runs):
+    """Positive arm: the Si cell held pins the d scale of the bank it is seen
+    on, so the DIFC that Si and CeO2 share is a calibration, and the CeO2 cell
+    beside it a measurement.  Before the anchor, this was refused."""
+    result = _anchor_refinement().fit(standard_and_sample_runs, plan=_anchor_plan(),
+                                      telemetry=False)
+    difc = result.parameter("instrument.source.difc")
+    assert abs(difc.value - DIFC_PLANTED) < 3.0 * difc.stderr
+    assert difc.value / BANK_90["difc"] - 1.0 == pytest.approx(POSITION_OFFSET,
+                                                               abs=5e-5)
+    a = result.parameter("phases.1.cell.a")
+    assert abs(a.value - A_CEO2) < 3.0 * a.stderr
+
+
+def test_the_same_pair_with_the_standard_cell_free_is_refused_by_name(
+        standard_and_sample_runs):
+    """Negative arm: free the Si cell too and nothing in the fit knows a d
+    spacing, so the shared DIFC and both cells are one product."""
+    with pytest.raises(ValueError, match=r"2 of 2 bank DIFCs are free beside a "
+                                         r"free cell; hold one\..*held cell"):
+        _anchor_refinement().fit(standard_and_sample_runs,
+                                 plan=_anchor_plan(si_cell_free=True),
+                                 telemetry=False)
+
+
+def test_a_standard_pins_only_the_banks_it_shares_a_phase_with(
+        standard_and_sample_runs):
+    """Per-run DIFCs, Si only in run 0 and CeO2 only in run 1: run 0's DIFC is
+    a calibration, but run 1's DIFC and the CeO2 cell are one product that no
+    held cell reaches, so that DIFC alone is refused."""
+    with pytest.raises(ValueError, match=r"hist\.1\.instrument\.source\.difc is "
+                                         r"free beside the free cell of CeO2"):
+        _anchor_refinement(shared_difc=False).fit(
+            standard_and_sample_runs,
+            plan=_anchor_plan(difc="instrument.source.difc"), telemetry=False)
+
+
+# ----------------------------------------------------------------------
 # 5. what the joint fit says about its banks (report.tof_banks)
 # ----------------------------------------------------------------------
 def _codes(result) -> dict[str, list]:
