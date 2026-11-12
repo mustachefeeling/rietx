@@ -13,12 +13,14 @@ Altomare
 [aA]ntiphase
 [aA]ntisite
 [aA]ragonite
+[aA]rXiv
 [aA]symptote
 [aA]ttenuator
 [aA]utodiff
 Avrami
 [bB]ackend
 [bB]ackends
+[bB]ackscattering
 [bB]anks'
 [bB]cc
 [bB]eamline
@@ -246,6 +248,7 @@ Olds
 [oO]rthorhombic
 [oO]xygens
 P1
+Paddison
 PANalytical
 [pP]arameterisation
 [pP]arameterisations

@@ -24,6 +24,7 @@ antiphase
 antisite
 aragonite
 attenuator
+backscattering
 bcc
 beamline
 beamstop
@@ -333,6 +334,7 @@ unscaled
 untransposed
 
 # Programs, libraries and formats.
+arXiv
 bintype
 bintypes
 Bruker
@@ -404,6 +406,9 @@ ulp
 
 # People the manual names (start/this-manual.md).
 Yue
+
+# Authors the diagnostics cite (rietx.help).
+Paddison
 
 # Authors the tutorials cite (examples/tutorials).
 Dal
