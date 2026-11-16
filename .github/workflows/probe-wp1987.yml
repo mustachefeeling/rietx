@@ -1,0 +1,37 @@
+# WP-1987 probe, on a fork-only branch: never merged.
+name: probe-wp1987
+on:
+  push:
+    branches: [wp1987-probe]
+  workflow_dispatch:
+jobs:
+  probe:
+    name: ${{ matrix.case }} ${{ matrix.arm }}
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [trigger, cpd-1a]
+        arm: [default, veclib1, openblas, openblas1]
+    defaults:
+      run:
+        shell: bash
+    env:
+      ARM: ${{ matrix.arm }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv venv --python 3.11
+      - run: uv pip install --python .venv/bin/python -e ".[dev]" threadpoolctl
+      - name: OpenBLAS numpy and scipy, same versions (the macOS 10.13 wheels)
+        if: startsWith(matrix.arm, 'openblas')
+        run: |
+          V=$(.venv/bin/python -c "import numpy,scipy;print(f'numpy=={numpy.__version__} scipy=={scipy.__version__}')")
+          echo "$V"
+          MACOSX_DEPLOYMENT_TARGET=13.0 uv pip install --python .venv/bin/python --reinstall-package numpy --reinstall-package scipy --python-platform x86_64-apple-darwin $V
+      - name: probe
+        run: |
+          if [ "$ARM" = veclib1 ]; then export VECLIB_MAXIMUM_THREADS=1; fi
+          if [ "$ARM" = openblas1 ]; then export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1; fi
+          .venv/bin/python examples/aot_spike/probe_wp1987.py ${{ matrix.case }} 5
