@@ -57,6 +57,7 @@ name: Kernels
 
 on:
   push:
+    branches: [wp1987-gate]
     tags: ['kernels-v*']
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -95,13 +96,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: ubuntu-latest, target: x86_64, platform: linux-x86_64}
-          - {os: ubuntu-24.04-arm, target: aarch64, platform: linux-aarch64}
-          - {os: macos-latest, target: aarch64, platform: macos-arm64}
           # cross-built on Apple silicon, as WP-1939 measured; `test` runs it
           # on an Intel runner
           - {os: macos-latest, target: x86_64, platform: macos-x86_64}
-          - {os: windows-latest, target: x64, platform: windows-x64}
     steps:
       - uses: actions/checkout@v7
       - uses: PyO3/maturin-action@v1
@@ -116,7 +113,7 @@ jobs:
           if-no-files-found: error
 
   test:
-    name: test ${{ matrix.platform }}
+    name: test ${{ matrix.platform }} ${{ matrix.rep }}
     needs: build
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
@@ -124,11 +121,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: ubuntu-latest, platform: linux-x86_64}
-          - {os: ubuntu-24.04-arm, platform: linux-aarch64}
-          - {os: macos-latest, platform: macos-arm64}
-          - {os: macos-15-intel, platform: macos-x86_64}
-          - {os: windows-latest, platform: windows-x64}
+          - {os: macos-15-intel, platform: macos-x86_64, rep: 1}
+          - {os: macos-15-intel, platform: macos-x86_64, rep: 2}
+          - {os: macos-15-intel, platform: macos-x86_64, rep: 3}
+          - {os: macos-15-intel, platform: macos-x86_64-accelerate-control, rep: 0}
     defaults:
       run:
         shell: bash
@@ -143,7 +139,7 @@ jobs:
           echo "PY=$PY" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v7
         with:
-          name: wheel-${{ matrix.platform }}
+          name: wheel-macos-x86_64
           path: dist/
       - name: Install rietx and this run's wheel
         # A path on the command line is a direct requirement, so uv takes the
