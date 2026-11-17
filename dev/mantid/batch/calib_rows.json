@@ -1,0 +1,98 @@
+{
+ "R08-10": {
+  "van": "HRP39191",
+  "vempty": "HRP39187",
+  "vrad_cm": 0.4,
+  "window": "10-110",
+  "van_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39191.RAW",
+  "van_title": "GEM 8mm V rod 10-110 ms",
+  "van_start": "2008-07-06T09:21:09",
+  "vempty_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39187.RAW",
+  "vempty_title": "Empty tank 10-110 ms 15*20 mm",
+  "vempty_start": "2008-07-05T16:38:36"
+ },
+ "R08-30": {
+  "van": "HRP39192",
+  "vempty": "HRP39186",
+  "vrad_cm": 0.4,
+  "window": "30-130",
+  "van_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39192.RAW",
+  "van_title": "GEM 8mm V rod 30-130 ms",
+  "van_start": "2008-07-07T02:46:03",
+  "vempty_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39186.RAW",
+  "vempty_title": "Empty tank 30-130 ms 15*20 mm",
+  "vempty_start": "2008-07-05T08:55:48"
+ },
+ "R08-100": {
+  "van": "HRP39193",
+  "vempty": "HRP39188",
+  "vrad_cm": 0.4,
+  "window": "100-200",
+  "van_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39193.RAW",
+  "van_title": "GEM 8mm V rod 100-200 ms",
+  "van_start": "2008-07-07T08:26:38",
+  "vempty_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39188.RAW",
+  "vempty_title": "Empty tank 100-200 ms 15*20 mm",
+  "vempty_start": "2008-07-06T00:29:51"
+ },
+ "R08-10210": {
+  "van": "HRP39322",
+  "vempty": "HRP39323",
+  "vrad_cm": 0.4,
+  "window": "10-210",
+  "van_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39322.RAW",
+  "van_title": "8 mm V rod 10-210 ms 15x20 mm",
+  "van_start": "2008-07-10T16:46:05",
+  "vempty_path": "$HOME/data/public_tests/isis_try_later/RB720381_HRP_v1/720381/HRP39323.RAW",
+  "vempty_title": "Empty tank 10-210 ms 15x20 mm",
+  "vempty_start": "2008-07-11T08:12:16"
+ },
+ "R13-10": {
+  "van": "HRP58470",
+  "vempty": "HRP70709",
+  "vrad_cm": 0.3,
+  "window": "10-110",
+  "van_path": "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/1320048/HRP58470.raw",
+  "van_title": "6mm WISH V/Nb rod Cd/Gd mask 10-110 ms jaws 15*20",
+  "van_start": "2013-11-19T10:15:29",
+  "vempty_path": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70709.raw",
+  "vempty_title": "empty tank + SC, 10-110 ms, jaws 15x20",
+  "vempty_start": "2018-06-03T22:03:44"
+ },
+ "R13-30": {
+  "van": "HRP58472",
+  "vempty": "HRP70710",
+  "vrad_cm": 0.3,
+  "window": "30-130",
+  "van_path": "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/1320048/HRP58472.raw",
+  "van_title": "6mm WISH V/Nb rod Cd/Gd mask 30-130 ms jaws 15*20",
+  "van_start": "2013-12-05T10:13:13",
+  "vempty_path": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70710.raw",
+  "vempty_title": "empty tank + SC, 30-130 ms, jaws 15x20",
+  "vempty_start": "2018-06-04T05:03:56"
+ },
+ "R18-30": {
+  "van": "HRP70713",
+  "vempty": "HRP70710",
+  "vrad_cm": 0.3,
+  "window": "30-130",
+  "van_path": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70713.raw",
+  "van_title": "6mm HRPD vanadium/niobium rod Cd/Gd mask on SC, 30-130 ms, jaws 15x20",
+  "van_start": "2018-06-05T11:24:25",
+  "vempty_path": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70710.raw",
+  "vempty_title": "empty tank + SC, 30-130 ms, jaws 15x20",
+  "vempty_start": "2018-06-04T05:03:56"
+ },
+ "R18-100": {
+  "van": "HRP70714",
+  "vempty": "HRP70711",
+  "vrad_cm": 0.3,
+  "window": "100-200",
+  "van_path": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70714.raw",
+  "van_title": "6mm HRPD vanadium/niobium rod Cd/Gd mask on SC, 100-200 ms, jaws 15x20",
+  "van_start": "2018-06-05T20:30:33",
+  "vempty_path": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70711.raw",
+  "vempty_title": "empty tank + SC, 100-200 ms, jaws 15x20",
+  "vempty_start": "2018-06-04T20:03:14"
+ }
+}

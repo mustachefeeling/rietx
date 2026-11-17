@@ -1,0 +1,44 @@
+{
+ "task": "si18_10",
+ "nxs": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/si_calibration_20261106/focused_si/si18_10/hrp70715_tof.nxs",
+ "a_cert": 5.431179,
+ "srm": "640e",
+ "out": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/si_calibration_20261106/mantid_pdcal",
+ "maxcores": 4,
+ "fwhm_rel": [
+  0.001,
+  0.0048,
+  0.0165
+ ],
+ "functions": [
+  "Gaussian",
+  "BackToBackExponential"
+ ],
+ "min_peak_height": 0.0,
+ "max_chisq": 100,
+ "b2b_fixed": {
+  "1": {
+   "alp": 0.174216,
+   "bet0": 0.0247928,
+   "bet1": 0.00694837,
+   "sig1": 222.511,
+   "sig2": 9.90761
+  },
+  "2": {
+   "alp": 0.174216,
+   "bet0": 0.0247928,
+   "bet1": 0.00694837,
+   "sig1": 5035.28,
+   "sig2": 547.478
+  },
+  "3": {
+   "alp": 0.174216,
+   "bet0": 0.0247928,
+   "bet1": 0.00694837,
+   "sig1": 8051.66,
+   "sig2": 0.0
+  }
+ },
+ "b2b_fixed_source": "Cyc_182_mantid3.hrpd PRCF set 1 (alp, bet-0, bet-1; sig-1, sig-2)",
+ "fwhm_rel_source": "FWHM/d per bank from the facility file: bank 1 about 1e-3 with the exponential tails, bank 2 2.355*sqrt(sig-1)/DIFC = 4.8e-3, bank 3 1.65e-2"
+}

@@ -1,0 +1,26 @@
+{
+ "task": "si18_10",
+ "rb": "si_calibration",
+ "row": "R18-10",
+ "window": "10-110",
+ "van": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70712.raw",
+ "vempty": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70709.raw",
+ "vrad_cm": 0.3,
+ "vheight_cm": 2.0,
+ "cal": "$HOME/data/public_tests/howieson2023_latao4_standrews/thesis_dataset/Diffraction_Data/Powder_Neutron_Diffraction/LaTaO4_Oct18/hrpd_new_072_01_corr.cal",
+ "idf": "$HOME/data/public_tests/_instruments/mantid_hrpd_20261106/HRPD_Definition_pre20210301.xml",
+ "out": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/si_calibration_20261106/focused_si/si18_10",
+ "samples": [
+  "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70715.raw"
+ ],
+ "maxcores": 4,
+ "crop_frac": 0.1,
+ "dtt": [
+  0.0003,
+  0.0007,
+  0.0012
+ ],
+ "smooth": 51,
+ "save_nxs": true,
+ "summary": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/si_calibration_20261106/focused_si/si18_10/si18_10_summary.json"
+}

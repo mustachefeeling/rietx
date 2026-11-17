@@ -1,0 +1,28 @@
+{
+ "task": "RB1320048_HRP_v1_R13-10_00",
+ "rb": "RB1320048_HRP_v1",
+ "row": "R13-10",
+ "window": "10-110",
+ "van": "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/1320048/HRP58470.raw",
+ "vempty": "$HOME/data/public_tests/_instruments/isis_hrpd_calibration/RB1835523_visit1/1835523/HRP70709.raw",
+ "vrad_cm": 0.3,
+ "vheight_cm": 2.0,
+ "cal": "$HOME/data/public_tests/howieson2023_latao4_standrews/thesis_dataset/Diffraction_Data/Powder_Neutron_Diffraction/LaTaO4_Oct18/hrpd_new_072_01_corr.cal",
+ "idf": "$HOME/data/public_tests/_instruments/mantid_hrpd_20261106/HRPD_Definition_pre20210301.xml",
+ "out": "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/mantid_focus_20261106",
+ "samples": [
+  "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/1320048/HRP58468.raw",
+  "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/1320048/HRP58469.raw",
+  "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/1320048/HRP58470.raw",
+  "$HOME/data/public_tests/isis_try_later/RB1320048_HRP_v1/1320048/HRP58471.raw"
+ ],
+ "maxcores": 4,
+ "crop_frac": 0.1,
+ "dtt": [
+  0.0003,
+  0.0007,
+  0.0012
+ ],
+ "smooth": 51,
+ "summary": "$HOME/wsjobs/hrpd_focus_1106/out/focus/RB1320048_HRP_v1_R13-10_00.json"
+}

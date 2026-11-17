@@ -2,6 +2,8 @@
 
 > **Development fork.** This copy of rietx carries work in progress: branches for pull requests and experimental features under test, before they are proposed to the main project. Branches here may be unreviewed, rebased or deleted without notice, and `main` here can lag behind. For releases, documentation and issues, use [yue-here/rietx](https://github.com/yue-here/rietx) (`pip install rietx`).
 
+> **`dev/`** holds tooling around rietx that is not part of it: [`dev/mantid/`](dev/mantid/README.md) focuses raw neutron TOF data with Mantid into the bank files rietx reads (raw reduction is out of scope for rietx, yue-here/rietx#1446).
+
 [![CI](https://github.com/yue-here/rietx/actions/workflows/ci.yml/badge.svg)](https://github.com/yue-here/rietx/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/rietx)](https://pypi.org/project/rietx/)
 
