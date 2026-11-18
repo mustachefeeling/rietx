@@ -198,8 +198,8 @@ The rest of the package is still angle-shaped, and says so.
 `refine_sequential`, `index_pattern`, `pick_peaks`, `determine_extinction_symbol`, `auto_background`, `diagnose`, `PatternData.plot` and the project container raise on a flight-time axis or a `neutron_tof` instrument.
 The message names the axis, its unit and the entry point.
 A joint fit takes banks, beside scans of the same specimen ([Time-of-flight banks](joint.md#time-of-flight-banks)).
-A magnetic moment refines on a bank, its peaks at the phase's own widths ([Magnetic banks](joint.md#magnetic-banks)).
-Le Bail and Pawley extraction, soft restraints and a non-zero or free separate magnetic width are refused on a bank by name.
+A magnetic moment refines on a bank, and so does the separate magnetic width, by the bank's own size and strain law ([Magnetic banks](joint.md#magnetic-banks)).
+Le Bail and Pawley extraction and soft restraints are refused on a bank by name.
 So are March-Dollase preferred orientation and Stephens anisotropic strain, rather than dropped: both are written in degrees 2θ, and on a bank every reflection shares one angle, so each has a different form there and not a different value.
 A spherical-harmonics texture is refused because only the constant-wavelength model computes it.
 Specimen absorption and Sabine extinction are not refused.

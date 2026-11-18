@@ -166,7 +166,7 @@ Each of these is refused where it is made, because nothing later can rescue it:
 - a phase that declares both `Phase.propagation_vector` and `Phase.magnetic_symmetry`, which state one magnetic structure two ways.
 
 A moment refines against a `neutron_cw` pattern or a `neutron_tof` bank.
-On a bank the magnetic peaks take the phase's own widths, and a non-zero or free `magnetic_lor_size` or `magnetic_lor_strain` is refused; [Joint fits](joint.md#magnetic-banks) gives what a bank needs to fix a moment's size.
+On a bank the separate magnetic width follows the bank's own size and strain law, with `magnetic_lor_size` in Å⁻¹; [Joint fits](joint.md#magnetic-banks) gives that law's units and what a bank needs to fix a moment's size.
 On an X-ray pattern in a joint fit the magnetic term is not built, so the moment has no gradient there and the report has no moment row for that pattern.
 Any other source kind is refused by name.
 

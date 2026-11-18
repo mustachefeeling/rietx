@@ -427,6 +427,32 @@ cannot; the report says which happened rather than quoting a number for both
 
 {source}`rietx.model.forward` (`phase_peaks`, `_width_block`)
 
+A time-of-flight bank draws the same two components. Its widths are
+statements about $d$, so the magnetic pair enters the bank's Lorentzian
+$\gamma(d)$ by the law the bank's own `lor_size` and `lor_strain` follow
+in {eq}`ms-tof-widths`, added to the magnetic lines alone:
+
+```{math}
+:label: int-two-component-width-tof
+
+\gamma^{\text{mag}}(d) \;=\; \gamma(d) \;+\;
+\mathrm{DIFC}\Big(\texttt{magnetic\_lor\_size}\; d^{2}
+  \;+\; \tfrac{\pi}{360}\,\texttt{magnetic\_lor\_strain}\; d\Big)
+\qquad [\mu\mathrm{s}]
+```
+
+{source}`rietx.model.forward_tof.magnetic_broadening_terms`
+
+Here $\gamma(d)$ is the nuclear lines' Lorentzian FWHM, the bank's own
+terms and the phase's `lor_size` and `lor_strain` included. On a bank
+`magnetic_lor_size` holds $K/L_{\text{mag}}$ in Å⁻¹, so a joint fit converts
+it to a scan's degrees by the factor $(180/\pi)\lambda$ it uses for
+`lor_size`, and `magnetic_lor_strain` is the λ-free coefficient both arms
+share. The case that needs the term on a bank is a WISH pattern of NiO at
+6 K ([Magnetic banks](../reference/joint.md#magnetic-banks)): with one width shared by both components, its
+moment direction comes back about 10° from the published one, and only a
+separate width can say how much of that the magnetic line's shape carries.
+
 ### The dipole approximation
 
 ```{math}

@@ -184,9 +184,9 @@ coefficient carries no $\lambda$, so `lor_strain` and `gauss_strain` are the
 same numbers of degrees on both arms. A size coefficient is
 $(180/\pi)K\lambda/L$, so on a `neutron_tof` histogram `lor_size` holds $K/L$
 in Å⁻¹ and `gauss_size` its square. A joint fit sharing one size between a
-bank and a scan would convert between the two units, as the multi-histogram
-fit already does across two wavelengths; that fit is not written for a bank
-yet. The apparent size is then
+bank and a scan converts between the two units, as the multi-histogram fit
+does across two wavelengths (`rietx.params.multi.SIZE_LAMBDA_POWER`). The
+apparent size is then
 
 ```{math}
 :label: ms-tof-size
