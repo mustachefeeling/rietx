@@ -243,7 +243,7 @@ Pair such a bank with one that holds the nuclear lines, as Qin et al. (2026, p. 
 `MAGNETIC_SCALE_UNPINNED` reports the fraction of its information on the size that each such bank keeps.
 A bank frees the separate magnetic width as a scan does: `magnetic_lor_size` and `magnetic_lor_strain` add to the magnetic lines' γ(d) by the bank's own size and strain law, held at zero until a stage frees them ([Theory: intensities](../theory/intensities.md)).
 On a bank `magnetic_lor_size` holds K/L in Å⁻¹, so a joint fit shares one magnetic coherence length with a scan through the same factor it uses for `lor_size`.
-The pattern that requires the term is ISIS WISH experiment RB1510360, run 29726, NiO at 6 K (doi:10.5286/ISIS.E.58451254, CC BY 4.0): with the width shared by both components, the moment's angle to the ordering-plane normal comes back near 60° on two banks against the 71.1(12)° of a 2024 constant-wavelength study (doi:10.1107/S205252062400756X), and only a separate width can say how much of that the magnetic line's shape carries.
+The pattern that requires the term is ISIS WISH experiment RB1510360, run 29726, NiO at 6 K (doi:10.5286/ISIS.E.58451254, CC BY 4.0): with the width shared by both components, the moment's angle to the ordering-plane normal comes back near 60° on two banks against 71.1(12)° derived from the moment components of a 2024 constant-wavelength study (doi:10.1107/S205252062400756X, Table 1), and only a separate width can say how much of that the magnetic line's shape carries.
 
 ### One bank on its own
 
