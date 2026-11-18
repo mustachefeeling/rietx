@@ -1481,7 +1481,10 @@ ROWS: tuple[Row, ...] = (
                   "only from a caller's own model or flags (report/body_misfit's "
                   "released arm, an internal trial whose findings are not surfaced; "
                   "io/recipe's flagged coordinates); a user tie, a hold, and an adp.* "
-                  "glob answered by the same request's biso are excluded")),
+                  "glob answered by the same request's biso are excluded; a row a "
+                  "single time-of-flight bank locks (ParameterTable.bank_refused, the "
+                  "separate magnetic width) names the bank's reason and remedy "
+                  "instead of symmetry")),
     Row("STAGE_PATH_UNKNOWN", "code"),
     Row("STAGE_SLOW_DESCENT", "code", tier=1, ambiguity=1,
         evidence=("arithmetic: names the stages whose StageResult.termination is "

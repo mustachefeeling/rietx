@@ -249,6 +249,50 @@ def test_the_separate_magnetic_width_is_refused_on_a_bank():
     locked = {e.path for e in table.entries if e.locked}
     assert {"phases.0.magnetic_lor_size",
             "phases.0.magnetic_lor_strain"} <= locked
+    # the table says why it locked them, so a reader need not guess
+    assert set(table.bank_refused) == {"phases.0.magnetic_lor_size",
+                                       "phases.0.magnetic_lor_strain"}
+    # not on a constant-wavelength neutron scan, which draws the width
+    assert ParameterTable(rx.Structure(phases=[mnf2()]),
+                          cw_twin()[0]).bank_refused == {}
+
+
+def test_a_declared_free_magnetic_width_is_refused_on_a_bank():
+    """``vary=True`` at value 0 is the other half of "non-zero or free": the
+    single bank's table locks the pair, so the declaration never reached the
+    compile's ``moving`` set and was dropped in silence (fd9edaf79)."""
+    phase = mnf2()
+    phase.magnetic_lor_size.vary = True
+    with pytest.raises(ValueError, match=r"magnetic_lor_size is free.*bank"):
+        compile_tof_model(rx.Structure(phases=[phase]), bank(), tof_grid())
+
+
+def test_a_stage_asking_for_the_magnetic_width_on_a_bank_names_the_bank():
+    """A stage naming ``magnetic_lor_size`` on a bank frees nothing, and the
+    warning says the bank refuses it, not that symmetry fixes it.
+
+    The WISH NiO run 29726 fit (2026-11-18) read "which is fixed by symmetry
+    or by the model" here, while ``references/tof.md`` promises a refusal by
+    name."""
+    data, scale = _synthetic_bank(rx.Structure(phases=[mnf2()]))
+    start = rx.Structure(phases=[mnf2()])
+    start.phases[0].scale.value = scale
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("w", ["phases.*.scale", "phases.0.magnetic_lor_size"],
+                 seed=0.002)])
+    ref = rx.Refinement(start, bank())
+    result = ref.fit(data, plan=plan, telemetry=False)
+    found = [d for d in result.diagnostics if d.code == "STAGE_PATH_NOT_FREE"]
+    assert len(found) == 1, [d.code for d in result.diagnostics]
+    d = found[0]
+    assert d.where == ["phases.0.magnetic_lor_size"]
+    assert "time-of-flight bank refuses" in d.message
+    assert "flight-time law" in d.message
+    assert "symmetry" not in d.message
+    assert d.suggestion.startswith("Hold it at 0 on a bank")
+    assert ref.structure.phases[0].magnetic_lor_size.value == 0.0
+    assert "phases.0.magnetic_lor_size" not in {p.path for p in result.parameters}
 
 
 # ----------------------------------------------------------------------

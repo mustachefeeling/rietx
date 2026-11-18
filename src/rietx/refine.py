@@ -8649,12 +8649,16 @@ def _fixed_literal_diagnostics(stages, table: ParameterTable, user_ties, *,
         entry = by_path[row]
         sources = ([] if entry.tie is None else
                    [name_of(src) for src, _ in entry.tie.terms])
-        why = ("is fixed by symmetry or by the model" if entry.locked else
+        bank = table.bank_refused.get(row) if entry.locked else None
+        why = (f"a time-of-flight bank refuses ({bank[0]})" if bank else
+               "is fixed by symmetry or by the model" if entry.locked else
                f"follows {', '.join(sources)}")
         site = _COORDINATE_PATH.match(row)
         dofs = ([name_of(p) for p in by_path
                  if p.startswith(f"{site.group(1)}.dof.")] if site else [])
-        if site and dofs:
+        if bank:
+            fix = bank[1]
+        elif site and dofs:
             fix = (f"Free {name_of(site.group(1))}.dof.* ({', '.join(dofs)}) "
                    "instead.")
         elif site:

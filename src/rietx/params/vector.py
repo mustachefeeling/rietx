@@ -1326,6 +1326,13 @@ class ParameterTable:
         #: the anchored DOF paths :meth:`reanchor_dofs` has corrected on this
         #: table — a subtraction from a stored constant, guarded as above
         self._reanchored: set[str] = set()
+        #: path → (why, what to do instead) for a row a time-of-flight bank
+        #: locks *because* of the bank rather than by symmetry.  Built where
+        #: the lock is (:meth:`_collect`), since ``Entry.locked`` carries no
+        #: reason, and a reader without one said "fixed by symmetry or by the
+        #: model" (``STAGE_PATH_NOT_FREE`` on ``magnetic_lor_size``, the WISH
+        #: NiO fit, 2026-11-18).  Read by ``refine._fixed_literal_diagnostics``.
+        self.bank_refused: dict[str, tuple[str, str]] = {}
         #: path → a fixed positive factor between this table's *physical* value
         #: and the number the free column carries — see :meth:`apply_value_scale`.
         #: Empty for every single-histogram table, which is why an unscaled
@@ -1545,6 +1552,15 @@ class ParameterTable:
                           force_fixed=off)
                 self._add(f"{base}.magnetic_lor_strain",
                           phase.magnetic_lor_strain, force_fixed=off)
+                if off and tof:
+                    from ..model.forward_tof import (
+                        MAGNETIC_WIDTH_BANK_REASON,
+                        MAGNETIC_WIDTH_BANK_REMEDY,
+                    )
+                    for name in ("magnetic_lor_size", "magnetic_lor_strain"):
+                        self.bank_refused[f"{base}.{name}"] = (
+                            MAGNETIC_WIDTH_BANK_REASON,
+                            MAGNETIC_WIDTH_BANK_REMEDY)
             self._collect_microstrain(base, sg, phase, tof=tof)
             owner = {label: body.name for body in phase.rigid_bodies
                      for label in body.atoms}

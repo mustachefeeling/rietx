@@ -156,6 +156,18 @@ from .tof_spectrum import incident_spectrum, neutron_attenuation_terms
 #: point-by-point file — is pointed at.
 INCIDENT_SPECTRUM_HOOK = "rietx.model.forward_tof.CompiledTOFModel.incident_spectrum"
 
+#: Why a bank refuses WP-1343's separate magnetic width, and what a caller
+#: does instead: one pair, quoted by :func:`compile_tof_model`'s refusal and
+#: by the reason ``ParameterTable`` records where it locks the two paths on a
+#: single bank, which ``STAGE_PATH_NOT_FREE`` names when a stage asks for one
+#: (the WISH NiO fit, 2026-11-18, read "fixed by symmetry" there instead).
+MAGNETIC_WIDTH_BANK_REASON = (
+    "the separate magnetic width is written in deg 2θ and has no flight-time "
+    "law yet")
+MAGNETIC_WIDTH_BANK_REMEDY = (
+    "Hold it at 0 on a bank (the magnetic peaks then take the phase's own "
+    "widths), or refine it against a constant-wavelength scan.")
+
 #: The fraction of a peak this arm's frozen window may discard **on each side
 #: separately**, and per component.  The flight-time arm's own tolerance, two
 #: orders under :data:`~rietx.model.forward.WINDOW_AREA_TOL`, and the reason it
@@ -1352,20 +1364,21 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
         magnetic_mask = None
         if magnetic_wanted(phase, src):
             for name in ("magnetic_lor_size", "magnetic_lor_strain"):
-                _require(getattr(phase, name).value == 0.0
+                # a *declared* vary=True is refused too: a single bank's table
+                # locks the pair, so it never reaches ``moving`` and would
+                # otherwise be dropped in silence
+                p = getattr(phase, name)
+                _require(p.value == 0.0 and not p.vary
                          and f"phases.{ip}.{name}" not in moving,
                          f"compile_tof_model(): phases.{ip}.{name} is "
-                         f"{'non-zero' if getattr(phase, name).value else 'free'}"
-                         f" and a bank cannot draw it. WP-1343's separate "
-                         f"magnetic broadening is a width in deg 2θ added to "
-                         f"the 1/cosθ or tanθ coefficient of a scan, and its "
-                         f"flight-time law (a Lorentzian added to γ(d) as "
-                         f"lor_size and lor_strain are) is not written yet; "
-                         f"drawing the magnetic peaks at the nuclear widths "
-                         f"would be a fit you did not ask for. Hold it at 0 "
-                         f"on a bank (the magnetic peaks then take the "
-                         f"phase's own widths), or refine it against a "
-                         f"constant-wavelength scan.")
+                         f"{'non-zero' if p.value else 'free'} and a bank "
+                         f"cannot draw it: {MAGNETIC_WIDTH_BANK_REASON}. "
+                         f"WP-1343 adds it to the 1/cosθ or tanθ coefficient "
+                         f"of a scan; on a bank it would be a Lorentzian added "
+                         f"to γ(d), as lor_size and lor_strain are, and that "
+                         f"law is not written. Drawing the magnetic peaks at "
+                         f"the nuclear widths would be a fit you did not ask "
+                         f"for. {MAGNETIC_WIDTH_BANK_REMEDY}")
             extra = magnetic_reflections(
                 group, cell, lam_gen, 180.0, two_theta_min=tt_gen_min,
                 magnetic_group=phase.magnetic_symmetry.group())
