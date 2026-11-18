@@ -722,6 +722,20 @@ def _magnetic_intensity(model, ip: int, values) -> float:
                                    dtype=np.float64)))
 
 
+def _width_unit(model, name: str) -> str:
+    """The unit a magnetic width is stored in, as the message names it.
+
+    A scan stores both terms in deg 2θ.  A bank stores ``magnetic_lor_size``
+    as K/L in Å⁻¹, the bank's own ``lor_size`` unit (T-5c), while
+    ``magnetic_lor_strain`` keeps the λ-free coefficient a scan uses, so only
+    the size word changes on a bank (T-6, D29).
+    """
+    if (getattr(model, "axis", "two_theta") != "two_theta"
+            and name == "magnetic_lor_size"):
+        return "Å⁻¹"
+    return "deg"
+
+
 def _width_support_findings(model, values, esds, free,
                             moved=()) -> list[Diagnostic]:
     """``MAGNETIC_WIDTH_UNMEASURED`` — the freed width the data cannot see.
@@ -773,6 +787,7 @@ def _width_support_findings(model, values, esds, free,
             path = f"phases.{ip}.{name}"
             if path not in free:
                 continue
+            unit = _width_unit(model, name)
             val = float(values.get(path, 0.0))
             esd = esds.get(path)
             if esd is None:
@@ -805,7 +820,7 @@ def _width_support_findings(model, values, esds, free,
                     level="info", code="MAGNETIC_WIDTH_UNMEASURED",
                     where=[path], value=None,
                     message=(
-                        f"{path} was free and came back at {val:.3g} deg with "
+                        f"{path} was free and came back at {val:.3g} {unit} with "
                         f"no esd, because its column carried no gradient at "
                         f"the answer. {cause} The width is not measured, and "
                         f"that does not make it zero."),
@@ -813,7 +828,7 @@ def _width_support_findings(model, values, esds, free,
                 continue
             if esd <= 0.0 or val >= MOMENT_SUPPORT_SIGMA * esd:
                 continue
-            head = (f"{path} refined to {val:.4g} deg with an esd of "
+            head = (f"{path} refined to {val:.4g} {unit} with an esd of "
                     f"{esd:.4g}. That is {val / esd:.2f}x its own uncertainty, "
                     f"below the {MOMENT_SUPPORT_SIGMA:g}-sigma bar this "
                     f"package uses for a moment. ")
@@ -897,11 +912,16 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
     one's height is by taking the moment down.
     """
     out: list[Diagnostic] = []
-    # a bank draws its magnetic component since T-6, but this test reads the
-    # residual's sign pattern in 2θ around each reflection and a bank's ``tt``
-    # raises rather than answering None; its separate magnetic width is
-    # refused on a bank anyway, so there is no freed width to contrast with
+    # a bank frees its separate magnetic width since T-6 (D29), so the support
+    # test, which reads only values and esds, runs there too.  The sign-split
+    # test below reads the residual in 2θ around each reflection and a bank's
+    # ``tt`` raises rather than answering None, so it stays a scan's: a bank's
+    # evidence for the width is the freed term itself
     if getattr(model, "axis", "two_theta") != "two_theta":
+        if getattr(model, "phases", None) is not None and any(
+                cp.magnetic is not None for cp in model.phases):
+            out.extend(_width_support_findings(
+                model, values, esds or {}, set(free), set(moved)))
         return out
     if getattr(model, "phases", None) is None or getattr(model, "tt", None) is None:
         return out

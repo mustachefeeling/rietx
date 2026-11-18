@@ -1326,13 +1326,6 @@ class ParameterTable:
         #: the anchored DOF paths :meth:`reanchor_dofs` has corrected on this
         #: table — a subtraction from a stored constant, guarded as above
         self._reanchored: set[str] = set()
-        #: path → (why, what to do instead) for a row a time-of-flight bank
-        #: locks *because* of the bank rather than by symmetry.  Built where
-        #: the lock is (:meth:`_collect`), since ``Entry.locked`` carries no
-        #: reason, and a reader without one said "fixed by symmetry or by the
-        #: model" (``STAGE_PATH_NOT_FREE`` on ``magnetic_lor_size``, the WISH
-        #: NiO fit, 2026-11-18).  Read by ``refine._fixed_literal_diagnostics``.
-        self.bank_refused: dict[str, tuple[str, str]] = {}
         #: path → a fixed positive factor between this table's *physical* value
         #: and the number the free column carries — see :meth:`apply_value_scale`.
         #: Empty for every single-histogram table, which is why an unscaled
@@ -1539,28 +1532,17 @@ class ParameterTable:
                 # and ``run_least_squares`` refuses one by name, which a plan
                 # freeing ``phases.*.magnetic_lor_*`` would hit with advice
                 # it cannot take.  Not in a joint table: there a neutron
-                # histogram shares the entry and does see it.  **A bank is
-                # the X-ray case for this pair** (T-6): it draws the magnetic
-                # term, but at the phase's own widths, since WP-1343's
-                # separate width has no flight-time law yet — so a bank alone
-                # locks it, and ``compile_tof_model`` refuses it by name
-                # where a joint table leaves it free.
+                # histogram shares the entry and does see it.  A bank draws
+                # it like a scan does (T-6, D29): a Lorentzian added to the
+                # magnetic lines' γ(d) by the bank's own size and strain law
+                # (``forward_tof.magnetic_broadening_terms``), so a bank is the
+                # neutron case here and the pair is free to a stage.
                 off = (not self._joint
-                       and (tof or not _magnetic_component_drawn(phase,
-                                                                 instrument)))
+                       and not _magnetic_component_drawn(phase, instrument))
                 self._add(f"{base}.magnetic_lor_size", phase.magnetic_lor_size,
                           force_fixed=off)
                 self._add(f"{base}.magnetic_lor_strain",
                           phase.magnetic_lor_strain, force_fixed=off)
-                if off and tof:
-                    from ..model.forward_tof import (
-                        MAGNETIC_WIDTH_BANK_REASON,
-                        MAGNETIC_WIDTH_BANK_REMEDY,
-                    )
-                    for name in ("magnetic_lor_size", "magnetic_lor_strain"):
-                        self.bank_refused[f"{base}.{name}"] = (
-                            MAGNETIC_WIDTH_BANK_REASON,
-                            MAGNETIC_WIDTH_BANK_REMEDY)
             self._collect_microstrain(base, sg, phase, tof=tof)
             owner = {label: body.name for body in phase.rigid_bodies
                      for label in body.atoms}

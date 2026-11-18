@@ -156,18 +156,6 @@ from .tof_spectrum import incident_spectrum, neutron_attenuation_terms
 #: point-by-point file — is pointed at.
 INCIDENT_SPECTRUM_HOOK = "rietx.model.forward_tof.CompiledTOFModel.incident_spectrum"
 
-#: Why a bank refuses WP-1343's separate magnetic width, and what a caller
-#: does instead: one pair, quoted by :func:`compile_tof_model`'s refusal and
-#: by the reason ``ParameterTable`` records where it locks the two paths on a
-#: single bank, which ``STAGE_PATH_NOT_FREE`` names when a stage asks for one
-#: (the WISH NiO fit, 2026-11-18, read "fixed by symmetry" there instead).
-MAGNETIC_WIDTH_BANK_REASON = (
-    "the separate magnetic width is written in deg 2θ and has no flight-time "
-    "law yet")
-MAGNETIC_WIDTH_BANK_REMEDY = (
-    "Hold it at 0 on a bank (the magnetic peaks then take the phase's own "
-    "widths), or refine it against a constant-wavelength scan.")
-
 #: The fraction of a peak this arm's frozen window may discard **on each side
 #: separately**, and per component.  The flight-time arm's own tolerance, two
 #: orders under :data:`~rietx.model.forward.WINDOW_AREA_TOL`, and the reason it
@@ -327,6 +315,35 @@ def sample_broadening_terms(ip: int, values: dict[str, float]) -> tuple:
     return size_l, strain_l, size_var, strain_var
 
 
+def magnetic_broadening_terms(ip: int, values: dict[str, float]) -> tuple:
+    """``(size_L, strain_L)`` of one phase's **separate magnetic width**, on a
+    bank (WP-1343's pair, T-6's flight-time law).
+
+    The magnetic twin of :func:`sample_broadening_terms`'s Lorentzian half,
+    stored the way that half is and for the same reason (WP-1131):
+    ``magnetic_lor_size`` holds K/L_mag in Å⁻¹ on a ``neutron_tof`` table,
+    L_mag the magnetic coherence length, because a size coefficient in degrees
+    is a length only through a wavelength and a bank has none; and
+    ``magnetic_lor_strain`` is the λ-free microstrain coefficient both arms
+    share, read through the constant-wavelength arm's own conversion to Δd/d.
+    So :func:`~rietx.model.profiles.tof.tof_sample_gamma` takes the pair as it
+    takes ``lor_size``/``lor_strain``, and the magnetic lines' γ(d) gains
+    DIFC·(Δd/d_mag·d + (K/L_mag)·d²) on top of the instrument's and the phase's
+    own.  A joint fit sharing ``magnetic_lor_size`` with a scan converts by
+    (180/π)·λ through ``params.multi.SIZE_LAMBDA_POWER``, which carries the
+    magnetic size term since T-5c.
+
+    Lorentzian only, as on a scan: WP-1343 declines a Gaussian magnetic
+    partner, since a coherence length broadens the line as a Lorentzian.
+    ``.get`` and unconditional arithmetic for :func:`sample_broadening_terms`'s
+    reasons; at rietx's zero defaults both terms are an exact zero.
+    """
+    base = f"phases.{ip}."
+    size_l = values.get(base + "magnetic_lor_size", 0.0)
+    strain_l = microstrain_width(values.get(base + "magnetic_lor_strain", 0.0))
+    return size_l, strain_l
+
+
 @dataclass
 class CompiledTOFModel:
     """One time-of-flight bank frozen for one refinement stage.
@@ -433,6 +450,10 @@ class CompiledTOFModel:
     #: :class:`~rietx.model.forward.BatchLayout`, and it holds no value that
     #: can move.
     flat_windows: list[tuple[np.ndarray, np.ndarray]] = field(default_factory=list)
+    #: the magnetic component's flattened windows per phase, ``None`` where
+    #: :meth:`mag_split` is false (T-6, WP-1343's second frozen family)
+    flat_windows_mag: list[tuple[np.ndarray, np.ndarray] | None] = field(
+        default_factory=list)
 
     #: The per-side area fraction the **Lorentzian component** of every window
     #: was sized to leave outside, as compiled: :data:`TOF_WINDOW_AREA_TOL` under
@@ -629,13 +650,17 @@ class CompiledTOFModel:
         return None
 
     def mag_split(self, ip: int) -> bool:
-        """Always ``False``: a bank draws a phase's magnetic component with its
-        nuclear widths, in the one frozen family (T-6).  The separate magnetic
-        broadening of WP-1343 (``magnetic_lor_size``/``magnetic_lor_strain``)
-        is a width in deg 2θ with no flight-time law here yet, and
-        :func:`compile_tof_model` refuses it by name rather than drawing the
-        peak without it."""
-        return False
+        """Whether phase ip draws its magnetic component on its own frozen
+        windows, with its own γ(d) (WP-1343 on a bank, T-6).
+
+        The one reader of the second family's existence, as
+        :meth:`rietx.model.forward.CompiledModel.mag_split` is on a scan, so
+        the forward, the column builders and the solver's refusal of a dead
+        magnetic-width column cannot disagree.  ``False`` is the off state and
+        the single-family draw: both widths exactly zero and neither movable
+        this stage.
+        """
+        return self.phases[ip].win_mag is not None
 
     def texture_summary(self, ip: int, values: dict[str, float]) -> None:
         """Always ``None``: no phase carries a compiled texture on this arm,
@@ -687,7 +712,8 @@ class CompiledTOFModel:
         return tof_from_d(d, difc, difa, tzero, difb)
 
     def shape_parameters(self, d, values: dict[str, float],
-                         ip: int | None = None) -> tuple:
+                         ip: int | None = None, *,
+                         magnetic: bool = False) -> tuple:
         """``(α, β, σ, γ)`` at each d — the GSAS d-dependence laws.
 
         σ is the Gaussian **standard deviation** in µs, i.e. the square root of
@@ -706,6 +732,12 @@ class CompiledTOFModel:
         Gaussian variance, and a width added to the *mixed* Γ would be a width
         of neither shape.  ``None`` and a phase with no sample broadening reach
         identical arithmetic: the sample terms are an exact ``+0.0``.
+
+        ``magnetic=True`` (with ``ip``) is the width of that phase's
+        **magnetic** lines where :meth:`mag_split` holds: γ gains the separate
+        magnetic Lorentzian of :func:`magnetic_broadening_terms` on top of the
+        phase's own, in the same law, since Lorentzian FWHMs add.  σ is
+        untouched — WP-1343 has no Gaussian magnetic partner.
         """
         xp = get_backend()
         p = "instrument.source.profile_tof."
@@ -721,6 +753,9 @@ class CompiledTOFModel:
                 ip, values)
             gamma = gamma + tof_sample_gamma(d, difc, size_l, strain_l)
             var = var + tof_sample_sigma_sq(d, difc, size_var, strain_var)
+            if magnetic:
+                m_size, m_strain = magnetic_broadening_terms(ip, values)
+                gamma = gamma + tof_sample_gamma(d, difc, m_size, m_strain)
         sigma = xp.sqrt(xp.maximum(var, 0.0))
         return alpha, beta, sigma, gamma
 
@@ -843,7 +878,8 @@ class CompiledTOFModel:
         return self.channel_width
 
     def phase_peaks(self, ip: int, values: dict[str, float],
-                    hkl_intensity: np.ndarray | None = None) -> list[tuple]:
+                    hkl_intensity: np.ndarray | None = None,
+                    *, component: int = 0) -> list[tuple]:
         """``[(pos, α, β, σ, γ, intensity)]`` — one tuple, for the one "line".
 
         A list of one because a time-of-flight bank has no emission lines and
@@ -852,9 +888,23 @@ class CompiledTOFModel:
         constant-wavelength pseudo-Voigt needs two.  Slot 0 is the position in
         every arm, which is the contract the callers that read
         ``phase_peaks(ip, values)[0][0]`` actually rely on.
+
+        ``component`` is the constant-wavelength method's (WP-1343), with the
+        same meaning: ``0`` is the whole intensity on a phase with one family
+        and ⟨|F_N|²⟩ alone where :meth:`mag_split` holds; ``1`` is the
+        magnetic component p²⟨|F_⊥|²⟩ at the magnetic lines' own γ(d).  Every
+        factor after the structure factor multiplies both, and Sabine
+        extinction reads the reflection's **total** |F|², as on a scan.
         """
         xp = get_backend()
         cp = self.phases[ip]
+        split = cp.win_mag is not None
+        if component and not split:
+            raise ValueError(
+                f"phase_peaks(component={component}) on phase {ip}, whose "
+                f"second frozen family was not built: this stage's magnetic "
+                f"broadening is at its off state, so there is one component "
+                f"and component 0 is the whole of it (WP-1343, T-6)")
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         d = d_spacings(cp.reflections.hkl, *cell)
@@ -863,7 +913,8 @@ class CompiledTOFModel:
         # phase's** since T-3c — a crystallite size and a microstrain are
         # properties of the specimen, so they are per phase where α, β and the
         # instrument's σ², γ are per bank.
-        alpha, beta, sigma, gamma = self.shape_parameters(d, values, ip)
+        alpha, beta, sigma, gamma = self.shape_parameters(
+            d, values, ip, magnetic=bool(component))
 
         if self.mode in ("lebail", "pawley"):
             intensity = cp.hkl_intensity if hkl_intensity is None else hkl_intensity
@@ -878,7 +929,18 @@ class CompiledTOFModel:
             # at that d does.  The function is the constant-wavelength model's
             # own (see :meth:`_total_f2`); a phase with no moment reaches
             # ``structure_factors_squared`` alone, bit for bit as before.
-            f2 = self._total_f2(ip, d, values, cell)
+            if not split:
+                f2 = self._total_f2(ip, d, values, cell)
+                f2_ext = f2
+            else:
+                # the two contributions as two arrays (WP-1343's split, one
+                # rank over): the magnetic one is built for component 0 only
+                # when extinction needs the reflection's total
+                f2_nuc = self._nuclear_f2(ip, d, values, cell)
+                f2_m = (self._magnetic_f2(ip, d, values, cell)
+                        if component or not cp.skip_extinction else None)
+                f2 = f2_nuc if component == 0 else f2_m
+                f2_ext = f2_nuc if cp.skip_extinction else f2_nuc + f2_m
             mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
             intensity = (values[f"phases.{ip}.scale"] * mult * f2
                          * self.lorentz(d))
@@ -896,7 +958,7 @@ class CompiledTOFModel:
                 # structural gate the constant-wavelength model uses, so
                 # ext = 0 is skipped rather than evaluated to ones.
                 intensity = intensity * sabine_extinction(
-                    f2, self.wavelength_of(d), cell_volume(*cell),
+                    f2_ext, self.wavelength_of(d), cell_volume(*cell),
                     self.two_theta_bank_deg,
                     values[f"phases.{ip}.extinction"])
         return [(pos, alpha, beta, sigma, gamma, intensity)]
@@ -1012,12 +1074,25 @@ class CompiledTOFModel:
     def _phase_component_batched(self, ip: int, values: dict[str, float],
                                  hkl_intensity: np.ndarray | None = None
                                  ) -> np.ndarray:
-        """Every window of the phase flattened into one Ω evaluation."""
-        idx, seg = self.flat_windows[ip]
+        """Every window of the phase flattened into one Ω evaluation, per
+        component: the nuclear (or whole) family, then the magnetic one where
+        :meth:`mag_split` holds, each scattered once and the two added."""
+        y = self._component_batched(ip, values, hkl_intensity, 0,
+                                    self.flat_windows[ip])
+        flat_mag = (self.flat_windows_mag[ip]
+                    if ip < len(self.flat_windows_mag) else None)
+        if flat_mag is not None:
+            y = y + self._component_batched(ip, values, hkl_intensity, 1,
+                                            flat_mag)
+        return y
+
+    def _component_batched(self, ip: int, values: dict[str, float],
+                           hkl_intensity, component: int, flat) -> np.ndarray:
+        idx, seg = flat
         if len(idx) == 0:
             return np.zeros(self.n_points, dtype=np.float64)
         (pos, alpha, beta, sigma, gamma, intensity), = self.phase_peaks(
-            ip, values, hkl_intensity)
+            ip, values, hkl_intensity, component=component)
         pos = np.asarray(pos, dtype=np.float64)
         omega = self.profile(self.tof[idx] - pos[seg], np.asarray(alpha)[seg],
                              np.asarray(beta)[seg], np.asarray(sigma)[seg],
@@ -1033,17 +1108,21 @@ class CompiledTOFModel:
         cp = self.phases[ip]
         y = xp.zeros_like(self.tof)
         grid = xp.asarray(self.tof, dtype=np.float64)
-        (pos, alpha, beta, sigma, gamma, intensity), = self.phase_peaks(
-            ip, values, hkl_intensity)
-        for k in range(len(cp.reflections.hkl)):
-            i0, i1 = int(cp.win[0, k, 0]), int(cp.win[0, k, 1])
-            if i1 <= i0:
-                # the frozen empty window: a reflection outside the fitted
-                # range.  A compile-time structural branch, never one on θ.
-                continue
-            omega = self.profile(grid[i0:i1] - pos[k], alpha[k], beta[k],
-                                 sigma[k], gamma[k])
-            y = xp.window_add(y, i0, i1, intensity[k] * omega)
+        families = [(0, cp.win)]
+        if cp.win_mag is not None:
+            families.append((1, cp.win_mag))
+        for component, win in families:
+            (pos, alpha, beta, sigma, gamma, intensity), = self.phase_peaks(
+                ip, values, hkl_intensity, component=component)
+            for k in range(len(cp.reflections.hkl)):
+                i0, i1 = int(win[0, k, 0]), int(win[0, k, 1])
+                if i1 <= i0:
+                    # the frozen empty window: a reflection outside the fitted
+                    # range.  A compile-time structural branch, never one on θ.
+                    continue
+                omega = self.profile(grid[i0:i1] - pos[k], alpha[k], beta[k],
+                                     sigma[k], gamma[k])
+                y = xp.window_add(y, i0, i1, intensity[k] * omega)
         return y
 
     def peak_fwhm(self, alpha, beta, sigma, gamma) -> np.ndarray:
@@ -1077,7 +1156,12 @@ class CompiledTOFModel:
         """How many frozen windows of each phase cover a point at all."""
         out = np.zeros(len(self.phases), dtype=np.int64)
         for ip, cp in enumerate(self.phases):
-            out[ip] = int(np.count_nonzero(cp.win[:, :, 1] > cp.win[:, :, 0]))
+            inside = cp.win[:, :, 1] > cp.win[:, :, 0]
+            if cp.win_mag is not None:
+                # either family's window gives the scale a column, as on a
+                # scan (``CompiledModel.phase_line_counts``)
+                inside = inside | (cp.win_mag[:, :, 1] > cp.win_mag[:, :, 0])
+            out[ip] = int(np.count_nonzero(inside))
         return out
 
     def scalar_chain_supported(self, path: str) -> bool:
@@ -1124,6 +1208,66 @@ class CompiledTOFModel:
 # ----------------------------------------------------------------------
 # compilation
 # ----------------------------------------------------------------------
+def _magnetic_width_active(ip: int, phase, moving: set[str]) -> bool:
+    """Whether phase ip's separate magnetic width is off its off state this
+    stage: either value non-zero, or either path in the moving set.  The
+    one test both the shape branch and the second family read."""
+    if phase.magnetic_symmetry is None:
+        return False
+    return (phase.magnetic_lor_size.value != 0.0
+            or phase.magnetic_lor_strain.value != 0.0
+            or f"phases.{ip}.magnetic_lor_size" in moving
+            or f"phases.{ip}.magnetic_lor_strain" in moving)
+
+
+def _magnetic_sizing_terms(ip: int, phase, moving: set[str], d: np.ndarray,
+                           theta_bank: float) -> tuple:
+    """``(K/L, Δd/d)`` the magnetic family's windows are sized at, per
+    reflection.
+
+    The constant-wavelength rule (``forward.compile_model``, WP-1343) on a
+    bank: the stored value, raised to a floor where the path can move this
+    stage or already sits above zero, so the windows hold the width the stage
+    can reach.  The floor is ``forward.MAGNETIC_SIZING_FLOOR`` itself, with no
+    second number: the strain coefficient is λ-free and takes it unchanged;
+    the size coefficient is (180/π)·K·λ/L on a scan, so the floor is read at
+    each reflection's own wavelength λ = 2d·sin θ_bank through the unit map
+    (``params.multi.size_unit``), K/L = floor·(π/180)/λ — which makes the
+    floored width Δd/d = floor·(π/360)/sin θ_bank, the Δd/d a 0.1° size
+    width has on a scan at this bank's angle.  Window sizing only: the value
+    drawn is always the refined one, and the closing stage recompiles at the
+    width reached.
+    """
+    from .forward import MAGNETIC_SIZING_FLOOR
+
+    size_path = f"phases.{ip}.magnetic_lor_size"
+    strain_path = f"phases.{ip}.magnetic_lor_strain"
+    size = float(phase.magnetic_lor_size.value)
+    strain = float(phase.magnetic_lor_strain.value)
+    if size_path in moving or size > 0.0:
+        lam = 2.0 * np.asarray(d, dtype=np.float64) * math.sin(theta_bank)
+        size = np.maximum(size, MAGNETIC_SIZING_FLOOR * (math.pi / 180.0)
+                          / np.maximum(lam, 1e-300))
+    if strain_path in moving or strain > 0.0:
+        strain = max(strain, MAGNETIC_SIZING_FLOOR)
+    return size, microstrain_width(strain)
+
+
+def _flatten_windows(win: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``(point index, reflection index)`` for every point of every window
+    of one family, the layout :meth:`CompiledTOFModel._component_batched`
+    scatters with."""
+    i0, i1 = win[0, :, 0], win[0, :, 1]
+    n = len(i0)
+    widths = (i1 - i0).astype(np.int64)
+    return (
+        np.concatenate([np.arange(i0[k], i1[k], dtype=np.int64)
+                        for k in range(n) if widths[k] > 0])
+        if int(widths.sum()) else np.zeros(0, dtype=np.int64),
+        np.repeat(np.arange(n, dtype=np.int64), np.maximum(widths, 0)),
+    )
+
+
 def compile_tof_model(structure: Structure, instrument: Instrument,
                       pattern: PatternData, *, mode: Mode = "rietveld",
                       tof_limits: tuple[float, float] | None = None,
@@ -1178,8 +1322,11 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
     omits are merged in with their mask, and the row then takes the bank's own
     Lorentz factor, absorption, extinction, spectrum and channel width like
     its nuclear neighbour at that d.  WP-1343's separate magnetic width
-    (``magnetic_lor_size``/``magnetic_lor_strain``) is refused when non-zero or
-    free, since it is a deg-2θ width with no flight-time law here yet.
+    (``magnetic_lor_size``/``magnetic_lor_strain``) is drawn on a second frozen
+    family where it is non-zero or can move this stage, its Lorentzian added
+    to the magnetic lines' γ(d) by the bank's own size and strain law
+    (:func:`magnetic_broadening_terms`); at its off state the phase draws one
+    family, bit for bit as before.
     """
     _require(pattern.axis == "tof",
              "compile_tof_model(): this pattern's abscissa is 2θ in degrees, "
@@ -1255,8 +1402,8 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
                  f"it is the point.")
         # a phase with a moment asks the one dispatch authority, which builds
         # the term on a bank since T-6 (and still refuses by name a source it
-        # does not know); the separate magnetic width it would draw with is
-        # refused below, where the stage's moving paths are known
+        # does not know); the separate magnetic width is drawn below, on a
+        # second frozen family, where the stage's moving paths are known
         magnetic_wanted(phase, src)
         _require(phase.microstrain is None,
                  f"compile_tof_model(): phases.{ip} declares a Stephens "
@@ -1312,6 +1459,13 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
         or f"phases.{ip}.lor_size" in moving
         or f"phases.{ip}.lor_strain" in moving
         for ip, phase in enumerate(structure.phases))
+    # T-6: the separate magnetic width is a γ too, on the magnetic lines, and
+    # decides the branch on the same terms — else a stage freeing it against
+    # an all-Gaussian bank would compile a shape that ignores γ, and the
+    # column would be the dead one WP-1073 names.
+    gamma_can_move = gamma_can_move or any(
+        _magnetic_width_active(ip, phase, moving)
+        for ip, phase in enumerate(structure.phases))
     profile_kind = "pseudovoigt" if gamma_can_move else "gaussian"
 
     # The d range the fitted flight-time window corresponds to, at the stored
@@ -1341,6 +1495,7 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
              f"is a per-side fraction of a peak's area and must lie in (0, 0.5).")
     phases: list[CompiledPhase] = []
     flat_windows: list[tuple[np.ndarray, np.ndarray]] = []
+    flat_windows_mag: list[tuple[np.ndarray, np.ndarray] | None] = []
     for ip, phase in enumerate(structure.phases):
         cell = phase.cell.lengths_angles()
         # The group a phase *means*: its own operation list when it carries
@@ -1363,22 +1518,6 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
         # those rows by the absence condition, not by a tolerance.
         magnetic_mask = None
         if magnetic_wanted(phase, src):
-            for name in ("magnetic_lor_size", "magnetic_lor_strain"):
-                # a *declared* vary=True is refused too: a single bank's table
-                # locks the pair, so it never reaches ``moving`` and would
-                # otherwise be dropped in silence
-                p = getattr(phase, name)
-                _require(p.value == 0.0 and not p.vary
-                         and f"phases.{ip}.{name}" not in moving,
-                         f"compile_tof_model(): phases.{ip}.{name} is "
-                         f"{'non-zero' if p.value else 'free'} and a bank "
-                         f"cannot draw it: {MAGNETIC_WIDTH_BANK_REASON}. "
-                         f"WP-1343 adds it to the 1/cosθ or tanθ coefficient "
-                         f"of a scan; on a bank it would be a Lorentzian added "
-                         f"to γ(d), as lor_size and lor_strain are, and that "
-                         f"law is not written. Drawing the magnetic peaks at "
-                         f"the nuclear widths would be a fit you did not ask "
-                         f"for. {MAGNETIC_WIDTH_BANK_REMEDY}")
             extra = magnetic_reflections(
                 group, cell, lam_gen, 180.0, two_theta_min=tt_gen_min,
                 magnetic_group=phase.magnetic_symmetry.group())
@@ -1457,42 +1596,68 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
         var = var + np.asarray(tof_sample_sigma_sq(d, src.difc.value,
                                                    size_var, strain_var))
 
-        fwhm_pv, eta, _s = tof_pseudovoigt_widths(np.sqrt(np.maximum(var, 0.0)),
-                                                  gam)
-        # ``window_fwhm_mult``'s tolerance is the **two-sided** discard and
-        # this extent is added to each side, so the per-side fraction wanted
-        # is half of what is passed.
-        if lorentz_tol is None or profile_kind == "gaussian":
-            resolution = np.asarray(
-                window_fwhm_mult(np.asarray(eta), tol=2.0 * TOF_WINDOW_AREA_TOL)
-                * np.asarray(fwhm_pv), dtype=np.float64)
-        else:
-            resolution = np.asarray(
-                window_fwhm_mult_split(np.asarray(eta),
-                                       2.0 * TOF_WINDOW_AREA_TOL,
-                                       2.0 * lorentz_tol)
-                * np.asarray(fwhm_pv), dtype=np.float64)
-        slack = (WINDOW_MIN_US + WINDOW_SLACK_FRAC * np.abs(pos)
-                 if window_slack_us is None
-                 else np.full(n, float(window_slack_us)))
-        # asymmetric by construction: α is the rise on the short-flight-time
-        # side and β the decay on the long one, and β < α is the normal case.
-        half_lo = TAIL_EFOLDS / np.maximum(alpha, _MIN_RATE) + resolution + slack
-        half_hi = TAIL_EFOLDS / np.maximum(beta, _MIN_RATE) + resolution + slack
+        def _bank_windows(gam_w):
+            fwhm_pv, eta, _s = tof_pseudovoigt_widths(
+                np.sqrt(np.maximum(var, 0.0)), gam_w)
+            # ``window_fwhm_mult``'s tolerance is the **two-sided** discard
+            # and this extent is added to each side, so the per-side fraction
+            # wanted is half of what is passed.
+            if lorentz_tol is None or profile_kind == "gaussian":
+                resolution = np.asarray(
+                    window_fwhm_mult(np.asarray(eta),
+                                     tol=2.0 * TOF_WINDOW_AREA_TOL)
+                    * np.asarray(fwhm_pv), dtype=np.float64)
+            else:
+                resolution = np.asarray(
+                    window_fwhm_mult_split(np.asarray(eta),
+                                           2.0 * TOF_WINDOW_AREA_TOL,
+                                           2.0 * lorentz_tol)
+                    * np.asarray(fwhm_pv), dtype=np.float64)
+            slack = (WINDOW_MIN_US + WINDOW_SLACK_FRAC * np.abs(pos)
+                     if window_slack_us is None
+                     else np.full(n, float(window_slack_us)))
+            # asymmetric by construction: α is the rise on the
+            # short-flight-time side and β the decay on the long one, and
+            # β < α is the normal case.
+            half_lo = (TAIL_EFOLDS / np.maximum(alpha, _MIN_RATE)
+                       + resolution + slack)
+            half_hi = (TAIL_EFOLDS / np.maximum(beta, _MIN_RATE)
+                       + resolution + slack)
+            w = np.zeros((1, n, 2), dtype=np.int64)
+            valid = np.isfinite(pos)
+            pos_v = np.where(valid, pos, 0.0)
+            lo = np.searchsorted(tof, pos_v - np.where(valid, half_lo, 0.0),
+                                 side="left")
+            hi = np.searchsorted(tof, pos_v + np.where(valid, half_hi, 0.0),
+                                 side="right")
+            lo[~valid] = 0
+            hi[~valid] = 0
+            w[0, :, 0], w[0, :, 1] = lo, hi
+            return w
 
-        win = np.zeros((1, n, 2), dtype=np.int64)
-        valid = np.isfinite(pos)
-        pos_v = np.where(valid, pos, 0.0)
-        i0 = np.searchsorted(tof, pos_v - np.where(valid, half_lo, 0.0),
-                             side="left")
-        i1 = np.searchsorted(tof, pos_v + np.where(valid, half_hi, 0.0),
-                             side="right")
-        i0[~valid] = 0
-        i1[~valid] = 0
-        win[0, :, 0], win[0, :, 1] = i0, i1
+        win = _bank_windows(gam)
+        # T-6, WP-1343's second family on a bank.  Built only in a Rietveld
+        # fit of a phase whose magnetic term is drawn and whose separate
+        # width is non-zero or can move this stage (``moving``, never the
+        # free set, root CLAUDE.md's rule for a structural freeze); otherwise
+        # nothing is built and the phase's arithmetic is the one-family draw
+        # bit for bit.  The magnetic family is sized at the width the stage
+        # can *reach*: a width freed from zero is floored at
+        # ``forward.MAGNETIC_SIZING_FLOOR``, the constant-wavelength floor read
+        # at this bank (:func:`_magnetic_sizing_terms`), so the column is not
+        # read off windows clipping the tails it is about to grow.
+        win_mag = None
+        if (magnetic_mask is not None and mode == "rietveld"
+                and _magnetic_width_active(ip, phase, moving)):
+            m_size, m_strain = _magnetic_sizing_terms(
+                ip, phase, moving, d, math.radians(
+                    0.5 * src.two_theta_bank_deg))
+            win_mag = _bank_windows(gam + np.asarray(tof_sample_gamma(
+                d, src.difc.value, m_size, m_strain)))
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win,
-                           fcj_n=np.zeros((1, n), dtype=np.int64))
+                           fcj_n=np.zeros((1, n), dtype=np.int64),
+                           win_mag=win_mag)
         if magnetic_mask is not None:
             # the fields ``compile_model`` sets, set the same way, so the
             # borrowed ``_magnetic_f2`` reads them unchanged: the frozen
@@ -1512,13 +1677,9 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
                               or (phase.extinction.value == 0.0
                                   and f"phases.{ip}.extinction" not in moving))
         phases.append(cp)
-        widths = (i1 - i0).astype(np.int64)
-        flat_windows.append((
-            np.concatenate([np.arange(i0[k], i1[k], dtype=np.int64)
-                            for k in range(n) if widths[k] > 0])
-            if int(widths.sum()) else np.zeros(0, dtype=np.int64),
-            np.repeat(np.arange(n, dtype=np.int64), np.maximum(widths, 0)),
-        ))
+        flat_windows.append(_flatten_windows(win))
+        flat_windows_mag.append(None if win_mag is None
+                                else _flatten_windows(win_mag))
 
     # Same gating/widening rule as ``compile_model`` (WP-1309): ``sigma`` may
     # widen here if the background carries its own counting statistics, and
@@ -1577,6 +1738,7 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
         two_theta_bank_deg=float(src.two_theta_bank_deg),
         sin_theta_bank=math.sin(theta_bank),
         mode=mode, phases=phases, flat_windows=flat_windows,
+        flat_windows_mag=flat_windows_mag,
         fixed_background=fixed, bkg_paths=bkg_paths, bkg_design=design,
         bkg_penalty=penalty, component_paths=component_paths,
         profile_kind=profile_kind,
