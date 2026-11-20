@@ -27,7 +27,9 @@ measures the *profile* (WP-1077; `_model_is_quiet` and the sham-probe measuremen
 fit is gated on the picker's envelope (`REFERENCE_NET_RWP_MAX`).
 **A raised fit is no evidence**: its class stays unscored (WP-2076). **A k is a position hypothesis
 too** (WP-1418 M-8): `kvector.py` scores k against a known parent, its null is per pattern, no call in
-it picks a k, and a grid record claims nothing about a k off its grid.
+it picks a k, and a grid record claims nothing about a k off its grid. **Nor does `ksearch.py` (K1b)**:
+`KSearchResult` has no `.k`, `best_or_none()` is gated on the null margin and on partner ties read on the
+result, its warnings never refuse, and its null covers exactly the strata its scores do.
 
 ## The pipeline
 

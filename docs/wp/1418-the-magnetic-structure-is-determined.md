@@ -1022,6 +1022,76 @@ no magnetic model declared.
 
 ## Handover log
 
+### 2026-11-20 — M-8's heuristic half, K1b (`indexing/ksearch.py`, #795)
+
+K1b composes K1a's public calls into a ranking and a gated verdict, and adds nothing to
+K1a. `search_kvector(peaks, parent, radius=None, harmonics=(1,), budget=None)` scores every
+k of the 1/64 grid, ranks the rows by score, and measures the per-pattern shuffle null over
+exactly the strata it searched. It returns a `KSearchResult`, which has no `.k` and no
+`.best`. `best_or_none()` returns the top row only when it clears the null's 99th percentile
+by `K_SEARCH_MARGIN_DECADES` (1.0) and no near-symmetric partner of the metric ties it. A
+tie is a row within the margin of the top, lying within `K_SEARCH_PARTNER_STEPS` (4) grid
+steps of a `K_SEARCH_PARTNER` image at `K_SEARCH_PARTNER_TOL` (0.08). Two warnings never
+refuse. `K_SEARCH_AT_CHANCE` fires when the top is within the margin of the null.
+`K_SEARCH_FEW_PEAKS` fires below `k_search_floor`, which returns the K report's measured
+table (§ 13.4) where it has a cell and 4 + 2 per further free component (+ 2 contaminated)
+elsewhere. `radius=None` is `VALIDITY_RADIUS_FWHM` × the peaks' own median FWHM, floored at
+`nuclear_fwhm` when given, and `radius_source` says which. `budget=None` is the indexing
+`quick` preset, read between strata as K1a reads it. The module, the schema's home and the
+radius default are the PR's first three questions; the fourth is the exclusion width
+that H3 found too narrow. M-8 stays unticked: K2 passes the residue
+from a fit, and K3 replaces the grid with the measured real-k step.
+
+*Measured.* Pre-registered arms H1–H8 (synthetic Pnma, CW neutrons, 1/64 grid, 0.12°
+radius unless stated; arm64 Mac, `.venv-test` `[dev]`, `nice`, 4 workers; H7 on a Linux workstation):
+
+- H1: planted (0, 18/64, 0), ten clean peaks, ranked first, margin 4.51, returned, 40/40;
+  off-grid (0, 0.28, 0) top within one step and returned, 40/40.
+- H2: planted (11/64, 0, 20/64) (a plane k, not general), ranked first 40/40, margin
+  4.36–4.41. A count-only ranking also ranked it first 40/40, so H2 did not separate the
+  figures of merit at N = 10.
+- H3: **fails on profile misfit.** The residue of a 10 % profile-width misfit (138–282
+  peaks a list) sits a median 0.25° from the nuclear lines, outside the ±0.12° windows,
+  and the uniform shuffle null does not model those shoulders. `best_or_none()` returned
+  a k on 40 of 40 lists at 5 000 counts and on 32 of 40 at 20 000 counts. A post-hoc
+  probe, not pre-registered, used a ±0.30° window (about one FWHM) on both the peak list
+  and the null's exclusions. It withheld the k on 8 of 8 misfit lists and still returned
+  a planted line k on 4 of 4 (margin 3.16). Four random peaks: the code fired and
+  `best_or_none()` was `None` on 200 of 200, with rows returned every time.
+- H4: the floor, both negatives (4 general + 2 spurious, and 3 line peaks) fired
+  `K_SEARCH_FEW_PEAKS` 20/20 with rows returned; both positives silent 20/20.
+- H5: broad satellites (FWHM 0.48°), census radius 0.192°. At position scatter 0.15 FWHM
+  the planted k ranked first 19/20 with the census radius; the nuclear-width radius
+  (0.12°) matched a median of 9 planted peaks against 10, and 7 against 9 at 0.25 FWHM. No
+  difference at 1/15 FWHM, where the census radius costs margin (2.90 against 4.40).
+- H6: on K1a's cell the positions separate the partner (gap 1.8–4.6 decades), and the
+  planted row is returned 20/20. On a near cell (c = 5.73 Å) the partner ties
+  (gap 0.02–0.03) and `best_or_none()` is `None` 20/20.
+- H7: simulated k = 0 entries of MAGNDATA (a seeded subset of 400, on a Linux workstation; the
+  sort dropped every peak within 0.4 FWHM of a lattice line). 299 entries ran to a
+  result; 114 left an empty residue. The search was silent on 183 of the 185 non-empty
+  residues (98.9 %, against a pre-registered 99 %). Both entries it was not silent on are
+  anti-centred magnetic structures on I-centred parents. Their magnetic lines sit at
+  positions that the parent's centring forbids, so the k it found is real. On the
+  entries without an anti-translation it was silent on 183 of 183.
+- H8 (1/64 grid, 35 936 k): the 100-shuffle 99th percentile was 5.16 at N = 6 and 5.09
+  at N = 10. The 2 000-shuffle reference gave 4.42 and 5.28, and exceeded the
+  100-shuffle level on 0.05 % and 1.7 % of shuffles. #835's Bonferroni form gave 4.74 with
+  N_eff = 550 (n_points / 5^n_free) and 6.56 with all points. The maintainer's
+  4.77 and 5.26 are on the 0.01 grid and are not compared here.
+
+*Found.* `quick`'s 120 s budget does not bound a search. K1a reads it between strata, and the
+general stratum alone holds 29 791 points. A 245-peak residue took more than 9 min on one
+core, and 49 of the H7 searches overran, the longest by 150 s. A deadline read inside a
+stratum is K1a machinery, so it is left to its own PR. And the default exclusion windows
+(nuclear lines at ± the radius) are narrower than a profile misfit's shoulders, so on a
+misfit residue the verdict names a k (H3). A sort window of about one FWHM, applied to the
+peaks and the null alike, removed that in the probe. Whose default it is (K2's sort or this
+call's) is the PR's fourth question.
+
+*Next.* K2 passes the fitted residue, sorted three ways, from the satellite arm. K3
+replaces the 1/64 grid. Nobody owns the 2k/3k residue test yet.
+
 ### 2026-11-24 — K1a's budget now stops a search inside a stratum (PR #1732)
 
 A time budget on the k-grid search now holds to within one block of work. Before, the search read its budget only between strata, so a stratum that had started ran to its end. The general stratum of the 1/64 `P n m a` grid holds 29 791 k. On a 245-peak list the 100-shuffle null then ran past nine minutes under a 120 s budget. Now the search stops at the first expired read, and the result names the stratum it cut and how many of its points were scored. Nothing reads a cut search yet. Whether anything may be read off one is K1b's question.
