@@ -2842,8 +2842,11 @@ ROWS: tuple[Row, ...] = (
         evidence=("synthetic CW-neutron Pnma, 1/64 grid, 0.12 deg radius: a planted line k with "
                   "ten clean peaks clears the shuffle 99 % by +4.5 decades (WP-1418 K1a, V4), "
                   "and 100 shuffles place the 99th percentile itself only to about half a "
-                  "decade (K1a follow-up 2: true exceedance 0.9-7.5 %); the K1b arms H1 and "
-                  "H3 give the planted and random rates at this margin"),
+                  "decade (K1a follow-up 2: true exceedance 0.9-7.5 %); K1b arms: a planted line k "
+                  "returned 40/40 (margin 4.51), four random peaks withheld 200/200 (largest "
+                  "margin 0.34), and the 100-shuffle threshold plus one decade was exceeded by "
+                  "none of a 2 000-shuffle null at N = 6 and 10; profile-misfit shoulders "
+                  "cleared it on 72 of 80 lists"),
         grounds=("Reads only best_or_none() and K_SEARCH_AT_CHANCE; the ranked rows and the "
                  "null are reported whatever it is. One decade is rietx's own, sized against "
                  "the null's own sampling noise (issue #795, K1b).")),
@@ -2869,8 +2872,10 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.ksearch.K_SEARCH_PARTNER_TOL", "constant", tier=3, value=0.08,
         evidence=("WP-1418 K1a, V6: at 0.08 the x <-> z image on a 5.74 x 7.70 x 5.54 A Pnma "
                   "cell is listed (relative metric deviation 0.0735) and none on a "
-                  "5.74 x 7.70 x 6.40 A one; the K1b arm H6 measures the tie it feeds on that "
-                  "cell and on a 5.74 x 7.70 x 5.73 A one"),
+                  "5.74 x 7.70 x 6.40 A one; K1b arm H6: on the 5.54 A cell the positions "
+                  "separate the partner by 1.8-4.6 decades and the planted k is returned 20/20, "
+                  "on a 5.73 A cell the partner ties (0.02-0.03 decade) and best_or_none() is "
+                  "None 20/20"),
         grounds=("A partner listed at this tolerance withholds best_or_none() only when a row "
                  "near it scores within the margin of the top; the rows are reported either "
                  "way. 0.08 is rietx's own (issue #795, K1b).")),
@@ -5626,9 +5631,11 @@ ROWS: tuple[Row, ...] = (
         value=None,
         evidence=("radius=None reads VALIDITY_RADIUS_FWHM (0.4) x the median FWHM the peaks "
                   "carry (the residual census), floored at the nuclear lines' FWHM when "
-                  "nuclear_fwhm is given, and raises with no width anywhere; the K1b arm H5 "
-                  "measures broad satellites (1.6 x the nuclear FWHM) matched under the census "
-                  "radius against the nuclear one; radius_source records which bound"),
+                  "nuclear_fwhm is given, and raises with no width anywhere; K1b arm H5, "
+                  "satellites 1.6 x the nuclear FWHM: at position scatter 0.15 FWHM the census "
+                  "radius (0.192 deg) matched a median 10 planted peaks against 9 at the nuclear "
+                  "one (0.12 deg), 9 against 7 at 0.25 FWHM, none more at 1/15 FWHM, where it "
+                  "costs margin (2.90 against 4.40); radius_source records which bound"),
         grounds=("Moves which peaks a k matches, so its score; recorded on every result and "
                  "overridden by radius=. The census rule is rietx's own (issue #795, K1b), "
                  "and its home is a question to the maintainer in the K1b pull request.")),
@@ -5662,8 +5669,11 @@ ROWS: tuple[Row, ...] = (
         value=None,
         evidence=("exclude=None draws the null's shuffles outside every nuclear line at ± the "
                   "radius used, the windows the unexplained peaks were sorted off (WP-1442's "
-                  "condition for a fair control); the K1b arm H3 measures the firing rate on "
-                  "profile-misfit residue, whose shoulders sit further out than ± the radius"),
+                  "condition for a fair control); K1b arm H3: on a 10 % profile-width misfit "
+                  "the shoulders sit a median 0.25 deg from the lines, outside ± 0.12, and "
+                  "best_or_none() returned a k on 72 of 80 lists; a post-hoc sort and "
+                  "exclusion of ± 0.30 deg (about one FWHM) withheld 8 of 8 and kept a planted "
+                  "line k, so the width is a question to the maintainer"),
         grounds=("Sets the chance level the top row is judged against, so best_or_none() and "
                  "K_SEARCH_AT_CHANCE; reported as KSearchResult.exclude and overridden by "
                  "exclude=. The ± radius width is rietx's own (issue #795, K1b).")),
@@ -5677,8 +5687,9 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.ksearch.search_kvector:n_shuffles", "default", tier=3, ambiguity=2,
         value=100,
         evidence=("the size issue #795's measured null used; K1a's follow-up 2: 100 shuffles "
-                  "place the 99th percentile to a true exceedance of 0.9-7.5 %; the K1b arm "
-                  "H8 sets 100 against 2 000 on the 1/64 grid"),
+                  "place the 99th percentile to a true exceedance of 0.9-7.5 %; K1b arm H8 "
+                  "on the 1/64 grid: 100-shuffle 99 % 5.16 and 5.09 against 2 000-shuffle 4.42 "
+                  "and 5.28 at N = 6 and 10 (exceedance 0.05 % and 1.7 %)"),
         grounds=("Sets the threshold's noise, so best_or_none() near the margin; recorded as "
                  "n_shuffles and overridden by n_shuffles=. Rietx's own (issue #795, K1b).")),
     Row("rietx.indexing.ksearch.search_kvector:percentile", "default", tier=3, ambiguity=2,

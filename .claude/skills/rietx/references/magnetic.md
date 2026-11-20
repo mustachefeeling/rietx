@@ -24,10 +24,13 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 
 ## The k-grid machinery
 
-`rietx.indexing.kvector` (WP-1418 M-8, K1a) scores any k you name against the unexplained peaks and enumerates a rational grid by stratum. It ranks nothing; the radius, denominator, strata, band, and the null's exclusion windows, shuffle count, percentile and seed are all yours to pass. A grid record covers the grid points it lists and claims nothing about a k between them.
+`rietx.indexing.kvector` (WP-1418 M-8, K1a) scores any k you name against the unexplained peaks and enumerates a rational grid by stratum. It ranks nothing; the radius, denominator, strata, band, and the null's exclusion windows, shuffle count, percentile and seed are all yours to pass. A grid record covers the grid points it lists and claims nothing about a k between them. `rietx.indexing.ksearch.search_kvector` (K1b) composes it into a ranking, a `KSearchResult` with no `.k`: `best_or_none()` returns `rows[0]` only when it clears the per-pattern null by `margin_decades` and no partner ties it, else `None`; `strata_left` names any stratum a budget cut, from the scores and the null alike.
 
 | reading or code | what you must not assume, and what to do |
 |---|---|
+| `KSearchResult.best_or_none()` returns a row | Read it as k established. It beat a null drawn uniformly outside the `exclude` windows (default: nuclear lines ± the radius), and a profile misfit's shoulders sit outside those and clear it (Measured: synthetic Pnma, 10 % width misfit, a k returned on 72 of 80 residues). Drop peaks within about one FWHM of a nuclear line, pass the same windows as `exclude=`, rerun, and test the k with a moment or modulation model |
+| `K_SEARCH_AT_CHANCE` | (warning; on `KSearchResult.diagnostics`) Read the top row as k. It is not past the shuffle null by the margin, so peaks scattered at random score as well; `best_or_none()` is `None`. Recheck the peak sort (a profile misfit leaves shoulders beside the nuclear lines), the radius (`radius_source`) and `strata_left`, or measure more satellites |
+| `K_SEARCH_FEW_PEAKS` | (warning; on `KSearchResult.diagnostics`) Trust the ranking. Fewer peaks than `floor` (4 + 2 per free k component, + 2 where contamination is possible) let a wrong k on the stratum match as many; the rows are still listed. Restrict `strata=` to the symmetry you expect, or pick more peaks |
 | `K_SEARCH_PARTNER` | (info; on `KEquivalents.diagnostics` from `kvector_equivalents`) Choose k over the partner from positions. A near-symmetry of the metric within your `tol` maps k onto a vector no symmetry relates to it, listed in `KEquivalents.rows` as a `partner` with its `metric_deviation`. The map is only near a symmetry, so score the partner's neighbourhood, not the exact image, and keep every k that matches; intensities (a moment or modulation model) or a sharper instrument separate them |
 
 ## The determination verb
