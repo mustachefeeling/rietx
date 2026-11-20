@@ -236,6 +236,7 @@ DEFAULT_SEATS: dict[str, int] = {
     "rietx.indexing.kvector.kgrid_null": 2007,
     "rietx.indexing.kvector.kgrid_bound": 2007,
     "rietx.indexing.kvector.kvector_equivalents": 2007,
+    "rietx.indexing.ksearch.search_kvector": 2007,
     "rietx.crystallography.representation.subgroups.maximal": 2006,
 }
 
@@ -1657,6 +1658,39 @@ ROWS: tuple[Row, ...] = (
                   "5 % of the strongest, and check those set-aside lines against the leading "
                   "candidate's predicted positions"),
         scope=("all",)),
+    Row("K_SEARCH_AT_CHANCE", "code", tier=3, ambiguity=2,
+        evidence=("warning; fires when the top row of search_kvector scores under the "
+                  "per-pattern shuffle null's 99th percentile plus K_SEARCH_MARGIN_DECADES "
+                  "(1 decade), the null drawn over exactly the strata searched; synthetic "
+                  "CW-neutron Pnma (5.74 x 7.70 x 5.54 A, 2.41 A, 0.12 deg radius, 1/64 grid): "
+                  "a planted line k with ten clean peaks clears the 99 % by +4.5 decades "
+                  "(WP-1418 K1a, V4) and four random off-nuclear peaks sit under it "
+                  "(tests/test_indexing_ksearch.py); the validation arms H1-H8 of the K1b "
+                  "handover give the firing rates on planted, random and misfit lists"),
+        grounds=("Reports and ranks: the rows stay, best_or_none() returns None, and nothing "
+                 "is refused. The 99 %, the 100 shuffles and the one-decade margin are "
+                 "rietx's own (issue #795, K1b), measured on one synthetic family and "
+                 "untested beyond it; a caller who has k from elsewhere (a single-crystal "
+                 "result, a paired pattern) reads the rows as a test of that k and would "
+                 "ignore the warning, which is why it never refuses."),
+        response="warning",
+        responds=("treat every ranked k as a hypothesis, build no moment or modulation model "
+                  "on the top row alone, and add peaks or state k from elsewhere")),
+    Row("K_SEARCH_FEW_PEAKS", "code", tier=3, ambiguity=2,
+        evidence=("warning; fires when the unexplained peaks number fewer than "
+                  "k_search_floor for the top row's stratum, the strata searched, whether the "
+                  "top leaves peaks unmatched and the radius; the floor table is the K "
+                  "report's § 13.4 (synthetic CW-neutron Pnma, 0.06 and 0.12 deg radii): 4 "
+                  "clean for a line k searched on its own stratum, 6 on the whole wedge, 8 "
+                  "for a general k, two more with contaminating peaks"),
+        grounds=("A prior on the score, never a gate: the rows and best_or_none() are "
+                 "unchanged by it. The floor is rietx's own measurement on one synthetic "
+                 "family (issue #795, K1b); a caller with a stronger prior on the stratum (a "
+                 "symmetry argument naming the line) searches that stratum, which lowers the "
+                 "floor the code reads."),
+        response="warning",
+        responds=("read the ranked list as hypotheses and refine no moment model on the top "
+                  "k until more unexplained peaks are measured or the stratum is known")),
     Row("K_SEARCH_PARTNER", "code", tier=1, ambiguity=2,
         evidence=("a geometric fact of the cell: fires once per image of k under a near-symmetry "
                   "of the metric (indexing.ambiguity.lattice_point_group at the caller's tol) "
@@ -4241,6 +4275,58 @@ ROWS: tuple[Row, ...] = (
         approved="2026-10-21"),
     Row("rietx.indexing.fom._AGGREGATE_FLOOR_RTOL", "constant", value=1e-06),
     Row("rietx.indexing.fom._BOUNDARY_RTOL", "constant", value=1e-09),
+    Row("rietx.indexing.ksearch.K_SEARCH_GRID_DENOMINATOR", "constant", tier=1, value=64,
+        evidence=("definition: the commensurate bound K_MAX_DENOMINATOR of "
+                  "crystallography.representation.irreps, with no factor of its own; its use as "
+                  "the search step is issue #795's decision 2 (ruled by Yue 2026-11-11, with "
+                  "the condition that every result carries grid_step and claims nothing off "
+                  "the grid)")),
+    Row("rietx.indexing.ksearch.K_SEARCH_MARGIN_DECADES", "constant", tier=3, value=1.0,
+        evidence=("synthetic CW-neutron Pnma, 1/64 grid, 0.12 deg radius: a planted line k with "
+                  "ten clean peaks clears the shuffle 99 % by +4.5 decades (WP-1418 K1a, V4), "
+                  "and 100 shuffles place the 99th percentile itself only to about half a "
+                  "decade (K1a follow-up 2: true exceedance 0.9-7.5 %); the K1b arms H1 and "
+                  "H3 give the planted and random rates at this margin"),
+        grounds=("Reads only best_or_none() and K_SEARCH_AT_CHANCE; the ranked rows and the "
+                 "null are reported whatever it is. One decade is rietx's own, sized against "
+                 "the null's own sampling noise (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.K_SEARCH_FLOOR_BASE", "constant", tier=3, value=4,
+        evidence=("K report § 13.4 (synthetic CW-neutron Pnma, 0.12 deg radius): a line k "
+                  "searched on its own stratum stood above chance from 4 clean peaks; the "
+                  "measured table K_SEARCH_FLOOR_MEASURED decides wherever it has a cell, and "
+                  "this rule covers the cells it lacks (a plane on the plane strata)"),
+        grounds=("Feeds K_SEARCH_FEW_PEAKS alone, a warning; rietx's own measurement on one "
+                 "synthetic family (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.K_SEARCH_FLOOR_PER_FREE", "constant", tier=3, value=2,
+        evidence=("K report § 13.4: the general k (three free components) needed 8 clean peaks "
+                  "against 4 for a line on its own stratum, two per further free component; "
+                  "the rule reads 8 for a line on the whole wedge where 6 was measured, and the "
+                  "table wins there"),
+        grounds=("Feeds K_SEARCH_FEW_PEAKS alone, a warning; rietx's own measurement on one "
+                 "synthetic family (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.K_SEARCH_FLOOR_CONTAMINATION", "constant", tier=3, value=2,
+        evidence=("K report § 13.4: two spurious peaks beside the planted ones raised every "
+                  "measured floor by two at 0.12 deg (4 -> 6, 8 -> 10)"),
+        grounds=("Feeds K_SEARCH_FEW_PEAKS alone, a warning; rietx's own measurement on one "
+                 "synthetic family (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.K_SEARCH_PARTNER_TOL", "constant", tier=3, value=0.08,
+        evidence=("WP-1418 K1a, V6: at 0.08 the x <-> z image on a 5.74 x 7.70 x 5.54 A Pnma "
+                  "cell is listed (relative metric deviation 0.0735) and none on a "
+                  "5.74 x 7.70 x 6.40 A one; the K1b arm H6 measures the tie it feeds on that "
+                  "cell and on a 5.74 x 7.70 x 5.73 A one"),
+        grounds=("A partner listed at this tolerance withholds best_or_none() only when a row "
+                 "near it scores within the margin of the top; the rows are reported either "
+                 "way. 0.08 is rietx's own (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.K_SEARCH_PARTNER_STEPS", "constant", tier=3, value=4,
+        evidence=("WP-1418 K1a, V6: on the 5.74 x 7.70 x 5.54 A cell the exact partner image "
+                  "matched 2 of 10 planted peaks and the best grid k within four 1/64 steps of "
+                  "it 8 of 10 (7 of 10 on two further seeds)"),
+        grounds=("Bounds the neighbourhood the tie rule reads; it withholds best_or_none() and "
+                 "removes no row. Four is rietx's own (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch._FLOOR_RADII", "constant", tier=1, value=(0.06, 0.12),
+        evidence=("definition: the two match radii (deg 2theta) at which the K report's § 13.4 "
+                  "measured the floor table; a radius reads the nearer of the two, split at "
+                  "their geometric mean")),
     Row("rietx.indexing.kvector._BLOCK", "constant", tier="invariant", value=2000.0,
         evidence=("answer-invariant layout: the degrees each k's windows are shifted by so one "
                   "searchsorted locates a peak in every k's list; any value past the 2θ axis and "
@@ -7215,6 +7301,78 @@ ROWS: tuple[Row, ...] = (
         value=(1,),
         evidence=("definition: (1,) is the first-order hypothesis H ± k; (2,) or (3,) scores 2k "
                   "or 3k as its own hypothesis (issue #795, K1a)")),
+    Row("rietx.indexing.ksearch.search_kvector:radius", "default", tier=3, ambiguity=2,
+        value=None,
+        evidence=("radius=None reads VALIDITY_RADIUS_FWHM (0.4) x the median FWHM the peaks "
+                  "carry (the residual census), floored at the nuclear lines' FWHM when "
+                  "nuclear_fwhm is given, and raises with no width anywhere; the K1b arm H5 "
+                  "measures broad satellites (1.6 x the nuclear FWHM) matched under the census "
+                  "radius against the nuclear one; radius_source records which bound"),
+        grounds=("Moves which peaks a k matches, so its score; recorded on every result and "
+                 "overridden by radius=. The census rule is rietx's own (issue #795, K1b), "
+                 "and its home is a question to the maintainer in the K1b pull request.")),
+    Row("rietx.indexing.ksearch.search_kvector:harmonics", "default", tier=1, ambiguity=1,
+        value=(1,),
+        evidence=("definition: (1,) is the first-order hypothesis H ± k; another order is "
+                  "another hypothesis the caller names (issue #795, K1a)")),
+    Row("rietx.indexing.ksearch.search_kvector:budget", "default", tier=3, ambiguity=1,
+        value=None,
+        evidence=("budget=None is the indexing package's quick preset, a whole-run Deadline of "
+                  "SEARCH_PRESETS['quick'] (120 s), read between strata; the default 1/64 "
+                  "Pnma search finishes all 8 strata in about 21 s on the Mac (K1b timing), so "
+                  "it binds only on lower symmetry or a slower machine, and a cut is reported "
+                  "as strata_left with a null over the same strata"),
+        grounds=("A cut search ranks fewer k and reports which strata it left; it never calls "
+                 "a smaller search complete. The 120 s is the indexing package's own quick "
+                 "preset (WP-1042), shared rather than a second number.")),
+    Row("rietx.indexing.ksearch.search_kvector:nuclear_fwhm", "default", tier="caller",
+        ambiguity=1, value=None,
+        evidence=("opt-in: nuclear_fwhm=None applies no nuclear floor to the census radius; a "
+                  "number or one per peak is passed by name, and radius_source says which "
+                  "bound set the radius")),
+    Row("rietx.indexing.ksearch.search_kvector:strata", "default", tier=1, ambiguity=1,
+        value=None,
+        evidence=("definition: strata=None searches every stratum of the 1/64 grid of issue "
+                  "#795's decision 2 (ruled by Yue 2026-11-11) in K1a's order, points, lines, "
+                  "planes, general (Wills 2009 for the order only); the order sets which "
+                  "strata a binding budget cuts and how equal scores are listed, never a "
+                  "score")),
+    Row("rietx.indexing.ksearch.search_kvector:exclude", "default", tier=3, ambiguity=2,
+        value=None,
+        evidence=("exclude=None draws the null's shuffles outside every nuclear line at ± the "
+                  "radius used, the windows the unexplained peaks were sorted off (WP-1442's "
+                  "condition for a fair control); the K1b arm H3 measures the firing rate on "
+                  "profile-misfit residue, whose shoulders sit further out than ± the radius"),
+        grounds=("Sets the chance level the top row is judged against, so best_or_none() and "
+                 "K_SEARCH_AT_CHANCE; reported as KSearchResult.exclude and overridden by "
+                 "exclude=. The ± radius width is rietx's own (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.search_kvector:band_deg", "default", tier=3, ambiguity=2,
+        value=5.0,
+        evidence=("the local chance band (± deg 2theta) the K report's spike measured on "
+                  "synthetic CW-neutron patterns (issue #795); K1a's calls take it with no "
+                  "default and every K1a and K1b arm ran at 5.0"),
+        grounds=("Sets each row's chance probability, so its score; recorded on every result. "
+                 "5 deg is rietx's own (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.search_kvector:n_shuffles", "default", tier=3, ambiguity=2,
+        value=100,
+        evidence=("the size issue #795's measured null used; K1a's follow-up 2: 100 shuffles "
+                  "place the 99th percentile to a true exceedance of 0.9-7.5 %; the K1b arm "
+                  "H8 sets 100 against 2 000 on the 1/64 grid"),
+        grounds=("Sets the threshold's noise, so best_or_none() near the margin; recorded as "
+                 "n_shuffles and overridden by n_shuffles=. Rietx's own (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.search_kvector:percentile", "default", tier=3, ambiguity=2,
+        value=99.0,
+        evidence=("the percentile issue #795's measured null used (synthetic CW-neutron "
+                  "patterns only); K1a's follow-up 2 measured its true exceedance at 100 "
+                  "shuffles as 0.9-7.5 %"),
+        grounds=("Sets the chance level best_or_none() and K_SEARCH_AT_CHANCE read; recorded "
+                 "on the null and overridden by percentile=. Rietx's own (issue #795, K1b).")),
+    Row("rietx.indexing.ksearch.search_kvector:seed", "default", tier=1, ambiguity=1,
+        value=20261112,
+        evidence=("arithmetic: a fixed seed makes the null reproducible, the same seed giving "
+                  "the identical shuffles whatever strata are searched; any seed is a draw "
+                  "from the same distribution, and the draw's spread is what "
+                  "K_SEARCH_MARGIN_DECADES is sized against")),
     Row("rietx.indexing.workflow.index_pattern:peaks", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:data", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:instrument", "default", value=None),
@@ -7486,6 +7644,10 @@ ROWS: tuple[Row, ...] = (
                   "predicts them, lists the three readings of a line it does not predict "
                   "(second phase, picker artefact, a supercell's ordering line) without "
                   "ranking them, and names the argument that forbids the retry")),
+    Row("K_SEARCH_AT_CHANCE.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
+        evidence=("arithmetic: the top score sits within the margin of the shuffle null, so "
+                  "the suggestion names what would move it (more peaks, a paired pattern, a "
+                  "temperature series, k stated from elsewhere) and ranks no k")),
     Row("K_SEARCH_PARTNER.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
         evidence=("arithmetic: the metric is unchanged within tol by the map between the two "
                   "k, so the suggestion names the calls that would separate them (score the "

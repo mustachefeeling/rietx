@@ -3415,6 +3415,32 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "`load_instrument_profile`, and refine the sample with `lab_sample_refine`."
         ),
     ),
+    "K_SEARCH_AT_CHANCE": HelpEntry(
+        title="The best propagation vector is not above chance",
+        description=(
+            "The k-search scored every propagation vector on its grid against the "
+            "unexplained peaks, and then scored the same grid against shuffled copies of "
+            "those peaks to measure how high a score chance alone reaches. The best vector "
+            "does not clear that level by the required margin, so the positions do not "
+            "establish it. The ranked list is still returned, and each row is a hypothesis; "
+            "best_or_none() returns None. More peaks, a second pattern of the same specimen, "
+            "a temperature series, or a vector known from elsewhere can settle it. A moment "
+            "or modulation model that also fits intensities can test one row at a time."
+        ),
+    ),
+    "K_SEARCH_FEW_PEAKS": HelpEntry(
+        title="Too few unexplained peaks for the k-search",
+        description=(
+            "The k-search ran on fewer unexplained peaks than a vector of this kind needs "
+            "to stand above chance at this match radius. The floor was measured on "
+            "synthetic constant-wavelength neutron patterns: about 4 peaks for a vector on "
+            "a symmetry line when only that line is searched, 6 when the whole grid is "
+            "searched, and 8 for a general vector, with two more when other peaks are mixed "
+            "in. The ranked list is a set of hypotheses, and the top row is not evidence of "
+            "magnetic or modulated order. Measure more peaks, or search only the stratum a "
+            "symmetry argument names."
+        ),
+    ),
     "K_SEARCH_PARTNER": HelpEntry(
         title="The cell's metric pairs this propagation vector with another",
         description=(
