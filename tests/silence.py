@@ -1107,6 +1107,56 @@ def _sigma_nonpositive_silent() -> list:
                          nonpositive_sigma="poisson"))
 
 
+# ------------------------------------------------------------- the k-search
+
+
+@functools.lru_cache(maxsize=1)
+def _ksearch_grid():
+    """The 1/16 grid on ``tests/test_indexing_ksearch.py``'s Pnma, positions
+    precomputed, so each pair pays for the scores and the null alone."""
+    from rietx.indexing.kvector import kgrid_positions, kgrid_strata
+    from tests.test_indexing_ksearch import PNMA
+
+    return kgrid_positions(PNMA, kgrid_strata("P n m a", denominator=16))
+
+
+def _ksearch(peaks) -> list:
+    """``search_kvector``'s diagnostics on that grid at the test's radius."""
+    from rietx.indexing.ksearch import search_kvector
+    from tests.test_indexing_ksearch import PNMA, RADIUS
+
+    return list(search_kvector(peaks, PNMA, RADIUS, strata=_ksearch_grid(),
+                               n_shuffles=20).diagnostics)
+
+
+def _ksearch_planted(n: int):
+    from tests.test_indexing_ksearch import K_LINE16, PNMA, _planted
+
+    return _planted(PNMA, K_LINE16, n, 0)
+
+
+def _at_chance_fires() -> list:
+    """Four random peaks off the nuclear lines: the top row sits at the null."""
+    from tests.test_indexing_ksearch import PNMA, _random_off_nuclear
+
+    return _ksearch(_random_off_nuclear(PNMA, 4, 0))
+
+
+def _at_chance_silent() -> list:
+    """Ten clean satellites of a planted line k: the top row clears the null."""
+    return _ksearch(_ksearch_planted(10))
+
+
+def _few_peaks_fires() -> list:
+    """Three satellites of the planted k, under the floor of the whole wedge."""
+    return _ksearch(_ksearch_planted(3))
+
+
+def _few_peaks_silent() -> list:
+    """Ten satellites of it, at or above the floor."""
+    return _ksearch(_ksearch_planted(10))
+
+
 SILENCE: dict[str, Pair] = {
     "CIF_CELL_TIE_CORRECTED": Pair(
         _cell_tie_fires, _cell_tie_silent, "tests/test_cell_ties.py"),
@@ -1130,6 +1180,10 @@ SILENCE: dict[str, Pair] = {
         _profile_set_fires, _profile_set_silent, "tests/test_gsas_prm.py"),
     "HISTORY_EARLIER_TREE_SKIPPED": Pair(
         _earlier_tree_fires, _earlier_tree_silent, "tests/test_history.py"),
+    "K_SEARCH_AT_CHANCE": Pair(
+        _at_chance_fires, _at_chance_silent, "tests/test_indexing_ksearch.py"),
+    "K_SEARCH_FEW_PEAKS": Pair(
+        _few_peaks_fires, _few_peaks_silent, "tests/test_indexing_ksearch.py"),
     "LEBAIL_CYCLES_AT_CAP": Pair(
         functools.partial(_lebail_cap, False), _lebail_settled_or_unasked,
         "tests/test_lebail_cycles.py"),
