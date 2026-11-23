@@ -1042,6 +1042,15 @@ ROWS: tuple[Row, ...] = (
                   "and read the intensities and widths as unsettled until then"),
         scope=("all",)),
     Row("LOW_ANGLE_UNMODELLED", "code"),
+    Row("MAGNETIC_FORM_FACTOR_EXTRAPOLATED", "code", tier=1, ambiguity=1, response="warning",
+        responds=("read the moments as resting partly on extrapolated form-factor values at the "
+                  "highest angles; to keep every reflection inside, end the data at the d the "
+                  "suggestion names"),
+        evidence=("arithmetic: fires exactly when the stage's reflection list reaches an s past "
+                  "the row's fitted range, the source's own number (Brown ITC Vol. C p. 461; "
+                  "Lisher & Forsyth 1971 p. 548); a row whose fitted form grows past it "
+                  "(form_factor.GROWS_PAST_RANGE, a negative exponent) is refused at compile "
+                  "instead, the interim policy of form_factor.past_range_action")),
     Row("MAGNETIC_ION_ASSUMED", "code", tier=1, ambiguity=3,
         evidence=("arithmetic: fires exactly when the substitution was made (info); the "
                   "substitution's own tier is crystallography.magnetic.form_factor._ASSUMED_ION, "
@@ -2485,6 +2494,23 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.crystallography.fragments.INERTIA_RANK_TOL", "constant", value=1e-06),
     Row("rietx.crystallography.fragments._COINCIDENT_A2", "constant", value=1e-20),
     Row("rietx.crystallography.magcif.MOMENT_FORM_AGREEMENT_MU_B", "constant", value=0.02),
+    Row("rietx.crystallography.magnetic.form_factor.S_MAX_BROWN_3D_4D", "constant", tier=1,
+        value=1.5,
+        evidence=("source: the upper end of the range Brown fitted the 3d and 4d rows over, "
+                  "ITC Vol. C sec. 4.4.5 (2004), p. 461, 'in the range (sin theta)/lambda = 0 to "
+                  "1.5'; decides only where a row's values stop being a fit")),
+    Row("rietx.crystallography.magnetic.form_factor.S_MAX_BROWN_ACTINIDE", "constant", tier=1,
+        value=1.5,
+        evidence=("source: Brown, ITC Vol. C sec. 4.4.5 (2004), p. 461, for the actinides 'the "
+                  "calculations extend to 1.5'")),
+    Row("rietx.crystallography.magnetic.form_factor.S_MAX_BROWN_RARE_EARTH", "constant", tier=1,
+        value=1.2,
+        evidence=("source: Brown, ITC Vol. C sec. 4.4.5 (2004), p. 461, rare-earth rows fitted "
+                  "over 0-0.5 and 0.5-1.2")),
+    Row("rietx.crystallography.magnetic.form_factor.S_MAX_LISHER", "constant", tier=1,
+        value=1.3,
+        evidence=("source: Lisher & Forsyth (1971) Acta Cryst. A27, p. 548, 'the tabulated "
+                  "range (sin theta/lambda = 1.3)'")),
     Row("rietx.crystallography.magnetic.isotropy.CROSS_IRREP_DRAWS", "constant", value=12),
     Row("rietx.crystallography.magnetic.isotropy.DEFAULT_CELL_SCALE", "constant", value=5.0),
     Row("rietx.crystallography.magnetic.isotropy.DUAL_AFTER_RESTART", "constant", value=1),
@@ -5889,6 +5915,10 @@ ROWS: tuple[Row, ...] = (
     Row("LEBAIL_CYCLES_AT_CAP.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence="arithmetic: names the stage setting that lifts the cap"),
     Row("LOW_ANGLE_UNMODELLED.suggestion", "suggestion", value=1),
+    Row("MAGNETIC_FORM_FACTOR_EXTRAPOLATED.suggestion", "suggestion", tier=1, ambiguity=1,
+        value=1,
+        evidence=("arithmetic: d >= 1/(2 s_max) is the data range inside every row's fitted "
+                  "range; names the argument that sets it")),
     Row("MAGNETIC_ION_ASSUMED.suggestion", "suggestion", tier=1, ambiguity=3, value=2,
         evidence="arithmetic: names the argument that overrides the default"),
     Row("MAGNETIC_SUBGROUP_PREFERRED.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
