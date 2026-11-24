@@ -1266,20 +1266,21 @@ def _comparison_silent() -> list:
 @functools.lru_cache(maxsize=1)
 def _ksearch_grid():
     """The 1/16 grid on ``tests/test_indexing_ksearch.py``'s Pnma, positions
-    precomputed, so each pair pays for the scores and the null alone."""
+    precomputed, so each pair pays for the scores alone."""
     from rietx.indexing.kvector import kgrid_positions, kgrid_strata
     from tests.test_indexing_ksearch import PNMA
 
     return kgrid_positions(PNMA, kgrid_strata("P n m a", denominator=16))
 
 
-def _ksearch(peaks) -> list:
-    """``search_kvector``'s diagnostics on that grid at the test's radius."""
+def _ksearch(peaks, **kw) -> list:
+    """``search_kvector``'s diagnostics on that grid at the test's radius and
+    nuclear width."""
     from rietx.indexing.ksearch import search_kvector
-    from tests.test_indexing_ksearch import PNMA, RADIUS
+    from tests.test_indexing_ksearch import FWHM, PNMA, RADIUS
 
-    return list(search_kvector(peaks, PNMA, RADIUS, strata=_ksearch_grid(),
-                               n_shuffles=20).diagnostics)
+    kw.setdefault("strata", _ksearch_grid())
+    return list(search_kvector(peaks, PNMA, RADIUS, nuclear_fwhm=FWHM, **kw).diagnostics)
 
 
 def _ksearch_planted(n: int):
@@ -1289,25 +1290,75 @@ def _ksearch_planted(n: int):
 
 
 def _at_chance_fires() -> list:
-    """Four random peaks off the nuclear lines: the top row sits at the null."""
+    """Four random peaks off the nuclear windows: nothing clears the bound."""
     from tests.test_indexing_ksearch import PNMA, _random_off_nuclear
 
     return _ksearch(_random_off_nuclear(PNMA, 4, 0))
 
 
 def _at_chance_silent() -> list:
-    """Ten clean satellites of a planted line k: the top row clears the null."""
+    """Ten clean satellites of a planted line k: the top row clears the bound."""
     return _ksearch(_ksearch_planted(10))
 
 
 def _few_peaks_fires() -> list:
-    """Three satellites of the planted k, under the floor of the whole wedge."""
-    return _ksearch(_ksearch_planted(3))
+    """Two satellites of the planted k: the top matches both and cannot clear."""
+    return _ksearch(_ksearch_planted(2))
 
 
 def _few_peaks_silent() -> list:
-    """Ten satellites of it, at or above the floor."""
+    """Ten satellites of it, which clear."""
     return _ksearch(_ksearch_planted(10))
+
+
+def _ksearch_cut(reads: int) -> list:
+    """The planted list on the 1/8 grid under a budget whose token turns after
+    ``reads`` readings (one per block of k)."""
+    from rietx.indexing.engines import Budget
+    from rietx.indexing.kvector import kgrid_strata
+    from tests.test_indexing_ksearch import _FlipAfter
+
+    return _ksearch(_ksearch_planted(8), strata=kgrid_strata("P n m a", denominator=8),
+                    budget=Budget(3600.0, cancel=_FlipAfter(reads)))
+
+
+def _cut_fires() -> list:
+    """A budget that runs out after three blocks."""
+    return _ksearch_cut(3)
+
+
+def _cut_silent() -> list:
+    """A budget that never runs out, and a caller's own restriction to three
+    strata, which is a choice rather than a cut."""
+    from rietx.indexing.kvector import kgrid_strata
+
+    return (_ksearch_cut(10 ** 6)
+            + _ksearch(_ksearch_planted(8), budget="full",
+                       strata=kgrid_strata("P n m a", denominator=8)[:3]))
+
+
+def _crowded_peaks():
+    import numpy as np
+
+    from tests.test_indexing_ksearch import FWHM, PNMA, _nuclear
+
+    nuc = _nuclear(PNMA)
+    rng = np.random.default_rng(11)
+    near = np.sort(nuc[rng.choice(len(nuc), 30, replace=False)]
+                   + rng.choice([-1, 1], 30) * FWHM * rng.uniform(1.05, 1.6, 30))
+    return near[(near > 10.0) & (near < 140.0)]
+
+
+def _crowded_fires() -> list:
+    """Peaks placed just outside the windows, as a profile misfit leaves them."""
+    return _ksearch(_crowded_peaks())
+
+
+def _crowded_silent() -> list:
+    """Ten clean satellites, and peaks drawn at random off the windows."""
+    from tests.test_indexing_ksearch import PNMA, _random_off_nuclear
+
+    return _ksearch(_ksearch_planted(10)) + _ksearch(_random_off_nuclear(PNMA, 12, 3))
 
 
 SILENCE: dict[str, Pair] = {
@@ -1338,6 +1389,10 @@ SILENCE: dict[str, Pair] = {
         _earlier_tree_fires, _earlier_tree_silent, "tests/test_history.py"),
     "K_SEARCH_AT_CHANCE": Pair(
         _at_chance_fires, _at_chance_silent, "tests/test_indexing_ksearch.py"),
+    "K_SEARCH_CROWDED": Pair(
+        _crowded_fires, _crowded_silent, "tests/test_indexing_ksearch.py"),
+    "K_SEARCH_CUT": Pair(
+        _cut_fires, _cut_silent, "tests/test_indexing_ksearch.py"),
     "K_SEARCH_FEW_PEAKS": Pair(
         _few_peaks_fires, _few_peaks_silent, "tests/test_indexing_ksearch.py"),
     "LEBAIL_CYCLES_AT_CAP": Pair(

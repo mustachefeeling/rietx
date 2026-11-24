@@ -3416,29 +3416,56 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         ),
     ),
     "K_SEARCH_AT_CHANCE": HelpEntry(
-        title="The best propagation vector is not above chance",
+        title="No propagation vector stands above chance",
         description=(
             "The k-search scored every propagation vector on its grid against the "
-            "unexplained peaks, and then scored the same grid against shuffled copies of "
-            "those peaks to measure how high a score chance alone reaches. The best vector "
-            "does not clear that level by the required margin, so the positions do not "
-            "establish it. The ranked list is still returned, and each row is a hypothesis; "
-            "best_or_none() returns None. More peaks, a second pattern of the same specimen, "
-            "a temperature series, or a vector known from elsewhere can settle it. A moment "
-            "or modulation model that also fits intensities can test one row at a time."
+            "unexplained peaks and held each score to Boole's bound: the score that no "
+            "vector on the grid reaches by chance more often than alpha (0.01 by default), "
+            "whatever the correlation between vectors. No vector reaches it, so the "
+            "positions do not establish any of them. The ranked list is still returned, "
+            "each row with its adjusted p, and each row is a hypothesis. More peaks, a "
+            "second pattern of the same specimen, a temperature series, or a vector known "
+            "from elsewhere can settle it. A moment or modulation model that also fits "
+            "intensities can test one row at a time."
+        ),
+    ),
+    "K_SEARCH_CROWDED": HelpEntry(
+        title="The unexplained peaks crowd the nuclear lines",
+        description=(
+            "The peaks the k-search kept sit nearer the nuclear lines than peaks placed at "
+            "random outside the windows would: a one-sided Kolmogorov-Smirnov test of each "
+            "peak's distance to its nearest nuclear line gives a p below alpha. That is "
+            "what an imperfect nuclear profile leaves: a peak width, shape, asymmetry or "
+            "zero the model has wrong puts shoulders beside the lines, and a vector scored "
+            "on them describes the misfit. A real propagation vector whose satellites sit "
+            "close to nuclear lines, a long period a few grid steps from the zone centre, "
+            "gives the same crowding, so the test does not rule one out. Refine the nuclear "
+            "profile until the residue is flat beside the lines and search again, or test "
+            "the vector by refinement. The rows are returned either way."
+        ),
+    ),
+    "K_SEARCH_CUT": HelpEntry(
+        title="The budget stopped the k-search before it covered the grid",
+        description=(
+            "The k-search reads its time budget before every block of vectors, and the "
+            "budget ran out first: one stratum was cut part-way, or some strata were not "
+            "started. The rows and the chance level cover exactly the vectors scored. A "
+            "vector in the part not searched could score above every row listed, so the "
+            "ranking is not a search of the grid. Pass budget=\"full\" for an unbounded "
+            "search, or restrict strata= to the strata you want, which is a choice rather "
+            "than a cut."
         ),
     ),
     "K_SEARCH_FEW_PEAKS": HelpEntry(
-        title="Too few unexplained peaks for the k-search",
+        title="Too few unexplained peaks for any propagation vector to stand above chance",
         description=(
-            "The k-search ran on fewer unexplained peaks than a vector of this kind needs "
-            "to stand above chance at this match radius. The floor was measured on "
-            "synthetic constant-wavelength neutron patterns: about 4 peaks for a vector on "
-            "a symmetry line when only that line is searched, 6 when the whole grid is "
-            "searched, and 8 for a general vector, with two more when other peaks are mixed "
-            "in. The ranked list is a set of hypotheses, and the top row is not evidence of "
-            "magnetic or modulated order. Measure more peaks, or search only the stratum a "
-            "symmetry argument names."
+            "The best vector matches every unexplained peak and still scores under the "
+            "chance threshold. With this many peaks, at this match radius and over this "
+            "many vectors, no vector on the grid could stand above chance, so the search "
+            "neither finds a vector nor rules one out: its silence is a statement about "
+            "the number of peaks, not about the specimen. Measure more peaks (longer "
+            "counting, a paired pattern), or search only the stratum a symmetry argument "
+            "names, which holds fewer vectors and so a lower threshold."
         ),
     ),
     "K_SEARCH_PARTNER": HelpEntry(

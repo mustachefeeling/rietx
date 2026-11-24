@@ -167,6 +167,8 @@
   "diagnostics:INDEX_WEAK_LINE_RETRY",
   "diagnostics:INSTRUMENT_WIDTH_HELD",
   "diagnostics:K_SEARCH_AT_CHANCE",
+  "diagnostics:K_SEARCH_CROWDED",
+  "diagnostics:K_SEARCH_CUT",
   "diagnostics:K_SEARCH_FEW_PEAKS",
   "diagnostics:K_SEARCH_PARTNER",
   "diagnostics:K_VECTOR_UNSEPARATED",
