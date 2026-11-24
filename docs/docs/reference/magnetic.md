@@ -72,6 +72,27 @@ On an X-ray pattern, intensity at G ± k is a superstructure reflection, at the 
 To test a candidate, declare it as `Phase.propagation_vector` and refine in Le Bail or Pawley mode.
 The satellites become reflections the extraction can put intensity on, and whether it does is the measurement.
 
+### Searching a grid of k
+
+`rietx.indexing.ksearch.search_kvector` scores every rational k on a 1/64 grid against the unexplained peaks you pass, and ranks them.
+Each row's score is the chance probability of its matches, and each row carries an adjusted p: that probability times the number of k scored (Boole's bound, so the chance that any k on the grid reaches a given adjusted p is at most that p).
+A row clears when its adjusted p is at most `alpha`, 0.01 by default, a convention: a series of 100 patterns searched at 0.01 expects about one chance k.
+Peaks within one nuclear FWHM of a nuclear line are set aside before scoring, since a satellite there cannot be told from the shoulder of the line by position, so a k whose satellites all fall that close (a long period, near Γ) cannot be found this way.
+`KSearchResult.crowding` tests whether the peaks kept still crowd the nuclear lines, which is what an imperfect nuclear profile leaves, and `K_SEARCH_CROWDED` warns when they do.
+
+`KSearchResult.best_or_none()` returns `None` on every search: positions rank the k, and refinement confirms one, as for a cell.
+Read the rows and their adjusted p, and test the leading k as [Satellite evidence](#satellite-evidence) describes.
+
+How many clean peaks a k needs before it can clear, measured on synthetic constant-wavelength neutron patterns (Pnma, 5.74 × 7.70 × 5.54 Å, λ 2.41 Å, 10–140° 2θ, a 0.12° match radius, the whole 1/64 grid, `alpha` 0.01, 40 seeds a cell). No other family, instrument or radius has been tested.
+
+| k planted | peaks | cleared |
+|---|---|---|
+| a special point | 5–6 | 40 of 40 |
+| on a symmetry line | 6 or fewer | 0 of 40 |
+| on a symmetry line | 7 or more | expected, not measured |
+
+With fewer peaks than a k of its kind needs, the best row can match every peak and still not clear; `K_SEARCH_FEW_PEAKS` says so, and the search then neither finds a k nor rules one out.
+
 ### Forbidden lattice points
 
 A peak on a forbidden lattice point is forbidden under the space group the fit assumed, and four causes can put one there:

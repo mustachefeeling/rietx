@@ -525,6 +525,28 @@ def test_a_budget_expiring_inside_a_stratum_stops_within_one_block(monkeypatch):
         assert null.sample[s_] == g.scores.max()
 
 
+def test_a_cut_search_with_exclude_keeps_the_uncut_rows_bit_for_bit(monkeypatch):
+    """#1732's in-stratum cut and #1734's ``exclude`` composed (K1b's defect 1):
+    every row a cut search scored with ``exclude`` is the uncut search's row
+    with the same ``exclude``, exactly, and the cut rides the record."""
+    monkeypatch.setattr(kvector, "_CHUNK", 7)
+    strata = kgrid_strata("P n m a", denominator=8)
+    blocks = _blocks(strata, 7)
+    big = max(strata, key=lambda s: s.n_points)
+    stop = next(i for i, b in enumerate(blocks) if b[0] == big.name) + 2
+    exclude = _exclude(PNMA)
+    pk = _planted(PNMA, K_GENERAL, 8, 10, spurious=2)
+    nuc = np.array([x for x, _ in exclude])
+    pk = pk[np.min(np.abs(pk[:, None] - nuc[None, :]), axis=1) >= RADIUS]
+    full = score_kgrid(pk, PNMA, strata, radius=RADIUS, band_deg=BAND, exclude=exclude)
+    cut = score_kgrid(pk, PNMA, strata, radius=RADIUS, band_deg=BAND, exclude=exclude,
+                      budget=_ReadsLeft(stop))
+    assert cut.strata_cut == ((big.name, 14, big.n_points),) and cut.exclude == full.exclude
+    assert [(r.k, r.score, r.p_value, r.matched) for r in cut.rows] == \
+        [(r.k, r.score, r.p_value, r.matched) for r in full.rows[:len(cut.rows)]]
+    assert kgrid_bound(cut, alpha=0.01, weighting="flat").n_total == len(cut.rows)
+
+
 def test_a_budget_expiring_at_a_stratum_boundary_cuts_nothing_part_way(monkeypatch):
     monkeypatch.setattr(kvector, "_CHUNK", 7)
     strata = kgrid_strata("P n m a", denominator=8)
