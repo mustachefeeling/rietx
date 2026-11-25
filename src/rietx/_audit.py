@@ -1665,7 +1665,9 @@ ROWS: tuple[Row, ...] = (
                   "(5.74 x 7.70 x 5.54 A, 2.41 A, 0.12 deg radius, windows of one 0.30 deg "
                   "FWHM): four random off-window peaks fire it and ten clean satellites of a "
                   "planted line k do not (tests/test_indexing_ksearch.py; tests/silence.py); "
-                  "the D68 re-measure of the K1b arms H1-H7 gives the firing rates"),
+                  "the K1b re-measure under the bound (WP-1418 handover, 2026-11-25): it fired "
+                  "on 200 of 200 lists of four random peaks (H3b) and on no H1, H2 or H6 "
+                  "list"),
         grounds=("Reports and ranks: the rows stay, each with its adjusted p, and nothing is "
                  "refused. The bound is arithmetic (Boole's inequality, no free factor); "
                  "alpha is a stated convention (search_kvector:alpha). A caller with k from "
@@ -1680,10 +1682,12 @@ ROWS: tuple[Row, ...] = (
                   "line against uniform placement on the 2theta range outside the windows, "
                   "is under alpha; the statistic is the V4'' form T-ks (no free factor), "
                   "ported and checked against the V4'' records on 41 lists (N 2-398, "
-                  "both profile families) to 0.007 decade; synthetic CW-neutron Pnma: as a "
-                  "1-decade tie it withheld 82 of 82 V4'' misfit names under a width-aware "
-                  "picker, and read at alpha it flags 18 of the 19 asymmetry-misfit names "
-                  "main's residual_peak_indices left after that tie (k1bfloor adjudication); "
+                  "both profile families) to 0.007 decade; synthetic CW-neutron Pnma: read "
+                  "as a 1-decade tie (not built) it withheld 82 of 82 V4'' misfit names under "
+                  "a width-aware picker, and read at alpha it flags 18 of the 19 "
+                  "asymmetry-misfit names main's residual_peak_indices left after that tie "
+                  "(k1bfloor adjudication); K1b H3 under the bound: it fired on 80 of 80 "
+                  "width-misfit lists; "
                   "it fires on a misfit residue and is silent on ten clean satellites "
                   "(tests/test_indexing_ksearch.py's misuse test)"),
         grounds=("A statistic and a warning, never a gate: no row is removed and nothing is "
@@ -4317,21 +4321,21 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.ksearch.K_SEARCH_PARTNER_TOL", "constant", tier=3, value=0.08,
         evidence=("WP-1418 K1a, V6: at 0.08 the x <-> z image on a 5.74 x 7.70 x 5.54 A Pnma "
                   "cell is listed (relative metric deviation 0.0735) and none on a "
-                  "5.74 x 7.70 x 6.40 A one; K1b arm H6: on the 5.54 A cell the positions "
-                  "separate the partner by 1.8-4.6 decades and the planted k is returned 20/20, "
-                  "on a 5.73 A cell the partner ties (0.02-0.03 decade) and best_or_none() is "
-                  "None 20/20"),
+                  "5.74 x 7.70 x 6.40 A one; K1b H6 under the bound: on the 5.54 A cell the "
+                  "planted row is first and clears 20/20, no partner tie; on a 5.73 A cell the "
+                  "partner image ranks first, 0.04 decade above the planted row, and "
+                  "partner_tie is set 20/20"),
         grounds=("Lists the partners and sets KSearchResult.partner_tie (a row near a partner "
                  "image that also clears alpha while the top does), a reported field that "
                  "withholds nothing; the rows are reported either way. 0.08 is rietx's own "
-                 "(issue #795, K1b).")),
+                 "(issue #795, K1b), measured on one cell, untested beyond it.")),
     Row("rietx.indexing.ksearch.K_SEARCH_PARTNER_STEPS", "constant", tier=3, value=4,
         evidence=("WP-1418 K1a, V6: on the 5.74 x 7.70 x 5.54 A cell the exact partner image "
                   "matched 2 of 10 planted peaks and the best grid k within four 1/64 steps of "
                   "it 8 of 10 (7 of 10 on two further seeds)"),
         grounds=("Bounds the neighbourhood KSearchResult.partner_tie reads, a reported field; "
                  "it withholds nothing and removes no row. Four is rietx's own (issue #795, "
-                 "K1b).")),
+                 "K1b), measured on one cell, untested beyond it.")),
     Row("rietx.indexing.kvector._BLOCK", "constant", tier="invariant", value=2000.0,
         evidence=("answer-invariant layout: the degrees each k's windows are shifted by so one "
                   "searchsorted locates a peak in every k's list; any value past the 2θ axis and "
@@ -7311,10 +7315,11 @@ ROWS: tuple[Row, ...] = (
         evidence=("radius=None reads VALIDITY_RADIUS_FWHM (0.4) x the median FWHM the peaks "
                   "carry (the residual census), floored at the median nuclear FWHM at the "
                   "peaks when nuclear_fwhm is given, and raises with no width anywhere; K1b arm H5, "
-                  "satellites 1.6 x the nuclear FWHM: at position scatter 0.15 FWHM the census "
-                  "radius (0.192 deg) matched a median 10 planted peaks against 9 at the nuclear "
-                  "one (0.12 deg), 9 against 7 at 0.25 FWHM, none more at 1/15 FWHM, where it "
-                  "costs margin (2.90 against 4.40); radius_source records which bound"),
+                  "satellites 1.6 x the nuclear FWHM, under the bound: at position scatter "
+                  "0.15 FWHM the planted k ranked first 20/20 with the census radius (0.192 "
+                  "deg) and 19/20 with 0.12 deg, cleared on 12 and 13 of 20, and the census "
+                  "radius matched a median 9 planted peaks against 8, and 7 against 6 at "
+                  "0.25 FWHM; no difference at 1/15 FWHM; radius_source records which bound"),
         grounds=("Moves which peaks a k matches, so its score; recorded on every result and "
                  "overridden by radius=. The census rule is rietx's own (issue #795, K1b), "
                  "and its home is a question to the maintainer in the K1b pull request.")),
@@ -7327,8 +7332,9 @@ ROWS: tuple[Row, ...] = (
         evidence=("budget=None is the indexing package's quick preset, a whole-run Deadline of "
                   "SEARCH_PRESETS['quick'] (120 s), read before every block of k inside a "
                   "stratum by score_kgrid (#1732), so it bounds the search; a cut is reported "
-                  "as strata_cut and strata_left, K_SEARCH_CUT and withheld's search_cut; the "
-                  "D68 re-measure logs how often quick cut the H1-H7 arms"),
+                  "as strata_cut and strata_left, K_SEARCH_CUT and withheld's search_cut; in "
+                  "the K1b re-measure under the bound quick cut no H1-H6 search (24-31 s each "
+                  "on one core) and 6 of 191 H7 searches, at 128-171 s"),
         grounds=("A cut search ranks fewer k and says so; it never calls a smaller search "
                  "complete. The 120 s is the indexing package's own quick preset (WP-1042), "
                  "shared rather than a second number.")),
@@ -7366,7 +7372,8 @@ ROWS: tuple[Row, ...] = (
                   "synthetic CW-neutron patterns (issue #795); K1a's calls take it with no "
                   "default and every K1a and K1b arm ran at 5.0"),
         grounds=("Sets each row's chance probability, so its score; recorded on every result. "
-                 "5 deg is rietx's own (issue #795, K1b).")),
+                 "5 deg is rietx's own (issue #795, K1b): the value every measurement used, "
+                 "measured on one cell, untested at others.")),
     Row("rietx.indexing.ksearch.search_kvector:alpha", "default", tier=3, ambiguity=2,
         value=0.01,
         evidence=("a stated convention, not a measurement: the family-wise level of Boole's "
