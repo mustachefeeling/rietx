@@ -1709,17 +1709,17 @@ ROWS: tuple[Row, ...] = (
                   "fitting a moment model on the top row")),
     Row("K_SEARCH_FEW_PEAKS", "code", tier=1, ambiguity=3,
         evidence=("arithmetic: fires when no row clears the bound and the top row matches "
-                  "every kept peak, so no k on the grid could clear it with this many peaks "
-                  "at this radius; read off the result, with no table (the floor table and "
+                  "every kept peak; read off the result, with no table (the floor table and "
                   "k_search_floor retired, D68)"),
         grounds=("Explains a silence and acts on nothing: the rows, the bound and "
                  "best_or_none() are unchanged by it. A gating floor would have withheld "
                  "273 of 274 few-peak true names under the flat bound and caught none "
                  "(k1bfloor adjudication), so the count reports and never gates."),
         response="warning",
-        responds=("read the at-chance result as no evidence either way, so neither fit a "
-                  "moment model nor rule order out; measure more peaks or search the stratum "
-                  "a symmetry argument names")),
+        responds=("read the at-chance result as no evidence either way for a k as dense in "
+                  "satellites as the top row, so neither fit a moment model on it nor rule "
+                  "order out; measure more peaks or search a stratum chosen before the "
+                  "search")),
     Row("K_SEARCH_PARTNER", "code", tier=1, ambiguity=2,
         evidence=("a geometric fact of the cell: fires once per image of k under a near-symmetry "
                   "of the metric (indexing.ambiguity.lattice_point_group at the caller's tol) "

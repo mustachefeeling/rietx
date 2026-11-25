@@ -361,8 +361,8 @@ def test_few_peaks_fires_only_when_nothing_clears_and_the_top_matches_every_peak
     assert {"K_SEARCH_AT_CHANCE", "K_SEARCH_FEW_PEAKS"} <= _codes(two)
     few = next(d for d in two.diagnostics if d.code == "K_SEARCH_FEW_PEAKS")
     assert few.level == "warning" and few.value == 2.0
-    assert "not evidence" not in few.message and "neither finds a k nor rules one out" in \
-        few.message
+    assert "not evidence" not in few.message and "no k" not in few.message
+    assert "neither find such a k nor rule it out" in few.message
     # at chance with an unmatched peak: the top does not match every peak, so silent
     rand = search_kvector(_random_off_nuclear(PNMA, 6, 1), PNMA, RADIUS, strata=grid16,
                           nuclear_fwhm=FWHM)

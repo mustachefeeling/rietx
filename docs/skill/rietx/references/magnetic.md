@@ -32,7 +32,7 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 | `K_SEARCH_AT_CHANCE` | (warning; on `KSearchResult.diagnostics`) Model the top row. No row clears the bound, so peaks scattered at random score as well. Recheck the peak sort and the radius, or measure more satellites |
 | `K_SEARCH_CROWDED` | (warning) Model the top row. The peaks crowd the nuclear lines (`crowding.p_value` < `alpha`) as misfit shoulders do; a long-period k near Γ does too. Refine the nuclear profile and search again, or test the k by refinement |
 | `K_SEARCH_CUT` | (warning) Read the ranking as a search of the grid. The budget stopped it (`strata_cut`, `strata_left`); pass `budget="full"` |
-| `K_SEARCH_FEW_PEAKS` | (warning) Read the silence as no order. The top row matches every peak and still cannot clear, so these peaks neither find nor rule out a k. Measure more peaks, or search the stratum symmetry names |
+| `K_SEARCH_FEW_PEAKS` | (warning) Read the silence as no order. The top row matches every peak and still cannot clear, so these peaks neither find nor rule out a k as dense in satellites as the top row. Measure more peaks, or search a stratum chosen before the search |
 | `K_SEARCH_PARTNER` | (info; on `KEquivalents.diagnostics` from `kvector_equivalents`) Choose k over the partner from positions. A near-symmetry of the metric within your `tol` maps k onto a vector no symmetry relates to it, listed in `KEquivalents.rows` as a `partner` with its `metric_deviation`. The map is only near a symmetry, so score the partner's neighbourhood, not the exact image, and keep every k that matches; intensities (a moment or modulation model) or a sharper instrument separate them |
 
 ## The determination verb

@@ -3457,15 +3457,16 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         ),
     ),
     "K_SEARCH_FEW_PEAKS": HelpEntry(
-        title="Too few unexplained peaks for any propagation vector to stand above chance",
+        title="Too few unexplained peaks to establish the leading propagation vector",
         description=(
             "The best vector matches every unexplained peak and still scores under the "
-            "chance threshold. With this many peaks, at this match radius and over this "
-            "many vectors, no vector on the grid could stand above chance, so the search "
-            "neither finds a vector nor rules one out: its silence is a statement about "
-            "the number of peaks, not about the specimen. Measure more peaks (longer "
-            "counting, a paired pattern), or search only the stratum a symmetry argument "
-            "names, which holds fewer vectors and so a lower threshold."
+            "chance threshold. A vector with as many satellite lines as that one matches "
+            "this many peaks this well by chance, so the search neither finds such a "
+            "vector nor rules it out. A vector with fewer lines, such as a special point, "
+            "would score higher on peaks that sat on its satellites, and the ranking shows "
+            "that none does. Measure more peaks (longer counting, a paired pattern), or "
+            "search only a stratum named before the search by a symmetry argument or "
+            "another measurement."
         ),
     ),
     "K_SEARCH_PARTNER": HelpEntry(

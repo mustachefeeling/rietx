@@ -551,7 +551,7 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
 
     Warnings, none of which refuses or removes a row:
     ``K_SEARCH_AT_CHANCE`` (no row clears ``alpha``), ``K_SEARCH_FEW_PEAKS``
-    (no row clears although the top matches every peak, so no k could),
+    (no row clears although the top matches every peak),
     ``K_SEARCH_CUT`` (a budget cut the search) and ``K_SEARCH_CROWDED`` (the
     crowding p is under ``alpha``).
 
@@ -629,11 +629,12 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
         if top.n_matched == len(kp):
             diags.append(Diagnostic(
                 level="warning", code="K_SEARCH_FEW_PEAKS",
-                message=(f"The top k, {format_kvector(top.k)}, matches all {len(kp)} "
-                         f"unexplained peaks and still scores {top.score:.1f} decades, under "
-                         f"the chance threshold of {bar:.1f}: with this few peaks no k on this "
-                         f"grid can stand above chance at a {r:.2f}° radius, so the search "
-                         "neither finds a k nor rules one out."),
+                message=(f"The top k, {format_kvector(top.k)}, matches all {len(kp)} peaks "
+                         f"kept and still scores {top.score:.1f} decades, under the chance "
+                         f"threshold of {bar:.1f}: over the {bound.n_total} k scored at a "
+                         f"{r:.2f}° radius, a k with as many satellite lines in range as this "
+                         f"one matches {len(kp)} peaks this well by chance, so these peaks "
+                         "neither find such a k nor rule it out."),
                 where=where, value=float(len(kp))))
     if grid.strata_cut or grid.strata_left:
         cut = "; ".join(f"stratum {n} cut after {s} of {t} points"
