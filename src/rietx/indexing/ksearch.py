@@ -163,8 +163,9 @@ class KCrowding:
     their nearest nuclear line against uniform placement on the 2θ range outside
     the windows; ``statistic`` is its D⁺.  ``n_peaks`` is N, the kept peaks it
     is taken over.  ``n_near`` counts the peaks within
-    :data:`K_SEARCH_NEAR_FWHM` local nuclear FWHM of a line, ``None`` when no
-    width was known (a caller's radius or windows alone).  ``form`` names the
+    :data:`K_SEARCH_NEAR_FWHM` local nuclear FWHM of a line (census FWHM when
+    the windows came from the residual census), ``None`` when no width was known
+    (a caller's radius or windows alone).  ``form`` names the
     test in words.  A small p is what a profile misfit's shoulders give, and also
     what a real k with satellites near nuclear lines gives: it is a statistic,
     not a verdict.
@@ -206,8 +207,9 @@ class KSearchResult:
     width came from (``"nuclear_fwhm"``, ``"residual census"``, ``"radius"``:
     a caller's radius with no width, or ``"caller"``: the caller's own
     ``exclude``).  ``peak_distance_fwhm`` gives each kept peak's distance to its
-    nearest nuclear line in local nuclear FWHM, ``None`` when no width was
-    known.  ``crowding`` is the :class:`KCrowding` row, ``None`` with no
+    nearest nuclear line in local nuclear FWHM; when ``exclude_source`` is
+    ``"residual census"`` it is in the census FWHM (the peaks' median width),
+    not a nuclear width.  It is ``None`` when no width was known.  ``crowding`` is the :class:`KCrowding` row, ``None`` with no
     windows or no peaks.
 
     ``radius`` and ``radius_source`` say which match radius scored the rows
@@ -527,9 +529,9 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
     * ``exclude=None``: every nuclear line
       (:func:`~rietx.crystallography.satellites.lattice_two_theta`) at ±
       :data:`~rietx.indexing.fom.RESOLUTION_FWHM` local nuclear FWHM, from
-      ``nuclear_fwhm``, else from the peaks' census width, else (a caller's
-      radius with no width anywhere) at ± the radius; ``exclude_source`` says
-      which.  Peaks inside a window are sorted out before scoring and listed
+      ``nuclear_fwhm``, else from the peaks' census width (the peaks' median
+      FWHM, not a nuclear width), else (a caller's radius with no width
+      anywhere) at ± the radius; ``exclude_source`` says which.  Peaks inside a window are sorted out before scoring and listed
       in ``sorted_out``; the same windows are the bound's exclusions.  A
       caller's ``exclude`` ((centre, half-width) pairs) is used as given.
     * ``strata=None``: every stratum of the 1/:data:`K_SEARCH_GRID_DENOMINATOR`
@@ -695,6 +697,8 @@ def _blind_zone(source: str, n_out: int) -> str:
                 "whose satellites all fall inside those windows cannot be found from these "
                 "peaks.")
     width = ("± the match radius (no width was given)" if source == "radius" else
+             f"± {RESOLUTION_FWHM:g} census FWHM (the peaks' median width, not a nuclear "
+             "width)" if source == "residual census" else
              f"± {RESOLUTION_FWHM:g} local nuclear FWHM ({source})")
     return (f" Peaks within {width} of a nuclear line were sorted out ({n_out} here), so a k "
             "whose satellites all fall that close to nuclear lines (a long period, a few grid "
