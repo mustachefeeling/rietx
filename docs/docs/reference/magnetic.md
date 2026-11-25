@@ -79,11 +79,12 @@ Each row's score is −log₁₀ of the chance probability of its matches, and e
 A row clears when its adjusted p is at most `alpha`, 0.01 by default, a convention: if the unexplained peaks of 100 patterns were placed at random, at most about one would show a clearing k; peaks left by a profile misfit are not placed at random, and the bound does not cover them.
 Peaks within one nuclear FWHM of a nuclear line are set aside before scoring, since a satellite there cannot be told from the shoulder of the line by position, so a k whose satellites all fall that close (a long period, near Γ) cannot be found this way.
 k = 0 is not on the grid: its magnetic intensity falls on the nuclear lines, which the windows set aside, so a k = 0 structure is tested under a k = 0 magnetic space group (see [Satellite evidence](#satellite-evidence)).
-`KSearchResult.crowding` tests whether the peaks kept still crowd the nuclear lines, which is what an imperfect nuclear profile leaves, and `K_SEARCH_CROWDED` warns when they do.
+`KSearchResult.crowding` tests whether the peaks kept still crowd the nuclear lines, which is what an imperfect nuclear profile leaves, and `K_SEARCH_CROWDED` warns when they do (`crowding.p_value` < `alpha`).
 
 `KSearchResult.best_or_none()` returns `None` on every search: positions rank the k, and refinement confirms one, as for a cell.
 Read the rows and their adjusted p, and test the leading k as [Satellite evidence](#satellite-evidence) describes.
 One warning says why each `None` is `None`: `K_SEARCH_UNCONFIRMED` when a row clears (it names the leading k, its adjusted p and the refinement that tests it), `K_SEARCH_AT_CHANCE` when none does.
+A row that clears can still be wrong: positions alone do not confirm a k, so every row is a hypothesis for a moment or modulation refinement to test.
 When the windows leave no peak to score, the search returns at once, with no rows, and `K_SEARCH_NO_PEAKS_KEPT` says so; a k = 0 residue ends here, so test a k = 0 model by refinement rather than reading the empty answer as no order.
 
 How many clean peaks a k needs before it can clear, measured on synthetic constant-wavelength neutron patterns (`Pnma`, 5.74 × 7.70 × 5.54 Å, λ 2.41 Å, 10–140° 2θ, a 0.12° match radius, the whole 1/64 grid, `alpha` 0.01, 40 seeds a cell). No other family, instrument or radius has been tested.
@@ -99,6 +100,8 @@ How many clean peaks a k needs before it can clear, measured on synthetic consta
 | (0, 18/64, 0), on a symmetry line | 10 (9 kept by the windows) | 40 |
 
 When the top row matches every peak and still does not clear, `K_SEARCH_FEW_PEAKS` says so.
+More peaks settle it, and so does a search restricted with `strata=` to a stratum named before the search, by a symmetry argument or another measurement; that is not a cut.
+A stratum picked from this ranking is: it makes every adjusted p too small, because the bound counts only the vectors scored.
 How many peaks a k needs depends on the k, not only on its kind: a k with fewer satellite lines in range needs fewer.
 Two spurious peaks beside six true ones cut the three points to 34, 26 and 13 of 40.
 
