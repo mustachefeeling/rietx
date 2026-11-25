@@ -1028,8 +1028,8 @@ K1b composes K1a's public calls and #1734's `kgrid_bound` into a ranking, and ad
 machinery. `search_kvector(peaks, parent, radius=None, harmonics=(1,), budget=None, *,
 nuclear_fwhm=None, strata=None, exclude=None, band_deg=5.0, alpha=0.01, weighting="flat")`
 scores every k of the 1/64 grid and returns a `KSearchResult`, which has no `.k` and no
-`.best`. The magnetic calls in its shape are Michael's, taken provisionally on 2026-11-24
-(D68 in his decision log) and open to his ruling; each is marked *provisional, D68* below.
+`.best`. The magnetic calls in its shape are Michael's to rule; they were taken
+provisionally on 2026-11-24 by an overnight agent session, not by him (D68), and are open to his ruling; each is marked *provisional, D68* below.
 
 - **Chance level** *(provisional, D68)*: Boole's bound at `alpha` = 0.01 (a stated
   convention, recorded on the result), `flat` weighting. Every row carries its adjusted p
