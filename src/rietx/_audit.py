@@ -7667,7 +7667,8 @@ ROWS: tuple[Row, ...] = (
                   "by refinement) and ranks neither")),
     Row("K_SEARCH_CUT.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
         evidence=("arithmetic: the budget cut the search, so the suggestion names the "
-                  "uncut call (budget=\"full\") or a declared restriction (strata=)")),
+                  "uncut call (budget=\"full\") or a restriction chosen before the search "
+                  "(strata=)")),
     Row("K_SEARCH_PARTNER.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
         evidence=("arithmetic: the metric is unchanged within tol by the map between the two "
                   "k, so the suggestion names the calls that would separate them (score the "

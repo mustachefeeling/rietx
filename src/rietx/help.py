@@ -3452,8 +3452,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "started. The rows and the chance level cover exactly the vectors scored. A "
             "vector in the part not searched could score above every row listed, so the "
             "ranking is not a search of the grid. Pass budget=\"full\" for an unbounded "
-            "search, or restrict strata= to the strata you want, which is a choice rather "
-            "than a cut."
+            "search, or restrict strata= to strata chosen before the search. A stratum "
+            "chosen from this ranking makes every adjusted p too small, because the bound "
+            "counts only the vectors scored."
         ),
     ),
     "K_SEARCH_FEW_PEAKS": HelpEntry(

@@ -535,7 +535,9 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
       a sequence of :class:`~rietx.indexing.kvector.KStratum` or a
       :class:`~rietx.indexing.kvector.KGridPositions` built from them is
       searched in its own order (the second skips the position build).  A
-      caller's ``strata`` is a restriction, not a cut.
+      caller's ``strata`` is a restriction, not a cut; the bound counts only
+      the k scored, so a restriction chosen from a ranking makes every
+      adjusted p too small.
     * ``budget=None``: the indexing package's ``"quick"`` preset, a whole-run
       :class:`~rietx.indexing.engines.Deadline` of ``SEARCH_PRESETS["quick"]``
       seconds; ``"full"`` is unbounded and a
@@ -646,9 +648,12 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
             message=("The budget stopped the k-search before it covered the grid: "
                      + "; ".join(x for x in (cut, f"strata left unsearched: {left}" if left
                                              else "") if x)
-                     + ". A k in the part not searched could outrank every row listed."),
+                     + ". A k in the part not searched could outrank every row listed. "
+                     f"The adjusted p and the threshold count only the {bound.n_total} k "
+                     "scored, so a row that clears here may not clear the full search."),
             where=where,
-            suggestion='Rerun with budget="full", or restrict strata= to the strata wanted.',
+            suggestion=('Rerun with budget="full"; restrict strata= only to strata chosen '
+                        "before the search."),
             value=float(len(grid.strata_left) + len(grid.strata_cut))))
     if crowding is not None and crowding.p_value < a:
         near = ("" if crowding.n_near is None else

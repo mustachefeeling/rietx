@@ -1329,7 +1329,7 @@ def _cut_fires() -> list:
 
 def _cut_silent() -> list:
     """A budget that never runs out, and a caller's own restriction to three
-    strata, which is a choice rather than a cut."""
+    strata, which is a restriction rather than a cut."""
     from rietx.indexing.kvector import kgrid_strata
 
     return (_ksearch_cut(10 ** 6)
