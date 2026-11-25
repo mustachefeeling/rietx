@@ -20,9 +20,10 @@ Interpretation, written before the runs:
 * The crowding p is the one-sided KS p against the exact allowed-range
   distribution; a coarse sampled distribution (the V4″ form) agrees with it.
 * The likeliest misuse (Rule 4): the residue of a profile misfit, picked with
-  main's ``residual_peak_indices`` and searched, reads ``None`` with its
-  reason, a crowding warning and an adjusted p on every row; the old head
-  (257e34d66) returned a k on the asymmetry list.  A clean planted list is
+  main's ``residual_peak_indices`` and searched, can rank a false k first and
+  clear alpha (a width-misfit list at 5 000 counts and an asymmetry-misfit
+  list at 20 000, on the 1/16 grid); it reads ``None`` with its reason, the
+  crowding warning and an adjusted p on every row.  A clean planted list is
   ``None`` for the position-only reason alone, so ``None`` is not "no k".
 """
 
@@ -499,19 +500,23 @@ def _residual_picks(data, model):
     return _X[residual_peak_indices(r, min_peak_sigma=5.0)]
 
 
-@pytest.mark.parametrize("make, width", [(_width_misfit, FWHM), (_asymmetry_misfit, _caglioti)],
+@pytest.mark.parametrize("make, seed, counts, width",
+                         [(_width_misfit, 52, 5000, FWHM), (_asymmetry_misfit, 6, 20000, _caglioti)],
                          ids=["width-misfit", "asymmetry-misfit"])
-def test_misuse_a_misfit_residue_reads_none_with_its_reason_and_the_crowding_warning(
-        grid16, make, width):
-    """Arm 1.  Seed 0 at 20 000 counts.  On the asymmetry list the old head
-    (257e34d66: shuffle null, ± radius) returned k = (5/16, 1/4, 1/8) from
-    ``best_or_none()`` on this grid; on the width-misfit list it names
-    nothing on the 1/64 grid either (V4″ p2, 0/40)."""
-    pk = _residual_picks(*make(0, 20000))
+def test_misuse_a_misfit_residue_whose_top_clears_reads_none_and_warns_crowded(
+        grid16, make, seed, counts, width):
+    """Arm 1: the misuse is made on a false k that clears.  Each list is a
+    misfit residue whose top row clears alpha on this grid (seeds chosen for
+    that from 0-59 at 5 000 counts and 0-11 at 20 000; seed 0 cleared on
+    neither), so ``rows[0]`` looks like an answer.  The pick is held and
+    ``K_SEARCH_CROWDED`` names the misfit; ``K_SEARCH_AT_CHANCE`` is silent."""
+    pk = _residual_picks(*make(seed, counts))
     res = search_kvector(pk, PNMA, RADIUS, strata=grid16, nuclear_fwhm=width)
     assert res.best_or_none() is None and "position_only" in res.withheld
+    assert res.p_adjusted[0] <= res.alpha                   # a false k clears
     assert res.sorted_out                                   # the shoulders inside a window
     assert res.crowding.p_value < res.alpha and "K_SEARCH_CROWDED" in _codes(res)
+    assert "K_SEARCH_AT_CHANCE" not in _codes(res)
     assert len(res.p_adjusted) == len(res.rows) and all(0.0 <= p <= 1.0 for p in res.p_adjusted)
 
 
