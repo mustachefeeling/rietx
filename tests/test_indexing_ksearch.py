@@ -148,10 +148,10 @@ def test_a_planted_k_ranks_first_and_clears_but_is_not_picked(planted16, random1
     assert "Boole's bound" in at_chance.message
 
 
-def test_the_pick_opens_only_when_nothing_is_withheld(planted16):
-    """``best_or_none`` reads ``withheld`` alone: the one place the rule holds."""
-    opened = dataclasses.replace(planted16, withheld=())
-    assert opened.best_or_none() is planted16.rows[0]
+def test_no_pick_path_opens_when_nothing_is_withheld(planted16):
+    """``best_or_none`` is ``None`` whatever ``withheld`` holds: emptying the
+    field opens no pick, since no ruling names a rule to pick by (D68)."""
+    assert dataclasses.replace(planted16, withheld=()).best_or_none() is None
     assert dataclasses.replace(planted16, withheld=("search_cut",)).best_or_none() is None
 
 

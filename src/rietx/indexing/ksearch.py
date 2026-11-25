@@ -301,12 +301,13 @@ class KSearchResult:
         refinement, so no row is picked (``withheld`` names the reasons:
         ``"position_only"``, and ``"search_cut"`` when a budget cut the
         search).  **``None`` is not "no k"**: the ranking, each row's adjusted
-        p, ``n_cleared`` and the warnings are the answer.  Read ``rows[0]``
-        as the first hypothesis to refine when it clears ``alpha`` and no
-        warning fires.  The method exists, as indexing's does, so that the
-        rule is guaranteed in one place.
+        p, ``n_cleared`` and the warnings are the answer.  Every row is a
+        hypothesis a refinement tests, ``rows[0]`` first; its adjusted p and
+        the warnings say how far the positions support it, and a row that
+        clears can still be wrong.  The method keeps indexing's shape and
+        returns ``None`` until a ruling opens a pick (D68).
         """
-        return None if self.withheld else self.rows[0] if self.rows else None
+        return None
 
     def __repr__(self) -> str:
         top = (f"top k = {format_kvector(self.rows[0].k)} at {self.rows[0].score:.2f} "
