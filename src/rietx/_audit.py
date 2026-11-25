@@ -7359,7 +7359,10 @@ ROWS: tuple[Row, ...] = (
                   "inside are sorted out before scoring and the same windows are the bound's "
                   "exclusions (D43 (b)). K1b H3a: at +- the radius (0.4 FWHM) misfit "
                   "shoulders a median 0.25 deg out named a k on 72 of 80 lists; V4' at one "
-                  "FWHM: no window alone stops them, which is the crowding row's job"),
+                  "FWHM: no window alone stops them, which is the crowding row's job; k = 0 "
+                  "is not on the grid: its magnetic intensity falls on the nuclear lines, "
+                  "which the windows set aside, so a k = 0 structure is tested under a k = 0 "
+                  "magnetic space group"),
         grounds=("Sets which peaks are scored and where the bound's null may place them; "
                  "reported as KSearchResult.exclude and overridden by exclude=. A named "
                  "dissenter: a real k whose satellites all fall within one FWHM of nuclear "

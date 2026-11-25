@@ -78,6 +78,7 @@ The satellites become reflections the extraction can put intensity on, and wheth
 Each row's score is −log₁₀ of the chance probability of its matches, and each row carries an adjusted p: that probability times the number of k scored (Boole's bound, so the chance that any k on the grid reaches a given adjusted p is at most that p).
 A row clears when its adjusted p is at most `alpha`, 0.01 by default, a convention: if the unexplained peaks of 100 patterns were placed at random, at most about one would show a clearing k; peaks left by a profile misfit are not placed at random, and the bound does not cover them.
 Peaks within one nuclear FWHM of a nuclear line are set aside before scoring, since a satellite there cannot be told from the shoulder of the line by position, so a k whose satellites all fall that close (a long period, near Γ) cannot be found this way.
+k = 0 is not on the grid: its magnetic intensity falls on the nuclear lines, which the windows set aside, so a k = 0 structure is tested under a k = 0 magnetic space group (see [Satellite evidence](#satellite-evidence)).
 `KSearchResult.crowding` tests whether the peaks kept still crowd the nuclear lines, which is what an imperfect nuclear profile leaves, and `K_SEARCH_CROWDED` warns when they do.
 
 `KSearchResult.best_or_none()` returns `None` on every search: positions rank the k, and refinement confirms one, as for a cell.

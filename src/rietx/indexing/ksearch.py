@@ -706,4 +706,6 @@ def _blind_zone(source: str, n_out: int) -> str:
              f"± {RESOLUTION_FWHM:g} local nuclear FWHM ({source})")
     return (f" Peaks within {width} of a nuclear line were sorted out ({n_out} here), so a k "
             "whose satellites all fall that close to nuclear lines (a long period, a few grid "
-            "steps from Γ) cannot be found from these peaks.")
+            "steps from Γ) cannot be found from these peaks. k = 0 is not on the grid: its "
+            "magnetic intensity falls on the nuclear lines, which the windows set aside, so a "
+            "k = 0 structure is tested under a k = 0 magnetic space group.")
