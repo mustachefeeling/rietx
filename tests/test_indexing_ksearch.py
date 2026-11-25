@@ -404,6 +404,19 @@ def test_a_partner_that_also_clears_alpha_ties_and_one_that_does_not_is_silent()
     assert ksearch._partner_tie(ortho, rows, clears, 0.01, none, 64) is None
 
 
+def test_the_partner_code_rides_a_search_only_when_its_top_row_clears(random16):
+    """``K_SEARCH_PARTNER`` on a ranking names a pair a refiner must separate,
+    so it rides only a top row that clears; ``partners`` is reported either way."""
+    assert random16.n_cleared == 0 and random16.partners.diagnostics
+    assert "K_SEARCH_PARTNER" not in _codes(random16)
+    near = KParent("P n m a", (5.74, 7.70, 5.73, 90.0, 90.0, 90.0), LAMBDA, 10.0, 140.0)
+    grid = kgrid_positions(near, kgrid_strata("P n m a", denominator=16))
+    k = (F(3, 16), F(1, 16), F(3, 8))
+    res = search_kvector(_planted(near, k, 10, 0), near, RADIUS, strata=grid, nuclear_fwhm=FWHM)
+    assert res.rows[0].k == k and res.p_adjusted[0] <= res.alpha
+    assert "K_SEARCH_PARTNER" in _codes(res)
+
+
 # =========================================== the likeliest misuse (Rule 4)
 #
 # Patterns are generated from seeds here; no data is vendored.  M1 is K1a's V4

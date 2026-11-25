@@ -233,7 +233,8 @@ class KSearchResult:
     (``"position_only"`` always; ``"search_cut"`` when a budget cut the
     search), and ``withheld_reasons`` their sentences.  ``diagnostics``
     carries ``K_SEARCH_AT_CHANCE``, ``K_SEARCH_FEW_PEAKS``, ``K_SEARCH_CUT``,
-    ``K_SEARCH_CROWDED`` and the partners' ``K_SEARCH_PARTNER``.
+    ``K_SEARCH_CROWDED`` and, when the top row clears, its partners'
+    ``K_SEARCH_PARTNER`` (``partners`` is on the result either way).
     """
 
     parent: KParent
@@ -675,7 +676,8 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
                         "residue is flat beside the nuclear lines, then search again; or test "
                         "the k by refinement."),
             value=crowding.p_value))
-    diags.extend(partners.diagnostics)
+    if cleared:
+        diags.extend(partners.diagnostics)
 
     withheld = ("position_only",) + (("search_cut",) if grid.strata_cut or grid.strata_left
                                      else ())
