@@ -24,7 +24,7 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 
 ## The k-grid machinery
 
-`rietx.indexing.kvector` (WP-1418 M-8, K1a) scores any k you name against the unexplained peaks and enumerates a rational grid by stratum. It ranks nothing; the radius, denominator, strata, band, and the null's exclusion windows, shuffle count, percentile and seed are all yours to pass. A grid record covers the grid points it lists and claims nothing about a k between them. `rietx.indexing.ksearch.search_kvector` (K1b) composes it into a ranking, a `KSearchResult` with no `.k`: every row carries its `p_adjusted` under Boole's bound at `alpha`, peaks within one nuclear FWHM of a line are sorted out (`sorted_out`, `exclude`), and `crowding` is a KS crowding p. `best_or_none()` is `None` on every call (`withheld`: `position_only`, a k is confirmed by refinement; `search_cut` when the budget cut it).
+`rietx.indexing.kvector` (WP-1418 M-8, K1a) scores any k you name against the unexplained peaks and enumerates a rational grid by stratum. It ranks nothing; the radius, denominator, strata, band, and the null's exclusion windows, shuffle count, percentile and seed are all yours to pass. A grid record covers the grid points it lists and claims nothing about a k between them. `rietx.indexing.ksearch.search_kvector` (K1b) composes it into a ranking, a `KSearchResult` with no `.k`: every row carries its `p_adjusted` under Boole's bound at `alpha`, peaks within one nuclear FWHM of a line are sorted out (`sorted_out`, `exclude`), and `crowding` is a KS p.
 
 | reading or code | what you must not assume, and what to do |
 |---|---|
@@ -33,7 +33,7 @@ The magnetic diagnostic family lives in this one file rather than in §7's table
 | `K_SEARCH_CROWDED` | (warning) Take the top row as the k. The peaks crowd the nuclear lines (`crowding.p_value` < `alpha`) as misfit shoulders do; a long-period k near Γ does too. Refine the nuclear profile and search again, or test the k by refinement |
 | `K_SEARCH_CUT` | (warning) Read the ranking as a search of the grid. The budget stopped it (`strata_cut`, `strata_left`); pass `budget="full"` |
 | `K_SEARCH_FEW_PEAKS` | (warning) Read the silence as no order. The top row matches every peak and still cannot clear, so these peaks neither find nor rule out a k as dense in satellites as the top row. Measure more peaks, or search a stratum chosen before the search |
-| `K_SEARCH_PARTNER` | (info; on `KEquivalents.diagnostics`, and on `KSearchResult.diagnostics` for a top row that clears) Choose k over the partner from positions. A near-symmetry of the metric within your `tol` maps k onto a vector no symmetry relates to it, listed in `KEquivalents.rows` as a `partner` with its `metric_deviation`. The map is only near a symmetry, so score the partner's neighbourhood, not the exact image, and keep every k that matches; intensities (a moment or modulation model) or a sharper instrument separate them |
+| `K_SEARCH_PARTNER` | (info; on `KEquivalents.diagnostics`, and `KSearchResult.diagnostics` when the top clears) Choose k over the partner from positions. A near-symmetry of the metric within your `tol` maps k onto a vector no symmetry relates to it, listed in `KEquivalents.rows` as a `partner` with its `metric_deviation`. The map is only near a symmetry, so score the partner's neighbourhood, not the exact image, and keep every k that matches; intensities (a moment or modulation model) or a sharper instrument separate them |
 
 ## The determination verb
 
