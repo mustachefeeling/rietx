@@ -1311,6 +1311,29 @@ def _few_peaks_silent() -> list:
     return _ksearch(_ksearch_planted(10))
 
 
+def _unconfirmed_fires() -> list:
+    """Ten clean satellites of a planted line k: the top row clears the bound."""
+    return _ksearch(_ksearch_planted(10))
+
+
+def _unconfirmed_silent() -> list:
+    """Four random peaks, which clear nothing, and a list the windows sort out
+    whole, which scores nothing."""
+    return _at_chance_fires() + _no_peaks_kept_fires()
+
+
+def _no_peaks_kept_fires() -> list:
+    """Six peaks 0.01° off nuclear lines (a k = 0 residue): all sorted out."""
+    from tests.test_indexing_ksearch import PNMA, _nuclear
+
+    return _ksearch(_nuclear(PNMA)[3:9] + 0.01)
+
+
+def _no_peaks_kept_silent() -> list:
+    """Satellites of a planted k off the windows, that clear and that do not."""
+    return _ksearch(_ksearch_planted(10)) + _ksearch(_ksearch_planted(2))
+
+
 def _ksearch_cut(reads: int) -> list:
     """The planted list on the 1/8 grid under a budget whose token turns after
     ``reads`` readings (one per block of k)."""
@@ -1395,6 +1418,10 @@ SILENCE: dict[str, Pair] = {
         _cut_fires, _cut_silent, "tests/test_indexing_ksearch.py"),
     "K_SEARCH_FEW_PEAKS": Pair(
         _few_peaks_fires, _few_peaks_silent, "tests/test_indexing_ksearch.py"),
+    "K_SEARCH_NO_PEAKS_KEPT": Pair(
+        _no_peaks_kept_fires, _no_peaks_kept_silent, "tests/test_indexing_ksearch.py"),
+    "K_SEARCH_UNCONFIRMED": Pair(
+        _unconfirmed_fires, _unconfirmed_silent, "tests/test_indexing_ksearch.py"),
     "LEBAIL_CYCLES_AT_CAP": Pair(
         functools.partial(_lebail_cap, False), _lebail_settled_or_unasked,
         "tests/test_lebail_cycles.py"),

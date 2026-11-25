@@ -1726,6 +1726,25 @@ ROWS: tuple[Row, ...] = (
                   "satellites as the top row, so neither fit a moment model on it nor rule "
                   "order out; measure more peaks or search a stratum chosen before the "
                   "search")),
+    Row("K_SEARCH_NO_PEAKS_KEPT", "code", tier=1, ambiguity=3,
+        evidence=("arithmetic: fires exactly when the windows sort out every peak passed, or "
+                  "none was passed, and search_kvector then returns before scoring any k; "
+                  "k = 0 is not on the grid and its intensity falls on the nuclear lines, so "
+                  "a k = 0 residue sorts out whole (tests/test_indexing_ksearch.py; "
+                  "tests/silence.py); the K1b re-measure (WP-1418 handover, 2026-11-25): the "
+                  "windows sorted out every peak on 188 of 191 non-empty residues of "
+                  "simulated k = 0 MAGNDATA entries, whose grid scoring took 6-171 s and up "
+                  "to 7.8 GB"),
+        grounds=("Reports and stops: no k is scored, so nothing is ranked or refused. Three "
+                 "readings leave the same empty residue (k = 0 order, a long period near "
+                 "Gamma, a nuclear-profile misfit) and positions cannot separate them, so the "
+                 "code names all three. Returning before scoring and one warning were ruled "
+                 "by Mike, 2026-11-25 (issue #795, WP-1418 K1b handover)."),
+        response="warning",
+        responds=("quote no k and no moment from this search and read its None as no "
+                  "evidence either way, not as no order; test a k = 0 magnetic model by "
+                  "refinement, or refine the nuclear profile and search again"),
+        scope=("magnetic", "structure")),
     Row("K_SEARCH_PARTNER", "code", tier=1, ambiguity=2,
         evidence=("a geometric fact of the cell: fires once per image of k under a near-symmetry "
                   "of the metric (indexing.ambiguity.lattice_point_group at the caller's tol) "
@@ -1743,6 +1762,26 @@ ROWS: tuple[Row, ...] = (
         response="info",
         responds=("score the partner's neighbourhood beside k and keep every k that matches "
                   "as a hypothesis until intensities or a sharper instrument separate them")),
+    Row("K_SEARCH_UNCONFIRMED", "code", tier=3, ambiguity=2,
+        evidence=("warning; fires exactly when the top row of search_kvector clears Boole's "
+                  "bound at alpha (adjusted p <= alpha), the complement of "
+                  "K_SEARCH_AT_CHANCE on every search that scored a k; synthetic CW-neutron "
+                  "Pnma (5.74 x 7.70 x 5.54 A, 2.41 A, 0.12 deg radius, windows of one 0.30 "
+                  "deg FWHM): ten clean satellites of a planted line k fire it, four random "
+                  "off-window peaks do not, and the misfit residues whose false top row "
+                  "clears fire it beside K_SEARCH_CROWDED (tests/test_indexing_ksearch.py; "
+                  "tests/silence.py)"),
+        grounds=("Names why best_or_none() is None when a row clears: positions rank a k and "
+                 "refinement confirms one, as INDEX_NOT_VALIDATED names an unvalidated cell, "
+                 "so no None arrives with empty diagnostics. A warning because the reader "
+                 "must refine before quoting the k its where names. It picks and refuses "
+                 "nothing; alpha is the search's stated convention (search_kvector:alpha). "
+                 "Code and level ruled by Mike, 2026-11-25 (issue #795, WP-1418 K1b "
+                 "handover)."),
+        response="warning",
+        responds=("declare the leading k (and every row that clears) and refine a moment or "
+                  "modulation model before quoting it; read None as unconfirmed, not as no "
+                  "k")),
     Row("K_VECTOR_UNSEPARATED", "code", tier=3, ambiguity=2,
         evidence=("info; fires when the top two k trials' best eligible ΔBIC lie within "
                   "SOLVE_K_TIE_DELTA_BIC, charged at N/f² since WP-2002 B12; Ba2FeSbSe5 1.5 K "
@@ -7686,11 +7725,20 @@ ROWS: tuple[Row, ...] = (
         evidence=("arithmetic: the budget cut the search, so the suggestion names the "
                   "uncut call (budget=\"full\") or a restriction chosen before the search "
                   "(strata=)")),
+    Row("K_SEARCH_NO_PEAKS_KEPT.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
+        evidence=("arithmetic: no peak was kept, so the suggestion names the readings' tests "
+                  "(a k = 0 magnetic model by refinement; the nuclear profile refined and "
+                  "the search repeated, with narrower windows if satellites near the lines "
+                  "are expected), or, with no peak passed, the peaks to pass; ranks none")),
     Row("K_SEARCH_PARTNER.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
         evidence=("arithmetic: the metric is unchanged within tol by the map between the two "
                   "k, so the suggestion names the calls that would separate them (score the "
                   "partner's neighbourhood; a moment or modulation model reading intensities) "
                   "and ranks neither")),
+    Row("K_SEARCH_UNCONFIRMED.suggestion", "suggestion", tier=1, ambiguity=2, value=1,
+        evidence=("arithmetic: the top row clears alpha, so the suggestion names the call "
+                  "that confirms or refutes it (declare it as Phase.propagation_vector and "
+                  "refine) and the rows and partners to test the same way; picks none")),
     Row("LANDE_G_ASSUMED.suggestion", "suggestion", tier=1, ambiguity=1, value=2,
         evidence="arithmetic: names the argument that overrides the default"),
     Row("LAUE_CLASS_NOT_SEPARABLE.suggestion", "suggestion", value=1),

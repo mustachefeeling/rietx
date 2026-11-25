@@ -11,8 +11,11 @@ Interpretation, written before the runs:
 
 * The result carries no ``k`` and no ``best``, and ``best_or_none()`` is
   ``None`` on every call with ``"position_only"`` in ``withheld``.  A planted
-  k with ten clean peaks still ranks first, clears ``alpha`` and fires
-  nothing; four random peaks clear nothing and ``K_SEARCH_AT_CHANCE`` fires.
+  k with ten clean peaks still ranks first, clears ``alpha`` and fires only
+  ``K_SEARCH_UNCONFIRMED``; four random peaks clear nothing and
+  ``K_SEARCH_AT_CHANCE`` fires.  Exactly one of those two or
+  ``K_SEARCH_NO_PEAKS_KEPT`` names every ``None``; with no peak kept (a k = 0
+  residue, all on the nuclear lines) the search returns before scoring.
 * Every row's adjusted p is Boole's arithmetic on its own P, and a row clears
   exactly when its score reaches the bound's threshold.
 * The windows sort out exactly the peaks strictly inside them, and the same
@@ -371,11 +374,111 @@ def test_few_peaks_fires_only_when_nothing_clears_and_the_top_matches_every_peak
         assert "K_SEARCH_AT_CHANCE" in _codes(rand) and "K_SEARCH_FEW_PEAKS" not in _codes(rand)
 
 
-def test_no_peaks_ranks_nothing_and_says_so():
+#: The three codes of which exactly one says why ``best_or_none()`` is ``None``.
+_REASON_CODES = {"K_SEARCH_AT_CHANCE", "K_SEARCH_UNCONFIRMED", "K_SEARCH_NO_PEAKS_KEPT"}
+
+
+def _no_scoring(*_a, **_k):
+    raise AssertionError("score_kgrid ran on a search with no peak kept")
+
+
+def test_no_peaks_ranks_nothing_and_says_so(monkeypatch):
+    """No peak passed: the search returns before any scoring, with one reason code."""
+    monkeypatch.setattr(ksearch, "score_kgrid", _no_scoring)
     strata = kgrid_strata("P n m a", denominator=4)
     res = search_kvector([], PNMA, RADIUS, strata=strata)
     assert res.best_or_none() is None and res.n_cleared == 0 and res.crowding is None
-    assert {"K_SEARCH_AT_CHANCE", "K_SEARCH_FEW_PEAKS"} <= _codes(res)
+    assert res.rows == () and res.p_adjusted == () and res.margin is None
+    assert _codes(res) == {"K_SEARCH_NO_PEAKS_KEPT"}
+    assert res.withheld == ("no_peaks_kept",)
+    assert "no peak" in res.withheld_reasons[0]
+
+
+def test_a_k0_residue_sorts_out_every_peak_and_returns_before_scoring(monkeypatch):
+    """k = 0 is not on the grid, and its magnetic intensity falls on the nuclear
+    lines, so a k = 0 residue is sorted out whole by the windows.  The search
+    returns at once (no grid scoring, which reached 7.8 GB on the 1/64 grid),
+    with one reason code naming k = 0, and ``withheld`` and ``coverage`` say
+    that nothing was scored."""
+    monkeypatch.setattr(ksearch, "score_kgrid", _no_scoring)
+    nuc = _nuclear(PNMA)
+    rng = np.random.default_rng(4)
+    k0 = np.sort(nuc[::5][:12] + rng.normal(0.0, 0.01, len(nuc[::5][:12])))
+    res = search_kvector(k0, PNMA, RADIUS, nuclear_fwhm=FWHM)   # the default 1/64 grid
+    assert res.kept == () and len(res.sorted_out) == len(k0) and len(res.peaks) == 0
+    assert res.rows == () and res.p_adjusted == () and res.n_cleared == 0
+    assert res.best_or_none() is None and res.withheld == ("no_peaks_kept",)
+    assert res.crowding is None and res.peak_distance_fwhm == ()
+    assert res.partners is None and res.partner_tie is None
+    assert res.strata_searched == () and res.strata_left == () and res.strata_cut == ()
+    assert res.bound.n_total == 0 and res.alpha == 0.01 and res.weighting == "flat"
+    assert res.grid_step == pytest.approx(1 / 64) and res.exclude_source == "nuclear_fwhm"
+    assert "No k was scored" in res.coverage and "k = 0 is not on the grid" in res.coverage
+    assert _codes(res) == {"K_SEARCH_NO_PEAKS_KEPT"}
+    warn = res.diagnostics[0]
+    assert warn.level == "warning" and warn.value == float(len(k0))
+    assert "k = 0" in warn.message and "best_or_none() returns None" in warn.message
+    assert "k = 0" in warn.suggestion
+    assert "no_peaks_kept" in repr(res)
+
+
+def test_misuse_no_peak_kept_offers_no_row_to_take_and_names_k0(monkeypatch):
+    """Rule 4, the misuse at zero peaks: reading ``None`` as "no order", or
+    taking ``rows[0]`` as the k.  There is no row to take, and the one code
+    names the readings positions cannot separate (k = 0, a long period near
+    Γ, a profile misfit), so ``None`` does not read as "no k"."""
+    monkeypatch.setattr(ksearch, "score_kgrid", _no_scoring)
+    nuc = _nuclear(PNMA)
+    res = search_kvector(nuc[3:9] + 0.01, PNMA, RADIUS, nuclear_fwhm=FWHM,
+                         strata=kgrid_strata("P n m a", denominator=8))
+    with pytest.raises(IndexError):
+        res.rows[0]
+    (warn,) = res.diagnostics
+    assert warn.code == "K_SEARCH_NO_PEAKS_KEPT"
+    for reading in ("k = 0", "near Γ", "misfit"):
+        assert reading in warn.message, reading
+    for verdict in ("no magnetic", "no order", "no k exists", "no propagation vector"):
+        assert verdict not in warn.message, verdict
+    # a refused input still raises before any work, with no peak kept as with some
+    with pytest.raises(ValueError, match="band_deg"):
+        search_kvector(nuc[3:9] + 0.01, PNMA, RADIUS, nuclear_fwhm=FWHM, band_deg=0.0,
+                       strata=kgrid_strata("P n m a", denominator=8))
+    with pytest.raises(ValueError, match="harmonics"):
+        search_kvector(nuc[3:9] + 0.01, PNMA, RADIUS, nuclear_fwhm=FWHM, harmonics=(0,),
+                       strata=kgrid_strata("P n m a", denominator=8))
+
+
+# ======================================================= the clearing code
+
+def test_a_row_that_clears_carries_the_unconfirmed_warning(planted16, random16):
+    """Item 6: when a row clears, ``best_or_none()`` is still ``None``, and one
+    warning names the leading k and its adjusted p, says positions do not
+    confirm a k, and gives the next call.  Nothing clears: silent."""
+    assert planted16.n_cleared and planted16.best_or_none() is None
+    (warn,) = [d for d in planted16.diagnostics if d.code == "K_SEARCH_UNCONFIRMED"]
+    assert warn.level == "warning"
+    assert "k = (0, 5/16, 0)" in warn.message
+    assert f"adjusted p {planted16.p_adjusted[0]:.2g}" in warn.message
+    assert "do not confirm" in warn.message
+    assert "Phase.propagation_vector" in warn.suggestion and "refine" in warn.suggestion
+    assert warn.value == planted16.p_adjusted[0]
+    assert warn.where == ["k = (0, 5/16, 0)"]
+    assert random16.n_cleared == 0 and "K_SEARCH_UNCONFIRMED" not in _codes(random16)
+
+
+def test_every_none_carries_exactly_one_reason_code(planted16, random16, monkeypatch):
+    """Item 6 as ruled: a cleared search, an at-chance one, a cut one and one
+    with no peak kept each name their ``None`` by exactly one code."""
+    strata = kgrid_strata("P n m a", denominator=8)
+    pk = _planted(PNMA, (F(0), F(3, 8), F(0)), 6, 6)
+    cut = search_kvector(pk, PNMA, RADIUS, budget=Budget(3600.0, cancel=_FlipAfter(3)),
+                         strata=strata, nuclear_fwhm=FWHM)
+    results = [planted16, random16, cut, search_kvector([], PNMA, RADIUS, strata=strata)]
+    for res in results:
+        assert res.best_or_none() is None
+        assert len(_codes(res) & _REASON_CODES) == 1, _codes(res)
+    assert "K_SEARCH_UNCONFIRMED" in _codes(planted16)
+    assert "K_SEARCH_AT_CHANCE" in _codes(random16)
 
 
 # ============================================================== the partner
@@ -517,6 +620,7 @@ def test_misuse_a_misfit_residue_whose_top_clears_reads_none_and_warns_crowded(
     assert res.sorted_out                                   # the shoulders inside a window
     assert res.crowding.p_value < res.alpha and "K_SEARCH_CROWDED" in _codes(res)
     assert "K_SEARCH_AT_CHANCE" not in _codes(res)
+    assert "K_SEARCH_UNCONFIRMED" in _codes(res)          # the None's one reason code
     assert len(res.p_adjusted) == len(res.rows) and all(0.0 <= p <= 1.0 for p in res.p_adjusted)
 
 
@@ -528,6 +632,7 @@ def test_misuse_a_clean_planted_list_is_none_for_the_position_only_reason_alone(
     assert ksearch._steps_apart("P n m a", planted16.rows[0].equivalents, K_LINE16, 16) == 0
     assert planted16.p_adjusted[0] < planted16.alpha
     assert "K_SEARCH_CROWDED" not in _codes(planted16)
+    assert _codes(planted16) & _REASON_CODES == {"K_SEARCH_UNCONFIRMED"}
 
 
 @pytest.mark.slow

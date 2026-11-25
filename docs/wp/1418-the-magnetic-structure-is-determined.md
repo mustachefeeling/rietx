@@ -1117,8 +1117,7 @@ positives stay silent.
 *Found.* A search whose windows sorted out every peak still scores the whole grid: in
 H7 those 188 searches took 6–171 s and up to 7.8 GB, all 6 cuts were among them, and
 `K_SEARCH_FEW_PEAKS` fires on a list of zero peaks ("matches all 0"). An early answer
-when nothing is kept would save that time; it is Michael's call, open (what a
-result with no peaks carries), not built here.
+when nothing is kept would save that time. Ruled by Mike 2026-11-25 and built (below).
 
 *Fixed after the pre-PR review* (2026-11-25): the manual's power table is row by row as
 measured ((0, ½, 0) needs six peaks); `K_SEARCH_FEW_PEAKS` no longer says no k could
@@ -1127,8 +1126,18 @@ returns `None` with no pick rule behind it, even with `withheld` emptied;
 `K_SEARCH_PARTNER` rides a search only when its top row clears; `K_SEARCH_CUT` and
 `strata=` say that the bound counts only the k scored, so a stratum chosen from a
 ranking makes every adjusted p too small; with census windows the distances are labelled
-in the census FWHM. Three questions stay open for Michael: a code when a row clears, the
+in the census FWHM. Three questions were open for Michael: a code when a row clears, the
 state with no peak kept, and the ± radius window.
+
+*Ruled by Mike* (2026-11-25) *and built.* A search whose top row clears fires
+`K_SEARCH_UNCONFIRMED` (warning): the leading k, its adjusted p, that positions do not
+confirm a k, and the refinement that tests it. A search whose windows leave no peak returns
+before scoring any k, with `rows` empty, `withheld == ("no_peaks_kept",)`, `coverage`
+saying nothing was scored, and `K_SEARCH_NO_PEAKS_KEPT` (warning) naming k = 0, a long
+period near Γ and a profile misfit as the readings positions cannot separate. So exactly
+one of `K_SEARCH_UNCONFIRMED`, `K_SEARCH_AT_CHANCE` and `K_SEARCH_NO_PEAKS_KEPT` names every
+`None`. The ± radius rung stays as built (recorded in `exclude_source` and `coverage`, no
+diagnostic).
 
 *Next.* K2 passes the fitted residue, sorted three ways, from the satellite arm, and is
 where a pick can open (a k is confirmed by refinement). K3 replaces the 1/64 grid. The

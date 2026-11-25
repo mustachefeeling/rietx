@@ -3470,6 +3470,22 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "another measurement."
         ),
     ),
+    "K_SEARCH_NO_PEAKS_KEPT": HelpEntry(
+        title="No unexplained peak was left for the k-search to score",
+        description=(
+            "The k-search sets aside every peak within one nuclear FWHM of a nuclear "
+            "line, since by position a satellite there cannot be told from the line's "
+            "shoulder. Here that left no peak (or none was passed), so the search "
+            "returned before scoring any propagation vector: there are no rows, and "
+            "best_or_none() is None. That is not a finding of no magnetic order. k = 0 is "
+            "not on the search grid, because a k = 0 structure puts its magnetic intensity "
+            "on the nuclear lines, so unexplained intensity there is what k = 0 order "
+            "leaves. A nuclear profile the model has wrong, or a long period close to the "
+            "zone centre, leaves the same. Test a k = 0 magnetic model by refinement, or "
+            "refine the nuclear profile until the residue beside the lines is flat and "
+            "search again."
+        ),
+    ),
     "K_SEARCH_PARTNER": HelpEntry(
         title="The cell's metric pairs this propagation vector with another",
         description=(
@@ -3482,6 +3498,19 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "neighbourhood, and keep every vector that matches as a hypothesis. A moment or "
             "modulation model, which reads intensities, or a sharper instrument separates "
             "them. On a k-search result it rides only when the top row clears alpha."
+        ),
+    ),
+    "K_SEARCH_UNCONFIRMED": HelpEntry(
+        title="A propagation vector clears chance, and positions do not confirm it",
+        description=(
+            "The leading propagation vector of the k-search scores above Boole's bound: "
+            "its adjusted p is at most alpha, so peaks placed at random would rarely match "
+            "this well. Positions still do not confirm a vector. Peaks a profile misfit "
+            "leaves are not placed at random, and a vector near a partner image of the "
+            "metric can match the same peaks. So best_or_none() returns None, and the "
+            "message names the vector and its adjusted p. Declare it as "
+            "Phase.propagation_vector and refine a moment or modulation model against the "
+            "whole profile; test every row that clears, and its partners, the same way."
         ),
     ),
     "K_VECTOR_UNSEPARATED": HelpEntry(

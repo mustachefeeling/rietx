@@ -18,7 +18,11 @@ cell the same way (``not_validated``,
 :meth:`~rietx.schemas.indexing.IndexingResult.best_or_none`).  The reasons are on
 :attr:`KSearchResult.withheld`, a field rather than a diagnostic, since they hold
 on every call.  ``None`` here is not "no k": read :attr:`KSearchResult.withheld`,
-the rows and their adjusted p.
+the rows and their adjusted p.  Exactly one warning names each ``None``'s
+reason: ``K_SEARCH_UNCONFIRMED`` when a row clears (positions do not confirm a
+k), ``K_SEARCH_AT_CHANCE`` when none does, and ``K_SEARCH_NO_PEAKS_KEPT`` when
+the windows left no peak to score, in which case the search returns before
+scoring any k.
 
 **The chance level is Boole's bound** (:func:`~rietx.indexing.kvector.kgrid_bound`,
 ``weighting="flat"``: every k scored is held to log₁₀(N/α)), with no shuffle, no
@@ -68,6 +72,7 @@ No other program's source was read.
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -95,6 +100,10 @@ from .kvector import (
     KPeaks,
     KStratum,
     Weighting,
+    _exclude_windows,
+    _grid_source,
+    _peak_array,
+    _positive,
     as_kpeaks,
     kgrid_bound,
     kgrid_strata,
@@ -150,6 +159,9 @@ _WITHHELD: dict[str, str] = {
     "search_cut": (
         "the budget stopped the search before it covered every stratum, so a k in the part "
         "left could outrank the top row; pass budget=\"full\""),
+    "no_peaks_kept": (
+        "no peak was left to score (the windows sorted out every peak passed, or none was "
+        "passed), so no k was scored and nothing is ranked"),
 }
 
 
@@ -232,11 +244,20 @@ class KSearchResult:
     ambiguity of a cell).
 
     ``withheld`` holds the reasons :meth:`best_or_none` returns ``None``
-    (``"position_only"`` always; ``"search_cut"`` when a budget cut the
-    search), and ``withheld_reasons`` their sentences.  ``diagnostics``
-    carries ``K_SEARCH_AT_CHANCE``, ``K_SEARCH_FEW_PEAKS``, ``K_SEARCH_CUT``,
-    ``K_SEARCH_CROWDED`` and, when the top row clears, its partners'
-    ``K_SEARCH_PARTNER`` (``partners`` is on the result either way).
+    (``"position_only"`` on every search that scored a k; ``"search_cut"``
+    when a budget cut the search; ``"no_peaks_kept"`` alone when no peak was
+    left to score), and ``withheld_reasons`` their sentences.  ``diagnostics``
+    carries exactly one of ``K_SEARCH_UNCONFIRMED`` (a row clears),
+    ``K_SEARCH_AT_CHANCE`` (none does) and ``K_SEARCH_NO_PEAKS_KEPT`` (no peak
+    kept), plus ``K_SEARCH_FEW_PEAKS``, ``K_SEARCH_CUT``, ``K_SEARCH_CROWDED``
+    and, when the top row clears, its partners' ``K_SEARCH_PARTNER``
+    (``partners`` is on the result either way).
+
+    **With no peak kept** the search returns before scoring any k: ``rows``,
+    ``p_adjusted``, ``strata_searched``, ``strata_cut`` and ``strata_left``
+    are empty, ``bound`` counts no k (``n_total`` 0, ``alpha`` and
+    ``weighting`` as passed), ``crowding``, ``partners`` and ``partner_tie``
+    are ``None``, and ``coverage`` says that nothing was scored and why.
     """
 
     parent: KParent
@@ -306,8 +327,9 @@ class KSearchResult:
 
         The search ranks k from peak positions alone, and a k is confirmed by
         refinement, so no row is picked (``withheld`` names the reasons:
-        ``"position_only"``, and ``"search_cut"`` when a budget cut the
-        search).  **``None`` is not "no k"**: the ranking, each row's adjusted
+        ``"position_only"``, ``"search_cut"`` when a budget cut the search,
+        or ``"no_peaks_kept"`` when nothing was scored; one warning in
+        ``diagnostics`` names it too).  **``None`` is not "no k"**: the ranking, each row's adjusted
         p, ``n_cleared`` and the warnings are the answer.  Every row is a
         hypothesis a refinement tests, ``rows[0]`` first; its adjusted p and
         the warnings say how far the positions support it, and a row that
@@ -559,21 +581,29 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
       (:func:`~rietx.indexing.kvector.kgrid_bound`; ``"stratum"`` gives each
       stratum an equal share).
 
-    Warnings, none of which refuses or removes a row:
-    ``K_SEARCH_AT_CHANCE`` (no row clears ``alpha``), ``K_SEARCH_FEW_PEAKS``
-    (no row clears although the top matches every peak),
-    ``K_SEARCH_CUT`` (a budget cut the search) and ``K_SEARCH_CROWDED`` (the
-    crowding p is under ``alpha``).
+    Warnings, none of which refuses or removes a row.  Exactly one says why
+    :meth:`KSearchResult.best_or_none` is ``None``: ``K_SEARCH_UNCONFIRMED``
+    (a row clears ``alpha``: it names the leading k and its adjusted p, and the
+    refinement that tests it), ``K_SEARCH_AT_CHANCE`` (no row clears) or
+    ``K_SEARCH_NO_PEAKS_KEPT`` (the windows left no peak, so the search
+    returned before scoring; k = 0 is not on the grid and its intensity falls
+    on the nuclear lines, so a k = 0 residue ends here).  Beside it:
+    ``K_SEARCH_FEW_PEAKS`` (no row clears although the top matches every
+    peak), ``K_SEARCH_CUT`` (a budget cut the search) and ``K_SEARCH_CROWDED``
+    (the crowding p is under ``alpha``).
 
     Likeliest misuse: reading ``best_or_none() is None`` as "no magnetic or
     modulated order".  It is ``None`` on every call; read ``withheld``.
     """
+    t0 = time.perf_counter()
     a = float(alpha)
     if not 0.0 < a < 1.0:
         raise ValueError(f"alpha must lie in (0, 1), got {alpha!r}")
     if weighting not in ("flat", "stratum"):
         raise ValueError(f"weighting must be 'flat' or 'stratum', got {weighting!r}")
+    band = _positive(band_deg, "band_deg")
     kp_in = as_kpeaks(peaks)
+    _peak_array(kp_in, parent)
     width = _width_function(nuclear_fwhm)
     deadline, preset = _resolve_budget(budget)
     if strata is None:
@@ -581,6 +611,7 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
     built = strata if isinstance(strata, KGridPositions) else None
     if not tuple(built.strata if built is not None else strata):
         raise ValueError("no strata given: pass the strata to search, or None for the grid")
+    strata_, orders, _ = _grid_source(parent, strata, harmonics)
     lines = lattice_two_theta(parent.group, parent.cell, parent.wavelength,
                               parent.two_theta_max, parent.two_theta_min)
     r, source = _resolve_radius(kp_in, radius, width, lines)
@@ -599,8 +630,11 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
     kp = KPeaks(two_theta=tuple(kp_in.two_theta[i] for i in kept), fwhm=_take(kp_in.fwhm),
                 tags=_take(kp_in.tags))
     pairs = tuple((float(x), float(w)) for x, w in zip(c, h))
+    if not kept:
+        return _no_peaks_kept(parent, kp, out, strata_, orders, r, source, band, pairs, fw,
+                              ex_source, a, weighting, deadline, preset, t0)
 
-    grid = score_kgrid(kp, parent, strata, radius=r, band_deg=band_deg, harmonics=harmonics,
+    grid = score_kgrid(kp, parent, strata, radius=r, band_deg=band, harmonics=harmonics,
                        budget=deadline, exclude=pairs)
     if not grid.rows:
         raise RuntimeError("the budget had expired before the first block, so nothing was "
@@ -680,6 +714,19 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
                         "the k by refinement."),
             value=crowding.p_value))
     if cleared:
+        diags.append(Diagnostic(
+            level="warning", code="K_SEARCH_UNCONFIRMED",
+            message=(f"k = {format_kvector(top.k)} leads the ranking and clears alpha = {a:g} "
+                     f"(adjusted p {p_adjusted[0]:.2g}; {sum(p <= a for p in p_adjusted)} "
+                     "row(s) clear), but peak positions do not confirm a k, so "
+                     "best_or_none() returns None. A k is confirmed by a model refined "
+                     "against the whole profile, one trial k at a time."),
+            where=where,
+            suggestion=(f"Declare k = {format_kvector(top.k)} as Phase.propagation_vector "
+                        "and refine it (a moment or modulation model, the satellites' "
+                        "intensities included); test each row that clears, and its partners, "
+                        "the same way."),
+            value=p_adjusted[0]))
         diags.extend(partners.diagnostics)
 
     withheld = ("position_only",) + (("search_cut",) if grid.strata_cut or grid.strata_left
@@ -696,15 +743,68 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
         withheld=withheld, diagnostics=tuple(diags))
 
 
+def _no_peaks_kept(parent: KParent, kp: KPeaks, out: tuple[int, ...],
+                   strata: tuple[KStratum, ...], harmonics: tuple[int, ...], radius: float,
+                   radius_source: str, band: float, pairs, fw, ex_source: str, alpha: float,
+                   weighting: Weighting, deadline, preset: str, t0: float) -> KSearchResult:
+    """The answer when the windows left no peak: no k is scored (a grid scored
+    against nothing ranks nothing, and on the 1/64 grid it cost minutes and
+    gigabytes), and one warning names the state."""
+    exclude, _ = (_exclude_windows(pairs, parent.two_theta_min, parent.two_theta_max)
+                  if pairs else ((), None))
+    dens = " and ".join(f"1/{d}" for d in sorted({s.denominator for s in strata}))
+    coverage = (f"No k was scored: no peak was left to score, so the {dens} grid "
+                f"({len(strata)} stratum(s) given) was not searched and nothing is ranked."
+                + _blind_zone(ex_source, len(out)))
+    bound = KBound(alpha=alpha, weighting=weighting, strata=(), n_scored=(), weights=(),
+                   thresholds=(), n_total=0, exclude=exclude,
+                   grid_step=max(s.grid_step for s in strata), coverage=coverage)
+    if out:
+        windows = ("the caller's exclude windows" if ex_source == "caller" else
+                   f"the windows (peaks within {_window_words(ex_source)} of a nuclear line)")
+        message = (f"No peak was left to score: {windows} sorted out all {len(out)} "
+                   "peaks passed, so no k was scored and best_or_none() returns None. Peaks "
+                   "that all sit that close to nuclear lines are what k = 0 order leaves "
+                   "(k = 0 is not on the search grid: its intensity falls on the nuclear "
+                   "lines), and also what a long period near Γ or a nuclear-profile misfit "
+                   "leaves; positions cannot tell these apart.")
+    else:
+        message = ("No peak was passed, so no k was scored and best_or_none() returns None; "
+                   "the search says nothing about the specimen.")
+    diag = Diagnostic(
+        level="warning", code="K_SEARCH_NO_PEAKS_KEPT", message=message, where=[],
+        suggestion=("Test a k = 0 magnetic model by refinement (a k = 0 magnetic space "
+                    "group), or refine the nuclear profile until the residue is flat beside "
+                    "the lines and search again, with narrower windows (exclude=) if "
+                    "satellites close to the lines are expected." if out else
+                    "Pass the unexplained peaks (positions in ° 2θ) to search."),
+        value=float(len(out)))
+    return KSearchResult(
+        parent=parent, peaks=kp, kept=(), sorted_out=out, rows=(), p_adjusted=(),
+        bound=bound, radius=radius, radius_source=radius_source, band_deg=band,
+        harmonics=harmonics, exclude=exclude, exclude_source=ex_source,
+        peak_distance_fwhm=None if fw is None else (), crowding=None,
+        grid_step=bound.grid_step, strata_searched=(), strata_cut=(), strata_left=(),
+        coverage=coverage, preset=preset,
+        budget_seconds=None if deadline is None else float(deadline.seconds),
+        budget_expired=False, elapsed_seconds=time.perf_counter() - t0, partners=None,
+        partner_tie=None, withheld=("no_peaks_kept",), diagnostics=(diag,))
+
+
+def _window_words(source: str) -> str:
+    """How wide the windows were, in words (not for a caller's own ``exclude``)."""
+    return ("± the match radius (no width was given)" if source == "radius" else
+            f"± {RESOLUTION_FWHM:g} census FWHM (the peaks' median width, not a nuclear "
+            "width)" if source == "residual census" else
+            f"± {RESOLUTION_FWHM:g} local nuclear FWHM ({source})")
+
+
 def _blind_zone(source: str, n_out: int) -> str:
     if source == "caller":
         return (f" {n_out} peak(s) inside the caller's exclude windows were sorted out; a k "
                 "whose satellites all fall inside those windows cannot be found from these "
                 "peaks.")
-    width = ("± the match radius (no width was given)" if source == "radius" else
-             f"± {RESOLUTION_FWHM:g} census FWHM (the peaks' median width, not a nuclear "
-             "width)" if source == "residual census" else
-             f"± {RESOLUTION_FWHM:g} local nuclear FWHM ({source})")
+    width = _window_words(source)
     return (f" Peaks within {width} of a nuclear line were sorted out ({n_out} here), so a k "
             "whose satellites all fall that close to nuclear lines (a long period, a few grid "
             "steps from Γ) cannot be found from these peaks. k = 0 is not on the grid: its "

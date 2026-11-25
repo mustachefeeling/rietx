@@ -83,6 +83,8 @@ k = 0 is not on the grid: its magnetic intensity falls on the nuclear lines, whi
 
 `KSearchResult.best_or_none()` returns `None` on every search: positions rank the k, and refinement confirms one, as for a cell.
 Read the rows and their adjusted p, and test the leading k as [Satellite evidence](#satellite-evidence) describes.
+One warning says why each `None` is `None`: `K_SEARCH_UNCONFIRMED` when a row clears (it names the leading k, its adjusted p and the refinement that tests it), `K_SEARCH_AT_CHANCE` when none does.
+When the windows leave no peak to score, the search returns at once, with no rows, and `K_SEARCH_NO_PEAKS_KEPT` says so; a k = 0 residue ends here, so test a k = 0 model by refinement rather than reading the empty answer as no order.
 
 How many clean peaks a k needs before it can clear, measured on synthetic constant-wavelength neutron patterns (`Pnma`, 5.74 × 7.70 × 5.54 Å, λ 2.41 Å, 10–140° 2θ, a 0.12° match radius, the whole 1/64 grid, `alpha` 0.01, 40 seeds a cell). No other family, instrument or radius has been tested.
 
