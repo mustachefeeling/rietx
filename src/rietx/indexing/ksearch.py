@@ -231,7 +231,7 @@ class KSearchResult:
     (1975), *J. Appl. Cryst.* **8**, 372-374, one rank over: the geometrical
     ambiguity of a cell).
 
-    ``withheld`` holds the reason codes :meth:`best_or_none` reads
+    ``withheld`` holds the reasons :meth:`best_or_none` returns ``None``
     (``"position_only"`` always; ``"search_cut"`` when a budget cut the
     search), and ``withheld_reasons`` their sentences.  ``diagnostics``
     carries ``K_SEARCH_AT_CHANCE``, ``K_SEARCH_FEW_PEAKS``, ``K_SEARCH_CUT``,
@@ -312,7 +312,7 @@ class KSearchResult:
         hypothesis a refinement tests, ``rows[0]`` first; its adjusted p and
         the warnings say how far the positions support it, and a row that
         clears can still be wrong.  The method keeps indexing's shape and
-        returns ``None`` until a ruling opens a pick (D68).
+        returns ``None`` until a ruling opens a pick (issue #795).
         """
         return None
 

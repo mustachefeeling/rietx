@@ -4,7 +4,7 @@ The family is K1a's (``test_indexing_kvector.py``): synthetic Pnma (5.74 × 7.70
 5.54 Å, LaMnO₃-like), CW neutrons at λ 2.41 Å over 10-140°, a 0.12° radius and a
 nuclear FWHM of 0.30°.  The fast tests search the 1/8 or 1/16 grid; the 1/64 tests
 are marked slow.  The validation arms (H1-H7, re-measured under the bound for the
-D68 rework) are measured outside the suite and quoted in the WP handover; what is
+K1b rework) are measured outside the suite and quoted in the WP handover; what is
 pinned here is the composition, the windows, the crowding row and the held pick.
 
 Interpretation, written before the runs:
@@ -151,7 +151,7 @@ def test_a_planted_k_ranks_first_and_clears_but_is_not_picked(planted16, random1
 
 def test_no_pick_path_opens_when_nothing_is_withheld(planted16):
     """``best_or_none`` is ``None`` whatever ``withheld`` holds: emptying the
-    field opens no pick, since no ruling names a rule to pick by (D68)."""
+    field opens no pick, since no ruling names a rule to pick by (issue #795)."""
     assert dataclasses.replace(planted16, withheld=()).best_or_none() is None
     assert dataclasses.replace(planted16, withheld=("search_cut",)).best_or_none() is None
 

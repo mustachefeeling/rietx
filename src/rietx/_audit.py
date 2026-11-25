@@ -1672,7 +1672,8 @@ ROWS: tuple[Row, ...] = (
                  "refused. The bound is arithmetic (Boole's inequality, no free factor); "
                  "alpha is a stated convention (search_kvector:alpha). A caller with k from "
                  "elsewhere reads the rows as a test of that k and would ignore the warning, "
-                 "which is why it never refuses (D68, provisional)."),
+                 "which is why it never refuses (provisional; issue #795, WP-1418 K1b "
+                 "handover)."),
         response="warning",
         responds=("treat every ranked k as a hypothesis, build no moment or modulation model "
                   "on the top row alone, and add peaks or state k from elsewhere")),
@@ -1696,7 +1697,7 @@ ROWS: tuple[Row, ...] = (
                  "alpha, the crowding p is under it on 80 of 80 clean lists of a planted "
                  "(0, 2/64, 0), k1bfloor), so the warning names it. The KS test is Kolmogorov (1933) and Smirnov (1948) "
                  "with Birnbaum and Tingey's (1951) one-sided exact distribution; alpha is "
-                 "the search's stated convention (D68, provisional)."),
+                 "the search's stated convention (provisional; issue #795)."),
         response="warning",
         responds=("refine the nuclear profile until the residue is flat beside the nuclear "
                   "lines, or test the top k by refinement, before fitting a moment or "
@@ -1707,14 +1708,15 @@ ROWS: tuple[Row, ...] = (
                   "caller's own strata= is not a cut (tests/test_indexing_ksearch.py)"),
         grounds=("A fact about the search, not a judgement: the rows and the bound cover "
                  "exactly the k scored, and a k in the part left could outrank them. "
-                 "KSearchResult.withheld gains search_cut (D42 (1)(b), D68, provisional)."),
+                 "KSearchResult.withheld gains search_cut (provisional; issue #795, "
+                 "WP-1418 K1b handover)."),
         response="warning",
         responds=("the search did not reach every stratum: rerun with budget=\"full\" before "
                   "fitting a moment model on the top row")),
     Row("K_SEARCH_FEW_PEAKS", "code", tier=1, ambiguity=3,
         evidence=("arithmetic: fires when no row clears the bound and the top row matches "
                   "every kept peak; read off the result, with no table (the floor table and "
-                  "k_search_floor retired, D68)"),
+                  "k_search_floor retired, provisionally; issue #795)"),
         grounds=("Explains a silence and acts on nothing: the rows, the bound and "
                  "best_or_none() are unchanged by it. A gating floor would have withheld "
                  "273 of 274 few-peak true names under the flat bound and caught none "
@@ -1736,7 +1738,8 @@ ROWS: tuple[Row, ...] = (
                   "(tests/test_indexing_kvector.py, V6)"),
         grounds=("Arithmetic: W G W^T against G is a statement about the cell alone; the code "
                  "lists the partner as one equivalence row and never says which k is right "
-                 "(Mighell & Santoro 1975, one rank over)."),
+                 "(Mighell & Santoro 1975, one rank over). On a KSearchResult it rides the "
+                 "result only when the top row clears alpha."),
         response="info",
         responds=("score the partner's neighbourhood beside k and keep every k that matches "
                   "as a hypothesis until intensities or a sharper instrument separate them")),
@@ -4317,7 +4320,8 @@ ROWS: tuple[Row, ...] = (
     Row("rietx.indexing.ksearch.K_SEARCH_NEAR_FWHM", "constant", tier=1, value=2.0,
         evidence=("definition: the distance in local nuclear FWHM (twice the window) inside "
                   "which KCrowding.n_near counts a kept peak; a number reported beside the "
-                  "crowding p and read by no rule (D68 item 4: p, N, n within 2 FWHM, form)")),
+                  "crowding p and read by no rule (the crowding row: p, N, n within 2 FWHM, "
+                  "form)")),
     Row("rietx.indexing.ksearch.K_SEARCH_PARTNER_TOL", "constant", tier=3, value=0.08,
         evidence=("WP-1418 K1a, V6: at 0.08 the x <-> z image on a 5.74 x 7.70 x 5.54 A Pnma "
                   "cell is listed (relative metric deviation 0.0735) and none on a "
@@ -7357,7 +7361,9 @@ ROWS: tuple[Row, ...] = (
                   "nuclear FWHM, from nuclear_fwhm, else the census width, else (a caller's "
                   "radius, no width) +- the radius, recorded as exclude_source; peaks strictly "
                   "inside are sorted out before scoring and the same windows are the bound's "
-                  "exclusions (D43 (b)). K1b H3a: at +- the radius (0.4 FWHM) misfit "
+                  "exclusions (issue #795); the +- radius rung, used when no width is given "
+                  "anywhere, is not this window, and whether it warns or refuses is open. "
+                  "K1b H3a: at +- the radius (0.4 FWHM) misfit "
                   "shoulders a median 0.25 deg out named a k on 72 of 80 lists; V4' at one "
                   "FWHM: no window alone stops them, which is the crowding row's job; k = 0 "
                   "is not on the grid: its magnetic intensity falls on the nuclear lines, "
@@ -7368,7 +7374,7 @@ ROWS: tuple[Row, ...] = (
                  "dissenter: a real k whose satellites all fall within one FWHM of nuclear "
                  "lines (a long period near Gamma) is lost, and coverage names that blind "
                  "zone. The width reuses indexing's measured resolution (RESOLUTION_FWHM, "
-                 "WP-941), not a second number (D68, provisional).")),
+                 "WP-941), not a second number (provisional; issue #795).")),
     Row("rietx.indexing.ksearch.search_kvector:band_deg", "default", tier=3, ambiguity=2,
         value=5.0,
         evidence=("the local chance band (± deg 2theta) the K report's spike measured on "
@@ -7387,7 +7393,7 @@ ROWS: tuple[Row, ...] = (
                   "(peaks a profile misfit leaves are not placed at random)"),
         grounds=("Sets which rows clear and when the two warnings fire; it picks nothing "
                  "(best_or_none() is None on every position-only search). 0.01 is rietx's "
-                 "stated convention (D41 (ii), D68, provisional).")),
+                 "stated convention (provisional; issue #795).")),
     Row("rietx.indexing.ksearch.search_kvector:weighting", "default", tier=3, ambiguity=2,
         value="flat",
         evidence=("flat holds every k scored to log10(N/alpha) (kgrid_bound, #1734), so the "
@@ -7395,8 +7401,8 @@ ROWS: tuple[Row, ...] = (
                   "gating few-peaks floor would have cost 611 of 803 true names (k1bfloor), "
                   "and W1 did not earn stratum"),
         grounds=("Sets each row's adjusted p; a caller with a physics prior on the strata "
-                 "passes stratum. Flat is rietx's stated choice, uniform over grid k (D41 "
-                 "(i), D68, provisional).")),
+                 "passes stratum. Flat is rietx's stated choice, uniform over grid k "
+                 "(provisional; issue #795).")),
     Row("rietx.indexing.workflow.index_pattern:peaks", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:data", "default", value=None),
     Row("rietx.indexing.workflow.index_pattern:instrument", "default", value=None),

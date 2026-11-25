@@ -3481,7 +3481,7 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "near-equal axes is the usual case. Score the other vector and its "
             "neighbourhood, and keep every vector that matches as a hypothesis. A moment or "
             "modulation model, which reads intensities, or a sharper instrument separates "
-            "them."
+            "them. On a k-search result it rides only when the top row clears alpha."
         ),
     ),
     "K_VECTOR_UNSEPARATED": HelpEntry(

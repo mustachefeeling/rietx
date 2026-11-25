@@ -1029,30 +1029,31 @@ machinery. `search_kvector(peaks, parent, radius=None, harmonics=(1,), budget=No
 nuclear_fwhm=None, strata=None, exclude=None, band_deg=5.0, alpha=0.01, weighting="flat")`
 scores every k of the 1/64 grid and returns a `KSearchResult`, which has no `.k` and no
 `.best`. The magnetic calls in its shape are Michael's to rule; they were taken
-provisionally on 2026-11-24 by an overnight agent session, not by him (D68), and are open to his ruling; each is marked *provisional, D68* below.
+provisionally on 2026-11-24 by an overnight agent session, not by him, and are open to
+his ruling; each is marked *provisional* below.
 
-- **Chance level** *(provisional, D68)*: Boole's bound at `alpha` = 0.01 (a stated
+- **Chance level** *(provisional)*: Boole's bound at `alpha` = 0.01 (a stated
   convention, recorded on the result), `flat` weighting. Every row carries its adjusted p
   and the rows rank by it. The shuffle null, its percentile and the one-decade margin are
   off the default path.
-- **Windows** *(provisional, D68)*: every nuclear line at ± one local nuclear FWHM
+- **Windows** *(provisional)*: every nuclear line at ± one local nuclear FWHM
   (`RESOLUTION_FWHM`), from `nuclear_fwhm`, else the peaks' census width, else ± the
   radius (`exclude_source` says which). Peaks inside a window are sorted out before
   scoring (`kept`, `sorted_out`), the same windows are the bound's exclusions, each kept
   peak's distance in local FWHM is on the result, and `coverage` names the blind zone.
-- **Crowding row** *(provisional, D68)*: `KCrowding`, the exact one-sided
+- **Crowding row** *(provisional)*: `KCrowding`, the exact one-sided
   Kolmogorov–Smirnov p of each kept peak's distance to its nearest nuclear line against
   uniform placement outside the windows, with N and the count within 2 FWHM.
   `K_SEARCH_CROWDED` warns when p < `alpha` and names the dissenter (a real long-period k
   near Γ crowds the lines too). It withholds nothing.
-- **No pick** *(provisional, D68)*: `best_or_none()` is `None` on every call. The reason is
+- **No pick** *(provisional)*: `best_or_none()` is `None` on every call. The reason is
   on the field `withheld` (`position_only`, plus `search_cut` when the budget cut the
   search), not a diagnostic, since it holds on every call (WP-2037 clause 1).
 - **Warnings, none of which refuses:** `K_SEARCH_AT_CHANCE` (no row clears),
   `K_SEARCH_FEW_PEAKS` (no row clears although the top matches every kept peak),
   `K_SEARCH_CUT` (the budget, read inside a stratum since #1732, cut the search) and
   `K_SEARCH_CROWDED`. The few-peaks floor, its table, `k_search_floor` and
-  `K_SEARCH_MARGIN_DECADES` are retired *(provisional, D68)*; the floor's power table is in
+  `K_SEARCH_MARGIN_DECADES` are retired *(provisional)*; the floor's power table is in
   the manual (synthetic CW Pnma; "line ≥ 7" inferred, not measured).
 
 The branch is composed on #1734 (merged locally onto main) and opens as a PR only once
@@ -1116,7 +1117,7 @@ positives stay silent.
 *Found.* A search whose windows sorted out every peak still scores the whole grid: in
 H7 those 188 searches took 6–171 s and up to 7.8 GB, all 6 cuts were among them, and
 `K_SEARCH_FEW_PEAKS` fires on a list of zero peaks ("matches all 0"). An early answer
-when nothing is kept would save that time; it is a design question for the PR (what a
+when nothing is kept would save that time; it is Michael's call, open (what a
 result with no peaks carries), not built here.
 
 *Fixed after the pre-PR review* (2026-11-25): the manual's power table is row by row as
@@ -1132,7 +1133,7 @@ state with no peak kept, and the ± radius window.
 *Next.* K2 passes the fitted residue, sorted three ways, from the satellite arm, and is
 where a pick can open (a k is confirmed by refinement). K3 replaces the 1/64 grid. The
 maintainer's questions (the schema's home, decision 4, the radius default's home, the
-tier-3 approvals) are in the PR body.
+tier-3 approvals, the window's constant) are in the PR body.
 
 ### 2026-11-24 — K1a's budget now stops a search inside a stratum (PR #1732)
 
