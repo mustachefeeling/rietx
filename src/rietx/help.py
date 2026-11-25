@@ -3461,9 +3461,9 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         title="Too few unexplained peaks to establish the leading propagation vector",
         description=(
             "The best vector matches every unexplained peak and still scores under the "
-            "chance threshold. A vector with as many satellite lines as that one matches "
-            "this many peaks this well by chance, so the search neither finds such a "
-            "vector nor rules it out. A vector with fewer lines, such as a special point, "
+            "chance threshold. Its adjusted p, the bound on how often a vector with as "
+            "many satellite lines matches this many peaks this well by chance, is above "
+            "alpha, so the search neither finds such a vector nor rules it out. A vector with fewer lines, such as a special point, "
             "would score higher on peaks that sat on its satellites, and the ranking shows "
             "that none does. Measure more peaks (longer counting, a paired pattern), or "
             "search only a stratum named before the search by a symmetry argument or "

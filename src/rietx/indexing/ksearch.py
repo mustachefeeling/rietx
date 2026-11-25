@@ -642,9 +642,10 @@ def search_kvector(peaks, parent: KParent, radius: float | None = None,
                 message=(f"The top k, {format_kvector(top.k)}, matches all {len(kp)} peaks "
                          f"kept and still scores {top.score:.1f} decades, under the chance "
                          f"threshold of {bar:.1f}: over the {bound.n_total} k scored at a "
-                         f"{r:.2f}° radius, a k with as many satellite lines in range as this "
-                         f"one matches {len(kp)} peaks this well by chance, so these peaks "
-                         "neither find such a k nor rule it out."),
+                         f"{r:.2f}° radius, the chance that some k with as many satellite "
+                         f"lines in range as this one matches {len(kp)} peaks this well is "
+                         f"bounded only by {p_adjusted[0]:.2g} (its adjusted p), above alpha "
+                         f"= {a:g}, so these peaks neither find such a k nor rule it out."),
                 where=where, value=float(len(kp))))
     if grid.strata_cut or grid.strata_left:
         cut = "; ".join(f"stratum {n} cut after {s} of {t} points"
