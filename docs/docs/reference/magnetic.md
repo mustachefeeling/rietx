@@ -93,8 +93,10 @@ How many clean peaks a k needs before it can clear, measured on synthetic consta
 | (0, ½, 0), a special point | 3 to 5 | 0 |
 | (0, ½, 0), a special point | 6 | 40 |
 | (0, 18/64, 0), on a symmetry line | 3 to 6 | 0 |
-| (0, 18/64, 0), on a symmetry line | 7 or more | expected, not measured |
+| (0, 18/64, 0), on a symmetry line | 7 or 8 | expected, not measured |
+| (0, 18/64, 0), on a symmetry line | 10 (9 kept by the windows) | 40 |
 
+When the top row matches every peak and still does not clear, `K_SEARCH_FEW_PEAKS` says so.
 How many peaks a k needs depends on the k, not only on its kind: a k with fewer satellite lines in range needs fewer.
 Two spurious peaks beside six true ones cut the three points to 34, 26 and 13 of 40.
 

@@ -513,7 +513,7 @@ def test_misuse_a_misfit_residue_whose_top_clears_reads_none_and_warns_crowded(
     pk = _residual_picks(*make(seed, counts))
     res = search_kvector(pk, PNMA, RADIUS, strata=grid16, nuclear_fwhm=width)
     assert res.best_or_none() is None and "position_only" in res.withheld
-    assert res.p_adjusted[0] <= res.alpha                   # a false k clears
+    assert res.p_adjusted[0] <= res.alpha, "the misuse needs a false k that clears: re-pick the seed"
     assert res.sorted_out                                   # the shoulders inside a window
     assert res.crowding.p_value < res.alpha and "K_SEARCH_CROWDED" in _codes(res)
     assert "K_SEARCH_AT_CHANCE" not in _codes(res)
