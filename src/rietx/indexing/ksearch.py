@@ -10,9 +10,10 @@ the peaks and the windows.
 
 **The result has no** ``k`` **and no** ``best``, **and** :meth:`KSearchResult.best_or_none`
 **returns** ``None`` **for every search here.**  The search ranks k from peak
-positions alone, and a k is confirmed by refinement: a moment or modulation model
-refined against the whole profile tests one trial k at a time (Wills, A. S. (2009),
-*Z. Kristallogr. Suppl.* **30**, 39-44, § 3.2).  Indexing holds an unvalidated
+positions alone, and a k is confirmed by refinement: a model refined against the
+whole profile tests one trial k at a time (for a moment model, Wills, A. S. (2009),
+*Z. Kristallogr. Suppl.* **30**, 39-44, § 3.2, refines the moment orientations
+against the full profile rather than extracted intensities).  Indexing holds an unvalidated
 cell the same way (``not_validated``,
 :meth:`~rietx.schemas.indexing.IndexingResult.best_or_none`).  The reasons are on
 :attr:`KSearchResult.withheld`, a field rather than a diagnostic, since they hold
@@ -144,7 +145,8 @@ K_SEARCH_PARTNER_STEPS: int = 4
 _WITHHELD: dict[str, str] = {
     "position_only": (
         "ranked from peak positions only; a k is confirmed by refinement (a moment or "
-        "modulation model fitted to the intensities), as a cell is by a whole-profile fit"),
+        "modulation model refined against the whole profile), as a cell is by a "
+        "whole-profile fit"),
     "search_cut": (
         "the budget stopped the search before it covered every stratum, so a k in the part "
         "left could outrank the top row; pass budget=\"full\""),
