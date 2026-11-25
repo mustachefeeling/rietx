@@ -23,8 +23,10 @@ the rows and their adjusted p.
 ``weighting="flat"``: every k scored is held to log₁₀(N/α)), with no shuffle, no
 margin and no free factor.  Every row carries its adjusted p, min(1, P·nₛ/wₛ), so a
 reader can re-read the ranking at another α without a rerun; with ``"flat"`` that
-is N·P.  ``alpha`` is a stated convention, 0.01, not a measurement: a series of n
-patterns searched at α expects about α·n chance k.
+is N·P.  ``alpha`` is a stated convention, 0.01, not a measurement: if the
+unexplained peaks of n patterns were placed at random, at most about α·n would
+show a clearing k; peaks left by a profile misfit are not placed at random, and
+the bound does not cover them.
 
 **The windows.**  By default every nuclear line is excluded at ± one local
 nuclear FWHM (:data:`~rietx.indexing.fom.RESOLUTION_FWHM` FWHM, the width indexing

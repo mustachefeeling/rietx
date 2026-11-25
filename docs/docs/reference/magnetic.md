@@ -75,8 +75,8 @@ The satellites become reflections the extraction can put intensity on, and wheth
 ### Searching a grid of k
 
 `rietx.indexing.ksearch.search_kvector` scores every rational k on a 1/64 grid against the unexplained peaks you pass, and ranks them.
-Each row's score is the chance probability of its matches, and each row carries an adjusted p: that probability times the number of k scored (Boole's bound, so the chance that any k on the grid reaches a given adjusted p is at most that p).
-A row clears when its adjusted p is at most `alpha`, 0.01 by default, a convention: a series of 100 patterns searched at 0.01 expects about one chance k.
+Each row's score is −log₁₀ of the chance probability of its matches, and each row carries an adjusted p: that probability times the number of k scored (Boole's bound, so the chance that any k on the grid reaches a given adjusted p is at most that p).
+A row clears when its adjusted p is at most `alpha`, 0.01 by default, a convention: if the unexplained peaks of 100 patterns were placed at random, at most about one would show a clearing k; peaks left by a profile misfit are not placed at random, and the bound does not cover them.
 Peaks within one nuclear FWHM of a nuclear line are set aside before scoring, since a satellite there cannot be told from the shoulder of the line by position, so a k whose satellites all fall that close (a long period, near Γ) cannot be found this way.
 `KSearchResult.crowding` tests whether the peaks kept still crowd the nuclear lines, which is what an imperfect nuclear profile leaves, and `K_SEARCH_CROWDED` warns when they do.
 

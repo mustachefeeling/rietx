@@ -7372,8 +7372,9 @@ ROWS: tuple[Row, ...] = (
         evidence=("a stated convention, not a measurement: the family-wise level of Boole's "
                   "bound over the k scored, recorded on the result (bound.alpha) and quoted in "
                   "K_SEARCH_AT_CHANCE and K_SEARCH_CROWDED; every row carries its adjusted p, "
-                  "so another level is a re-reading, not a rerun; a series of n patterns "
-                  "searched at alpha expects about alpha x n chance k"),
+                  "so another level is a re-reading, not a rerun; n patterns whose unexplained "
+                  "peaks were placed at random expect at most about alpha x n clearing k "
+                  "(peaks a profile misfit leaves are not placed at random)"),
         grounds=("Sets which rows clear and when the two warnings fire; it picks nothing "
                  "(best_or_none() is None on every position-only search). 0.01 is rietx's "
                  "stated convention (D41 (ii), D68, provisional).")),
