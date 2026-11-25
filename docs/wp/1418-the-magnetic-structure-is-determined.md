@@ -1119,6 +1119,16 @@ H7 those 188 searches took 6–171 s and up to 7.8 GB, all 6 cuts were among the
 when nothing is kept would save that time; it is a design question for the PR (what a
 result with no peaks carries), not built here.
 
+*Fixed after the pre-PR review* (2026-11-25): the manual's power table is row by row as
+measured ((0, ½, 0) needs six peaks); `K_SEARCH_FEW_PEAKS` no longer says no k could
+clear, since a k with fewer satellite lines can with the same peaks; `best_or_none()`
+returns `None` with no pick rule behind it, even with `withheld` emptied;
+`K_SEARCH_PARTNER` rides a search only when its top row clears; `K_SEARCH_CUT` and
+`strata=` say that the bound counts only the k scored, so a stratum chosen from a
+ranking makes every adjusted p too small; with census windows the distances are labelled
+in the census FWHM. Three questions stay open for Michael: a code when a row clears, the
+state with no peak kept, and the ± radius window.
+
 *Next.* K2 passes the fitted residue, sorted three ways, from the satellite arm, and is
 where a pick can open (a k is confirmed by refinement). K3 replaces the 1/64 grid. The
 maintainer's questions (the schema's home, decision 4, the radius default's home, the
