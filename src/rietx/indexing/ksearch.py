@@ -11,8 +11,8 @@ the peaks and the windows.
 **The result has no** ``k`` **and no** ``best``, **and** :meth:`KSearchResult.best_or_none`
 **returns** ``None`` **for every search here.**  The search ranks k from peak
 positions alone, and a k is confirmed by refinement: a moment or modulation model
-fitted to the intensities tests one trial k at a time (Wills, A. S. (2009),
-*Z. Kristallogr. Suppl.* **30**, 39-44, § 3.1).  Indexing holds an unvalidated
+refined against the whole profile tests one trial k at a time (Wills, A. S. (2009),
+*Z. Kristallogr. Suppl.* **30**, 39-44, § 3.2).  Indexing holds an unvalidated
 cell the same way (``not_validated``,
 :meth:`~rietx.schemas.indexing.IndexingResult.best_or_none`).  The reasons are on
 :attr:`KSearchResult.withheld`, a field rather than a diagnostic, since they hold
