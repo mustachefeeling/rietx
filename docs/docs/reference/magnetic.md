@@ -85,13 +85,17 @@ Read the rows and their adjusted p, and test the leading k as [Satellite evidenc
 
 How many clean peaks a k needs before it can clear, measured on synthetic constant-wavelength neutron patterns (`Pnma`, 5.74 × 7.70 × 5.54 Å, λ 2.41 Å, 10–140° 2θ, a 0.12° match radius, the whole 1/64 grid, `alpha` 0.01, 40 seeds a cell). No other family, instrument or radius has been tested.
 
-| k planted | peaks | cleared |
+| k planted | peaks | cleared, of 40 |
 |---|---|---|
-| a special point | 5–6 | 40 of 40 |
-| on a symmetry line | 6 or fewer | 0 of 40 |
-| on a symmetry line | 7 or more | expected, not measured |
+| (½, 0, 0) or (½, ½, ½), special points | 3 or 4 | 0 |
+| (½, 0, 0) or (½, ½, ½), special points | 5 or 6 | 40 |
+| (0, ½, 0), a special point | 3 to 5 | 0 |
+| (0, ½, 0), a special point | 6 | 40 |
+| (0, 18/64, 0), on a symmetry line | 3 to 6 | 0 |
+| (0, 18/64, 0), on a symmetry line | 7 or more | expected, not measured |
 
-With fewer peaks than a k of its kind needs, the best row can match every peak and still not clear; `K_SEARCH_FEW_PEAKS` says so, and the search then neither finds a k nor rules one out.
+How many peaks a k needs depends on the k, not only on its kind: a k with fewer satellite lines in range needs fewer.
+Two spurious peaks beside six true ones cut the three points to 34, 26 and 13 of 40.
 
 ### Forbidden lattice points
 
