@@ -4945,6 +4945,36 @@ def test_tb14ag51_candidates_contain_the_published_p6bar_prime():
         assert members[-1].direction.rank == 4          # the four-dimensional mK4K6
 
 
+#: Published commensurate structures with a denominator of 3 or more, each one
+#: primary irrep, the magnetic ion on a special position with no free
+#: coordinate: (parent, site, k, the published MSG's BNS number).  The MSG is
+#: the one MAGNDATA states for the paper's model (https://cryst.ehu.es/magndata/;
+#: Gallego et al. 2016, J. Appl. Cryst. 49, 1750 and 1941); the papers are cited
+#: by DOI.  Only these published facts are written here, nothing of the files.
+PUBLISHED_ARM_PAIR = [
+    # MAGNDATA 1.499, Fe on P-3 1a; doi 10.1016/j.jallcom.2014.04.049
+    pytest.param("P -3", (0, 0, 0), (Fraction(1, 3), Fraction(1, 3), Fraction(1, 2)), "143.3",
+                 id="magndata-1.499"),
+    # MAGNDATA 1.318, Ru on I4/mmm 2a; doi 10.1103/PhysRevB.95.054413
+    pytest.param("I 4/m m m", (0, 0, 0), (Fraction(1, 4), Fraction(1, 4), 0), "64.478",
+                 id="magndata-1.318"),
+    # MAGNDATA 1.510, Tb on I4/mmm 2a, a centred 2k outside L*; doi 10.1088/0031-8949/44/1/002
+    pytest.param("I 4/m m m", (0, 0, 0), (0, 0, Fraction(3, 4)), "124.360",
+                 id="magndata-1.510"),
+    # MAGNDATA 1.517, Dy on Fm-3c 8a; doi 10.1088/0305-4608/15/1/020
+    pytest.param("F m -3 c", (0.25, 0.25, 0.25), (0, 0, Fraction(1, 3)), "20.37",
+                 id="magndata-1.517"),
+]
+
+
+@pytest.mark.parametrize(("group", "site", "k", "bns"), PUBLISHED_ARM_PAIR)
+def test_published_commensurate_structures_are_among_the_candidates(group, site, k, bns):
+    """The published MSG is one of the candidates (and every candidate verifies)."""
+    found = isotropy.candidates(group, site, k)
+    assert all(c.verified for c in found)
+    assert bns in {c.bns_number for c in found}, [c.bns_number for c in found]
+
+
 def test_the_arm_pair_order_parameters_tile_the_whole_field_space():
     """Σ over the order parameters of their dimensions is 2·3N (modes' own count).
 

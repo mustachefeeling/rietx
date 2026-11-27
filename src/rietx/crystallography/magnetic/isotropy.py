@@ -205,8 +205,9 @@ G_{k,−k} and the antilinear action of its k-reversing coset, eq. (16).
 Pomjakushin, V., Perez-Mato, J. M., Fischer, P., Keller, L. & Sikora, W.
 (2022). *Acta Cryst.* B**78**, 172 — Tb₁₄Ag₅₁, P6/m at k = (⅓, ⅓, 0): the
 four-dimensional mK4K6 and its maximal subgroup P-6′ (BNS 174.135).
-Nguyen, P. Q. & Stehlé, D. (2009). *ACM Trans. Algorithms* **5**, 46 — greedy
-lattice-basis reduction in low dimension (:func:`_size_reduce`).
+Nguyen, P. Q. & Stehlé, D. (2009). *ACM Trans. Algorithms* **5**(4), 1–48,
+doi:10.1145/1597036.1597050 — Lagrange–Gauss reduction and its low-dimensional
+generalisation (:func:`_size_reduce` uses the pairwise step).
 """
 
 from __future__ import annotations
@@ -755,8 +756,10 @@ def _size_reduce(rows, lattice) -> list[tuple[Fraction, ...]]:
     :func:`_arm_lattice` as a, c, −8a − 10b).  So each vector is first reduced
     against each other one, bᵢ ← bᵢ − round(⟨bᵢ, bⱼ⟩/⟨bⱼ, bⱼ⟩)·bⱼ in the group's
     compatible metric, until nothing moves: a unimodular change, so the same
-    lattice (Nguyen & Stehlé, 2009, *ACM Trans. Algorithms* **5**, 46, § 2, the
-    greedy reduction in low dimension).
+    lattice.  It is the pairwise step of Lagrange–Gauss reduction, which Nguyen
+    & Stehlé (2009), *ACM Trans. Algorithms* **5**(4), 1–48
+    (doi:10.1145/1597036.1597050) generalise to low dimension; this is the
+    plain pairwise form, not their greedy algorithm.
     """
     metric = np.asarray(lattice, dtype=np.float64) @ np.asarray(lattice, dtype=np.float64).T
     vectors = [[_frac(v) for v in row] for row in rows]
