@@ -351,6 +351,8 @@ def _parameter_paths() -> set[str]:
     # a declared spectrum, since ITYP 0 (the default) has no coefficient rows
     bank.source.incident_spectrum = IncidentSpectrum(
         itype=3, coefficients=[Parameter(value=1.0)] * 12)
+    # and its sample absorption factor (issue #1867), opt-in like the spectrum
+    bank.geometry.mu_r_per_angstrom = Parameter(value=0.0)
     models = [(make_lab6(), plain), (make_rutile(vary_coords=True), plain),
               _fully_declared(), _magnetic(), (make_lab6(), bank),
               (_distortion(), plain)]

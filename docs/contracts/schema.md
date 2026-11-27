@@ -853,6 +853,16 @@ the 1e-2 schedule, as one without ``intermediate_ftol`` took 1e-6 at
 constant-wavelength or Gaussian-branch number moves.  ``Refinement.fit``
 and ``run_stage`` write both records on every stage.
 
+Also in 0.62 (issue #1867): ``Geometry.mu_r_per_angstrom``, a
+``Parameter | None`` defaulting to ``None``: a time-of-flight bank's
+refinable sample absorption factor A_B = µR/λ, applied per reflection
+through the Rouse cylinder factor at µR = A_B·λ_hkl, with a table row at
+``instrument.geometry.mu_r_per_angstrom`` when declared.  Additive and
+defaulted, the 0.25 → 0.26 rule; an older build refuses a geometry carrying
+the key.  Refused beside ``capillary_radius_mm`` or ``mu_r``, outside
+``debye_scherrer``, and on a constant-wavelength source.  ``None``
+registers no row and leaves every number unchanged.
+
 Also in 0.62 (WP-2081): ``SeriesEntry.held_values``, every path the
 caller held on a pattern with the value it was held at.  Additive and
 defaulted to ``None``, the 0.25 → 0.26 rule; an older build refuses an entry

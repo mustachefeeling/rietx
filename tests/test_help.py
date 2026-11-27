@@ -269,7 +269,11 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
                     coefficients=[Parameter(value=float(n))
                                   for n in range(1, 10)]
                     + [Parameter(value=0.0), Parameter(value=0.0)])),
-            geometry=Geometry(kind="debye_scherrer"))),
+            # The sample absorption factor (issue #1867) is opt-in, so the
+            # bank declares it at 0 — no absorption — or its family would be
+            # one nothing in this file produces.
+            geometry=Geometry(kind="debye_scherrer",
+                              mu_r_per_angstrom=Parameter(value=0.0)))),
     ]
 
 
@@ -492,6 +496,9 @@ NOT_OPT_IN: dict[str, str] = {
         "a parent-cell child's: magnetic_supercell builds it from a parent and a "
         "transform, never one assignment",
     "vars.*": "a named variable: Refinement.add_variable declares it, outside the model",
+    "instrument.geometry.mu_r_per_angstrom":
+        "a time-of-flight bank's sample absorption factor (issue #1867): refused "
+        "on the constant-wavelength model every OPT_IN row is declared on",
     "phases.*.peak_equations.*.*":
         "a peak equation's coefficient: named by the user's own expression",
     "instrument.peak_equations.*.*":

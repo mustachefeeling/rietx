@@ -124,7 +124,10 @@ PARAMETER_GROUPS = (
      "These apply to a time-of-flight source in place of the angular terms.",
      (("Calibration", None, ("instrument.source.dif?", "instrument.source.tzero")),
       ("Peak shape", None, ("instrument.source.profile_tof.*",)),
-      ("Incident spectrum", None, ("instrument.source.incident_spectrum.*",)))),
+      ("Incident spectrum", None, ("instrument.source.incident_spectrum.*",)),
+      ("Sample absorption", "Named under `instrument.geometry`, because µR is the "
+       "specimen's; refused on a constant-wavelength source.",
+       ("instrument.geometry.mu_r_per_angstrom",)))),
     ("Background",
      "The background is a smooth curve plus any extra components declared beside it. "
      "A hump is drawn as part of the background curve. "

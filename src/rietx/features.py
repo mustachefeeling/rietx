@@ -308,6 +308,15 @@ FEATURES: dict[str, Feature] = {
             "method § Rouse b₂: validate against the integral",
         ),
     ),
+    "tof_absorption_factor": Feature(
+        "Sample absorption factor of a time-of-flight bank (A_B = µR/λ)",
+        parameters=(
+            "instrument.geometry.mu_r_per_angstrom",
+        ),
+        theory=(
+            "corrections § The sample absorption factor of a time-of-flight bank",
+        ),
+    ),
     "flat_plate_absorption": Feature(
         "Flat-plate absorption (thin specimen)",
         instrument_fields=(

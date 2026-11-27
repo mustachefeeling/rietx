@@ -3289,6 +3289,11 @@ FEATURE_TESTS: dict[str, tuple[str, ...]] = {
         "test_restraints.py::test_restraint_jacobian_matches_fd_per_kind",
         "test_restraints.py::test_bond_restraint_recovers_perturbed_coordinate",
     ),
+    "tof_absorption_factor": (
+        "test_tof_absorption_factor.py::test_the_factor_is_rouse_at_each_reflections_own_mu_r",
+        "test_tof_absorption_factor.py::test_d_ycalc_d_ab_matches_the_analytic_rouse_chain_and_a_central_difference",
+        "test_tof_absorption_factor.py::test_a_known_factor_is_recovered_and_leaving_it_out_leaves_the_long_d_deficit",
+    ),
     "flat_plate_absorption": (
         "test_flat_plate.py::test_reflection_matches_the_defining_integral",
         "test_flat_plate.py::test_transmission_matches_the_defining_integral",

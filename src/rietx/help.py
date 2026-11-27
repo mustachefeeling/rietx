@@ -402,6 +402,26 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="|d| < 0.05 mm on an aligned spinner",
         anchor="theory/peak-positions.html#capillary-displacement",
     ),
+    "instrument.geometry.mu_r_per_angstrom": HelpEntry(
+        title="Sample absorption factor (TOF)",
+        description=(
+            "The absorption factor A_B = µR/λ of a time-of-flight bank, GSAS's histogram "
+            "absorption parameter (Larson & Von Dreele 2004, p. 134). Each reflection "
+            "is multiplied by the Rouse cylinder factor at µR = A_B·λ, its own "
+            "wavelength, so the correction suppresses the long-d end of the bank. "
+            "That is the opposite end from Biso, which is why a bank can refine it and "
+            "a constant-wavelength pattern cannot: at one wavelength the factor is a "
+            "constant times a Debye-Waller shape, and declaring it there is refused. "
+            "Declare it instead of `capillary_radius_mm`, never beside it. A bank "
+            "normalised by a vanadium spectrum that was not corrected for absorption "
+            "carries that absorption too, and A_B takes it up, so it is then an "
+            "effective factor of the histogram rather than the specimen's µR/λ. Free "
+            "it with Biso and read their correlation."
+        ),
+        unit="Å⁻¹", default="None (off)",
+        typical="0-0.3 Å⁻¹; 0 is no absorption",
+        anchor="theory/corrections.html#the-sample-absorption-factor-of-a-time-of-flight-bank",
+    ),
     # Surface roughness is an opt-in Bragg-Brentano block and the two models
     # are alternatives, so each field is its own family: one entry over
     # `surface_roughness.*` would have to quote four different schema defaults.
@@ -4789,8 +4809,10 @@ DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "and the message quotes the range of µR across the fitted window. µ follows "
             "the wavelength on a neutron bank, so one number cannot describe it. It was "
             "computed from the refined composition and the declared capillary radius, "
-            "and it is not a refinable parameter in this build. Without a capillary "
-            "radius no correction runs, and this line does not appear."
+            "or, where the bank refines the sample absorption factor "
+            "`instrument.geometry.mu_r_per_angstrom` instead, it is µR = A_B·λ at the "
+            "refined A_B. With neither declared no correction runs, and this line does "
+            "not appear."
         ),
     ),
     "STAGE_FREED_NOTHING": HelpEntry(

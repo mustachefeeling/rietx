@@ -359,6 +359,14 @@ Capillary absorption (Rouse).
 
 **State:** not yet validated.
 
+### `tof_absorption_factor`
+
+Sample absorption factor of a time-of-flight bank (A_B = µR/λ).
+
+**Verified by:** unit tests `tests/test_tof_absorption_factor.py::test_the_factor_is_rouse_at_each_reflections_own_mu_r`, `tests/test_tof_absorption_factor.py::test_d_ycalc_d_ab_matches_the_analytic_rouse_chain_and_a_central_difference`, `tests/test_tof_absorption_factor.py::test_a_known_factor_is_recovered_and_leaving_it_out_leaves_the_long_d_deficit`
+
+**State:** not yet validated.
+
 ### `flat_plate_absorption`
 
 Flat-plate absorption (thin specimen).

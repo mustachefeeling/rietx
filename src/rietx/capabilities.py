@@ -610,6 +610,10 @@ def _features() -> dict[str, bool]:
         "surface_roughness": "surface_roughness" in Geometry.model_fields,
         "capillary_absorption": "mu_r" in Geometry.model_fields,
         "flat_plate_absorption": "mu_t" in Geometry.model_fields,
+        # a bank's refinable sample absorption factor A_B = µR/λ (issue #1867);
+        # refused on a constant-wavelength source, so it is its own flag
+        # rather than a reading of ``capillary_absorption``
+        "tof_absorption_factor": "mu_r_per_angstrom" in Geometry.model_fields,
         "anomalous_dispersion": "dispersion" in Source.model_fields,
         # the additive component seam (WP-1102).  Schema-shaped rather than
         # surface-shaped because the seam is a *field*, not an export: a client

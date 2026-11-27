@@ -2529,20 +2529,20 @@ ROWS: tuple[Row, ...] = (
     Row("SPECIES_FALLBACK_NEUTRAL", "code"),
     Row("SPECIMEN_ABSORPTION_TOF", "code", tier=1, ambiguity=1,
         evidence=("a record of a correction the caller switched on: fires exactly when a "
-                  "bank's model computed a muR range, i.e. a capillary radius was declared "
+                  "bank's model computed a muR range, i.e. a capillary radius was declared, "
+                  "or declares the sample absorption factor geometry.mu_r_per_angstrom "
                   "(report/tof.py _tof_absorption_diagnostics), and quotes muR at both ends "
-                  "of the fitted window; the correction is Rouse et al. (1970)'s cylinder "
-                  "at each reflection's own wavelength with mu on Sears (1992)'s 1/v law, "
-                  "physics with no threshold of its own; it gates nothing, the past-domain "
-                  "warning being ABSORPTION_MU_R_OUT_OF_RANGE's.  Computed, not refined, in "
-                  "this build: the GSAS manual instead refines a flight-time histogram's "
-                  "absorption factor, which compensates a vanadium incident spectrum taken "
-                  "without an absorption correction (Larson & Von Dreele 2004, incident "
-                  "intensity)"),
+                  "of the fitted window, for the refined A_B on the second path; the "
+                  "correction is Rouse et al. (1970)'s cylinder at each reflection's own "
+                  "wavelength, with mu on Sears (1992)'s 1/v law or muR = A_B*lambda "
+                  "(Larson & Von Dreele 2004, p. 134), physics with no threshold of its "
+                  "own; it gates nothing, the past-domain warning being "
+                  "ABSORPTION_MU_R_OUT_OF_RANGE's"),
         response="info",
         responds=("note that absorption was in the model at the quoted muR range before "
                   "reading a displacement parameter, and check the capillary radius and "
-                  "packing fraction against the specimen")),
+                  "packing fraction against the specimen, or read the refined A_B and its "
+                  "correlation with Biso")),
     Row("STAGE_FREED_NOTHING", "code", tier=1, ambiguity=3,
         response="info",
         responds=("nothing, where the stage was meant for the other histograms; otherwise add "
@@ -8112,10 +8112,13 @@ ROWS: tuple[Row, ...] = (
         evidence=('arithmetic: names the setting taken and every alternative, as a symbol to '
                   'write into the file, and ranks none (symmetry.py:1436-1438)')),
     Row("SPECIES_FALLBACK_NEUTRAL.suggestion", "suggestion", value=1),
-    Row("SPECIMEN_ABSORPTION_TOF.suggestion", "suggestion", tier=1, ambiguity=1, value=1,
-        evidence=("arithmetic: nothing to do, and names the two declared inputs the "
-                  "correction reads (geometry.capillary_radius_mm, packing_fraction); "
-                  "moves nothing")),
+    Row("SPECIMEN_ABSORPTION_TOF.suggestion", "suggestion", tier=1, ambiguity=1, value=2,
+        evidence=("arithmetic: on the radius path nothing to do, and names the two "
+                  "declared inputs the correction reads (geometry.capillary_radius_mm, "
+                  "packing_fraction); on the refined-factor path names where A_B's esd is "
+                  "and its correlation with Biso and occupancies, and quotes the GSAS "
+                  "manual on what the factor absorbs (Larson & Von Dreele 2004, incident "
+                  "intensity); both move nothing")),
     Row("STAGE_FREED_NOTHING.suggestion", "suggestion", tier=1, ambiguity=3, value=1,
         evidence=("arithmetic: names how to list the histogram's rows and the two ways to "
                   "change the plan, a glob that reaches them or a stage scoped to one "

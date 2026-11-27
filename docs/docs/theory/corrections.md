@@ -308,14 +308,10 @@ one.
 Three consequences worth stating, because none of them has a
 constant-wavelength counterpart:
 
-* It is computed from the composition and the declared radius, and is not a
-  refinable parameter in this build. The manual's warning that the correction
-  should not be refined is its constant-wavelength sentence; for a flight-time
-  histogram it expects the absorption factor to be refined, because that is
-  what compensates an incident spectrum measured on vanadium without an
-  absorption correction {cite}`larson2004`. A scalar `Geometry.mu_r` is
-  refused on a bank because it is a claim at one wavelength. Declare
-  `capillary_radius_mm` and let the composition supply $\mu$.
+* From a declared radius it is computed from the composition and is not
+  refined. The refinable alternative is the sample absorption factor of the
+  next section, declared instead of the radius. A scalar `Geometry.mu_r` is
+  refused on a bank because it is a claim at one wavelength.
 * The correction does not disappear into the scale. On a
   constant-wavelength capillary {eq}`corr-rouse` factors exactly into a constant
   times $\exp(c\sin^2\theta)$, so omitting it moves $B_{\text{iso}}$ and
@@ -326,6 +322,53 @@ constant-wavelength counterpart:
   $B_{\text{iso}}$ from 0.498(1) to 0.058(11) Å² against a generating 0.5.
 * The Rouse domain has two ends. $\mu R \le 1$ can hold at the short-$\lambda$
   end of a bank and fail at the long one; the result reports the pair.
+
+### The sample absorption factor of a time-of-flight bank
+
+A bank may refine one absorption factor instead of computing $\mu R$ from a
+radius. It is the histogram absorption parameter of GSAS {cite}`larson2004`,
+$A_B = \mu R/\lambda$ in Å⁻¹, which assumes that every component's absorption
+follows $1/v$ so that $\mu R$ is proportional to $\lambda$. Each reflection
+is multiplied by the cylinder factor {eq}`corr-rouse` at the bank's angle and
+its own wavelength,
+
+```{math}
+:label: corr-tof-ab
+
+A_{hkl} \;=\; A\bigl(\mu R = A_B\,\lambda_{hkl},\ \theta_{\text{bank}}\bigr),
+\qquad \lambda_{hkl} = 2 d_{hkl} \sin\theta_{\text{bank}},
+```
+
+{source}`rietx.model.forward_tof.CompiledTOFModel.absorption`
+
+which is the computed path of the previous section with its two constants set
+to $(A_B, 0)$. The field is `Geometry.mu_r_per_angstrom`, a refinable
+parameter at `instrument.geometry.mu_r_per_angstrom`, absent (off) by default;
+declared at zero it multiplies every reflection by exactly 1. GSAS evaluates
+$A$ with a different empirical fit to the cylinder integral; rietx keeps the
+one cylinder function it has, Rouse et al. {cite}`rouse1970`, so the domain
+note of the previous section applies unchanged and the result reports
+$\mu R = A_B\lambda$ at both ends of the window for the refined value.
+
+Why it may be refined here and not at one wavelength: at a fixed $\lambda$
+{eq}`corr-rouse` is a constant times a Debye-Waller shape, so a free $\mu R$
+is a combination of the scale and $B_{\text{iso}}$ columns, and the manual
+says of the constant-wavelength case that "the correction is
+indistinguishable from thermal motion effects and should not be refined"
+{cite}`larson2004`. On a bank $\theta$ is fixed and $\lambda$ runs with $d$,
+so the factor suppresses the long-$d$ end, the opposite end from the
+Debye-Waller factor, and the two separate. rietx therefore refuses the field
+on a constant-wavelength source.
+
+What it measures depends on the normalisation. A bank divided by a vanadium
+spectrum that was itself not corrected for absorption carries that
+absorption as an intensity trend in $\lambda$, and the manual gives the
+refined factor that job: "The lack of an absorption correction is compensated
+largely by the refinement of the sample absorption factor" {cite}`larson2004`.
+The refined $A_B$ is then an effective factor of the histogram, not the
+specimen's $\mu R/\lambda$. It correlates with $B_{\text{iso}}$ and with site
+occupancies, which is why leaving a real one out biases both. A radius and
+the factor together are refused: they are two sources of one $\mu R$.
 
 ## Flat-plate absorption
 
