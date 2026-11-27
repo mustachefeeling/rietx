@@ -457,9 +457,12 @@ def test_a_kind_left_out_of_the_table_is_one_no_fit_takes():
 
 
 def test_the_magnetic_row_is_the_forward_models_own_dispatch():
-    """The row's column is ``MAGNETIC_SOURCE_KINDS``, not a second copy of it."""
+    """The row's column is ``MAGNETIC_SOURCE_KINDS``, not a second copy of it,
+    over the kinds the table probes: a bank draws the term (#1868) but has no
+    column here while a joint fit refuses it (``NOT_REFINED_KINDS``)."""
     row = next(r for r in RADIATION_KEYED if r.name.startswith("magnetic"))
-    assert {k for k, on in row.expect.items() if on} == MAGNETIC_SOURCE_KINDS
+    assert ({k for k, on in row.expect.items() if on}
+            == MAGNETIC_SOURCE_KINDS - NOT_REFINED_KINDS)
 
 
 @pytest.mark.xdist_group("joint-radiation-table")

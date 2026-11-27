@@ -440,7 +440,9 @@ _RADIATION_NOTES: dict[str, tuple[str, str]] = {
                     "exponential profile, the bank's own d⁴·sinθ Lorentz "
                     "factor, the incident spectrum and the channel width per "
                     "channel. Rietveld refinement of one bank against a "
-                    "structure, with the phase's own size and microstrain; "
+                    "structure, with the phase's own size and microstrain "
+                    "and a magnetic moment stated by its magnetic space "
+                    "group; "
                     "several banks as one joint residual, and Le Bail and "
                     "Pawley extraction on a bank, are not written"),
 }

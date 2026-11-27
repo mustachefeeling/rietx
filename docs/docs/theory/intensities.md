@@ -354,6 +354,37 @@ one measures only the angle to its unique axis {cite}`shirane1959`; those are
 moment direction a flat direction of the least-squares problem
 ({ref}`sec-moment-dofs`).
 
+### On a time-of-flight bank
+
+Nothing in {eq}`int-Fmag` or {eq}`int-Fperp` depends on how the neutron's
+wavelength was selected: the form factor is read at $s = 1/2d$ and the
+projection is on $\hat{\mathbf{Q}}$, both functions of the reflection alone.
+So a bank adds the same $p^2\langle|F_\perp|^2\rangle$ to
+$\langle|F_N|^2\rangle$, and the sum then takes the bank's own chain, each
+factor at the reflection's own wavelength $\lambda_k = 2d_k\sin\theta_{\text{bank}}$:
+
+```{math}
+:label: int-tof-magnetic
+
+I_k \;=\; S\, m_k\, F^2_k\; d_k^{4}\sin\theta_{\text{bank}}\;
+A(\lambda_k)\; E\big(F^2_k, \lambda_k\big),
+\qquad
+F^2_k = \langle|F_N|^2\rangle_k + p^2\langle|F_\perp|^2\rangle_k ,
+```
+
+{source}`rietx.model.forward_tof.CompiledTOFModel.phase_peaks`
+
+with the Lorentz factor {eq}`corr-lorentz-tof`, the cylinder transmission
+{eq}`corr-rouse` at $\mu(\lambda_k)$ from {eq}`corr-mu-neutron-tof`, and
+Sabine's $E$ {eq}`corr-sabine` read on the total, as on a scan. The incident
+spectrum and the channel width multiply the drawn peak afterwards, as they do
+every peak. Unpolarised neutrons carry no polarisation factor on either arm.
+The squared moduli are the constant-wavelength model's own functions, called
+and not restated, so a bank and a scan of the same phase share them to the
+bit. A propagation vector with satellites is not drawn on a bank and is
+refused there by name; a commensurate structure stated by its magnetic space
+group needs none.
+
 ### The magnetic component's own width
 
 Everything above adds $p^2\langle|F_\perp|^2\rangle$ to

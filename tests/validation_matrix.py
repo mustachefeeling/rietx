@@ -3305,6 +3305,12 @@ FEATURE_TESTS: dict[str, tuple[str, ...]] = {
         "test_microstructure.py::test_the_strain_coefficient_is_360_over_pi_times_the_strain",
         "test_microstructure.py::test_a_size_reads_back_the_crystallite_it_was_built_from",
     ),
+    # the bank arm of the magnetic term (#1868): the constant-wavelength
+    # functions times the bank's chain, and its moment column
+    "magnetic_structure": (
+        "test_tof_magnetic.py::test_the_bank_row_is_the_cw_magnetic_term_times_the_bank_chain",
+        "test_tof_magnetic.py::test_the_moment_column_on_a_bank_against_closed_form_and_differences",
+    ),
     "magnetic_determination": (
         "test_magnetic_irreps.py::test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups",
         "test_magnetic_isotropy.py::test_pnma_at_gamma_has_exactly_four_maximal_magnetic_subgroups",

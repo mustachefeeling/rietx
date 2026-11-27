@@ -403,7 +403,7 @@ Stephens anisotropic strain.
 
 Magnetic moments, magnetic form factor, magnetic widths.
 
-**Verified by:** `test_the_4k_moment_does_not_depend_on_its_in_plane_seed`
+**Verified by:** `test_the_4k_moment_does_not_depend_on_its_in_plane_seed`; unit tests `tests/test_tof_magnetic.py::test_the_bank_row_is_the_cw_magnetic_term_times_the_bank_chain`, `tests/test_tof_magnetic.py::test_the_moment_column_on_a_bank_against_closed_form_and_differences`
 
 **State:** not yet validated.
 

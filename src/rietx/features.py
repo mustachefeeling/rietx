@@ -377,6 +377,7 @@ FEATURES: dict[str, Feature] = {
         ),
         theory=(
             "intensities § The magnetic structure factor",
+            "intensities § On a time-of-flight bank",
             "intensities § The magnetic component's own width",
             "intensities § The dipole approximation",
             "parameterisation § Magnetic moment constraints",
