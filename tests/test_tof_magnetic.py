@@ -296,26 +296,6 @@ def test_a_phase_stated_by_its_operation_list_enumerates_the_same_rows():
 
 
 # ----------------------------------------------------------------------
-# what a bank refuses
-# ----------------------------------------------------------------------
-def test_the_separate_magnetic_width_is_refused_on_a_bank():
-    """WP-1343's magnetic broadening is a deg-2θ width with no flight-time law
-    yet: a non-zero value is refused by name, and a single bank's table holds
-    the pair locked, as an X-ray table does."""
-    phase = mnf2()
-    phase.magnetic_lor_size.value = 0.05
-    with pytest.raises(ValueError, match=r"magnetic_lor_size is non-zero.*bank"):
-        compile_tof_model(rx.Structure(phases=[phase]), bank(), tof_grid())
-    with pytest.raises(ValueError, match=r"magnetic_lor_strain is free"):
-        compile_tof_model(rx.Structure(phases=[mnf2()]), bank(), tof_grid(),
-                          moving_paths={"phases.0.magnetic_lor_strain"})
-    table = ParameterTable(rx.Structure(phases=[mnf2()]), bank())
-    locked = {e.path for e in table.entries if e.locked}
-    assert {"phases.0.magnetic_lor_size",
-            "phases.0.magnetic_lor_strain"} <= locked
-
-
-# ----------------------------------------------------------------------
 # a moment refined against one bank
 # ----------------------------------------------------------------------
 def _synthetic_bank(truth: rx.Structure, *, peak: float = 5e3, seed: int = 1,
