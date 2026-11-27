@@ -343,6 +343,7 @@
   "parameters:instrument.geometry.axial_sl",
   "parameters:instrument.geometry.capillary_offset_across_beam",
   "parameters:instrument.geometry.capillary_offset_along_beam",
+  "parameters:instrument.geometry.mu_r_per_angstrom",
   "parameters:instrument.geometry.sample_displacement",
   "parameters:instrument.geometry.sample_transparency",
   "parameters:instrument.geometry.surface_roughness.a",

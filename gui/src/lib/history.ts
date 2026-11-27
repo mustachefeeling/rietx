@@ -388,6 +388,9 @@ export const PLACES: Readonly<Record<string, Format>> = {
   "instrument.geometry.axial_sl": 5,
   "instrument.geometry.capillary_offset_across_beam": 5,
   "instrument.geometry.capillary_offset_along_beam": 5,
+  // A bank's sample absorption factor µR/λ in Å⁻¹ (issue #1867): of order 0.1,
+  // refined to a few 1e-5, so five places show its esd
+  "instrument.geometry.mu_r_per_angstrom": 5,
   "instrument.geometry.sample_displacement": 5,
   "instrument.geometry.sample_transparency": 5,
   "instrument.geometry.surface_roughness.a": 4,
