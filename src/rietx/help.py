@@ -1057,7 +1057,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "`MAGNETIC_WIDTH_UNMEASURED` names that case. The parameter exists only on "
             "a phase that declares `magnetic_symmetry`. It is held fixed wherever no "
             "magnetic component is drawn, which means an X-ray histogram and Le Bail or "
-            "Pawley."
+            "Pawley. On a time-of-flight bank it adds DIFC·d²·K/L to the magnetic "
+            "lines' Lorentzian FWHM in µs, mirroring the bank's `lor_size`, and is "
+            "stored as K/L in Å⁻¹ rather than in degrees: the same length on a scan is "
+            "(180/π)·λ times that value."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm magnetic domain at 2.4 Å",
@@ -1076,7 +1079,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "term. The `magnetic_width` plan therefore frees both and lets the report "
             "say which was measured. The parameter exists only on a phase that declares "
             "`magnetic_symmetry`. It is held fixed on an X-ray histogram and under Le "
-            "Bail or Pawley."
+            "Bail or Pawley. On a time-of-flight bank it adds a term in DIFC·d to the "
+            "magnetic lines' Lorentzian FWHM, read through the same λ-free coefficient "
+            "as the bank's `lor_strain`, so its value means the same on a scan and a bank."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",
