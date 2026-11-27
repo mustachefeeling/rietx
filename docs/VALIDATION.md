@@ -363,7 +363,7 @@ Capillary absorption (Rouse).
 
 Sample absorption factor of a time-of-flight bank (A_B = µR/λ).
 
-**Verified by:** unit tests `tests/test_tof_absorption_factor.py::test_the_factor_is_rouse_at_each_reflections_own_mu_r`, `tests/test_tof_absorption_factor.py::test_d_ycalc_d_ab_matches_the_analytic_rouse_chain_and_a_central_difference`, `tests/test_tof_absorption_factor.py::test_a_known_factor_is_recovered_and_leaving_it_out_leaves_the_long_d_deficit`
+**Verified by:** unit tests `tests/test_tof_absorption_factor.py::test_the_factor_is_rouse_at_each_reflections_own_mu_r`, `tests/test_tof_absorption_factor.py::test_d_ycalc_d_ab_matches_the_analytic_rouse_chain_and_a_central_difference`, `tests/test_tof_absorption_factor.py::test_a_known_factor_is_recovered_and_leaving_it_out_leaves_the_long_d_deficit`, `tests/test_tof_absorption_factor.py::test_topas_refines_the_same_factor_and_biso_from_the_same_pattern`
 
 **State:** not yet validated.
 

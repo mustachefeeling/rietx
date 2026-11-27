@@ -18,6 +18,9 @@ a room-temperature Si refinement gives, chosen here, not quoted.
 from __future__ import annotations
 
 import dataclasses
+import importlib.util
+import re
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -49,6 +52,10 @@ PATH = "instrument.geometry.mu_r_per_angstrom"
 AB_GEN = 0.10
 #: Å².  The generating displacement parameter.
 BISO_GEN = 0.46
+#: The Poisson seed of the recovery pattern, which the TOPAS kit reads too.
+SEED = 20261127
+#: The TOPAS v6 refinements of the same pattern (black box; README there).
+TOPAS_KIT = Path(__file__).resolve().parent / "data" / "tof" / "topas_absorption_factor"
 
 
 def ab_bank(value: float = AB_GEN, **kwargs):
@@ -232,7 +239,7 @@ def test_a_known_factor_is_recovered_and_leaving_it_out_leaves_the_long_d_defici
     reaching the model.  The report states the refined A_B and µR at both ends
     of the window, under the parameter's own path.
     """
-    data = _generated(silicon(BISO_GEN), ab_bank(AB_GEN), seed=20261127)
+    data = _generated(silicon(BISO_GEN), ab_bank(AB_GEN), seed=SEED)
 
     with_it = _fit(data, with_factor=True)
     rows = {p.path: p for p in with_it.parameters}
@@ -301,3 +308,44 @@ def test_the_factor_on_a_constant_wavelength_source_is_refused_with_the_reason()
     data = rx.PatternData(two_theta=grid.tolist(), intensity=[1.0] * len(grid))
     with pytest.raises(ValueError, match="mu_r_per_angstrom"):
         rx.Refinement(st, cw, history=False).fit(data)
+
+
+# ----------------------------------------------------------- the other code
+def _topas_value(name: str, out: str) -> tuple[float, float]:
+    """``(value, esd)`` of a TOPAS ``name value`_esd`` token in a ``.out``."""
+    m = re.search(rf"{name}\s+(-?[\d.]+)`_([\d.]+)", out)
+    assert m, f"{name} not in the TOPAS output"
+    return float(m.group(1)), float(m.group(2))
+
+
+def test_topas_refines_the_same_factor_and_biso_from_the_same_pattern():
+    """Cross-code verification (Rule 2's weakest form), under one protocol.
+
+    TOPAS v6, a black box, refined this file's recovery pattern twice with
+    the Rouse factor written into ``scale_pks`` and without it, freeing what
+    :func:`_fit` frees.  The inputs are this tree's (``generate.py``
+    reproduces them byte for byte), and rietx lands within one TOPAS esd of
+    TOPAS on A_B and Biso on both arms.  The arm without the factor is the
+    positive control: there both codes put Biso below zero, far from the
+    other arm, so a comparison that could not see the factor would fail.
+    """
+    spec = importlib.util.spec_from_file_location("topas_ab_generate",
+                                                  TOPAS_KIT / "generate.py")
+    generate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generate)
+    for with_factor, tag in generate.TAGS.items():
+        vendored = (TOPAS_KIT / f"{tag}.inp").read_text(encoding="latin-1")
+        assert vendored == generate.inp_text(with_factor), tag
+
+    data = _generated(silicon(BISO_GEN), ab_bank(AB_GEN), seed=SEED)
+    for with_factor, tag in generate.TAGS.items():
+        out = (TOPAS_KIT / f"{tag}.out").read_text(encoding="latin-1")
+        rows = {p.path: p for p in _fit(data, with_factor=with_factor).parameters}
+        b_topas, b_esd = _topas_value("beq bsi", out)
+        assert abs(rows["phases.0.atoms.0.biso"].value - b_topas) < b_esd, tag
+        if with_factor:
+            ab_topas, ab_esd = _topas_value("prm ab", out)
+            assert abs(rows[PATH].value - ab_topas) < ab_esd
+            assert abs(b_topas - BISO_GEN) < 3.0 * b_esd
+        else:
+            assert b_topas < 0.0 and rows["phases.0.atoms.0.biso"].value < 0.0

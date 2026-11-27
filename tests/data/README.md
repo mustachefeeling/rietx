@@ -1329,6 +1329,13 @@ version, the date and the hashes). `test_tof_topas_synthetic.py` holds rietx
 to 1.5e-3 of the maximum against it (measured 1.26e-3 and 1.05e-3), with DIFA's
 sign and an α/β swap planted on the rietx side as the arms that must fail.
 
+`tof/topas_absorption_factor/` vendors TOPAS v6's refinement (black box) of
+the synthetic Si recovery pattern of `test_tof_absorption_factor.py` (issue
+#1867): the two inputs, with and without the Rouse factor at µR = A_B·λ in
+`scale_pks`, and TOPAS's two `.out` files; the pattern is regenerated from its
+seed, not vendored. rietx's A_B and Biso land within one TOPAS esd of TOPAS's
+on both arms (its README has the table, the program, the date and the hashes).
+
 ### FullProf `.pcr` — six real files, none of them vendorable
 
 `io/projects/fullprof.py` reads a FullProf refinement *control* file, the same

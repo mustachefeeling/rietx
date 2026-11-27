@@ -1,0 +1,44 @@
+iters 100000
+chi2_convergence_criteria 0.0001
+do_errors
+
+TOF_XYE(si_synth.xye, 3)
+	neutron_data
+	Out_X_Yobs(02_Si_AB_yobs.txt)
+	Out_X_Ycalc(02_Si_AB_ycalc.txt)
+	x_calculation_step = Yobs_dx_at(Xo); convolution_step 4
+	TOF_LAM(0.001)
+	prm ab  0.10008`_0.00058 min -1 max 1
+	scale_pks = D_spacing^4 * Exp(-1.694900 * (ab * 1.414213562 * D_spacing) - (-0.280200) * (ab * 1.414213562 * D_spacing) * (ab * 1.414213562 * D_spacing));
+	bkg @  209.531124`_4.43331605 -17.5101049`_8.06008386  10.4333766`_6.38712764 -7.32337823`_6.20652571
+	start_X 8000
+	finish_X 45000
+	TOF_x_axis_calibration(!t0, -5, !t1, 12000, !t2, 0)
+	exp_conv_const = -6.907755279 D_spacing / 0.45;
+	exp_conv_const = 6.907755279 / (0.055 + 0.003 / D_spacing^4);
+	str
+		peak_type pv
+		pv_lor 0
+		pv_fwhm = 2.354820045 Sqrt(300) D_spacing;
+		scale @  1414673.26`_4897
+		phase_name Si
+		a lpa  5.431212`_0.000005
+		b lpa  5.431212`_0.000005
+		c lpa  5.431212`_0.000005
+		al 90
+		be 90
+		ga 90
+		space_group Fd-3m
+		site Si1 x 0 y 0 z 0 occ Si 1 beq bsi  0.46126`_0.00438
+C_matrix_normalized
+{
+                             1   2   3   4   5   6   7   8
+ab                     1:  100   0  -1   1  -1   0  98  84
+bkg1915537888          2:    0 100 -30  60 -19   0   1   1
+bkg1924776288          3:   -1 -30 100 -29  58  -0  -1  -1
+bkg1924781408          4:    1  60 -29 100 -23   0   1   1
+bkg1924777824          5:   -1 -19  58 -23 100  -0  -1  -1
+lpa                    6:    0   0  -0   0  -0 100   0   0
+scale1924975760_       7:   98   1  -1   1  -1   0 100  89
+bsi                    8:   84   1  -1   1  -1   0  89 100
+}
