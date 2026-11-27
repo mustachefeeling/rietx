@@ -4850,7 +4850,7 @@ ARM_PAIR_CASES = [
     pytest.param("I 41 3 2", (0.125, 0.125, 0.125), HALF, id="I4132-H"),
     pytest.param("P 4/m m m", (0, 0, 0), (0, 0, Fraction(1, 3)), id="P4mmm-Delta-2D"),
     pytest.param("P 6/m m m", (0, 0, 0), THIRD_K, id="P6mmm-K-2D"),
-    pytest.param("C m c m", (0, 0.1336, 0.25), (0, Fraction(7, 10), 0), id="Cmcm-7/10"),
+    pytest.param("C m c m", (0, 0.1234, 0.25), (0, Fraction(7, 10), 0), id="Cmcm-7/10"),
 ]
 
 
@@ -5057,7 +5057,7 @@ def test_the_printed_table_names_the_approximant_misuse():
     structure at that k only; the set's own text says so and says what a
     refinement under its group frees.  Positive arm: at 2k ∈ L* no such line.
     """
-    text = str(isotropy.candidates("C m c m", (0, 0.1336, 0.25), (0, Fraction(7, 10), 0)))
+    text = str(isotropy.candidates("C m c m", (0, 0.1234, 0.25), (0, Fraction(7, 10), 0)))
     assert "at this rational k only" in text and "approximant" in text
     assert "secondary harmonics" in text
     assert "approximant" not in str(isotropy.candidates("P n m a", (0, 0, 0),
