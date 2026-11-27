@@ -3627,6 +3627,13 @@ ROWS: tuple[Row, ...] = (
                   "(a set where 3 draws join two directions of one irrep and 12 separate "
                   "them, or evidence none can be built) is in #1797 and WP-1918")),
     Row("rietx.crystallography.magnetic.isotropy._CLOSURE_LIMIT", "constant", value=4096),
+    Row("rietx.crystallography.magnetic.isotropy._COPY_SPLIT_SEED", "constant", tier="invariant", value=1419,
+        evidence=("answer-invariant: the seed draws the generic symmetric matrix whose commutant average "
+                  "splits an arm pair's order-parameter space into its copies (isotropy._split_into_copies), "
+                  "and the split is verified before use (equal copy sizes, every copy carrying copy 1's "
+                  "matrices), so a seed on an accidental degeneracy raises; "
+                  "tests/test_magnetic_isotropy.py::test_the_copy_split_seed_decides_no_group asserts the same "
+                  "irreps, BNS numbers and operator lists at seeds 1 and 2026 on P 6/m at k = (1/3, 1/3, 0)")),
     Row("rietx.crystallography.magnetic.isotropy._PROBE_DRAWS", "constant", tier=1, value=3,
         evidence=("probability: a false DISTORTION_CHILD_LARGER needs every draw to keep an accidental "
                   "operation; one draw did in 3 of 320 calls at the shipped 50x (perovskite, Gamma/X/M/R, "

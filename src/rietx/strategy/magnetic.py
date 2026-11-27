@@ -2362,6 +2362,13 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     def enumerate_for(k_try):
         """Candidate classes for one k, or a sentence saying why there are none."""
         sets = []
+        if not _isotropy._two_k_in_lattice(parent_group, _isotropy.as_kvector(k_try)):
+            # candidates() states one arm pair at 2k outside the reciprocal
+            # lattice (M7c); the solve's trial, ranking and child statement were
+            # measured only at 2k in it, so the solve keeps its old reach here
+            return None, ("2k is outside the reciprocal lattice; "
+                          "isotropy.candidates states this k's candidates (one arm "
+                          "pair), and solve_magnetic does not yet try them")
         for j, label, _ion in magnetic:
             atom = parent.atoms[j]
             try:

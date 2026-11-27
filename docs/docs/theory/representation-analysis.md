@@ -234,6 +234,28 @@ every pseudo-cubic neighbour antiparallel, identifies as the unprimed
 twelve basis vectors above; the isotropy subgroup, not a separate
 calculation, is what picks the moment direction each BNS number belongs to.
 
+Where $2\mathbf{k} \notin L^*$ the field is one complex amplitude over the arm
+pair $(\mathbf{k}, -\mathbf{k})$, and three things change. A lattice
+translation $\mathbf{t}$ multiplies the amplitude by
+$e^{-2\pi i\,\mathbf{k}\cdot\mathbf{t}}$, a root of unity of order $m > 2$,
+so the translations that fix any candidate are the same for all of them: the
+lattice $L_{\mathbf{k}} = \{\mathbf{t} : \mathbf{k}\cdot\mathbf{t} \in \mathbb{Z}\}$
+of index $m$, plus the anti-translations with
+$\mathbf{k}\cdot\mathbf{t} \equiv \tfrac12$ when $m$ is even. An operation
+that sends $\mathbf{k}$ to $-\mathbf{k}$ acts on the amplitude antilinearly
+{cite}`perezmato2012`, so the stabiliser is taken in the grey group of the arm
+pair, not in $G_{\mathbf{k}}1'$. And such an operation can carry one small
+irrep onto another, so one order parameter can span two of them: in $P6/m$ at
+$\mathbf{k} = (\tfrac13, \tfrac13, 0)$ two conjugate one-dimensional irreps form
+one four-dimensional order parameter, whose isotropy subgroups are three
+maximal groups, $P\bar 6'$ among them, and the kernel $Pm'$.
+`candidates` builds that space as the real fields of the basis vectors on the child cell, closed under the
+group, so no case is assumed. A candidate at a rational $\mathbf{k}$ is the
+structure at that $\mathbf{k}$; read as an approximant of an incommensurate one
+it holds symmetry the incommensurate structure need not have.
+
+{source}`rietx.crystallography.magnetic.isotropy.candidates`
+
 For a displacive order parameter the stabiliser is not the candidate's group
 in the parent's lattice: time reversal does nothing to a displacement, so the
 group is grey, but the coset character $\varepsilon(\Delta)$ of the

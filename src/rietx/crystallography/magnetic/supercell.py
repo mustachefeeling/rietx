@@ -50,11 +50,15 @@ are asserted rather than argued:
    that is a *test* (``tests/test_magnetic_supercell.py``) rather than a
    comment.
 
-**Scope.** Commensurate k with 2k in the reciprocal lattice — the same fence
-WP-1326 and :func:`~.isotropy.candidates` carry — because that is where the
-child lattice has index 2 and one anti-translation.  A k of higher denominator
-needs a larger child cell and is not handled here; an incommensurate k has no
-child cell at all.
+**Scope.** Every commensurate k.  With 2k in the reciprocal lattice the child
+lattice has index 2 and one anti-translation, which the paragraphs below are
+about.  With 2k outside it (a denominator of 3 or more, or a centred case such
+as I4₁32 at (½, ½, ½)) the child lattice is L_k = {t : k·t ∈ ℤ}, of index m,
+and its cell and group come from :func:`~.isotropy.candidates` (one arm pair,
+k and −k) or from the caller (the explicit route); the parent's atoms then
+appear m times as independent child sites, each carrying the moment its own
+site symmetry under the group allows.  An incommensurate k has no child cell
+at all.
 
 **The anti-centring has to be tied, not only seeded.**  The two cosets of one
 parent site are independent *sites* of the child, so their moment DOFs are
@@ -231,12 +235,22 @@ def child_basis(space_group, k) -> tuple[tuple[Fraction, ...], ...]:
     parent's (``Phase.parent_cell``, WP-1419) rather than a cell picked for it;
     with ``parent_cell=False`` it is refused with :func:`_unnamed_child`'s
     full text.
+
+    At 2k outside the reciprocal lattice there is no single ε = −1 vector to
+    double (the index is the order m of k·t, not 2).  The basis is
+    :func:`~.isotropy.magnetic_cell`'s — the same lattice the candidate's group
+    is stated in — with its three vectors put in the order that keeps each
+    nearest the parent axis it replaces (:func:`_axis_ordered`), so a hexagonal
+    parent keeps c as its unique axis and C m c m at k = (0, 7/10, 0) gives
+    a, 10b, c rather than c, a, 10b.
     """
     sg = _isotropy._irreps._resolve(space_group)
     kk = _isotropy.as_kvector(k)
     # the scope fence, and the coset list, are magnetic_cell's — asked rather
     # than re-derived, so there is one authority on what k this rung admits
-    cell = _isotropy.magnetic_cell(sg, kk)
+    cell = _isotropy.magnetic_cell(sg, k)   # the caller's spelling: a float k is refused there
+    if cell.complex_phases:
+        return _axis_ordered(cell.basis)
     if not cell.doubled:
         return cell.basis
     prim = _isotropy._irreps.primitive_basis(sg)
@@ -253,6 +267,32 @@ def child_basis(space_group, k) -> tuple[tuple[Fraction, ...], ...]:
         else:
             rows.append(tuple(Fraction(c) for c in row))
     return _rows_to_columns(rows)
+
+
+def _axis_ordered(basis) -> tuple[tuple[Fraction, ...], ...]:
+    """The same three basis vectors (columns of P), reordered toward the parent's axes.
+
+    The permutation maximising Σᵢ |Pᵢᵢ|/‖P·ᵢ‖ (each new axis i as close as its
+    index allows to the parent's axis i) is taken, ties to the first in
+    ``itertools.permutations`` order, and the first column is negated when that
+    makes the basis left-handed: a unimodular change, so the same lattice.  It is
+    a choice of setting only; no number the child computes depends on it.
+    """
+    import itertools
+
+    columns = [[Fraction(basis[i][j]) for i in range(3)] for j in range(3)]
+    best = None
+    for order in itertools.permutations(range(3)):
+        score = sum(abs(float(columns[order[i]][i]))
+                    / float(np.sqrt(sum(float(v) ** 2 for v in columns[order[i]])))
+                    for i in range(3))
+        if best is None or score > best[0] + 1e-12:
+            best = (score, order)
+    chosen = [columns[j] for j in best[1]]
+    if _isotropy._operators._rational_determinant(
+            [[chosen[j][i] for j in range(3)] for i in range(3)]) < 0:
+        chosen[0] = [-v for v in chosen[0]]
+    return tuple(tuple(chosen[j][i] for j in range(3)) for i in range(3))
 
 
 def _rows_to_columns(rows) -> tuple[tuple[Fraction, ...], ...]:
@@ -1164,20 +1204,20 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     not, because the family is derived per site from the group itself
     (``allowed_moment_basis``), which is what lets a parent with several
     magnetic sites be stated from one candidate.  The child cell is
-    :func:`child_basis`'s, and ``candidates``' scope fence applies — 2k in the
-    reciprocal lattice.
+    :func:`child_basis`'s (at 2k outside the reciprocal lattice, the
+    candidate's own cell).
 
-    ``group`` + ``transform`` is the other way, and it exists because that
-    fence is ``candidates``' and not this module's.  It needs 2k ∈ L\* so that a
-    lattice translation enters the order parameter with a phase of ±1 and an
-    isotropy subgroup of the grey little group exists; **a supercell statement
+    ``group`` + ``transform`` is the other way, and it exists because
+    ``candidates`` covers one arm pair of one irrep and **a supercell statement
     needs no such thing**.  It needs a child lattice, which every commensurate k
-    has, and a magnetic space group in that cell, which a database or a
-    k-SUBGROUPSMAG table supplies directly.  Mn₃O₄ on POWGEN is the case: parent
-    I4₁/amd with k = (0, ½, 0), whose 2k = (0, 1, 0) is *not* a
-    reciprocal-lattice vector of a body-centred lattice, so ``candidates``
-    refuses it by name — and yet the structure is stated, and refined, in a,
-    2b, c with a primitive lattice.  Pass the operator list in that cell and its
+    has, and a magnetic space group in that cell, which a database, a
+    k-SUBGROUPSMAG table or a candidate (``candidate.group`` with
+    ``candidate.cell.transform``) supplies directly.  Mn₃O₄ on POWGEN is the
+    case it was built for: parent I4₁/amd with k = (0, ½, 0), whose
+    2k = (0, 1, 0) is *not* a reciprocal-lattice vector of a body-centred
+    lattice — ``candidates`` refused it by name until it learned the arm pair —
+    and the structure is stated, and refined, in a, 2b, c with a primitive
+    lattice.  Pass the operator list in that cell and its
     (P, p) transform in ``transform_BNS_Pp_abc`` form; ``k`` is then a record
     for the report and nothing derives from it.  A ``bns_number`` passed with
     either way in is checked against the group's own and refused when it
@@ -1256,10 +1296,10 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
             "magnetic_supercell(): pass either one of isotropy.candidates' "
             "candidates or an "
             "explicit group with its transform, not both and not neither. The "
-            "candidate route derives the child cell from k and is fenced at "
-            "2k in the reciprocal lattice (candidates' scope); the explicit route "
-            "takes the cell from the transform and has no such fence, because "
-            "a child lattice exists for every commensurate k.")
+            "candidate route derives the child cell from k (candidates' scope: "
+            "one arm, any commensurate k); the explicit route takes the cell "
+            "from the transform, because a child lattice exists for every "
+            "commensurate k.")
     check_choice("nuclear_group", nuclear_group, SUPERCELL_NUCLEAR_GROUPS)
     if group is not None and transform is None:
         raise ValueError(

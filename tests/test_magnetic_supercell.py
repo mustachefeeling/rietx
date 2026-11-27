@@ -576,10 +576,30 @@ def test_the_basis_is_the_unreduced_one_and_says_why():
                                                                 (0, 0, 0)).basis
 
 
-def test_a_k_outside_the_rungs_scope_is_refused_by_magnetic_cells_own_message():
-    """One authority on which k this rung admits: ``magnetic_cell``'s fence."""
-    with pytest.raises(ValueError, match="outside the reciprocal lattice"):
-        child_basis("P 3", (Fraction(1, 3), Fraction(1, 3), 0))
+def test_at_two_k_outside_the_lattice_the_basis_is_the_candidates_lattice_axis_ordered():
+    """One authority on the child lattice: ``magnetic_cell``'s, reordered toward the parent axes.
+
+    At 2k ∉ L* (M7c) ``child_basis`` returns the candidate cell's lattice — the
+    same |det P| and a unimodular change of basis — with its vectors ordered so
+    a hexagonal parent keeps c unique and C m c m at (0, 7/10, 0) reads a, 10b, c.
+    A float k is refused by ``magnetic_cell``'s own message.
+    """
+    from rietx.crystallography.magnetic.isotropy import magnetic_cell
+
+    for group, k, want in [("P 6/m m m", (Fraction(1, 3), Fraction(1, 3), 0), "2a+b,-a+b,c"),
+                           ("C m c m", (0, Fraction(7, 10), 0), "a,10b,c"),
+                           ("P n m a", (Fraction(1, 4), 0, 0), "4a,b,c")]:
+        basis = child_basis(group, k)
+        cell = magnetic_cell(group, k).basis
+        b = np.array([[float(v) for v in row] for row in basis])
+        c = np.array([[float(v) for v in row] for row in cell])
+        change = np.linalg.solve(c, b)
+        assert np.allclose(change, np.rint(change)) and round(abs(np.linalg.det(change))) == 1
+        assert np.linalg.det(b) > 0
+        from rietx.crystallography.magnetic.supercell import _transform_string
+        assert _transform_string(basis).split(";")[0] == want
+    with pytest.raises(ValueError, match="float components"):
+        child_basis("P 3", (1 / 3, 1 / 3, 0))
 
 
 def test_an_anisotropic_parent_is_refused_rather_than_copied():
@@ -1390,3 +1410,128 @@ def test_the_parent_branch_explains_the_check_that_failed(transform, blames_k):
     assert ("onto a lattice" in text) is blames_k
     assert ("not a supercell of the parent cell" in text) is (not blames_k)
     assert ("not a cell of this group" in text) is (not blames_k)
+
+
+# ============================== M7c: a candidate at 2k outside the lattice
+THIRD_K = (Fraction(1, 3), Fraction(1, 3), Fraction(0))
+
+
+def triangular_parent() -> Phase:
+    """Mn on 1a of a synthetic P6/mmm with O on 2d: the triangular lattice at K."""
+    return Phase(
+        name="synthetic triangular", space_group="P 6/m m m",
+        cell=_cell(5.0, 5.0, 4.0, 90.0, 90.0, 120.0),
+        atoms=[
+            Atom(label="Mn", species="Mn", x=P(value=0.0), y=P(value=0.0),
+                 z=P(value=0.0), biso=P(value=0.4)),
+            Atom(label="O", species="O", x=P(value=1 / 3), y=P(value=2 / 3),
+                 z=P(value=0.5), biso=P(value=0.5)),
+        ])
+
+
+def _triangular_candidate(bns: str):
+    found = candidates("P 6/m m m", (0.0, 0.0, 0.0), THIRD_K)
+    return next(c for c in found if c.bns_number == bns)
+
+
+def test_an_arm_pair_candidate_states_on_both_routes():
+    """``candidate.group`` with ``candidate.cell.transform`` is the explicit route's input.
+
+    Both routes state the child (index 3), and the magnetic group in each child
+    cell identifies to the candidate's own BNS number.
+    """
+    parent = triangular_parent()
+    cand = _triangular_candidate("189.223")
+    by_candidate = magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+",
+                                      magnitude=3.0, nuclear_group="magnetic")
+    explicit = magnetic_supercell(parent, group=cand.group, transform=cand.cell.transform,
+                                  k=cand.k, magnetic_species="Mn", ion="Mn2+",
+                                  magnitude=3.0, nuclear_group="magnetic")
+    for statement in (by_candidate, explicit):
+        assert statement.index == 3
+        assert identify(statement.group).bns_number == "189.223"
+
+
+def test_the_msg_frees_more_than_the_irrep_family():
+    """Rule 4's second misuse: refined under its group, a candidate frees more than its family.
+
+    P6/m at K on a general 6k-type site: the P-6′ candidate of the coupled pair
+    has ``free_amplitudes`` from its irrep family, and the child phase under
+    its group has more free moment components (the k = 0 third harmonic
+    Pomjakushin et al. 2022 needed among them).  The count is the warning the
+    candidate set's ``note`` line gives.
+    """
+    parent = Phase(
+        name="synthetic P6/m", space_group="P 6/m", cell=_cell(12.6, 12.6, 9.3, 90, 90, 120),
+        atoms=[Atom(label="Tb", species="Tb", x=P(value=0.1234), y=P(value=0.3812),
+                    z=P(value=0.5), biso=P(value=0.4))])
+    found = candidates("P 6/m", (0.1234, 0.3812, 0.5), THIRD_K)
+    cand = next(c for c in found if c.bns_number == "174.135" and "+" in c.irrep_label)
+    statement = magnetic_supercell(parent, cand, magnetic_species="Tb", ion="Tb3+",
+                                   g=1.5, magnitude=8.0, nuclear_group="magnetic")
+    from rietx.crystallography.magnetic.operators import allowed_moment_basis  # noqa: F401
+    child = statement.phase
+    group = statement.group
+    free = 0
+    for atom in child.atoms:
+        if atom.moment is not None:
+            free += group.allowed_moment_basis(
+                (atom.x.value, atom.y.value, atom.z.value)).shape[0]
+    assert free > cand.free_amplitudes
+    assert "secondary harmonics" in str(found)
+
+
+def test_a_k_third_structure_refines_back_and_a_wrong_candidate_does_not():
+    """End to end, synthetic: simulate from one candidate, refine its moment back.
+
+    Truth: the triangular lattice at K under 189.223 (an in-plane moment of
+    3 μ_B on Mn²⁺), a neutron pattern with Gaussian noise of σ = √y (seed 2026).
+    **Positive arm:** the same candidate, started at 2 μ_B, returns the modulus
+    within 3 esd with GoF ≈ 1.  **Negative arm:** the c-axis candidate 191.236,
+    another powder class, cannot: its GoF is visibly worse.  Measured: 3.008(18)
+    μ_B at GoF 1.01 against GoF 1.67 for the wrong one.
+    """
+    import rietx as rx
+    from rietx.schemas.instrument import BackgroundChebyshev
+    from rietx.schemas.structure import Structure
+
+    parent = triangular_parent()
+
+    def statement(bns, magnitude):
+        return magnetic_supercell(parent, _triangular_candidate(bns), magnetic_species="Mn",
+                                  ion="Mn2+", magnitude=magnitude,
+                                  nuclear_group="magnetic").phase
+
+    def instrument(level):
+        ins = rx.Instrument.constant_wavelength_neutron(2.4, fwhm_deg=0.3)
+        ins.background = BackgroundChebyshev(
+            coefficients=[P(value=level)] + [P(value=0.0) for _ in range(2)])
+        return ins
+
+    x = np.arange(8.0, 100.0, 0.05)
+    truth = statement("189.223", 3.0)
+    y = np.asarray(rx.Refinement(Structure(phases=[truth]), instrument(10.0)).predict(x))
+    scale = 2000.0 / float(y.max())
+    y_true = y * scale
+    rng = np.random.default_rng(2026)
+    sigma = np.sqrt(y_true)
+    pattern = rx.PatternData(two_theta=x.tolist(),
+                             intensity=(y_true + rng.normal(size=x.size) * sigma).tolist(),
+                             sigma=sigma.tolist())
+
+    def fit(bns):
+        start = statement(bns, 2.0)
+        start = start.model_copy(update={"scale": P(value=start.scale.value * scale)})
+        ref = rx.Refinement(Structure(phases=[start]), instrument(10.0 * scale))
+        ref.fit(pattern, plan=rx.RefinementPlan(stages=[rx.Stage(
+            "moment", ["phases.*.atoms.*.moment.dof*", "phases.*.scale",
+                       "instrument.background.c*"])]))
+        rows = [p for p in ref.result_.parameters if p.path.endswith(".moment.dof0")]
+        return ref.result_.statistics.gof, rows
+
+    gof_right, rows = fit("189.223")
+    (row,) = rows
+    assert abs(abs(row.value) - 3.0) < 3.0 * row.stderr
+    assert 0.9 < gof_right < 1.1
+    gof_wrong, _ = fit("191.236")
+    assert gof_wrong > 1.3 * gof_right

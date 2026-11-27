@@ -979,15 +979,27 @@ def test_the_equivalence_test_does_not_merge_different_absence_sets():
                 assert found.class_of(i) != found.class_of(j)
 
 
-def test_a_k_outside_the_scope_is_refused_by_name():
-    """The fence, said out loud rather than answered wrongly."""
-    with pytest.raises(ValueError, match="reciprocal lattice"):
-        isotropy.candidates("P 3", (0.11, 0.13, 0.17),
-                            (Fraction(1, 3), Fraction(1, 3), Fraction(0)))
-    with pytest.raises(ValueError, match="M-8"):
-        isotropy.candidates("I 41 3 2", (0, 0, 0), HALF)
-    with pytest.raises(ValueError, match="reciprocal lattice"):
-        isotropy.magnetic_cell("P n m a", (Fraction(1, 4), Fraction(0), Fraction(0)))
+def test_a_float_k_outside_the_two_k_lattice_is_refused_by_name():
+    """The fence that is left at 2k ∉ L*: the k must be stated exactly (M7c).
+
+    The three calls the old fence refused now answer (the arm-pair section
+    below); what is refused is the same k spelled as floats, whose denominator
+    ``as_kvector`` would otherwise have guessed.  Positive arm: the same k as a
+    ``Fraction`` and as a string answers, and a float k with 2k ∈ L* still
+    answers exactly as before.
+    """
+    third = (Fraction(1, 3), Fraction(1, 3), Fraction(0))
+    with pytest.raises(ValueError, match=r"float components.*Fraction\(1, 3\)"):
+        isotropy.candidates("P 3", (0.11, 0.13, 0.17), (1 / 3, 1 / 3, 0))
+    with pytest.raises(ValueError, match="float components"):
+        isotropy.magnetic_cell("P n m a", (0.25, 0.0, 0.0))
+    assert len(isotropy.candidates("P 3", (0.11, 0.13, 0.17), third)) == 3
+    assert len(isotropy.candidates("P 3", (0.11, 0.13, 0.17), ("1/3", "1/3", "0"))) == 3
+    assert isotropy.magnetic_cell("I 41 3 2", HALF).index == 4
+    assert isotropy.magnetic_cell("P n m a", (Fraction(1, 4), 0, 0)).doubled
+    floats = isotropy.candidates("P n m a", (0, 0, 0), (0.5, 0.0, 0.0))
+    exact = isotropy.candidates("P n m a", (0, 0, 0), (Fraction(1, 2), 0, 0))
+    assert [c.bns_number for c in floats] == [c.bns_number for c in exact]
 
 
 def test_an_unknown_order_parameter_kind_is_refused():
@@ -4816,3 +4828,231 @@ def test_the_fm3m_set_splits_s8_and_s9_from_the_stored_witnesses(fm3m_stack, mon
     classes, merged, relations = run({})
     assert classes == merged and len(classes) == 4
     assert all(r.refuted_by is None for r in relations)
+
+
+# --------------------------------------------------------------------------
+# M7c. One arm pair (k, −k) at a commensurate k with 2k outside L*
+# --------------------------------------------------------------------------
+
+THIRD_K = (Fraction(1, 3), Fraction(1, 3), Fraction(0))
+
+#: The cross-route set (M7c brief): a hexagonal (⅓, ⅓, 0) with the k/−k
+#: coupling of two small irreps (P6/m, the Tb₁₄Ag₅₁ parent), an odd
+#: denominator off the zone boundary, an even denominator of 4 (type IV),
+#: the centred case the module docstring names, a two-dimensional small irrep
+#: (P4/mmm on Δ and P6/mmm at K), a group with no k-reversing operation
+#: (P3), and the long 10b cell of C m c m at (0, 7/10, 0).
+ARM_PAIR_CASES = [
+    pytest.param("P 6/m", (0.1234, 0.3812, 0.5), THIRD_K, id="P6/m-K-6k"),
+    pytest.param("P 3", (0.11, 0.13, 0.17), THIRD_K, id="P3-K"),
+    pytest.param("P m m m", (0.11, 0.23, 0.37), (Fraction(1, 3), 0, 0), id="Pmmm-third"),
+    pytest.param("P n m a", (0.11, 0.25, 0.37), (Fraction(1, 4), 0, 0), id="Pnma-quarter"),
+    pytest.param("I 41 3 2", (0.125, 0.125, 0.125), HALF, id="I4132-H"),
+    pytest.param("P 4/m m m", (0, 0, 0), (0, 0, Fraction(1, 3)), id="P4mmm-Delta-2D"),
+    pytest.param("P 6/m m m", (0, 0, 0), THIRD_K, id="P6mmm-K-2D"),
+    pytest.param("C m c m", (0, 0.1336, 0.25), (0, Fraction(7, 10), 0), id="Cmcm-7/10"),
+]
+
+
+def _spglib_magnetic_operations(candidate, amplitudes):
+    """The magnetic symmetry spglib detects for one member of a candidate's family.
+
+    An independent route: the moments of ``candidate.moments(amplitudes)`` on
+    the child cell, beside a generic orbit of the parent group (non-magnetic
+    markers, so the nuclear symmetry is the parent's and not the larger one a
+    single orbit can have), read by ``spglib.get_magnetic_symmetry``.  Returns
+    the operations as :class:`MagneticOperator` in the child cell.
+    """
+    import spglib
+
+    from rietx.crystallography import symmetry
+
+    sg = candidate.space_group
+    cell = candidate.cell
+    p = np.array([[float(v) for v in row] for row in cell.basis])
+    lattice = isotropy.magnetic_lattice(cell, isotropy.compatible_cell(sg))
+    inverse = np.linalg.inv(p)
+    markers: list[np.ndarray] = []
+    for x in symmetry.site_orbit(sg, (0.0731, 0.2113, 0.3377)).images:
+        for shift, _ in cell.translations:
+            y = (inverse @ (np.asarray(x) + np.array([float(c) for c in shift]))) % 1.0
+            if not any(np.all(np.minimum(abs(y - q), 1 - abs(y - q)) < 1e-6) for q in markers):
+                markers.append(y)
+    moments = isotropy.moment_cartesian(candidate.moments(amplitudes), lattice)
+    positions = np.vstack([candidate.positions, np.array(markers)])
+    numbers = [1] * len(candidate.positions) + [2] * len(markers)
+    magmoms = np.vstack([moments, np.zeros((len(markers), 3))])
+    found = spglib.get_magnetic_symmetry((lattice, positions, numbers, magmoms),
+                                         symprec=1e-5, mag_symprec=1e-5)
+    return {MagneticOperator.build(r, [Fraction(float(v)).limit_denominator(240) for v in t],
+                                   -1 if tr else 1)
+            for r, t, tr in zip(found["rotations"], found["translations"],
+                                found["time_reversals"])}
+
+
+@pytest.mark.parametrize(("group", "site", "k"), ARM_PAIR_CASES)
+def test_every_arm_pair_candidate_is_the_magnetic_symmetry_spglib_detects(group, site, k):
+    """Cross-route: each candidate's operator list is the symmetry of its own moments.
+
+    The candidate's group comes from the order-parameter side (a stabiliser of
+    a direction, read as operations); spglib reads the symmetry of a generic
+    member of its family from the moments alone.  They must be the same set,
+    operation by operation, in the child cell.  Positive arm: the same
+    comparison between the kernel candidate's group and a maximal candidate's
+    moments is unequal, so the comparison can fail.
+    """
+    rng = np.random.default_rng(20261127)
+    found = isotropy.candidates(group, site, k)
+    assert len(found) > 0
+    assert all(c.verified for c in found)
+    for candidate in found:
+        detected = _spglib_magnetic_operations(
+            candidate, rng.normal(size=candidate.free_amplitudes))
+        assert set(candidate.group.all_operations()) == detected, candidate.label
+    orders = [c.group.order for c in found]
+    big = found[int(np.argmax(orders))]
+    small = found[int(np.argmin(orders))]
+    if big.group.order != small.group.order:
+        assert set(small.group.all_operations()) != _spglib_magnetic_operations(
+            big, rng.normal(size=big.free_amplitudes))
+
+
+def test_tb14ag51_candidates_contain_the_published_p6bar_prime():
+    """Pomjakushin et al. (2022), *Acta Cryst.* B78, 172 (doi 10.1107/S205252062200124X).
+
+    Parent P6/m, k = (⅓, ⅓, 0), Tb on 6k (x, y, ½), 6j (x, y, 0) and 2e (0, 0, z);
+    the active order parameter is the four-dimensional mK4K6, two conjugate
+    one-dimensional small irreps coupled across k and −k, whose isotropy
+    subgroups are three maximal groups and the kernel Pm′, and the refined
+    structure is P-6′ (BNS 174.135).  "Contains", not "equals": the published
+    model also carries a k = 0 harmonic that its group allows.  Generic x, y, z
+    (the paper's coordinates are not needed for a symmetry statement).  The
+    published group must come out of a **coupled** pair on every site.
+    """
+    for site in ((0.1234, 0.3812, 0.5), (0.2311, 0.4413, 0.0), (0.0, 0.0, 0.3104)):
+        found = isotropy.candidates("P 6/m", site, THIRD_K)
+        coupled = [c for c in found if "+" in c.irrep_label]
+        assert coupled, site
+        by_pair: dict[str, list] = {}
+        for c in coupled:
+            by_pair.setdefault(c.irrep_label, []).append(c)
+        hits = [pair for pair, members in by_pair.items()
+                if "174.135" in {c.bns_number for c in members}]
+        assert len(hits) == 1, (site, {p: [c.bns_number for c in m] for p, m in by_pair.items()})
+        members = by_pair[hits[0]]
+        assert len(members) == 4                        # 3 maximal + the kernel
+        assert members[-1].bns_number == "6.20"         # P m′, the kernel
+        assert members[-1].direction.rank == 4          # the four-dimensional mK4K6
+
+
+def test_the_arm_pair_order_parameters_tile_the_whole_field_space():
+    """Σ over the order parameters of their dimensions is 2·3N (modes' own count).
+
+    Each coupled pair's space carries both irreps' amplitudes and each irrep is
+    built once, so the sum closes on the real dimension of the field over
+    (k, −k); a pair built twice, or a partner missed, breaks it.
+    """
+    for group, site, k in [("P 6/m", (0.1234, 0.3812, 0.5), THIRD_K),
+                           ("P 4/m m m", (0, 0, 0), (0, 0, Fraction(1, 3))),
+                           ("I 41 3 2", (0.125, 0.125, 0.125), HALF)]:
+        found = isotropy.candidates(group, site, k)
+        general = {}
+        for c in found:
+            general[c.irrep_label] = max(general.get(c.irrep_label, 0), c.free_amplitudes)
+        assert sum(general.values()) == 2 * 3 * found.representation.n_atoms, group
+
+
+def test_the_copy_split_seed_decides_no_group(monkeypatch):
+    """``_COPY_SPLIT_SEED`` is answer-invariant: two other seeds, the same groups."""
+    def groups():
+        found = isotropy.candidates("P 6/m", (0.1234, 0.3812, 0.5), THIRD_K)
+        return [(c.irrep_label, c.bns_number, frozenset(c.group.all_operations()))
+                for c in found]
+
+    reference = groups()
+    for seed in (1, 2026):
+        monkeypatch.setattr(isotropy, "_COPY_SPLIT_SEED", seed)
+        assert groups() == reference
+
+
+def test_the_translation_subgroup_is_l_k_with_anti_translations_at_even_m():
+    """Every candidate's pure translations are L_k, primed at k·t ≡ ½ when m is even.
+
+    Odd m (⅓): no anti-translation, the child cell's integer lattice only.  Even
+    m (¼ on P n m a): one anti-translation coset, so every magnetic candidate
+    is type IV.  Displacive at the same k: the same lattice with both
+    time-reversal signs (grey).
+    """
+    odd = isotropy.candidates("P m m m", (0.11, 0.23, 0.37), (Fraction(1, 3), 0, 0))
+    assert odd.cell.index == 3 and not odd.cell.doubled
+    for c in odd:
+        assert all(op.time_reversal > 0 for op in c.group.centerings)
+        assert len(c.group.centerings) == 1
+    even = isotropy.candidates("P n m a", (0.11, 0.25, 0.37), (Fraction(1, 4), 0, 0))
+    assert even.cell.index == 4 and even.cell.doubled
+    for c in even:
+        anti = [op for op in c.group.centerings if op.time_reversal < 0]
+        assert len(anti) == 1 and c.msg_type == 4, c.label
+    grey = isotropy.candidates("P n m a", (0.11, 0.25, 0.37), (Fraction(1, 4), 0, 0),
+                               kind="displacive")
+    for c in grey:
+        assert c.group.is_grey and c.verified
+
+
+def test_the_arm_pair_results_flow_through_the_powder_analysis():
+    """The downstream calls take an arm-pair candidate: domains, intensities, classes.
+
+    The domains are cosets of the extended grey group G_{±k}1′ (the domain
+    counts are integers dividing its order and the powder sum is invariant
+    under them, which :func:`isotropy.analyse` relies on); the analysis runs;
+    and the two refusals are by name.
+    """
+    found = isotropy.candidates("P 6/m m m", (0, 0, 0), THIRD_K)
+    counts = found.domain_counts()
+    grey = isotropy._extended_grey_group(found.space_group, found.cell).order
+    assert all(within * c.group.order == grey for (within, _), c in zip(counts, found))
+    assert all(total == within for within, total in counts)  # the star is the one pair
+    result = isotropy.analyse(found, d_min=2.5)
+    assert len(result.classes) >= 2
+    text = str(result)
+    assert "the pair (k, -k) of a star of 2" in text
+    with pytest.raises(ValueError, match="extended"):
+        isotropy.grey_little_group("P 6/m m m", THIRD_K)
+
+
+def test_the_printed_table_names_the_approximant_misuse():
+    """DESIGN-RULES Rule 4: the likeliest misuse is named where a caller meets it.
+
+    A candidate at the rational approximant of an incommensurate k is the
+    structure at that k only; the set's own text says so and says what a
+    refinement under its group frees.  Positive arm: at 2k ∈ L* no such line.
+    """
+    text = str(isotropy.candidates("C m c m", (0, 0.1336, 0.25), (0, Fraction(7, 10), 0)))
+    assert "at this rational k only" in text and "approximant" in text
+    assert "secondary harmonics" in text
+    assert "approximant" not in str(isotropy.candidates("P n m a", (0, 0, 0),
+                                                        (Fraction(1, 2), 0, 0)))
+
+
+def test_the_arm_list_routines_take_two_arms():
+    """Internal, for the full-star rung: the arm-set lattice, cosets and operations at two arm pairs.
+
+    P m -3 m with ±(⅓, 0, 0) and ±(0, ⅓, 0): L_K is 3a, 3b, c (index 9), the
+    cosets are the nine phase pairs, and the operations that keep the four-arm
+    set are the 16 of the 4/mmm subgroup about c.  No public call reaches
+    two arms; this pins the shape the next rung extends.
+    """
+    third_a = (Fraction(1, 3), Fraction(0), Fraction(0))
+    third_b = (Fraction(0), Fraction(1, 3), Fraction(0))
+    arms = [third_a, tuple(-c for c in third_a), third_b, tuple(-c for c in third_b)]
+    sg = irreps._resolve("P m -3 m")
+    rows = isotropy._arm_lattice(sg, arms)
+    det = abs(np.linalg.det(np.array([[float(v) for v in r] for r in rows])))
+    assert det == pytest.approx(9.0)
+    for row in rows:
+        for arm in arms:
+            assert sum(Fraction(arm[a]) * row[a] for a in range(3)).denominator == 1
+    assert len(isotropy._arm_cosets(sg, (third_a, third_b))) == 9
+    assert len(isotropy._arm_operations(sg, arms)) == 16
+    assert len(isotropy._arm_operations(sg, arms[:2])) == 16      # one pair: 4/mmm about a
+    assert len(isotropy._arm_operations(sg, arms[:1])) == 8       # G_k alone

@@ -44,23 +44,60 @@ asserting it.
     equivalence_classes(candidates, ...)              -> tuple[tuple[int, ...], ...]
     powder_relations(candidates, ...)                 -> tuple[PairVerdict, ...]
 
-Scope: **k = 0 and 2k a reciprocal lattice vector**
---------------------------------------------------
-The stabiliser of an order-parameter direction is a subgroup of the *grey*
-little group G_k1'.  Turning it into a space group needs the lattice
-translations, and a translation t acts on the order parameter (the
-amplitudes of :mod:`~rietx.crystallography.representation.modes`' basis vectors, which are the coefficients of
-exp(+2πi k·R)) as D({E|t}) = exp(−2πi k·t) — which is ±1, hence a
-time-reversal sign, only when 2k is a reciprocal lattice vector.  For any other k (a denominator of 3 or more, or a
-centred case like I4₁32 at (½,½,½) where (1,1,1) is not a reciprocal lattice
-vector of the body-centred lattice) the order parameter is genuinely complex,
-the −k arm of the star is coupled to the +k one, and the isotropy subgroup is
-not a subgroup of the grey little group at all.  Those k are **refused by
-name** by :func:`candidates`, pointing at the star/multi-k rung.  What already
-works for them: :mod:`~rietx.crystallography.representation.irreps` builds the star and the small irreps at every
-k it accepts, and :mod:`~rietx.crystallography.representation.modes` builds the basis vectors and counts the real
-amplitudes including the k/−k pairing — everything except the translation
-subgroup of the candidate and therefore everything downstream of it.
+Scope: **every commensurate k, one arm pair of the star**
+--------------------------------------------------------
+The stabiliser of an order-parameter direction is a group of parent
+operations with time reversal, and turning it into a space group needs the
+lattice translations.  A translation t acts on the order parameter (the
+amplitudes of :mod:`~rietx.crystallography.representation.modes`' basis
+vectors, which are the coefficients of exp(+2πi k·R)) as
+D({E|t}) = exp(−2πi k·t).
+
+*k = 0 and 2k a reciprocal lattice vector.*  That phase is ±1, hence a
+time-reversal sign, and the stabiliser is a subgroup of the *grey* little
+group G_k1′ with the parent's lattice or its index-2 sublattice plus one
+anti-translation (:func:`_candidate_group`).
+
+*2k outside the reciprocal lattice* (a denominator of 3 or more, or a
+centred case like I4₁32 at (½,½,½), where (1,1,1) is not a reciprocal
+lattice vector of the body-centred lattice).  The phase is a root of unity
+of order m > 2 and the order parameter is genuinely complex:
+m_j(R) = C·ψ_j·e^{+2πi k·R} + c.c., one field over the arm pair (k, −k).
+Three things change, and :func:`_candidates_at_an_arm_pair` builds each.
+
+1. **The group the stabiliser lives in** is the grey *extended* little group
+   G_{±k}1′ with the cosets of L/L_k: the operations with Rᵀk ≡ −k carry the
+   field onto itself **antilinearly** (C ↦ conj C up to a matrix; Perez-Mato,
+   Ribeiro, Petříček & Aroyo, 2012, *J. Phys.: Condens. Matter* **24**, 163201,
+   eq. (16)), and an operation {R | v + t} whose t is not a magnetic-lattice
+   vector survives when exp(−2πi k·t) cancels D(R).  The isotropy subgroup is
+   therefore not a subgroup of G_k1′.
+2. **The order parameter can span two small irreps.**  A k-reversing g maps
+   irrep ν onto ν′ = (ν^g)*; when ν′ is another irrep at k the physically
+   irreducible representation is ν ⊕ ν′, of real dimension 4d_ν per copy — the
+   mK4K6 of Tb₁₄Ag₅₁ in P6/m at K (Pomjakushin, Perez-Mato, Fischer, Keller &
+   Sikora, 2022, *Acta Cryst.* B**78**, 172).  The space is built as the span
+   of the basis vectors' real fields on the child cell, closed under the
+   group, so the pairing (and the pseudoreal doubling) comes out of the
+   closure rather than out of a case split; the label joins the irreps, ``S2+S4``.
+3. **The translation subgroup** is the same for every candidate at a k:
+   unprimed L_k = {t : k·t ∈ ℤ}, of index m, and the anti-translations
+   k·t ≡ ½ when m is even (then every magnetic candidate is type IV).  The
+   child cell is L_k's (:func:`magnetic_cell`, :class:`MagneticCell` with its
+   ``phases``); the operator list is stated in it and spglib names its type.
+
+Everything downstream — :func:`structure_factors` and the Gram stack,
+:func:`systematic_absences`, :func:`determinable_amplitudes`, the powder
+relations — takes such a candidate unchanged, with the domains inside the arm
+pair taken over G_{±k}1′.  :func:`grey_little_group` and
+:func:`distortion_candidates` refuse such a k by name, and a k given as a
+float there is refused too (the denominator is the answer).  Each candidate
+covers one arm pair (the printed table says which, beside the star's size); the **full star**
+(several arms at once, multi-k) is a later rung, and an **incommensurate** k
+is the superspace track's
+(:mod:`~rietx.crystallography.representation.incommensurate`).  A candidate
+at a rational k is the structure *at that k*: the table's ``note`` line says
+what it is not.
 
 Conventions a caller can get wrong silently
 -------------------------------------------
@@ -162,6 +199,14 @@ Campbell, B. J., Stokes, H. T., Perez-Mato, J. M. & Rodríguez-Carvajal, J.
 (2022). *Acta Cryst.* A**78**, 99 — the UNI magnetic space-group numbering.
 Perez-Mato, J. M., Gallego, S. V., Tasci, E. S., Elcoro, L., de la Flor, G. &
 Aroyo, M. I. (2015). *Annu. Rev. Mater. Res.* **45**, 217.
+Perez-Mato, J. M., Ribeiro, J. L., Petříček, V. & Aroyo, M. I. (2012).
+*J. Phys.: Condens. Matter* **24**, 163201 — the extended little group
+G_{k,−k} and the antilinear action of its k-reversing coset, eq. (16).
+Pomjakushin, V., Perez-Mato, J. M., Fischer, P., Keller, L. & Sikora, W.
+(2022). *Acta Cryst.* B**78**, 172 — Tb₁₄Ag₅₁, P6/m at k = (⅓, ⅓, 0): the
+four-dimensional mK4K6 and its maximal subgroup P-6′ (BNS 174.135).
+Nguyen, P. Q. & Stehlé, D. (2009). *ACM Trans. Algorithms* **5**, 46 — greedy
+lattice-basis reduction in low dimension (:func:`_size_reduce`).
 """
 
 from __future__ import annotations
@@ -344,12 +389,24 @@ class MagneticCell:
     parent's centrings, all with ε = +1; for 2k ∈ L* and k ≠ 0 there are two,
     the identity and one **anti-translation**, which is what makes every such
     candidate a type IV magnetic space group.
+
+    **2k outside the reciprocal lattice** (a denominator of 3 or more, or a
+    centred case such as I4₁32 at (½, ½, ½)): the cell is that of
+    L_k = {t : k·t ∈ ℤ}, of index m in the parent lattice, and ``translations``
+    holds all m cosets.  A coset enters the order parameter with the phase
+    exp(−2πi k·t), a root of unity of order m, which ``phases`` records exactly
+    as k·t mod 1 (empty at 2k ∈ L*).  The integer beside each coset is still
+    its time-reversal sign as an element of every candidate: +1 for the
+    identity coset, −1 for the coset with k·t ≡ ½ (present when m is even, and
+    then every magnetic candidate is type IV), and **0** for every other coset,
+    which is not a translation of any candidate at this k on its own.
     """
 
     k: KVector
     basis: tuple[tuple[Fraction, ...], ...]
     translations: tuple[tuple[KVector, int], ...]
     spacegroup: str | None = None
+    phases: tuple[Fraction, ...] = ()
 
     @property
     def transform(self) -> str:
@@ -376,8 +433,14 @@ class MagneticCell:
 
     @property
     def doubled(self) -> bool:
-        """Whether the magnetic lattice is a proper sublattice of the parent's."""
+        """Whether the magnetic candidates at this k carry an anti-translation."""
         return any(eps < 0 for _, eps in self.translations)
+
+    @property
+    def complex_phases(self) -> bool:
+        """Whether 2k is outside the reciprocal lattice, so a lattice translation
+        enters the order parameter with a phase that is not ±1 (``phases``)."""
+        return bool(self.phases)
 
     def to_magnetic(self, vector) -> np.ndarray:
         """Parent fractional (or contravariant moment) components → magnetic ones."""
@@ -500,18 +563,17 @@ def magnetic_cell(space_group, k) -> MagneticCell:
     so for a primitive parent the answer is the obvious doubling of one axis and
     for a centred one it is a primitive cell of the magnetic lattice.
 
-    Raises ``ValueError`` naming the k when 2k is not a reciprocal lattice
-    vector.
+    When 2k is **not** a reciprocal lattice vector the cell is that of
+    L_k = {t : k·t ∈ ℤ}, of index m (the order of k·t over the parent lattice)
+    rather than 2, with every coset's phase in :attr:`MagneticCell.phases`
+    (:func:`_arm_pair_cell`).  Such a k must be given exactly — ``Fraction(1, 3)``
+    or ``"1/3"`` — and a float is refused by name (:func:`_refuse_a_float_k`).
     """
     sg = _irreps._resolve(space_group)
     kk = as_kvector(k)
-    if not _irreps.equivalent_kvectors(sg, tuple(2 * c for c in kk), (0, 0, 0)):
-        raise ValueError(
-            f"k = {tuple(str(c) for c in kk)} in {sg.xhm()!r} has 2k outside the "
-            f"reciprocal lattice, so a parent lattice translation enters the order "
-            f"parameter with a phase that is not ±1 and the isotropy subgroup is not "
-            f"a subgroup of the grey little group. This rung covers k = 0 and 2k in "
-            f"the reciprocal lattice only; the star and multi-k cases are M-8/M-11")
+    if not _two_k_in_lattice(sg, kk):
+        _refuse_a_float_k(k, kk, sg)
+        return _arm_pair_cell(sg, kk)
     centrings = _irreps._centrings(sg)
     if _irreps.equivalent_kvectors(sg, kk, (0, 0, 0)):
         basis = _fraction_matrix(np.eye(3, dtype=int))
@@ -539,6 +601,208 @@ def magnetic_cell(space_group, k) -> MagneticCell:
     translations = ((tuple(_frac(0) for _ in range(3)), 1),
                     (tuple(_frac(v) for v in anti), -1))
     return MagneticCell(kk, basis, translations, sg.xhm())
+
+
+# --------------------------------------------------------------------------
+# the cell of an arm set: 2k outside the reciprocal lattice
+# --------------------------------------------------------------------------
+
+def _two_k_in_lattice(sg, kk: KVector) -> bool:
+    """Whether 2k is a reciprocal lattice vector of ``sg`` (−k ≡ k)."""
+    return _irreps.equivalent_kvectors(sg, tuple(2 * c for c in kk), (0, 0, 0))
+
+
+def _refuse_a_float_k(k, kk: KVector, sg) -> None:
+    """Refuse a k at 2k ∉ L* whose components were given as floats.
+
+    :func:`~rietx.crystallography.representation.irreps.as_kvector` reads a
+    float as the nearest rational of denominator ≤ 64, which is right for ½ and
+    harmless where 2k ∈ L*.  Here the denominator *is* the answer — it sets the
+    child cell, the translation subgroup and every group — and a float is also
+    how an incommensurate k is usually written, so the reading is the caller's
+    to state, not this package's to guess (DESIGN-RULES Rule 1, an input that
+    leaves a choice open).  Floats keep working where they did.
+    """
+    if not any(isinstance(v, (float, np.floating)) for v in list(k)):
+        return
+    raise ValueError(
+        f"k = {tuple(k)!r} in {sg.xhm()!r} has 2k outside the reciprocal lattice and was "
+        f"given with float components, read as {tuple(str(c) for c in kk)}. At such a k "
+        f"the denominator sets the magnetic cell, the translation subgroup and every "
+        f"candidate group, and a float is also how an incommensurate k is written, so "
+        f"state the rational exactly: Fraction(1, 3) or the string '1/3'. An "
+        f"incommensurate k is the superspace track's (irreps.little_group_on_line)")
+
+
+def _integer_row_kernel(row: list[int]) -> list[list[int]]:
+    """A ℤ-basis of {n ∈ ℤⁿ : row·n = 0}, by unimodular column reduction.
+
+    Euclid's algorithm on the entries, with every column operation applied to
+    an identity matrix U as well; when one entry is left, the other columns of
+    U span the kernel (they are columns of a unimodular matrix, so they span it
+    over ℤ, not only over ℚ).
+    """
+    n = len(row)
+    r = [int(v) for v in row]
+    u = [[int(i == j) for j in range(n)] for i in range(n)]
+    while sum(1 for v in r if v) > 1:
+        live = [i for i in range(n) if r[i]]
+        pivot = min(live, key=lambda i: (abs(r[i]), i))
+        for i in live:
+            if i == pivot:
+                continue
+            q = r[i] // r[pivot]
+            r[i] -= q * r[pivot]
+            for a in range(n):
+                u[a][i] -= q * u[a][pivot]
+    pivot = next(i for i in range(n) if r[i])
+    return [[u[a][j] for a in range(n)] for j in range(n) if j != pivot]
+
+
+def _arm_lattice(sg, arms) -> list[tuple[Fraction, ...]]:
+    """Rows: a basis of L_K = {t ∈ L : k·t ∈ ℤ for every k in ``arms``}, exactly.
+
+    Built in the parent's primitive basis (so a centred parent's centring
+    vectors are lattice vectors from the start): each arm's condition
+    Σ nᵢ (k·pᵢ) ∈ ℤ is one integer row modulo its denominator m, whose kernel
+    (:func:`_integer_row_kernel`, the last coordinate carrying the multiple of m)
+    is intersected with the lattice so far.  One arm pair {k, −k} is one
+    condition; the full star's arms would be several (the full-star rung).
+    """
+    prim = _irreps.primitive_basis(sg)
+    basis = [[int(i == j) for j in range(3)] for i in range(3)]   # rows, primitive coords
+    for arm in arms:
+        values = [sum(_frac(arm[a]) * sum(Fraction(basis[i][j]) * prim[j][a]
+                                          for j in range(3)) for a in range(3))
+                  for i in range(3)]
+        m = 1
+        for v in values:
+            m = m * v.denominator // int(np.gcd(m, v.denominator))
+        if m == 1:
+            continue
+        kernel = _integer_row_kernel([int(v * m) for v in values] + [m])
+        rows = [[sum(n[i] * basis[i][j] for i in range(3)) for j in range(3)]
+                for n in kernel]
+        basis = [row for row in _irreps._row_hnf(rows) if any(row)]
+    return [tuple(sum(Fraction(b[j]) * prim[j][a] for j in range(3)) for a in range(3))
+            for b in basis]
+
+
+def _arm_cosets(sg, arms) -> tuple[tuple[tuple[Fraction, ...], KVector], ...]:
+    """The cosets of L/L_K, each as (k·t mod 1 per arm, a representative t).
+
+    Two parent translations are in one coset exactly when they enter every
+    arm's order parameter with the same phase, so the tuple of k·t mod 1 is
+    the coset's own name; the representatives are reached by stepping along
+    the primitive basis from 0, so they are short.  Sorted by that name: for
+    one arm the s-th coset has phase exp(−2πi s/m).
+    """
+    prim = _irreps.primitive_basis(sg)
+
+    def name(t):
+        return tuple(sum(_frac(arm[a]) * t[a] for a in range(3)) % 1 for arm in arms)
+
+    zero = (Fraction(0), Fraction(0), Fraction(0))
+    seen: dict[tuple[Fraction, ...], KVector] = {name(zero): zero}
+    frontier = [zero]
+    while frontier:
+        step = []
+        for t in frontier:
+            for p in prim:
+                moved = tuple(t[a] + p[a] for a in range(3))
+                key = name(moved)
+                if key not in seen:
+                    seen[key] = moved  # type: ignore[assignment]
+                    step.append(moved)
+        frontier = step
+    return tuple(sorted(seen.items()))
+
+
+def _arm_operations(sg, arms) -> list[tuple[np.ndarray, KVector]]:
+    """The parent's coset representatives that carry the arm set onto itself.
+
+    For the pair {k, −k} this is G_{±k} = G_k plus the **k-reversing**
+    operations (Rᵀk ≡ −k), which act on the order parameter antilinearly
+    (Perez-Mato, Ribeiro, Petříček & Aroyo, 2012, *J. Phys.: Condens. Matter*
+    **24**, 163201, eq. (16)); the reciprocal-space action is Rᵀ (root
+    ``CLAUDE.md``).
+    """
+    cens = _irreps._centrings(sg)
+    arm_set = [tuple(_frac(c) for c in arm) for arm in arms]
+    out = []
+    for op in sg.operations().sym_ops:
+        r = _irreps._op_rotation(op)
+        keeps = True
+        for arm in arm_set:
+            image = tuple(sum(Fraction(int(r[a][b])) * arm[a] for a in range(3))
+                          for b in range(3))
+            if not any(_irreps._is_reciprocal_lattice_vector(
+                    tuple(x - y for x, y in zip(image, other)), cens)
+                    for other in arm_set):
+                keeps = False
+                break
+        if keeps:
+            out.append((r, _irreps._op_translation(op)))
+    return out
+
+
+def _size_reduce(rows, lattice) -> list[tuple[Fraction, ...]]:
+    """Pairwise (Lagrange–Gauss) size reduction of a lattice basis, exactly.
+
+    :func:`_reduce_basis` searches integer combinations in [−2, 2] of the basis
+    it is given, which is enough for an index-2 sublattice and not for the
+    Hermite form of an index-20 one (C m c m at k = (0, 7/10, 0) comes out of
+    :func:`_arm_lattice` as a, c, −8a − 10b).  So each vector is first reduced
+    against each other one, bᵢ ← bᵢ − round(⟨bᵢ, bⱼ⟩/⟨bⱼ, bⱼ⟩)·bⱼ in the group's
+    compatible metric, until nothing moves: a unimodular change, so the same
+    lattice (Nguyen & Stehlé, 2009, *ACM Trans. Algorithms* **5**, 46, § 2, the
+    greedy reduction in low dimension).
+    """
+    metric = np.asarray(lattice, dtype=np.float64) @ np.asarray(lattice, dtype=np.float64).T
+    vectors = [[_frac(v) for v in row] for row in rows]
+
+    def dot(u, v):
+        a = np.array([float(c) for c in u])
+        b = np.array([float(c) for c in v])
+        return float(a @ metric @ b)
+
+    changed = True
+    while changed:
+        changed = False
+        for i in range(3):
+            for j in range(3):
+                if i == j:
+                    continue
+                q = round(dot(vectors[i], vectors[j]) / dot(vectors[j], vectors[j]))
+                if q:
+                    candidate = [vectors[i][a] - q * vectors[j][a] for a in range(3)]
+                    if dot(candidate, candidate) < dot(vectors[i], vectors[i]) - 1e-12:
+                        vectors[i] = candidate
+                        changed = True
+    return [tuple(v) for v in vectors]
+
+
+def _arm_pair_cell(sg, kk: KVector) -> MagneticCell:
+    """:func:`magnetic_cell` at 2k ∉ L*: the cell of L_k with its m cosets.
+
+    The basis is shortened by :func:`_reduce_basis` and made right-handed, the
+    convention of the 2k ∈ L* cell.  A pure translation (E, t, θ) fixes a
+    non-zero one-arm field exactly when θ·exp(−2πi k·t) = 1, whatever the
+    order-parameter direction, so the translation subgroup is a property of k
+    and not of a candidate: unprimed L_k, and the anti-translations k·t ≡ ½
+    when m is even.
+    """
+    metric = _compatible_lattice(sg)
+    rows = _reduce_basis(_size_reduce(_arm_lattice(sg, (kk, tuple(-c for c in kk))), metric),
+                         metric)
+    basis = _fraction_matrix([[rows[j][i] for j in range(3)] for i in range(3)])
+    translations = []
+    phases = []
+    for (phase,), shift in _arm_cosets(sg, (kk,)):
+        eps = 1 if phase == 0 else (-1 if phase == Fraction(1, 2) else 0)
+        translations.append((tuple(_frac(v) for v in shift), eps))
+        phases.append(phase)
+    return MagneticCell(kk, basis, tuple(translations), sg.xhm(), phases=tuple(phases))
 
 
 def compatible_cell(space_group, *, scale: float = DEFAULT_CELL_SCALE) -> np.ndarray:
@@ -629,6 +893,15 @@ class MagneticCandidate:
     fails, which is the "this is a bug" case with nothing left to fall back
     on.
 
+    At 2k outside the reciprocal lattice a candidate covers one arm pair
+    (k, −k) of the star, which the set's printed table states with the star's
+    size (the full star, multi-k, is a later rung); its ``group`` can hold
+    operations that send k to −k; its ``direction.stabilizer`` elements are
+    ``(operation, coset, time reversal)`` triples
+    (:func:`_candidates_at_an_arm_pair`); and the table's ``note`` line names
+    the likeliest misreading — the structure at this rational k only, and what
+    a refinement under its group frees beyond its irrep family.
+
     ``space_group`` is :func:`candidates`'s own resolved group object (a
     ``gemmi.SpaceGroup``, or the ``OperatorGroup``
     :func:`~rietx.crystallography.symmetry.resolve_group` builds for an
@@ -680,6 +953,9 @@ class MagneticCandidate:
             raise ValueError(
                 f"{self.label} has {self.free_amplitudes} free amplitudes, got {a.size}")
         return np.tensordot(a, self.configurations, axes=(0, 0))
+
+    def _arm_pair_stabiliser_failure(self, *, atol: float) -> str | None:
+        return _arm_pair_stabiliser_failure_impl(self, atol=atol)
 
     def in_allowed_span(self, *, atol: float = 1e-6) -> bool:
         """Whether every pattern this family can carry is fixed by its own MSG.
@@ -787,6 +1063,8 @@ class MagneticCandidate:
                         f"operator list ({self.bns_number}) does not leave its {vector} "
                         f"family invariant (largest change {worst:.3g}); the operator "
                         f"list and the configurations disagree")
+        if self.cell.complex_phases:
+            return self._arm_pair_stabiliser_failure(atol=atol)
         basis_fn = (allowed_moment_basis if self.kind == "magnetic"
                     else allowed_displacement_basis)
         inverse = _exact_inverse(self.cell.basis)
@@ -822,6 +1100,56 @@ class MagneticCandidate:
                             f"phase); the isotropy subgroup and the basis vectors "
                             f"disagree")
         return None
+
+
+def _arm_pair_stabiliser_failure_impl(candidate, *, atol: float) -> str | None:
+    """Check 2 of :meth:`MagneticCandidate.verification_failure` at 2k ∉ L*.
+
+    There the per-atom statement with a ±1 return phase does not exist (the
+    phase is complex), and its field form is used instead: every element of
+    ``direction.stabilizer`` — the isotropy subgroup the direction was chosen
+    for, read from the order-parameter side and not from ``group`` — carries
+    every configuration onto itself.  Check 1 tests the operator list; this
+    tests the stabiliser it was built from.
+    """
+    vector = "moment" if candidate.kind == "magnetic" else "displacement"
+    operations = _arm_operations(candidate.space_group,
+                                 (candidate.k, tuple(-c for c in candidate.k)))
+    for element in candidate.direction.stabilizer:
+        op = _arm_operator(element, operations, candidate.cell)
+        moved = _apply_domain(op, candidate.positions, candidate.configurations,
+                              kind=candidate.kind)
+        worst = float(np.max(np.abs(moved - candidate.configurations))) \
+            if candidate.configurations.size else 0.0
+        if worst > atol:
+            return (f"the stabiliser element {element} ({op.xyz()!r}) of "
+                    f"{candidate.label}'s direction does not leave its {vector} family "
+                    f"invariant (largest change {worst:.3g}); the isotropy subgroup "
+                    f"and the configurations disagree")
+    return None
+
+
+def _arm_pair_note(k: KVector) -> str:
+    """The ``note`` line :class:`CandidateSet`'s table prints at 2k ∉ L* (DESIGN-RULES Rule 4).
+
+    The candidate is the structure **at this rational k only**: read as an
+    approximant of an incommensurate structure it states that structure at one
+    value of k, with the symmetry that value gives it.  And a refinement under
+    its ``group`` (:func:`~.supercell.magnetic_supercell`) frees every mode the
+    group allows, secondary harmonics such as 3k included, which
+    :attr:`MagneticCandidate.free_amplitudes` (the primary irrep's family) does
+    not count.
+    """
+    spelled = "(" + ", ".join(str(c) for c in k) + ")"
+    return (f"k = {spelled} is commensurate with 2k outside the reciprocal lattice: these "
+            f"are the structures at this rational k only. Read as an approximant of an "
+            f"incommensurate k, a candidate states that structure at one value of k, with "
+            f"the symmetry this value gives it (anti-translations, a locked origin) that "
+            f"the incommensurate structure need not have; quote how far the refined k is "
+            f"from {spelled} beside any number taken from it. Refined under its group "
+            f"(magnetic_supercell), a candidate frees every mode the group allows, "
+            f"secondary harmonics such as 3k included, beyond the free amplitudes of its "
+            f"irrep family.")
 
 
 def _rotation_in_cell(rotation, inverse, forward, *, label=None
@@ -1006,6 +1334,13 @@ def grey_little_group(space_group, k, cell: MagneticCell | None = None) -> Magne
     sg = _irreps._resolve(space_group)
     if cell is None:
         cell = magnetic_cell(sg, k)
+    if cell.complex_phases:
+        raise ValueError(
+            f"k = {tuple(str(c) for c in cell.k)} in {sg.xhm()!r} has 2k outside the "
+            f"reciprocal lattice: a candidate there is a subgroup of the grey *extended* "
+            f"little group G_(+-k)1', which holds the operations sending k to -k, and not "
+            f"of the grey little group this function builds. CandidateSet.domain_counts "
+            f"and the powder sums use the extended group")
     little = _irreps.little_group(sg, cell.k)
     operations = []
     for index in range(little.order):
@@ -1675,12 +2010,18 @@ class CandidateSet:
         """
         if not self.candidates:
             return ()
-        little = self.candidates[0].permutation.little
-        grey = _candidate_group(little, self.cell,
-                                tuple((i, eps) for i in range(little.order)
-                                      for eps in (1, -1)),
-                                ).order
-        arms = len(_irreps.star(self.space_group, self.k))
+        if self.cell.complex_phases:
+            # at 2k ∉ L* the arm pair (k, −k) is one unit: its group is the grey
+            # extended little group G_{±k}1′, and the star has len(star)/2 pairs
+            grey = _extended_grey_group(self.space_group, self.cell).order
+            arms = len(_irreps.star(self.space_group, self.k)) // 2
+        else:
+            little = self.candidates[0].permutation.little
+            grey = _candidate_group(little, self.cell,
+                                    tuple((i, eps) for i in range(little.order)
+                                          for eps in (1, -1)),
+                                    ).order
+            arms = len(_irreps.star(self.space_group, self.k))
         out = []
         for candidate in self.candidates:
             order = candidate.group.order
@@ -1756,6 +2097,11 @@ class CandidateSet:
                  f"  ({self.cell.index} parent lattice coset(s), "
                  f"{'anti-translation' if self.cell.doubled else 'no anti-translation'})",
                  ""]
+        if self.cell.complex_phases:
+            arms = len(_irreps.star(self.space_group, self.k))
+            lines[-1:-1] = [f"arms: the pair (k, -k) of a star of {arms}; the full star "
+                            f"(multi-k) is not covered",
+                            f"note: {_arm_pair_note(self.k)}"]
         cols = ("irrep", "direction", "BNS", "type", "domains/arm", "domains",
                 "free", "determinable", "absences", "class")
         widths = [7, 14, 10, 5, 11, 8, 5, 13, 9, 6]
@@ -1930,13 +2276,20 @@ def candidates(space_group, site_xyz, k, *, kind: str = "magnetic", cell=None,
     case the flag alone cannot express.  Only a sweep that has already made
     the per-candidate check elsewhere should turn ``verify`` off entirely.
 
-    Raises ``ValueError`` naming the k when 2k is not a reciprocal lattice
-    vector; see the module docstring's scope fence.
+    At 2k outside the reciprocal lattice the candidates cover one arm pair
+    (k, −k) and are built by :func:`_candidates_at_an_arm_pair` (module
+    docstring, *Scope*): the group can hold operations that send k to −k, an
+    order parameter can couple two small irreps (labelled ``S2+S4``), and every
+    printed table carries a ``note`` line saying each is the structure at this
+    rational k only.  Such a k is refused by name when given as floats.
     """
     if kind not in ORDER_PARAMETER_KINDS:
         raise ValueError(f"kind must be one of {ORDER_PARAMETER_KINDS}, got {kind!r}")
     sg = _irreps._resolve(space_group)
     mcell = magnetic_cell(sg, k)
+    if mcell.complex_phases:
+        return _candidates_at_an_arm_pair(sg, site_xyz, mcell, kind, cell,
+                                          identify_groups, verify)
     kk = mcell.k
     little = _irreps.little_group(sg, kk)
     representation = _modes.magnetic_representation(
@@ -2057,6 +2410,321 @@ def _expand_configurations(space: OrderParameterSpace,
             expanded = signs[:, None] * pattern[parent_index]
             out.append(expanded @ inverse.T)
     return np.array(out, dtype=np.float64)
+
+
+# --------------------------------------------------------------------------
+# the candidates at 2k outside the reciprocal lattice: one arm pair (k, −k)
+# --------------------------------------------------------------------------
+
+#: Seed of the random symmetric matrix whose commutant average splits an arm
+#: pair's order-parameter space into its irreducible copies
+#: (:func:`_split_into_copies`).  The split is verified before it is used —
+#: equal copy sizes, each copy invariant, every copy carrying copy 1's matrices
+#: — so a seed that fell on an accidental degeneracy would raise, not mislead;
+#: ``tests/test_magnetic_isotropy.py`` asserts the same groups at two other seeds.
+_COPY_SPLIT_SEED = 1419
+
+#: One element of the grey arm-pair group: (index into :func:`_arm_operations`,
+#: index into :attr:`MagneticCell.translations`, time-reversal sign).
+ArmElement = tuple[int, int, int]
+
+
+@dataclass(frozen=True, eq=False)
+class _ArmPairSpace:
+    """The real order-parameter space of one physically irreducible
+    representation at an arm pair, in the shape
+    :func:`~rietx.crystallography.representation.order_parameter.isotropy_directions`
+    reads (``irrep.label``, ``elements``, ``matrices``, ``dimension``)."""
+
+    label: str
+    elements: tuple[ArmElement, ...]
+    matrices: np.ndarray          # (n_elements, r, r) real
+    configurations: np.ndarray    # (copies, r, N, 3) real, child-cell components
+
+    @property
+    def irrep(self):
+        return self
+
+    @property
+    def dimension(self) -> int:
+        return int(self.matrices.shape[1])
+
+    @property
+    def copies(self) -> int:
+        return int(self.configurations.shape[0])
+
+
+def _arm_operator(element: ArmElement, operations, cell: MagneticCell) -> MagneticOperator:
+    """The operation {R | v + t} with time reversal θ of an arm-pair element, in the child cell."""
+    index, coset, theta = element
+    rotation, translation = operations[index]
+    shift = cell.translations[coset][0]
+    inverse = _exact_inverse(cell.basis)
+    forward = [[_frac(v) for v in row] for row in cell.basis]
+    integral = _rotation_in_cell(rotation, inverse, forward)
+    total = [translation[i] + shift[i] for i in range(3)]
+    in_cell = [sum(inverse[i][j] * total[j] for j in range(3)) for i in range(3)]
+    return MagneticOperator.build(integral, in_cell, theta)
+
+
+def _arm_elements(sg, cell: MagneticCell) -> tuple[list, list[tuple[ArmElement, MagneticOperator]]]:
+    """Every element of the grey arm-pair group, with its child-cell operator.
+
+    The group is G_{±k} (:func:`_arm_operations`) times the cosets of L/L_k
+    times {1, 1′}, finite because L_k is the child cell's lattice.
+    """
+    operations = _arm_operations(sg, (cell.k, tuple(-c for c in cell.k)))
+    out = []
+    for index in range(len(operations)):
+        for coset in range(len(cell.translations)):
+            for theta in (1, -1):
+                element = (index, coset, theta)
+                out.append((element, _arm_operator(element, operations, cell)))
+    return operations, out
+
+
+def _extended_grey_group(sg, cell: MagneticCell) -> MagneticGroup:
+    """G_{±k}1′ with every parent translation, as an operator list in the child cell.
+
+    At 2k ∉ L* this, not the grey little group G_k1′, is the group every
+    candidate is a subgroup of: it adds the k-reversing operations.  Its cosets
+    are the domains within the arm pair (:func:`_domain_operations`).
+    """
+    _, elements = _arm_elements(sg, cell)
+    return MagneticGroup.from_operations(_close_operations([op for _, op in elements]))
+
+
+def _orthonormal_columns(columns: np.ndarray) -> np.ndarray:
+    """Orthonormal columns spanning ``columns``, rank cut at :data:`ISOTROPY_ATOL`."""
+    if columns.shape[1] == 0:
+        return columns
+    u, s, _ = np.linalg.svd(columns, full_matrices=False)
+    rank = int(np.sum(s > ISOTROPY_ATOL * max(1.0, float(s[0]))))
+    return u[:, :rank]
+
+
+def _split_into_copies(matrices: np.ndarray, generators: list[int], *, seed: int
+                       ) -> tuple[np.ndarray, list[np.ndarray]]:
+    """Split a real representation that is n copies of one real irrep, and align the copies.
+
+    ``matrices`` act on an orthonormal basis of the space.  In the invariant
+    inner product Q = Σ ρ(g)ᵀρ(g) every ρ(g) is orthogonal, and a symmetric
+    element of the commutant, M = Σ ρ(g)ᵀ X ρ(g) for a random symmetric X, has
+    the irreducible copies as its eigenspaces whatever the irrep's real type
+    (its commutant ℝ, ℂ or ℍ; Bradley & Cracknell 1972, Def. 1.3.7 p. 20).
+    Copy c is then mapped onto copy 1 by an intertwiner T solving
+    T·R₁(g) = R_c(g)·T on the generators, so every copy carries R₁ exactly — the
+    condition for a direction found in one copy to mean the same thing in every
+    copy, which the antilinear (k-reversing) operations break for the copies
+    :func:`~rietx.crystallography.representation.modes.basis_vectors` returns.
+
+    Returns R₁ (one matrix per element) and, per copy, the columns (in the
+    original coordinates) of its aligned basis.
+    """
+    dim = matrices.shape[1]
+    q = np.einsum("gji,gjk->ik", matrices, matrices)
+    w, v = np.linalg.eigh(q)
+    half = v @ np.diag(np.sqrt(w)) @ v.T
+    half_inv = v @ np.diag(1.0 / np.sqrt(w)) @ v.T
+    rho = np.einsum("ij,gjk,kl->gil", half, matrices, half_inv)
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=(dim, dim))
+    x = x + x.T
+    m = np.einsum("gji,jk,gkl->il", rho, x, rho)
+    values, vectors = np.linalg.eigh(m)
+    scale = max(1.0, float(np.max(np.abs(values))))
+    blocks: list[list[int]] = []
+    for i in range(dim):
+        if blocks and abs(values[i] - values[blocks[-1][-1]]) <= 1e3 * ISOTROPY_ATOL * scale:
+            blocks[-1].append(i)
+        else:
+            blocks.append([i])
+    sizes = {len(b) for b in blocks}
+    if len(sizes) != 1:
+        raise RuntimeError(
+            f"the arm-pair order-parameter space of dimension {dim} split into copies of "
+            f"sizes {sorted(len(b) for b in blocks)}; it should be copies of one real irrep. "
+            f"This is a bug, not a tolerance")
+    r = sizes.pop()
+    bases = [vectors[:, b] for b in blocks]
+    first = np.einsum("ia,gij,jb->gab", bases[0], rho, bases[0])
+    aligned = [bases[0]]
+    for basis in bases[1:]:
+        other = np.einsum("ia,gij,jb->gab", basis, rho, basis)
+        rows = [np.kron(other[g], np.eye(r)) - np.kron(np.eye(r), first[g].T)
+                for g in generators]
+        _, sv, vh = np.linalg.svd(np.vstack(rows))
+        null = vh[int(np.sum(sv > ISOTROPY_ATOL * max(1.0, float(sv[0])))):]
+        if null.shape[0] == 0:
+            raise RuntimeError("two copies of the arm-pair order parameter carry inequivalent "
+                               "representations; this is a bug, not a tolerance")
+        t = (rng.normal(size=null.shape[0]) @ null).reshape(r, r)
+        aligned.append(basis @ t)
+    for basis in aligned:
+        moved = np.einsum("gij,ja->gia", rho, basis)
+        want = np.einsum("ia,gab->gib", basis, first)
+        if float(np.max(np.abs(moved - want))) > 1e3 * ISOTROPY_ATOL * max(
+                1.0, float(np.max(np.abs(basis)))):
+            raise RuntimeError("an aligned copy of the arm-pair order parameter does not "
+                               "carry copy 1's matrices; this is a bug, not a tolerance")
+    return first, [half_inv @ basis for basis in aligned]
+
+
+def _candidates_at_an_arm_pair(sg, site_xyz, mcell: MagneticCell, kind: str, cell,
+                               identify_groups: bool, verify: bool) -> CandidateSet:
+    """:func:`candidates` at 2k ∉ L*: one arm pair (k, −k), the module docstring's scope.
+
+    The field of a basis vector ψ with complex amplitude C is
+    m_j(R) = C·ψ_j·e^{+2πi k·R} + c.c. (:mod:`~rietx.crystallography.representation.modes`,
+    *Which wave the vectors belong to*); evaluated on the child cell (the m
+    cosets of L/L_k) its real and imaginary amplitudes are two real moment
+    patterns per basis vector.  The real order-parameter space of an irrep ν
+    is the span of those patterns **closed under the grey arm-pair group**
+    (:func:`_arm_elements`): a k-reversing operation carries ν onto
+    ν′ = (ν^g)* and, when ν′ is another small irrep at k, the closure takes
+    both in — Tb₁₄Ag₅₁'s mK4K6, two conjugate one-dimensional irreps of P6/m at
+    K in one four-dimensional order parameter (Pomjakushin, Perez-Mato,
+    Fischer, Keller & Sikora, 2022, *Acta Cryst.* B**78**, 172, § 2).  The
+    group acts on the patterns through each operator's own axial (or polar)
+    action (:func:`_apply_domain`), so no intertwiner is solved for and no
+    reality class is assumed.  The copies are split and aligned
+    (:func:`_split_into_copies`), the directions are
+    :func:`~rietx.crystallography.representation.order_parameter.isotropy_directions`'
+    on one copy (Stokes & Hatch, 1988), and each stabiliser, read as
+    operations {R | v + t} with their time-reversal sign plus the child
+    lattice L_k, is the candidate's MSG (Perez-Mato et al., 2015).
+    """
+    kk = mcell.k
+    representation = _modes.magnetic_representation(
+        sg, site_xyz, kk, kind="axial" if kind == "magnetic" else "polar")
+    small = _irreps.small_irreps(sg, kk)
+    inverse = _fraction_inverse(mcell.basis)
+    parent_lattice = (compatible_cell(sg) if cell is None
+                      else np.asarray(cell, dtype=np.float64))
+    lattice = magnetic_lattice(mcell, parent_lattice)
+
+    positions: list[np.ndarray] = []
+    parents: list[int] = []
+    cosets: list[int] = []
+    for atom, position in enumerate(representation.positions):
+        for coset, (shift, _) in enumerate(mcell.translations):
+            moved = inverse @ (position + np.array([float(c) for c in shift]))
+            positions.append(moved % 1.0)
+            parents.append(atom)
+            cosets.append(coset)
+    site_positions = np.array(positions)
+    parent_index = np.array(parents)
+    coset_index = np.array(cosets)
+    n_atoms = site_positions.shape[0]
+    # the Bloch factor e^{+2πi k·t} of each child atom's coset (modes' side)
+    bloch = np.exp(2j * np.pi * np.array([float(p) for p in mcell.phases]))[coset_index]
+
+    def patterns(vector: np.ndarray) -> np.ndarray:
+        """The real patterns of amplitude 1 and i, in child-cell components."""
+        z = vector[parent_index] * bloch[:, None]
+        return np.stack([2.0 * z.real @ inverse.T, -2.0 * z.imag @ inverse.T])
+
+    operations, elements = _arm_elements(sg, mcell)
+    keys = tuple(element for element, _ in elements)
+    one = next(i for i, (_, phase) in enumerate(zip(mcell.translations, mcell.phases))
+               if phase == Fraction(1, len(mcell.phases)))
+    identity = next(i for i, (rotation, translation) in enumerate(operations)
+                    if np.array_equal(rotation, np.eye(3, dtype=int))
+                    and all(_frac(v) % 1 == 0 for v in translation))
+    generators = [i for i, (index, coset, theta) in enumerate(keys)
+                  if theta == 1 and (coset == 0 or (coset == one and index == identity))]
+    if kind == "magnetic":
+        generators.append(keys.index((identity, 0, -1)))
+
+    def act(op: MagneticOperator, columns: np.ndarray) -> np.ndarray:
+        configs = columns.T.reshape(-1, n_atoms, 3)
+        return _apply_domain(op, site_positions, configs, kind=kind).reshape(
+            columns.shape[1], -1).T
+
+    fields: list[tuple[SmallIrrep, _modes.IrrepBasis, np.ndarray]] = []
+    for irrep in small:
+        basis = _modes.basis_vectors(representation, irrep)
+        if basis.multiplicity == 0:
+            continue
+        columns = np.concatenate([patterns(basis.vectors[c, row]).reshape(2, -1)
+                                  for c in range(basis.multiplicity)
+                                  for row in range(irrep.dimension)]).T
+        fields.append((irrep, basis, columns))
+
+    out: list[MagneticCandidate] = []
+    used: list[np.ndarray] = []
+    for irrep, basis, columns in fields:
+        if any(np.linalg.norm(columns - p @ columns) <= 1e3 * ISOTROPY_ATOL * np.linalg.norm(columns)
+               for p in used):
+            continue                      # already in a coupled pair's space
+        span = _orthonormal_columns(columns)
+        while True:
+            images = [act(elements[g][1], span) for g in generators]
+            grown = _orthonormal_columns(np.hstack([span, *images]))
+            if grown.shape[1] == span.shape[1]:
+                break
+            span = grown
+        projector = span @ span.T
+        used.append(projector)
+        members = [(other, b) for other, b, cols in fields
+                   if np.linalg.norm(cols - projector @ cols)
+                   <= 1e3 * ISOTROPY_ATOL * np.linalg.norm(cols)]
+        expected = sum(b.free_real_amplitudes for _, b in members)
+        if span.shape[1] != expected:
+            raise RuntimeError(
+                f"the arm-pair order parameter of {irrep.label!r} has dimension "
+                f"{span.shape[1]} against {expected} free real amplitudes from "
+                f"modes.basis_vectors over {[m.label for m, _ in members]}; the "
+                f"closure and the amplitude count must agree. This is a bug")
+        label = "+".join(m.label for m, _ in members)
+        dim = span.shape[1]
+        matrices = np.array([span.T @ act(op, span) for _, op in elements])
+        first, copies = _split_into_copies(matrices, generators, seed=_COPY_SPLIT_SEED)
+        r = first.shape[1]
+        configurations = np.array([[(span @ copy[:, row]).reshape(n_atoms, 3)
+                                    for row in range(r)] for copy in copies])
+        space = _ArmPairSpace(label=label, elements=keys, matrices=first,
+                              configurations=configurations)
+        if dim != r * space.copies:  # pragma: no cover - _split_into_copies asserts it
+            raise RuntimeError("the copies do not tile the arm-pair order parameter")
+        for direction in isotropy_directions(space):
+            group = MagneticGroup.from_operations(_close_operations(
+                [_arm_operator(element, operations, mcell) for element in direction.stabilizer]))
+            family = np.array([np.tensordot(row, configurations[c], axes=(0, 0))
+                               for c in range(space.copies) for row in direction.subspace])
+            found = None
+            if identify_groups:
+                result = _operators.identification(group, lattice=lattice)
+                found = result.group_id
+                if found is None:
+                    try:
+                        found = _identify_in_a_reduced_cell(group, lattice)
+                    except IDENTIFY_REFUSALS:
+                        found = None
+            candidate = MagneticCandidate(
+                space_group=sg, site=tuple(float(v) for v in site_xyz), k=kk,
+                kind=kind, irrep_label=label, direction=direction, cell=mcell,
+                group=group, identification=found,
+                positions=site_positions, configurations=family,
+                permutation=representation.permutation, parent_atoms=parent_index)
+            if verify:
+                failure = candidate.verification_failure()
+                reason = None if failure is None else (
+                    f"{candidate.label} in {sg.xhm()!r} at k = "
+                    f"{tuple(str(c) for c in kk)}: {failure}. This is a bug, not a "
+                    f"tolerance")
+                candidate = replace(candidate, verified=failure is None,
+                                    verification_reason=reason)
+            out.append(candidate)
+    if verify and out and all(c.verified is False for c in out):
+        raise RuntimeError(
+            f"every candidate of the site {tuple(float(v) for v in site_xyz)} in "
+            f"{sg.xhm()!r} at k = {tuple(str(c) for c in kk)} fails verification "
+            f"(first: {out[0].verification_reason}). This is a bug, not a tolerance")
+    return CandidateSet(space_group=sg,
+                        site=tuple(float(v) for v in site_xyz), k=kk, kind=kind,
+                        cell=mcell, lattice=lattice, representation=representation,
+                        candidates=tuple(out))
 
 
 # --------------------------------------------------------------------------
@@ -2504,6 +3172,14 @@ def distortion_candidates(parent, k, sites=None) -> tuple[DistortionCandidate, .
             raise ValueError(f"sites {missing} are not atoms of {parent.name!r} ({labels})")
         chosen = [labels.index(s) for s in wanted]
 
+    if not _two_k_in_lattice(parent_group, as_kvector(k)):
+        raise ValueError(
+            f"distortion_candidates() at k = {tuple(str(c) for c in as_kvector(k))}: 2k is "
+            f"outside the reciprocal lattice. candidates(kind='displacive') builds the "
+            f"isotropy groups there (grey, lattice L_k), but the child's standard setting "
+            f"and its mode basis in Å were built for the +-1 coset phases of 2k in the "
+            f"reciprocal lattice and are not verified at a complex phase, so no child is "
+            f"stated rather than one that may be wrong")
     found: dict[tuple[str, str], tuple[MagneticCandidate, list[str]]] = {}
     for index in chosen:
         atom = parent.atoms[index]
@@ -2648,9 +3324,14 @@ def _domain_operations(candidate: MagneticCandidate,
     pattern — a powder average is already an average over orientations — so
     those need not be built (module docstring).
     """
-    grey = _candidate_group(little, candidate.cell,
-                            tuple((i, eps) for i in range(little.order)
-                                  for eps in (1, -1)))
+    if candidate.cell.complex_phases:
+        # at 2k ∉ L* the candidate sits in G_{±k}1′, not in G_k1′: the domains
+        # within the arm pair include the images under the k-reversing operations
+        grey = _extended_grey_group(candidate.space_group, candidate.cell)
+    else:
+        grey = _candidate_group(little, candidate.cell,
+                                tuple((i, eps) for i in range(little.order)
+                                      for eps in (1, -1)))
     inside = set(candidate.group.all_operations())
     reps: list[MagneticOperator] = []
     covered: set[MagneticOperator] = set()
