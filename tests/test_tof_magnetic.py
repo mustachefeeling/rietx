@@ -446,8 +446,9 @@ def test_the_moment_column_on_a_bank_against_closed_form_and_differences():
     column = (np.asarray(_make_jacobian(model, table)(table.x0()))[:model.n_points, 0]
               * np.asarray(model.sigma))
     scale = np.max(np.abs(richardson))
-    assert min(np.max(np.abs(column - richardson)),
-               np.max(np.abs(column + richardson))) / scale < 1e-6
+    # the solver's column is ∂r/∂μ with r = (y_obs − y)/σ, so column·σ is
+    # −dy/dμ: a column of the wrong sign fails here
+    assert np.max(np.abs(column + richardson)) / scale < 1e-6
 
 
 def test_a_moment_held_at_zero_leaves_the_magnetic_lines_in_the_residual():
