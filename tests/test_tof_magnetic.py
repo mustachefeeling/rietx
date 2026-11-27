@@ -330,3 +330,199 @@ def test_a_moment_free_in_direction_refines_on_a_bank():
     assert "MOMENT_ANGLE_STATIONARY" in {d.code for d in result.diagnostics}
     row = next(p for p in result.parameters if p.path.endswith("moment.dof0"))
     assert abs(row.value - 3.0) < 4.0 * row.stderr
+
+
+# ----------------------------------------------------------------------
+# issue #1868's verification: identity, derivative, control, misuse
+# ----------------------------------------------------------------------
+MOMENT = "phases.0.atoms.0.moment.dof0"
+
+
+def _absorbing_extinguished(ext: float | None = 3000.0):
+    """MnF₂ on :func:`bank` with a 3 mm capillary (µR at λ_hkl) and, unless
+    ``ext`` is None, Sabine extinction, so every factor of the bank's chain
+    differs from 1 and an arm that skipped one on the magnetic term would
+    show."""
+    structure = rx.Structure(phases=[mnf2()])
+    if ext is not None:
+        structure.phases[0].extinction = P(value=ext)
+    ins = bank()
+    ins.geometry.capillary_radius_mm = 3.0
+    return structure, ins
+
+
+def test_the_bank_row_is_the_cw_magnetic_term_times_the_bank_chain():
+    """Identity (#1868): per reflection, the bank's intensity is
+    scale · m · (|F_N|² + p²⟨|F_⊥|²⟩) · L(d) · A(λ_hkl) · E(λ_hkl), with both
+    squared moduli from the **constant-wavelength** model's own functions on a
+    CW twin, and the chain's three factors from the bank, with Sabine's E read
+    on the total.  Equal to the last bit here; the bar is 1e-13 relative.
+
+    The arm that can fail: the same product with the magnetic term left out
+    of A and E (a bank that scaled only the nuclear part) misses by far more
+    than the bar."""
+    from rietx.crystallography.lattice import cell_volume
+    from rietx.model.extinction import sabine_extinction
+
+    structure, ins = _absorbing_extinguished()
+    model = compile_tof_model(structure, ins, tof_grid(),
+                              moving_paths={"phases.0.extinction"})
+    assert model.absorption_terms is not None
+    assert not model.phases[0].skip_extinction
+    v = values(structure, ins)
+    cell = cell_of(v)
+    cp = model.phases[0]
+    d = d_spacings(cp.reflections.hkl, *cell)
+    row = np.asarray(model.phase_peaks(0, v)[0][5], dtype=np.float64)
+
+    cw_ins, cw_data = cw_twin()
+    cw = compile_model(structure, cw_ins, cw_data)
+    vc = values(structure, cw_ins)
+    ccp = cw.phases[0]
+    dc = d_spacings(ccp.reflections.hkl, *cell)
+    fn_cw = np.asarray(cw._nuclear_f2(0, dc, vc, cell))
+    fm_cw = np.asarray(cw._magnetic_f2(0, dc, vc, cell))
+    where = {tuple(h): i for i, h in enumerate(np.asarray(ccp.reflections.hkl).tolist())}
+    idx = np.array([where[tuple(h)] for h in np.asarray(cp.reflections.hkl).tolist()])
+    fn, fm = fn_cw[idx], fm_cw[idx]
+    assert np.sum((fn == 0.0) & (fm > 0.0)) >= 3      # magnetic-only rows
+    total = fn + fm
+    lam = model.wavelength_of(d)
+    lorentz = np.asarray(model.lorentz(d))
+    absorption = np.asarray(model.absorption(d))
+    vol = cell_volume(*cell)
+    ext = v["phases.0.extinction"]
+    e_total = np.asarray(sabine_extinction(total, lam, vol, TWO_THETA, ext))
+    assert absorption.min() < 0.99 and e_total.min() < 0.99
+    pre = v["phases.0.scale"] * np.asarray(cp.reflections.multiplicity)
+    np.testing.assert_allclose(row, pre * total * lorentz * absorption * e_total,
+                               rtol=1e-13, atol=0.0)
+    e_nuc = np.asarray(sabine_extinction(fn, lam, vol, TWO_THETA, ext))
+    nuclear_only_chain = pre * (fn * absorption * e_nuc + fm) * lorentz
+    assert np.max(np.abs(row - nuclear_only_chain) / row.max()) > 1e-3
+
+
+def test_the_moment_column_on_a_bank_against_closed_form_and_differences():
+    """Derivative (#1868).  A bank has no analytic Jacobian
+    (``analytic_jacobian = False``), so the moment's column is the solver's
+    finite-difference fallback, as every bank column is; and the magnetic
+    path is numpy-only on both arms (``_moment_dofs`` builds a numpy vector),
+    so ``jax.jvp`` cannot be taken through a moment.  The references instead:
+
+    * with extinction off, |F_M|² is quadratic in the modulus and every other
+      factor is linear in the row, so dy/dμ = 2·(y(μ) − y(0))/μ exactly; the
+      central difference matches it to rounding at two steps;
+    * with extinction on, the central difference converges as O(h²) (the
+      error ratio over a halving is 4), and the solver's own column agrees
+      with the Richardson extrapolate to its forward-difference precision.
+    """
+    from rietx.optimize.least_squares import _make_jacobian
+
+    structure, ins = _absorbing_extinguished(ext=None)
+    v = values(structure, ins)
+    model = compile_tof_model(structure, ins, tof_grid())
+
+    def y(mu, m=model, vv=v):
+        return np.asarray(m.evaluate({**vv, MOMENT: mu}), dtype=np.float64)
+
+    mu0 = v[MOMENT]
+    exact = 2.0 * (y(mu0) - y(0.0)) / mu0
+    for h in (0.2, 0.1):
+        central = (y(mu0 + h) - y(mu0 - h)) / (2.0 * h)
+        assert np.max(np.abs(central - exact)) / np.max(np.abs(exact)) < 1e-12
+
+    structure, ins = _absorbing_extinguished()
+    v = values(structure, ins)
+    table = ParameterTable(structure, ins)
+    assert table.free_paths == [MOMENT]
+    model = compile_tof_model(structure, ins, tof_grid(),
+                              moving_paths={MOMENT, "phases.0.extinction"})
+    central = {h: (y(mu0 + h, model, v) - y(mu0 - h, model, v)) / (2.0 * h)
+               for h in (0.4, 0.2, 0.1)}
+    e1 = np.max(np.abs(central[0.4] - central[0.2]))
+    e2 = np.max(np.abs(central[0.2] - central[0.1]))
+    assert 3.6 < e1 / e2 < 4.4, e1 / e2
+    richardson = (4.0 * central[0.1] - central[0.2]) / 3.0
+    column = (np.asarray(_make_jacobian(model, table)(table.x0()))[:model.n_points, 0]
+              * np.asarray(model.sigma))
+    scale = np.max(np.abs(richardson))
+    assert min(np.max(np.abs(column - richardson)),
+               np.max(np.abs(column + richardson))) / scale < 1e-6
+
+
+def test_a_moment_held_at_zero_leaves_the_magnetic_lines_in_the_residual():
+    """Recovery's control (#1868).  MnF₂ is MAGNDATA 0.15 (BNS 136.499,
+    P4₂'/mnm', k = 0, 4.6 μ_B along c; Yamani, Tun & Ryan 2010, Can. J. Phys.
+    88, 771, doi:10.1139/p10-081), and :func:`test_a_moment_is_recovered_
+    from_one_bank` refines that moment back from 3.5.  The same pattern with
+    the moment held at zero cannot fit the magnetic lines: the (1 0 0) window
+    (24.4 ms, absent in P 4₂/mnm) keeps them in its residual, χ² there more
+    than 100 times the freed fit's, so the recovery test can fail."""
+    data, scale = _synthetic_bank(rx.Structure(phases=[mnf2()]))
+    tof = np.asarray(data.tof)
+    window = (tof > 23000.0) & (tof < 26000.0)
+
+    def window_chi2(moment, plan):
+        start = rx.Structure(phases=[mnf2()])
+        start.phases[0].scale.value = 1.5 * scale
+        start.phases[0].atoms[0].moment = moment
+        ref = rx.Refinement(start, bank())
+        result = ref.fit(data, plan=plan, telemetry=False)
+        assert result.status == "converged"
+        r = (np.asarray(data.intensity) - np.asarray(ref.predict(data))) / np.asarray(data.sigma)
+        return float(np.sum(r[window] ** 2))
+
+    freed = window_chi2(Moment.from_values((0.0, 0.0, 3.5), "Mn2+", vary=True),
+                        MOMENT_PLAN)
+    held = window_chi2(Moment.from_values((0.0, 0.0, 0.0), "Mn2+", vary=False),
+                       rx.RefinementPlan(stages=[rx.Stage(
+                           "scale_bkg", ["phases.*.scale", "instrument.background.c*"])]))
+    assert freed < 2.0 * int(window.sum())
+    assert held > 100.0 * freed
+
+
+def test_a_propagation_vector_on_a_bank_is_refused_beside_a_moment():
+    """Misuse (Rule 4, #1868).  The likeliest misuse of a bank that draws a
+    moment is to hand it a k-satellite structure: a phase with
+    ``propagation_vector``, beside a magnetic phase.  The bank builds no
+    satellite list, so it raises at compile, before any reflection is
+    generated, naming the field, the rung (#193) and the form a bank does
+    take (#1868); ``Refinement.fit`` raises the same before a solve.  A
+    propagation vector *with* a moment on one phase is refused earlier still,
+    by the schema, on either arm."""
+    import pydantic
+
+    structure = rx.Structure(phases=[mnf2(), mnf2()])
+    structure.phases[1].atoms[0].moment = None
+    structure.phases[1].magnetic_symmetry = None
+    structure.phases[1].propagation_vector = ("0", "0", "1/2")
+    with pytest.raises(ValueError, match=r"phases\.1 declares propagation_vector") as exc:
+        compile_tof_model(structure, bank(), tof_grid())
+    message = str(exc.value)
+    assert "issue #193" in message and "issue #1868" in message
+    assert "propagation_vector = None" in message
+    with pytest.raises(ValueError, match=r"propagation_vector"):
+        rx.Refinement(structure, bank(), history=False).fit(tof_grid(),
+                                                             plan=MOMENT_PLAN)
+    with pytest.raises((ValueError, pydantic.ValidationError),
+                       match="propagation vector and a moment"):
+        both = mnf2()
+        both.propagation_vector = ("0", "0", "1/2")
+        rx.Structure(phases=[both])
+    structure.phases[1].propagation_vector = None
+    assert compile_tof_model(structure, bank(), tof_grid()).n_points > 0
+
+
+def test_a_magnetic_bank_on_the_jax_backend_is_refused_by_name():
+    """The second misuse: asking for the jax backend on a magnetic bank.  The
+    magnetic structure factor has no traced twin on either arm, so the fit
+    refuses by name and says where the column is exact, as on a scan."""
+    data, scale = _synthetic_bank(rx.Structure(phases=[mnf2()]))
+    start = rx.Structure(phases=[mnf2()])
+    start.phases[0].scale.value = scale
+    try:
+        ref = rx.Refinement(start, bank(), backend="jax")
+    except Exception as exc:  # pragma: no cover - depends on the install
+        pytest.skip(f"jax backend unavailable: {exc}")
+    with pytest.raises(NotImplementedError, match="no traced twin.*numpy"):
+        ref.fit(data, plan=MOMENT_PLAN, telemetry=False)
