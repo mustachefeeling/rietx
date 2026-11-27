@@ -112,11 +112,17 @@ import numpy as np
 
 from ..backend import get_backend
 from ..crystallography.lattice import cell_volume, d_spacings
-from ..crystallography.structure_factor import (
-    compile_phase_sites,
-    structure_factors_squared,
+from ..crystallography.magnetic.scattering import (
+    compile_magnetic_sites,
+    magnetic_reflections,
+    merge_magnetic,
 )
-from ..crystallography.symmetry import generate_reflections
+from ..crystallography.structure_factor import compile_phase_sites
+from ..crystallography.symmetry import (
+    generate_reflections,
+    reflection_orbits,
+    resolve_group,
+)
 from ..schemas.instrument import HUMP_FIELDS, Instrument
 from ..schemas.pattern import (
     IntensityBasis,
@@ -137,6 +143,7 @@ from .forward import (
     window_fwhm_mult,
 )
 from .origin import CompiledOrigin, origin_residual
+from .preferred_orientation import orbit_layout
 from .profiles.caglioti import microstrain_width
 from .profiles.tof import (
     back_to_back_gaussian,
@@ -638,9 +645,12 @@ class CompiledTOFModel:
         return None
 
     def mag_split(self, ip: int) -> bool:
-        """Always ``False``: no phase draws a magnetic component on a bank
-        (``forward.magnetic_wanted`` refuses a moment there), so there is no
-        second frozen family (WP-1343)."""
+        """Always ``False``: a bank draws a phase's magnetic component with its
+        nuclear widths, in the one frozen family (#1868).  The separate magnetic
+        broadening of WP-1343 (``magnetic_lor_size``/``magnetic_lor_strain``)
+        is a width in deg 2θ with no flight-time law here yet, and
+        :func:`compile_tof_model` refuses it by name rather than drawing the
+        peak without it."""
         return False
 
     def texture_summary(self, ip: int, values: dict[str, float]) -> None:
@@ -874,11 +884,16 @@ class CompiledTOFModel:
             intensity = cp.hkl_intensity if hkl_intensity is None else hkl_intensity
             intensity = xp.asarray(intensity, dtype=np.float64)
         else:
-            # ⟨|F|²⟩ **before** the Lorentz factor and before the per-channel
-            # spectrum and width factors ``phase_component`` applies.
-            f2 = structure_factors_squared(
-                cp.reflections.hkl, d, cp.sites,
-                *self._site_values(ip, values, cell))
+            # ⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩ — the nuclear and magnetic terms under one
+            # scale (#1868) — **before** the Lorentz factor and before the
+            # per-channel spectrum and width factors ``phase_component``
+            # applies.  That order is the physics: those three multiply the
+            # row, so a magnetic peak takes the same d⁴·sin θ_bank, the same
+            # incident flux and the same channel width its nuclear neighbour
+            # at that d does.  The function is the constant-wavelength model's
+            # own (see :meth:`_total_f2`); a phase with no moment reaches
+            # ``structure_factors_squared`` alone, bit for bit as before.
+            f2 = self._total_f2(ip, d, values, cell)
             mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
             intensity = (values[f"phases.{ip}.scale"] * mult * f2
                          * self.lorentz(d))
@@ -912,6 +927,41 @@ class CompiledTOFModel:
         from .forward import CompiledModel
 
         return CompiledModel._site_values(self, ip, values, cell)
+
+    # The structure-factor block is the constant-wavelength model's, borrowed
+    # rather than mirrored (#1868), for the reason ``_site_values`` already is:
+    # ⟨|F_N|²⟩, the magnetic-row nuclear mask, the moment DOF decode and
+    # p²⟨|F_⊥|²⟩ are functions of hkl, d and the cell and carry **no angle and
+    # no wavelength** — the magnetic form factor is evaluated at s = 1/2d and
+    # the perpendicular projection at Q̂, per reflection in either arm.  A
+    # copy here would be a second implementation of WP-1327's physics to keep
+    # in step; the five delegate to the same functions on the same
+    # ``CompiledPhase`` fields (``nuclear_mask``, ``magnetic``,
+    # ``mag_members``/``mag_seg``/``mag_counts``), which this arm's compile sets.
+    def _nuclear_mask(self, ip: int):
+        from .forward import CompiledModel
+
+        return CompiledModel._nuclear_mask(self, ip)
+
+    def _nuclear_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        from .forward import CompiledModel
+
+        return CompiledModel._nuclear_f2(self, ip, d, values, cell)
+
+    def _moment_dofs(self, ip: int, values: dict[str, float]) -> list:
+        from .forward import CompiledModel
+
+        return CompiledModel._moment_dofs(self, ip, values)
+
+    def _magnetic_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        from .forward import CompiledModel
+
+        return CompiledModel._magnetic_f2(self, ip, d, values, cell)
+
+    def _total_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        from .forward import CompiledModel
+
+        return CompiledModel._total_f2(self, ip, d, values, cell)
 
     def profile(self, dt, alpha, beta, sigma, gamma):
         """Ω(ΔT), the unit-area peak shape.  ΔT = channel − peak, in µs."""
@@ -1154,6 +1204,13 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
     channel holds counts or counts per µs decides whether W(T) multiplies the
     Bragg sum, and only the reduction knows it (ruled on #1548, 2026-11-24).
 
+    A magnetic moment **is drawn** (#1868): WP-1327's p²⟨|F_⊥|²⟩ at s = 1/2d is a
+    function of the reflection, the magnetically allowed rows the nuclear list
+    omits are merged in with their mask, and the row then takes the bank's own
+    Lorentz factor, absorption, extinction, spectrum and channel width like
+    its nuclear neighbour at that d.  WP-1343's separate magnetic width
+    (``magnetic_lor_size``/``magnetic_lor_strain``) is refused when non-zero or
+    free, since it is a deg-2θ width with no flight-time law here yet.
     """
     _require(pattern.axis == "tof",
              "compile_tof_model(): this pattern's abscissa is 2θ in degrees, "
@@ -1227,10 +1284,12 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
                  f"is a later rung of the time-of-flight track "
                  f"(yue-here/rietx issue #193); refusing rather than dropping "
                  f"it is the point.")
-        # a phase with a moment asks the one dispatch authority, which refuses
-        # a source it does not name rather than drawing the nuclear part alone
+        # a phase with a moment asks the one dispatch authority, which builds
+        # the term on a bank since #1868 (and still refuses by name a source it
+        # does not know); the separate magnetic width it would draw with is
+        # refused below, where the stage's moving paths are known
         magnetic_wanted(phase, src)
-        # A propagation vector with no moment adds satellites the bank never
+        # A propagation vector adds satellites the bank never
         # builds: Le Bail and Pawley are refused here, and a Rietveld stage puts
         # exactly zero on a satellite, so nothing would read k and its ticks
         # would be missing without a word (Rule 4: a literal the call cannot
@@ -1240,9 +1299,12 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
                  f"= {phase.propagation_vector!r} and this arm builds no "
                  f"satellite reflections: the time-of-flight model generates "
                  f"the nuclear list only, so k would be read by nothing. Set "
-                 f"phases[{ip}].propagation_vector = None; magnetic scattering "
-                 f"on a bank is a later rung of the time-of-flight track "
-                 f"(yue-here/rietx issue #193).")
+                 f"phases[{ip}].propagation_vector = None; satellites from a "
+                 f"propagation vector on a bank are a later rung of the "
+                 f"time-of-flight track (yue-here/rietx issue #193). A "
+                 f"commensurate magnetic structure stated by its magnetic "
+                 f"space group (magnetic_symmetry and moments) needs no k "
+                 f"and is drawn on a bank (issue #1868).")
         _require(phase.microstrain is None,
                  f"compile_tof_model(): phases.{ip} declares a Stephens "
                  f"anisotropic-strain block and this arm cannot apply it: "
@@ -1384,9 +1446,45 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
     flat_windows: list[tuple[np.ndarray, np.ndarray]] = []
     for ip, phase in enumerate(structure.phases):
         cell = phase.cell.lengths_angles()
-        refl = generate_reflections(phase.space_group, cell, lam_gen,
+        # The group a phase *means*: its own operation list when it carries
+        # one (a magnetic supercell's child, a k ≠ 0 superstructure with no
+        # Hermann-Mauguin symbol), the symbol otherwise — the one choice
+        # ``crystallography.symmetry.resolve_group`` makes for every consumer,
+        # and the one ``compile_model`` makes.  ``None`` operations reach
+        # ``get_spacegroup(symbol)``, the object the bare symbol resolved to
+        # before #1868, so every phase without a list enumerates the same rows.
+        group = resolve_group(phase.space_group, phase.symmetry_operations)
+        refl = generate_reflections(group, cell, lam_gen,
                                     two_theta_max=180.0,
                                     two_theta_min=tt_gen_min)
+        # #1868: a magnetic space group generally drops the parent's glide and
+        # screw operations, so a k = 0 structure scatters at lattice points
+        # the nuclear list omits (MnF₂'s (1 0 0)).  WP-1327's own enumerator
+        # and merge, not a flight-time twin: they take λ and 2θ only as the
+        # two ends of a d range, and the fabricated λ = 2·d_lo above is
+        # exactly that range.  The mask keeps the nuclear term at zero on
+        # those rows by the absence condition, not by a tolerance.
+        magnetic_mask = None
+        if magnetic_wanted(phase, src):
+            for name in ("magnetic_lor_size", "magnetic_lor_strain"):
+                _require(getattr(phase, name).value == 0.0
+                         and f"phases.{ip}.{name}" not in moving,
+                         f"compile_tof_model(): phases.{ip}.{name} is "
+                         f"{'non-zero' if getattr(phase, name).value else 'free'}"
+                         f" and a bank cannot draw it. WP-1343's separate "
+                         f"magnetic broadening is a width in deg 2θ added to "
+                         f"the 1/cosθ or tanθ coefficient of a scan, and its "
+                         f"flight-time law (a Lorentzian added to γ(d) as "
+                         f"lor_size and lor_strain are) is not written yet; "
+                         f"drawing the magnetic peaks at the nuclear widths "
+                         f"would be a fit you did not ask for. Hold it at 0 "
+                         f"on a bank (the magnetic peaks then take the "
+                         f"phase's own widths), or refine it against a "
+                         f"constant-wavelength scan.")
+            extra = magnetic_reflections(
+                group, cell, lam_gen, 180.0, two_theta_min=tt_gen_min,
+                magnetic_group=phase.magnetic_symmetry.group())
+            refl, magnetic_mask = merge_magnetic(refl, extra)
         # A time-of-flight bank scatters off the same nuclei a constant-
         # wavelength neutron bank does, so the neutron scattering-length table
         # is the one that resolves — the branch T-1 already widened in
@@ -1505,6 +1603,15 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win,
                            fcj_n=np.zeros((1, n), dtype=np.int64))
+        if magnetic_mask is not None:
+            # the fields ``compile_model`` sets, set the same way, so the
+            # borrowed ``_magnetic_f2`` reads them unchanged: the frozen
+            # axial matrices per atom, and the Laue orbit of every reflection
+            # (|F_⊥|² varies over it, so the intensity is the orbit average)
+            cp.nuclear_mask = magnetic_mask
+            cp.magnetic = compile_magnetic_sites(phase, sites.ops)
+            cp.mag_members, cp.mag_seg, cp.mag_counts = orbit_layout(
+                reflection_orbits(group, refl.hkl))
         # The same off-state gate ``compile_model`` uses, and for the same
         # reason: ext = 0 makes Sabine's E exactly 1.0 in floating point, so a
         # phase that cannot move it off zero this stage skips the six-term Laue

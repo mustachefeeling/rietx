@@ -949,8 +949,10 @@ def magnetic_width_findings(model, values, *, esds=None, free=(),
     one's height is by taking the moment down.
     """
     out: list[Diagnostic] = []
-    # a bank draws no magnetic component (``forward.magnetic_wanted`` refuses
-    # a moment there), and its ``tt`` raises rather than answering None
+    # a bank draws its magnetic component since #1868, but this test reads the
+    # residual's sign pattern in 2θ around each reflection and a bank's ``tt``
+    # raises rather than answering None; its separate magnetic width is
+    # refused on a bank anyway, so there is no freed width to contrast with
     if is_tof_model(model):
         return out
     if getattr(model, "phases", None) is None or getattr(model, "tt", None) is None:
