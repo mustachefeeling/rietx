@@ -88,6 +88,53 @@ def afm_k_half():
                               ion={"Mn1": "Mn3+"}, magnitude=3.0).phase
 
 
+def afm_k_half_in_plane():
+    """``afm_k_half`` with the moment along a (BNS 51.298), ⊥ c.
+
+    Off a symmetry axis the members of one Laue orbit see different
+    projections — (1 0 l) and (0 1 l) do not share |F_⊥|² — so the row is an
+    orbit *average* and a bank that evaluated one member would differ."""
+    from rietx.crystallography.magnetic.isotropy import candidates
+    from rietx.crystallography.magnetic.supercell import magnetic_supercell
+
+    from .test_magnetic_k_trials import tetragonal
+
+    truth = candidates("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, "1/2"))[1]
+    assert truth.bns_number == "51.298"
+    return magnetic_supercell(tetragonal(), truth, magnetic_species=["Mn1"],
+                              ion={"Mn1": "Mn3+"}, magnitude=3.0).phase
+
+
+def bct_anticentred():
+    """Mn on 2a of I4/mmm with the body centre's moment reversed, 3 μ_B ∥ c.
+
+    The nuclear group is centred and the magnetic one anti-centred,
+    (½, ½, ½)' : the h + k + l odd points the I lattice forbids carry the
+    whole magnetic signal.  Stated as a magCIF states it, in the parent's
+    cell — P4/mmm's operations with ε = det(R)·R_zz (the axial c moment is
+    invariant) and a centring loop carrying the anti-translation.
+    ``candidates`` would state this order in a primitive cell of the magnetic
+    lattice, which loses the I symbol the row list is built from."""
+    from rietx.crystallography.symmetry import get_spacegroup
+    from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Phase
+
+    ops = []
+    for op in get_spacegroup("P 4/m m m").operations():
+        r = np.array(op.rot, dtype=float) / op.DEN
+        eps = "+1" if round(np.linalg.det(r) * r[2, 2]) > 0 else "-1"
+        ops.append(f"{op.triplet()},{eps}")
+    cell = Cell(**{k: P(value=v) for k, v in dict(
+        a=4.0, b=4.0, c=5.2, alpha=90.0, beta=90.0, gamma=90.0).items()})
+    return Phase(
+        name="bct_anticentred", space_group="I 4/m m m", cell=cell,
+        atoms=[Atom(label="Mn1", species="Mn", x=P(value=0.0), y=P(value=0.0),
+                    z=P(value=0.0), biso=P(value=0.4),
+                    moment=Moment.from_values((0.0, 0.0, 3.0), "Mn2+",
+                                              vary=True))],
+        magnetic_symmetry=MagneticSymmetry(
+            operations=ops, centerings=["x,y,z,+1", "x+1/2,y+1/2,z+1/2,-1"]))
+
+
 # ----------------------------------------------------------------------
 # the dispatch
 # ----------------------------------------------------------------------
@@ -106,12 +153,22 @@ def test_a_bank_is_a_magnetic_source_kind():
 # the term, against the constant-wavelength twin
 # ----------------------------------------------------------------------
 @pytest.mark.parametrize("make", [lambda: rx.Structure(phases=[mnf2()]),
-                                  lambda: rx.Structure(phases=[afm_k_half()])],
-                         ids=["MnF2_k0", "k00half_supercell"])
+                                  lambda: rx.Structure(phases=[afm_k_half()]),
+                                  lambda: rx.Structure(phases=[afm_k_half_in_plane()]),
+                                  lambda: rx.Structure(phases=[bct_anticentred()])],
+                         ids=["MnF2_k0", "k00half_supercell", "k00half_moment_in_plane",
+                              "I_parent_anticentred"])
 def test_the_magnetic_intensity_is_the_constant_wavelength_twins(make):
     """Identity: at every reflection both arms list, p²⟨|F_⊥|²⟩ agrees to
     rounding, and so does the nuclear term — the bank adds rows only where its
-    d range reaches further, never a different number at the same d."""
+    d range reaches further, never a different number at the same d.
+
+    Two cases make the comparison able to fail where a matched-rows check
+    cannot: a moment ⊥ c, where an orbit evaluated at one member differs from
+    the average, and a centred parent whose magnetic lattice anti-translates
+    the centring, where a bank listing its rows by the parent group alone
+    loses every h + k + l odd line.  So every constant-wavelength row inside
+    the bank's d range must be on the bank, with the same multiplicity."""
     structure = make()
     ins_t, ins_c = bank(), cw_twin()[0]
     mt = compile_tof_model(structure, ins_t, tof_grid())
@@ -128,7 +185,14 @@ def test_the_magnetic_intensity_is_the_constant_wavelength_twins(make):
     matched = [(k, cw_rows[tuple(h)]) for k, h in enumerate(cpt.reflections.hkl)
                if tuple(h) in cw_rows]
     assert len(matched) >= 15
+    on_bank = {tuple(h) for h in cpt.reflections.hkl}
+    inside = (dc >= dt.min()) & (dc <= dt.max())
+    lost = [tuple(h) for h, k in zip(cpc.reflections.hkl, inside, strict=True)
+            if k and tuple(h) not in on_bank]
+    assert lost == []
     i, j = np.array(matched).T
+    np.testing.assert_array_equal(cpt.reflections.multiplicity[i],
+                                  cpc.reflections.multiplicity[j])
     assert np.max(fm_t[i]) > 10.0  # a real magnetic signal, not two zeros
     np.testing.assert_allclose(fm_t[i], fm_c[j], rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(fn_t[i], fn_c[j], rtol=1e-12, atol=1e-12)
