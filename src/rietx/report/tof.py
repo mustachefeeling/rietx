@@ -98,7 +98,8 @@ def _tof_background_peak_diagnostics(model) -> list[Diagnostic]:
                     f"that it ran and found nothing"))]
 
 
-def _tof_absorption_diagnostics(model) -> list[Diagnostic]:
+def _tof_absorption_diagnostics(model, values: dict[str, float] | None = None
+                                ) -> list[Diagnostic]:
     """What the flight-time specimen absorption did, and over what µR range.
 
     ``refine._absorption_record`` returns ``None`` on this arm and always will:
@@ -115,24 +116,57 @@ def _tof_absorption_diagnostics(model) -> list[Diagnostic]:
     knows the other.  What is new is the *pair*: µ rises with λ, so a specimen
     can sit inside the domain at the short-wavelength end of a bank and outside
     it at the long one, and only two numbers can say so.
+
+    With a refined sample absorption factor (``Geometry.mu_r_per_angstrom``,
+    issue #1867) the pair is µR = A_B·λ at the two ends of the window for the
+    value in ``values`` — the refined one, at the answer — and the info line
+    names the parameter instead of the radius.
     """
-    span = getattr(model, "mu_r_range", None)
+    path = getattr(model, "absorption_factor_path", None)
+    span = (model.mu_r_span(values) if path is not None
+            else getattr(model, "mu_r_range", None))
     if span is None:
         return []
     lo, hi = span
-    where = ["instrument.geometry.capillary_radius_mm"]
-    out = [Diagnostic(
-        level="info", code="SPECIMEN_ABSORPTION_TOF", where=where,
-        message=(f"specimen absorption was applied per reflection at its own "
-                 f"wavelength: µR runs {lo:.3f} to {hi:.3f} across the fitted "
-                 f"window, computed from the refined composition and the "
-                 f"declared capillary radius (mu = sum n_i [sigma_abs_i "
-                 f"lambda/1.798 + sigma_coh_i + sigma_inc_i]/V, Sears 1992). "
-                 f"It is not a refinable parameter in this build"),
-        suggestion=("nothing to do; quote a displacement parameter from this "
-                    "fit knowing the correction was in the model, and check "
-                    "geometry.capillary_radius_mm and packing_fraction against "
-                    "the specimen if it matters at this size"))]
+    if path is not None:
+        where = [path]
+        a_b = values[path] if values is not None else float("nan")
+        out = [Diagnostic(
+            level="info", code="SPECIMEN_ABSORPTION_TOF", where=where,
+            message=(f"specimen absorption was applied per reflection at its "
+                     f"own wavelength through the sample absorption factor "
+                     f"A_B = µR/λ = {a_b:.4g} Å⁻¹ ({path}; Larson & Von "
+                     f"Dreele 2004, LAUR 86-748 p. 134): µR = A_B·λ runs "
+                     f"{lo:.3f} to {hi:.3f} across the fitted window, "
+                     f"through the Rouse et al. (1970) cylinder factor"
+                     + ("" if a_b >= 0.0 else
+                        f". A_B is negative, so µR is outside the Rouse "
+                        f"fit's domain (0 <= µR <= {CYLINDER_MU_R_MAX:g}) and "
+                        f"the factor is not a specimen absorption: it is "
+                        f"carrying some other intensity trend with λ")),
+            suggestion=("read A_B with its esd in the parameter table. It is "
+                        "the specimen's µR/λ only when the normalising "
+                        "vanadium spectrum was itself corrected for "
+                        "absorption; otherwise it is an effective factor of "
+                        "the histogram (the manual's 'compensated largely'). "
+                        "It correlates with Biso and with occupancies, so read "
+                        "their correlation before quoting either"))]
+    else:
+        where = ["instrument.geometry.capillary_radius_mm"]
+        out = [Diagnostic(
+            level="info", code="SPECIMEN_ABSORPTION_TOF", where=where,
+            message=(f"specimen absorption was applied per reflection at its own "
+                     f"wavelength: µR runs {lo:.3f} to {hi:.3f} across the fitted "
+                     f"window, computed from the refined composition and the "
+                     f"declared capillary radius (mu = sum n_i [sigma_abs_i "
+                     f"lambda/1.798 + sigma_coh_i + sigma_inc_i]/V, Sears 1992). "
+                     f"It is computed, not refined; the refinable alternative is "
+                     f"the sample absorption factor geometry.mu_r_per_angstrom, "
+                     f"declared instead of the radius"),
+            suggestion=("nothing to do; quote a displacement parameter from this "
+                        "fit knowing the correction was in the model, and check "
+                        "geometry.capillary_radius_mm and packing_fraction against "
+                        "the specimen if it matters at this size"))]
     if hi > CYLINDER_MU_R_MAX:
         out.append(Diagnostic(
             level="warning", code="ABSORPTION_MU_R_OUT_OF_RANGE", where=where,

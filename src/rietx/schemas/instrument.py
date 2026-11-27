@@ -1135,6 +1135,25 @@ class Geometry(_InheritsDeclaredDefaults):
     **unbiased Biso** — neglecting it biases Biso low by c(µR)·λ²/2, which is
     0.13 Å² at µR = 0.5 and 0.49 Å² at µR = 1.0 for Cu Kα.
 
+    **The time-of-flight exception: ``mu_r_per_angstrom``.**  On a TOF bank
+    every reflection is collected at one angle and arrives on its own
+    wavelength, so the Rouse factor runs with λ_hkl at a fixed θ, not with θ
+    at a fixed λ.  It then suppresses the long-d end, the opposite end from
+    the Debye-Waller factor, and is no longer a linear combination of the
+    scale and Biso columns.  So a bank may refine one **sample absorption
+    factor** A_B = µR/λ in Å⁻¹, the GSAS histogram absorption parameter
+    (Larson & Von Dreele, 2004, LAUR 86-748, "Powder absorption factor",
+    p. 134), applied per reflection as A(2θ_bank, A_B·λ_hkl) through the same
+    Rouse expression (:meth:`rietx.model.forward_tof.CompiledTOFModel.absorption`).
+    The manual says why it is refined: a bank normalised by a vanadium
+    spectrum carries that spectrum's own uncorrected absorption, and "the
+    lack of an absorption correction is compensated largely by the refinement
+    of the sample absorption factor".  ``None`` (the default) is off.  It is
+    refused on a constant-wavelength source, where the manual's own sentence
+    applies ("the correction is indistinguishable from thermal motion effects
+    and should not be refined"), refused beside ``capillary_radius_mm`` or
+    ``mu_r`` (two sources of one µR), and refused outside ``debye_scherrer``.
+
     ``bragg_brentano``: flat-plate para-focusing goniometer (v0.2).  Two
     sample aberrations shift the peaks (Wilson, 1963, *Mathematical Theory of
     X-ray Powder Diffractometry*; Klug & Alexander, 1974, ch. 5):
@@ -1276,6 +1295,15 @@ class Geometry(_InheritsDeclaredDefaults):
     mu_r: float | None = None
     #: internal radius of the capillary bore, mm (estimator input only).
     capillary_radius_mm: float | None = None
+    #: The sample absorption factor A_B = µR/λ of a **time-of-flight bank**, in
+    #: Å⁻¹ (GSAS's histogram absorption parameter, LAUR 86-748 p. 134), or
+    #: ``None`` for no such factor.  A refinable :class:`Parameter`, unlike
+    #: ``mu_r``, because on a bank it is not degenerate with the scale and Biso
+    #: (see the class docstring); held unless freed, like every instrument
+    #: row.  Its table path is ``instrument.geometry.mu_r_per_angstrom``.  A
+    #: bank either computes µR(λ) from ``capillary_radius_mm`` and the
+    #: composition or refines it here, never both.
+    mu_r_per_angstrom: Parameter | None = None
     #: dimensionless µ·t of the packed flat specimen; ``None`` → estimate it from
     #: the composition and ``thickness_mm``, and failing that leave the specimen
     #: thick (reflection) — the pre-WP-0508 assumption.  Never a ``Parameter``;
@@ -1306,13 +1334,35 @@ class Geometry(_InheritsDeclaredDefaults):
     @model_validator(mode="after")
     def _capillary_fields_need_debye_scherrer(self) -> "Geometry":
         if self.kind != "debye_scherrer":
-            for name in ("mu_r", "capillary_radius_mm"):
+            for name in ("mu_r", "capillary_radius_mm", "mu_r_per_angstrom"):
                 if getattr(self, name) is not None:
                     raise ValueError(f"{name} applies only to debye_scherrer geometry")
         if self.mu_r is not None and self.mu_r < 0.0:
             raise ValueError("mu_r must be non-negative")
         if self.capillary_radius_mm is not None and self.capillary_radius_mm <= 0.0:
             raise ValueError("capillary_radius_mm must be positive")
+        return self
+
+    @model_validator(mode="after")
+    def _one_source_of_mu_r(self) -> "Geometry":
+        # The likeliest misuse of the refinable factor (issue #1867): declaring
+        # it beside a radius, so µR(λ) is computed from the composition *and*
+        # refined, and the correction is applied twice.  ``mu_r`` beside it is
+        # the same double count.  Refused rather than summed: one field would
+        # then hold a physical µR and an empirical normalisation term at once.
+        if self.mu_r_per_angstrom is None:
+            return self
+        both = [name for name in ("capillary_radius_mm", "mu_r")
+                if getattr(self, name) is not None]
+        if both:
+            raise ValueError(
+                f"mu_r_per_angstrom is declared together with "
+                f"{' and '.join(both)}: that is two sources of one µR, and the "
+                f"cylinder absorption would be applied twice. Keep one — "
+                f"either refine the sample absorption factor and set "
+                f"{' and '.join(f'geometry.{n} = None' for n in both)}, or "
+                f"compute µR from the radius and the composition and set "
+                f"geometry.mu_r_per_angstrom = None")
         return self
 
     @model_validator(mode="after")
@@ -1363,6 +1413,31 @@ class Geometry(_InheritsDeclaredDefaults):
                     "exactly degenerate with the phase scale and needs no "
                     "correction at all")
         return self
+
+
+def refuse_mu_r_per_angstrom_off_a_bank(source_kind: str, geometry: Geometry) -> None:
+    """Raise when a constant-wavelength source declares ``mu_r_per_angstrom``.
+
+    The one wording of the refusal, called by :class:`Instrument`'s validator
+    and again by ``ParameterTable`` (an assignment to ``instrument.geometry``
+    after construction re-runs only ``Geometry``'s validators, which cannot see
+    the source).  At one wavelength the Rouse factor is exactly a constant
+    times exp(c·sin²θ), so a free A_B is a linear combination of the scale and
+    Biso columns: a singular direction, not a correlated one.
+    """
+    if source_kind == "neutron_tof" or geometry.mu_r_per_angstrom is None:
+        return
+    raise ValueError(
+        f"geometry.mu_r_per_angstrom (the sample absorption factor "
+        f"A_B = µR/λ) is a time-of-flight parameter and this source is "
+        f"{source_kind!r}, a single wavelength. There the cylinder factor is "
+        f"exactly a constant times exp(c·sin²θ), so a free A_B is a linear "
+        f"combination of the phase scale and Biso; the GSAS manual says the "
+        f"same (Larson & Von Dreele 2004, LAUR 86-748, p. 134: 'the correction "
+        f"is indistinguishable from thermal motion effects and should not be "
+        f"refined'). Set geometry.mu_r_per_angstrom = None and declare the "
+        f"fixed geometry.mu_r, or geometry.capillary_radius_mm to compute it "
+        f"from the composition")
 
 
 class ProfileTCHZ(_InheritsDeclaredDefaults):
@@ -2456,6 +2531,7 @@ class Instrument(_InheritsDeclaredDefaults):
                 f"1993) depress the low-angle intensity of a beam that "
                 f"penetrates microns, while a thermal neutron beam penetrates "
                 f"centimetres — set geometry.surface_roughness = None")
+        refuse_mu_r_per_angstrom_off_a_bank(self.source.kind, self.geometry)
         return self
 
     @classmethod

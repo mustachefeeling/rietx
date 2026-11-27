@@ -72,14 +72,18 @@ along the bank here, because λ is a property of the channel:
   constant-wavelength :func:`~rietx.model.extinction.sabine_extinction` with an
   array of wavelengths where a scalar used to go.
 
-Absorption is **computed from the composition and the declared radius, and is
-not a refinable parameter in this build**.  That is rietx's choice, not the
-manual's rule: the manual's "should not be refined" (PAGE 134) is its
-constant-wavelength sentence, and for a flight-time histogram it expects the
-sample absorption factor to be refined, since that is what compensates an
-incident spectrum measured on vanadium without an absorption correction
-(LAUR 86-748, the incident-intensity section).  A scalar ``Geometry.mu_r`` is
-refused on this arm because it is a claim at one wavelength.  Preferred orientation,
+Absorption comes from **one of two sources, never both**.  Either it is
+computed from the composition and the declared ``capillary_radius_mm`` (µR(λ)
+affine in λ, frozen per stage), or the bank refines GSAS's **sample absorption
+factor** A_B = µR/λ, ``Geometry.mu_r_per_angstrom`` (issue #1867), read from
+the decoded θ on every evaluation like the calibration.  The manual's "should
+not be refined" (PAGE 134) is its constant-wavelength sentence; for a
+flight-time histogram it expects A_B to be refined, since that is what
+compensates an incident spectrum measured on vanadium without an absorption
+correction (LAUR 86-748, the incident-intensity section: "The lack of an
+absorption correction is compensated largely by the refinement of the sample
+absorption factor").  A scalar ``Geometry.mu_r`` is refused on this arm
+because it is a claim at one wavelength.  Preferred orientation,
 Stephens strain and soft restraints stay refused, each naming its rung.
 
 Units, once
@@ -389,6 +393,16 @@ class CompiledTOFModel:
     #: model's single ``mu_r`` does while λ stays per reflection.
     absorption_terms: tuple[float, float] | None = None
 
+    #: The parameter path of the refinable **sample absorption factor**
+    #: A_B = µR/λ in Å⁻¹ (``instrument.geometry.mu_r_per_angstrom``, issue
+    #: #1867), or ``None`` when the geometry declares none.  A path rather than
+    #: a value because the factor is a free parameter: :meth:`absorption` reads
+    #: it from ``values`` on every evaluation, so the finite-difference
+    #: Jacobian this arm uses moves it like any other column.  Never set
+    #: together with :attr:`absorption_terms` (``Geometry`` refuses a radius
+    #: beside it): µR(λ) = A_B·λ is that field's ``(a, b) = (A_B, 0)``.
+    absorption_factor_path: str | None = None
+
     #: ``(d_min, d_max)`` in Å: the fitted flight-time window read through the
     #: calibration this stage froze, window slack included — the same pair
     #: every refusal in :func:`compile_tof_model` quotes.  Carried because the
@@ -406,7 +420,10 @@ class CompiledTOFModel:
     difc_stage: float | None = None
 
     #: ``(µR at the shortest λ, µR at the longest λ)`` the fitted window
-    #: reaches, or ``None`` with the correction off.  Reported rather than
+    #: reaches, or ``None`` with the correction off.  For a refined
+    #: :attr:`absorption_factor_path` it is the pair at the value the stage was
+    #: compiled at; :meth:`mu_r_span` gives it at any ``values``, which is
+    #: what the report reads at the answer.  Reported rather than
     #: enforced (see :func:`_absorption_terms`), and reported as a **pair**
     #: because that is the statement a constant-wavelength µR cannot make: the
     #: same specimen can be inside the Rouse domain at one end of a bank and
@@ -500,8 +517,9 @@ class CompiledTOFModel:
     peak_components: ClassVar[tuple] = ()
     #: **There is no scalar µR on this arm, and 0.0 is the true answer to
     #: the question this field asks**, not a stand-in for one.  Specimen
-    #: absorption *is* applied here when a capillary radius is declared — see
-    #: :attr:`absorption_terms` and :meth:`absorption` — but µR is a function
+    #: absorption *is* applied here when a capillary radius or a sample
+    #: absorption factor is declared — see :attr:`absorption_terms`,
+    #: :attr:`absorption_factor_path` and :meth:`absorption` — but µR is a function
     #: of λ and λ is a property of the channel, so "the µR of this histogram"
     #: has no value.  The shared diagnostics read this field to decide whether
     #: a *frozen scalar* correction ran, and on this arm none did.
@@ -758,7 +776,7 @@ class CompiledTOFModel:
         xp = get_backend()
         return 2.0 * xp.asarray(d, dtype=np.float64) * self.sin_theta_bank
 
-    def absorption(self, d):
+    def absorption(self, d, values: dict[str, float] | None = None):
         """A(λ_hkl) per reflection, or ``None`` when the correction is off.
 
         **Per reflection at the reflection's own wavelength**, which is where
@@ -776,12 +794,44 @@ class CompiledTOFModel:
         :func:`~rietx.model.absorption.cylinder_absorption` unchanged, with an
         array of µR where the constant-wavelength path passes a scalar — the
         Rouse expression is arithmetic in µR and broadcasts.
+
+        With a refinable sample absorption factor (:attr:`absorption_factor_path`)
+        µR = A_B·λ_hkl, A_B read from ``values``, which a caller must then pass:
+        a factor read from anywhere else would be a column the solver moves and
+        the model does not.  The radius path ignores ``values``.
         """
+        if self.absorption_factor_path is not None:
+            if values is None:
+                raise ValueError(
+                    f"CompiledTOFModel.absorption(): this bank refines "
+                    f"{self.absorption_factor_path}, so the factor is read "
+                    f"from the decoded values; pass values=")
+            return cylinder_absorption(
+                self.two_theta_bank_deg,
+                values[self.absorption_factor_path] * self.wavelength_of(d))
         if self.absorption_terms is None:
             return None
         a, b = self.absorption_terms
         return cylinder_absorption(self.two_theta_bank_deg,
                                    a * self.wavelength_of(d) + b)
+
+    def mu_r_span(self, values: dict[str, float] | None = None
+                  ) -> tuple[float, float] | None:
+        """µR at the short- and long-wavelength ends of the window, or ``None``.
+
+        :attr:`mu_r_range` for a computed µR(λ), which is frozen per stage; for
+        a refined sample absorption factor the same pair at ``values`` — the
+        two ends of :attr:`d_range` through λ = 2d·sin θ_bank, times A_B — so
+        the report states it for the refined value, not the starting one.
+        """
+        if self.absorption_factor_path is None or values is None:
+            return self.mu_r_range
+        if self.d_range is None:
+            return None
+        a_b = float(values[self.absorption_factor_path])
+        d_lo, d_hi = self.d_range
+        return (a_b * 2.0 * d_lo * self.sin_theta_bank,
+                a_b * 2.0 * d_hi * self.sin_theta_bank)
 
     def incident_spectrum(self, values: dict[str, float]):
         """I_i on this bank's channels, or ``None`` when the file declares none.
@@ -882,7 +932,7 @@ class CompiledTOFModel:
             mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
             intensity = (values[f"phases.{ip}.scale"] * mult * f2
                          * self.lorentz(d))
-            absorption = self.absorption(d)
+            absorption = self.absorption(d, values)
             if absorption is not None:
                 intensity = intensity * absorption
             if not cp.skip_extinction:
@@ -1196,8 +1246,8 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
              f"declared would be right at exactly one channel. This arm "
              f"computes µ(λ) from the composition instead — declare "
              f"geometry.capillary_radius_mm (and packing_fraction) and clear "
-             f"mu_r. The correction is computed from those and is not a "
-             f"refinable parameter in this build.")
+             f"mu_r to compute it from those, or refine the bank's sample "
+             f"absorption factor A_B = µR/λ as geometry.mu_r_per_angstrom.")
     _require(geom.mu_t is None,
              f"compile_tof_model(): geometry.mu_t = {geom.mu_t!r} is a "
              f"flat-specimen absorption and this arm's specimen model is the "
@@ -1552,6 +1602,15 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
         if comp.kind == "hump")
 
     absorption_terms = _absorption_terms(structure, instrument, phases)
+    # The refinable factor's path, or None.  ``Geometry`` refuses it beside a
+    # radius, and an assignment re-runs that validator, so the two never meet
+    # here; the check stays as the last gate before work, naming both fields.
+    absorption_factor_path = (None if geom.mu_r_per_angstrom is None
+                              else "instrument.geometry.mu_r_per_angstrom")
+    _require(absorption_factor_path is None or absorption_terms is None,
+             "compile_tof_model(): geometry.mu_r_per_angstrom and "
+             "geometry.capillary_radius_mm are both declared — two sources of "
+             "one µR. Keep one and set the other to None.")
 
     # The incident spectrum, frozen as its type and the paths of its
     # coefficients.  The *values* are read from ``values`` on every evaluation
@@ -1568,7 +1627,11 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
     # the *widened* d range the windows were cut over rather than the fitted
     # one exactly, which overstates the span by the window slack — a few parts
     # in a thousand, and in the safe direction for a domain warning.
-    if absorption_terms is None:
+    if absorption_factor_path is not None:
+        a_b = float(geom.mu_r_per_angstrom.value)
+        s_bank = math.sin(theta_bank)
+        mu_r_range = (a_b * 2.0 * d_lo * s_bank, a_b * 2.0 * d_hi * s_bank)
+    elif absorption_terms is None:
         mu_r_range = None
     else:
         a_mu, b_mu = absorption_terms
@@ -1586,6 +1649,7 @@ def compile_tof_model(structure: Structure, instrument: Instrument,
         profile_kind=profile_kind,
         spectrum_itype=spectrum_itype, spectrum_paths=spectrum_paths,
         absorption_terms=absorption_terms, mu_r_range=mu_r_range,
+        absorption_factor_path=absorption_factor_path,
         sigma_rule=sigma_rule,
         reader_notes=tuple(pattern.diagnostics),
         sigma_measured=pattern.sigma is not None,
@@ -1672,8 +1736,8 @@ def _absorption_terms(structure: Structure, instrument: Instrument,
     4 Å, which a single number cannot say.
 
     Larson & Von Dreele (2004), LAUR 86-748, GSAS Technical Manual PAGE 134,
-    for A_B = µR/λ and for the warning that the correction must not be
-    refined; the µ(λ) formula is WP-1132's over Sears (1992).
+    for A_B = µR/λ and for the warning (its constant-wavelength sentence)
+    that the correction must not be refined; the µ(λ) formula is WP-1132's over Sears (1992).
     """
     geom = instrument.geometry
     if geom.capillary_radius_mm is None:

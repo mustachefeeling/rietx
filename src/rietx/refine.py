@@ -10395,7 +10395,7 @@ def _build_result(model: AnyCompiledModel, table: ParameterTable,
     absorption = _absorption_record(model, mu_r_source, mu_r_skipped, values)
     if absorption is not None:
         diagnostics = diagnostics + _absorption_diagnostics(absorption)
-    diagnostics = diagnostics + _tof_absorption_diagnostics(model)
+    diagnostics = diagnostics + _tof_absorption_diagnostics(model, values)
 
     # The other half of GSAS's I_o = I'_o/(W·I_i): whether the channel width
     # was applied, and — the case that matters — whether nobody said.

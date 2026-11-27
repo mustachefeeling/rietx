@@ -75,6 +75,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
     ProfileTOF,
+    refuse_mu_r_per_angstrom_off_a_bank,
 )
 from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .derived import DerivedBlock
@@ -358,6 +359,27 @@ def extra_component_parameters(components) -> list[tuple[str, Parameter]]:
     return [(f"{i}.{name}", getattr(comp, name))
             for i, comp in enumerate(components)
             for name in COMPONENT_FIELDS[comp.kind]]
+
+
+def specimen_absorption_parameters(geometry) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for a bank's sample absorption factor, or [].
+
+    ``[("mu_r_per_angstrom", p)]`` when :class:`~rietx.schemas.instrument.Geometry`
+    declares the factor A_B = µR/λ (issue #1867), ``[]`` when it is ``None``,
+    so a table built from a geometry that never declared it is byte-for-byte
+    the table it was.  Shared by the collector and by
+    :meth:`ParameterTable.apply_to_models` for :func:`roughness_parameters`'
+    reason: one list both walk, or a refined value is lost at the next
+    stage's recompile.
+    """
+    p = getattr(geometry, "mu_r_per_angstrom", None)
+    return [] if p is None else [("mu_r_per_angstrom", p)]
+
+
+#: The unit the table registers the sample absorption factor in: µR per Å of
+#: wavelength (GSAS's A_B, LAUR 86-748 p. 134).  Stated here rather than read
+#: off the caller's ``Parameter.unit``, the ``BANK_SIZE_UNITS`` idiom.
+MU_R_PER_ANGSTROM_UNIT = "1/A"
 
 
 def roughness_parameters(rough) -> list[tuple[str, Parameter]]:
@@ -2894,6 +2916,16 @@ class ParameterTable:
         # Geometry's validator already refuses the block on non-flat specimens.
         for sub, cp in roughness_parameters(geom.surface_roughness):
             self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
+        # The bank's sample absorption factor (issue #1867): opt-in, so skipped
+        # when absent, the roughness idiom above.  Refused on a single
+        # wavelength here as well as in ``Instrument``'s validator, because an
+        # assignment to ``instrument.geometry`` after construction re-runs
+        # only ``Geometry``'s validators, and this is the last gate before a
+        # solve (the capillary-offset reason above).
+        refuse_mu_r_per_angstrom_off_a_bank(instrument.source.kind, geom)
+        for sub, cp in specimen_absorption_parameters(geom):
+            self._add(f"instrument.geometry.{sub}", cp,
+                      unit=MU_R_PER_ANGSTROM_UNIT)
         for name in ("u", "v", "w", "x", "y"):
             self._add_instrument_row(instrument, f"instrument.profile.{name}",
                                      getattr(instrument.profile, name))
@@ -5448,6 +5480,8 @@ class ParameterTable:
                     f"instrument.geometry.{name}")
         for sub, cp in roughness_parameters(instrument.geometry.surface_roughness):
             put(cp, f"instrument.geometry.surface_roughness.{sub}")
+        for sub, cp in specimen_absorption_parameters(instrument.geometry):
+            put(cp, f"instrument.geometry.{sub}")
         for name in ("u", "v", "w", "x", "y"):
             put_row(getattr(instrument.profile, name), f"instrument.profile.{name}")
         for sub, cp in background_parameters(instrument.background):
